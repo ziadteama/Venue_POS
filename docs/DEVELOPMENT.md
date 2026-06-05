@@ -13,52 +13,83 @@ How to run Venue POS locally. Share this with every new team member.
 
 Optional: [Prisma Studio](https://www.prisma.io/studio) via `npm run db:studio -w @venue-pos/api`
 
+## Repository layout
+
+**Apps** are deployable; **packages** are shared libraries.
+
+```
+Venue_POS/
+├── apps/
+│   ├── api/              # Fastify + Prisma + PostgreSQL
+│   ├── dashboard/        # React admin (Vite + Tailwind)
+│   ├── pos/              # Electron kiosk POS
+│   ├── kds/              # Kitchen display
+│   └── local-agent/      # SQLite + sync + printers (:3456)
+├── packages/
+│   ├── shared/           # ROLES, ERROR_CODES
+│   └── i18n/             # en.json, ar.json
+├── docs/                 # Product + team docs
+├── docker/               # Dockerfile.api
+└── ops/                  # nginx, JWT secrets
+```
+
+### Layer boundaries
+
+| Layer | Talks to | Must not |
+|-------|----------|----------|
+| Dashboard | API (HTTPS) | Access DB directly |
+| POS renderer | Local agent (IPC) | Access SQLite or Postgres |
+| Local agent | SQLite + API | Render UI |
+| API | Postgres via Prisma | Serve POS static assets |
+
+### What goes where
+
+| Change | Location |
+|--------|----------|
+| DB table | `apps/api/prisma/schema.prisma` + migration |
+| REST endpoint | `apps/api/src/routes/` + `services/` |
+| Admin screen | `apps/dashboard/src/pages/` |
+| POS screen | `apps/pos/src/` |
+| UI string | `packages/i18n/locales/*.json` |
+| Shared constant | `packages/shared/src/` |
+
+### Ports
+
+| Service | Port |
+|---------|------|
+| API | 3000 |
+| Dashboard | 5173 |
+| POS | 5174 |
+| KDS | 5175 |
+| Local agent | 3456 |
+| Postgres | 5432 |
+| Redis | 6379 |
+
 ## First-time setup
 
 ```bash
-# 1. Clone and install
 git clone <repo-url> Venue_POS
 cd Venue_POS
 npm install
-
-# 2. JWT keys (one-time per machine)
 npm run generate:jwt-keys
-
-# 3. Start database
 docker compose up -d postgres redis
 
-# 4. Environment files
 cp apps/api/.env.example apps/api/.env
 cp apps/dashboard/.env.example apps/dashboard/.env
-# Optional for POS/agent:
-cp apps/pos/.env.example apps/pos/.env
-cp apps/local-agent/.env.example apps/local-agent/.env
 
-# 5. Database schema + seed data
 npm run migrate
 npm run seed
 ```
 
 ## Daily workflow
 
-Open **4–5 terminals** (or use a process manager):
-
 ```bash
-# Terminal 1 — API
-npm run dev:api              # http://localhost:3000
-
-# Terminal 2 — Admin dashboard
-npm run dev:dashboard        # http://localhost:5173
-
-# Terminal 3 — Local agent (required for POS)
-npm run dev:agent            # http://127.0.0.1:3456
-
-# Terminal 4 — POS (browser or Electron)
-npm run dev:pos              # http://localhost:5174
-npm run electron:dev -w @venue-pos/pos   # Electron window
-
-# Terminal 5 — KDS (optional)
-npm run dev:kds              # http://localhost:5175
+npm run dev:api              # :3000
+npm run dev:dashboard        # :5173
+npm run dev:agent            # :3456
+npm run dev:pos              # :5174
+npm run electron:dev -w @venue-pos/pos
+npm run dev:kds              # :5175
 ```
 
 ## Dev credentials (after seed)
@@ -67,33 +98,32 @@ npm run dev:kds              # http://localhost:5175
 |------|-------------|
 | Hub manager | `admin` / `admin123` |
 | Cashier PIN | `1234` |
-| Dev terminal ID | `00000000-0000-4000-8000-000000000001` |
-| Dev terminal secret | `dev-terminal-secret` |
+| Terminal ID | `00000000-0000-4000-8000-000000000001` |
+| Terminal secret | `dev-terminal-secret` |
 
 ## Common commands
 
 | Command | Purpose |
 |---------|---------|
-| `npm run lint` | ESLint across repo |
-| `npm run lint:i18n` | Verify en/ar locale key parity |
-| `npm run migrate:dev` | Create + apply Prisma migration (dev) |
-| `npm run migrate` | Deploy migrations (CI/prod) |
+| `npm run lint` | ESLint |
+| `npm run lint:i18n` | en/ar key parity |
+| `npm run migrate:dev` | Prisma migration (dev) |
+| `npm run migrate` | Prisma deploy (CI/prod) |
 | `npm run db:generate` | Regenerate Prisma client |
-| `npm run seed` | Reset dev users/venue/terminal |
-| `npm run test -w @venue-pos/api` | API integration tests |
+| `npm run seed` | Dev data |
+| `npm run test -w @venue-pos/api` | API tests |
 
 ## Prisma workflow
 
-1. Edit `apps/api/prisma/schema.prisma`
-2. Run `npm run migrate:dev -- --name describe_change`
-3. Commit `schema.prisma` + new folder under `prisma/migrations/`
-4. Log the change in `docs/TEAM_LOG.md`
+1. Edit `apps/api/prisma/schema.prisma` (source of truth for DB)
+2. `npm run migrate:dev -- --name describe_change`
+3. Commit schema + `prisma/migrations/` folder
+4. Log in `docs/TEAM_LOG.md`
 
 ## API health checks
 
 ```bash
 curl http://localhost:3000/health
-curl http://localhost:3000/health/ready
 curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
@@ -103,26 +133,31 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 
 | Problem | Fix |
 |---------|-----|
-| `JWT keys missing` | `npm run generate:jwt-keys` |
-| `Can't reach database` | `docker compose up -d postgres` — wait for healthy |
-| `Prisma client out of date` | `npm run db:generate` |
-| `Docker pipe not found` | Start Docker Desktop (Windows) |
-| POS shows offline | Start `npm run dev:agent` first |
-| i18n lint fails | Add missing keys to both `packages/i18n/locales/en.json` and `ar.json` |
+| JWT keys missing | `npm run generate:jwt-keys` |
+| Can't reach database | `docker compose up -d postgres` |
+| Prisma client stale | `npm run db:generate` |
+| Docker pipe not found | Start Docker Desktop |
+| POS offline | Start `npm run dev:agent` first |
+| i18n lint fails | Add keys to both `en.json` and `ar.json` |
 
 ## Environment variables
 
-Templates live in each app's `.env.example`. Never commit `.env` files.
-
-Key API vars (`apps/api/.env`):
+Never commit `.env`. Templates: `apps/*/.env.example`.
 
 ```
 DATABASE_URL=postgresql://hub_pos:hub_pos_dev@localhost:5432/hub_pos
 JWT_PRIVATE_KEY_PATH=../../ops/secrets/jwt-private.pem
 JWT_PUBLIC_KEY_PATH=../../ops/secrets/jwt-public.pem
-CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,http://localhost:5175
 ```
 
 ## Team process
 
-After completing work, append an entry to [TEAM_LOG.md](TEAM_LOG.md). See `.cursor/rules/team-workflow.mdc`.
+Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/rules/team-workflow.mdc`.
+
+## Roadmap
+
+| Phase | Status | Focus |
+|-------|--------|-------|
+| 0 Setup | ✅ Done | Monorepo, Prisma, auth, shells, CI |
+| 1 Core POS | **Next** | Menu models, POS order flow |
+| 2–9 | Planned | See `docs/Technical_Proposal.md` §12 |

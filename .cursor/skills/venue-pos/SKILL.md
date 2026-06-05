@@ -7,37 +7,30 @@ description: Guides development of the Unified Hub POS & Management System (Venu
 
 ## First steps
 
-1. Read [docs/TEAM_LOG.md](../../docs/TEAM_LOG.md) for what's already built.
-2. Read [AGENTS.md](../../AGENTS.md) and [docs/DEVELOPMENT.md](../../docs/DEVELOPMENT.md).
-3. Read [.cursor/PROJECT_SPEC.md](../PROJECT_SPEC.md) for schema, API, and events.
-4. For user stories, open [docs/PRD.md](../../docs/PRD.md).
-5. After shipping, append to `docs/TEAM_LOG.md`.
+1. [docs/TEAM_LOG.md](../../docs/TEAM_LOG.md) — what's built
+2. [docs/DEVELOPMENT.md](../../docs/DEVELOPMENT.md) — setup & layout
+3. [apps/api/prisma/schema.prisma](../../apps/api/prisma/schema.prisma) — DB truth
+4. [docs/PRD.md](../../docs/PRD.md) — user stories
+5. [docs/TechSpec.md](../../docs/TechSpec.md) — WebSocket, security, deployment
+6. Append to `docs/TEAM_LOG.md` when done
 
-## Packages
+## Apps
 
-| Package | Path | Role |
-|---------|------|------|
-| api | `packages/api` | REST + Socket.IO + auth + sync |
-| dashboard | `packages/dashboard` | React admin SPA |
-| pos | `packages/pos` | Electron kiosk POS |
-| kds | `packages/kds` | Kitchen display |
-| local-agent | `packages/local-agent` | SQLite, sync, printers, watchdog |
+| App | Path | Role |
+|-----|------|------|
+| api | `apps/api` | REST + Socket.IO + auth |
+| dashboard | `apps/dashboard` | React admin SPA |
+| pos | `apps/pos` | Electron kiosk POS |
+| kds | `apps/kds` | Kitchen display |
+| local-agent | `apps/local-agent` | SQLite, sync, printers |
 
 ## Non-negotiables
 
-- Offline-first: SQLite write → sync queue → idempotent server sync.
-- POS renderer never touches DB; use local-agent IPC only.
-- Menus read-only on POS; publish from dashboard.
-- Bilingual: `*_en`/`*_ar` in DB; `en.json`/`ar.json` for UI.
-- JWT RS256; bcrypt PINs; no card PANs in DB.
-
-## Phase awareness
-
-Check current phase in AGENTS.md. Do not build cross-venue billing before core single-venue orders work. Do not add integrated card SDK before manual card flow exists.
+- Offline-first via local-agent; POS renderer never touches DB
+- Menus read-only on POS
+- Bilingual: `@venue-pos/i18n` + Prisma `nameEn`/`nameAr`
+- JWT RS256; no PAN storage
 
 ## Related skills
 
-- `implement-user-story` — PRD → code workflow
-- `database-schema` — tables and migrations
-- `offline-sync` — agent and sync queue
-- `websocket-events` — Socket.IO contracts
+`implement-user-story` · `database-schema` · `offline-sync` · `websocket-events`

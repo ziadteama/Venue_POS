@@ -1,36 +1,47 @@
 ---
-description: Backend API conventions for Venue POS server package
+description: Fastify API — routes, Prisma access, Zod, auth, errors
 globs: apps/api/**/*
 alwaysApply: false
 ---
 
-# API Server Rules
+# API Server
 
 ## Structure
 ```
 apps/api/
-  prisma/schema.prisma   # DB schema
-  src/
-    routes/              # HTTP handlers, thin
-    services/            # business logic
-    middleware/          # auth, rate-limit
-    db/prisma.js         # PrismaClient singleton
-    validators/          # Zod schemas (co-locate or here)
+  prisma/schema.prisma
+  src/routes/       # thin HTTP handlers
+  src/services/     # business logic + prisma calls
+  src/middleware/   # authenticate, requireRoles
+  src/db/prisma.js  # PrismaClient singleton — always import from here
+  src/plugins/      # error-handler
 ```
 
-## Data access
-- Use `prisma` from `src/db/prisma.js` — no raw SQL unless necessary (`$queryRaw` for health checks only)
-- Map Prisma camelCase to API camelCase in responses
+## Route pattern
+```javascript
+const schema = z.object({ nameEn: z.string().min(1) });
+app.post('/api/v1/resource', async (request, reply) => {
+  const parsed = schema.safeParse(request.body);
+  if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+  return reply.status(201).send(await myService.create(parsed.data));
+});
+```
 
 ## Auth
-- Manager: username/password → JWT (15m) + httpOnly refresh cookie (30d, later)
-- Cashier: PIN via `POST /auth/pin` with `X-Terminal-ID` + `X-Terminal-Secret`
-- Validate `role` claim on every protected route
+- Manager: `POST /api/v1/auth/login` → JWT (15m)
+- Cashier: `POST /api/v1/auth/pin` + `X-Terminal-ID` + `X-Terminal-Secret`
+- `await authenticate(request)` / `requireRoles('hub_manager')`
+
+## Data access
+- Prisma only — no raw `pg` pool
+- Never return `passwordHash`, `pinHash`, `secretHash` in responses
+- Health check may use `prisma.$queryRaw\`SELECT 1\``
 
 ## Errors
 ```json
 { "error": { "code": "INVALID_CREDENTIALS", "message": "...", "request_id": "uuid" } }
 ```
+Use `src/utils/errors.js` + `@venue-pos/shared` error codes.
 
-## Logging
-Fastify/Pino structured logs with `requestId`.
+## Prefix
+REST under `/api/v1/`. Health at `/health`.

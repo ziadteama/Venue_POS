@@ -1,34 +1,36 @@
-# Venue POS — Documentation Index
+# Venue POS — Documentation
 
-Documentation for the **Unified Hub POS & Management System** team.
+## Start here (developers)
 
-## Product & planning
+1. [DEVELOPMENT.md](DEVELOPMENT.md) — setup, repo layout, commands
+2. [TEAM_LOG.md](TEAM_LOG.md) — what we built + what's next
+3. [PRD.md](PRD.md) — user stories for your task
 
-| Document | Audience | Purpose |
-|----------|----------|---------|
-| [PRD.md](PRD.md) | PM, dev, QA | User stories, acceptance criteria, priorities |
-| [Technical_Proposal.md](Technical_Proposal.md) | Stakeholders, architects | Architecture, features, 16-week plan |
-| [TechSpec.md](TechSpec.md) | Developers | Naming, WebSocket contracts, security, deployment |
+## Product & architecture
 
-## Engineering (start here)
+| Doc | Purpose |
+|-----|---------|
+| [PRD.md](PRD.md) | User stories, acceptance criteria, priorities |
+| [Technical_Proposal.md](Technical_Proposal.md) | Architecture, features, 16-week plan |
+| [TechSpec.md](TechSpec.md) | WebSocket payloads, env vars, security, CI |
 
-| Document | Audience | Purpose |
-|----------|----------|---------|
-| [DEVELOPMENT.md](DEVELOPMENT.md) | All developers | Local setup, commands, env vars, troubleshooting |
-| [REPO_STRUCTURE.md](REPO_STRUCTURE.md) | All developers | Monorepo layout, apps vs packages, ports |
-| [TEAM_LOG.md](TEAM_LOG.md) | Whole team | **Chronological log of what we built** — update every merge |
+## Engineering references
+
+| Doc | Purpose |
+|-----|---------|
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Local dev guide (includes repo structure) |
+| [TEAM_LOG.md](TEAM_LOG.md) | Chronological build log — update every merge |
+| [../apps/api/prisma/schema.prisma](../apps/api/prisma/schema.prisma) | Database schema (source of truth) |
 
 ## AI / Cursor
 
-| Document | Purpose |
-|----------|---------|
+| Doc | Purpose |
+|-----|---------|
 | [../AGENTS.md](../AGENTS.md) | Agent entry point |
-| [../.cursor/PROJECT_SPEC.md](../.cursor/PROJECT_SPEC.md) | Condensed build spec |
-| [../.cursor/IMPLEMENTATION_PLAN.md](../.cursor/IMPLEMENTATION_PLAN.md) | Phase checklist |
-| [../.cursor/rules/](../.cursor/rules/) | Cursor rules by layer (Prisma, Fastify, i18n, etc.) |
-| [../.cursor/skills/](../.cursor/skills/) | Task-specific agent skills |
+| [../.cursor/rules/](../.cursor/rules/) | Coding rules per layer |
+| [../.cursor/skills/](../.cursor/skills/) | Task workflows |
 
 ## Current status
 
-**Phase 0 complete** (June 2026) — monorepo, Prisma API, auth, app shells, CI.  
-**Next:** Phase 1 — menu + core POS order flow. See [TEAM_LOG.md](TEAM_LOG.md).
+**Phase 0 complete** — monorepo, Prisma API, auth, app shells, CI.  
+**Next: Phase 1** — menu + core POS. Details in [TEAM_LOG.md](TEAM_LOG.md).

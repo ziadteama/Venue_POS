@@ -18,8 +18,7 @@ Format for new entries → see [DEVELOPMENT.md](DEVELOPMENT.md#team-process).
 - `docs/Technical_Proposal.md` — architecture, hub-and-spoke, phased delivery
 - `docs/TechSpec.md` — naming, WebSocket contracts, security, Docker, CI
 - `AGENTS.md` — agent/developer entry point
-- `.cursor/PROJECT_SPEC.md` — condensed schema, API, events
-- `.cursor/IMPLEMENTATION_PLAN.md` — phase checklist
+- `apps/api/prisma/schema.prisma` — DB source of truth
 - `.cursor/skills/` — venue-pos, implement-user-story, database-schema, offline-sync, websocket-events
 
 **Verify:** Read `docs/README.md` index.
@@ -215,22 +214,40 @@ npm run build:dashboard && npm run build:pos && npm run build:kds
 **What:** Expanded Cursor rules for each tech layer; team documentation for onboarding.
 
 **Files:**
-- `.cursor/rules/` — core, team-workflow, monorepo, prisma, fastify-api, i18n-rtl, shared-packages, docker-ci, database, api-server, react-ui, electron-terminal
-- `docs/README.md`, `docs/DEVELOPMENT.md`, `docs/REPO_STRUCTURE.md`, `docs/TEAM_LOG.md`
+- `.cursor/rules/` — core, team-workflow, monorepo, prisma, api-server, i18n-rtl, shared-packages, docker-ci, react-ui, electron-terminal
+- `docs/README.md`, `docs/DEVELOPMENT.md`, `docs/TEAM_LOG.md`
 
 **Verify:** New teammate follows `docs/DEVELOPMENT.md` from zero to running apps.
 
 ---
 
-## Phase 1 — Core POS (not started)
+### 2026-06-06 — Documentation cleanup
+**Phase:** 0  
+**What:** Removed redundant spec files; consolidated docs and Cursor rules for a lean set.
 
-Planned next steps (see `.cursor/IMPLEMENTATION_PLAN.md`):
+**Removed:**
+- `.cursor/PROJECT_SPEC.md` (duplicated TechSpec + Prisma schema)
+- `.cursor/IMPLEMENTATION_PLAN.md` (duplicated TEAM_LOG + Technical_Proposal)
+- `docs/REPO_STRUCTURE.md` (merged into DEVELOPMENT.md)
+- `.cursor/skills/*/reference.md` (duplicated TechSpec §8 + outdated SQL)
+- `.cursor/rules/README.md`, `fastify-api.mdc`, `database.mdc` (merged into api-server + prisma rules)
+
+**Source of truth now:**
+- DB → `apps/api/prisma/schema.prisma`
+- WebSocket payloads → `docs/TechSpec.md` §8
+- Roadmap → `docs/TEAM_LOG.md` + `docs/Technical_Proposal.md` §12
+- Setup → `docs/DEVELOPMENT.md`
+
+---
+
+## Phase 1 — Core POS (next)
+
 - [ ] Prisma models: `MenuTemplate`, `Category`, `MenuItem`
 - [ ] Menu read API + manager write API
 - [ ] Menu cache in local-agent
 - [ ] POS menu grid + create order flow
 
-_When starting Phase 1, add a new dated entry above this section._
+_When starting Phase 1, add a dated entry above this section._
 
 ---
 

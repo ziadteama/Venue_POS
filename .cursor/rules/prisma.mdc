@@ -1,17 +1,14 @@
 ---
-description: Prisma schema, migrations, and query patterns for the API
-globs: apps/api/prisma/**,apps/api/src/**/*
+description: Prisma schema design, migrations, and entity conventions
+globs: apps/api/prisma/**
 alwaysApply: false
 ---
 
-# Prisma Rules
+# Prisma & Database
 
-## Files
-- Schema: `apps/api/prisma/schema.prisma`
-- Client: `apps/api/src/db/prisma.js` — always import `prisma` from here
-- Migrations: `apps/api/prisma/migrations/`
+**Source of truth:** `apps/api/prisma/schema.prisma`
 
-## Schema conventions
+## Model template
 ```prisma
 model MenuItem {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -24,16 +21,18 @@ model MenuItem {
 }
 ```
 
-## Workflow
-1. Edit `schema.prisma`
-2. `npm run migrate:dev` (creates migration SQL)
-3. `npm run db:generate` (if client stale)
-4. Commit schema + migration folder together
+## Naming
+- Model: PascalCase · Field: camelCase + `@map("snake_case")` · Table: `@@map("plural_snake")`
+- Enums for roles/statuses · Bilingual: `nameEn`/`nameAr` pairs
+- `@@index` on FKs and filters (`venueId`, `status`)
 
-## Never
-- Edit applied migration SQL files
-- Use `pg` Pool directly
-- Return `passwordHash` / `pinHash` / `secretHash` in API responses
+## Migrations
+1. Edit schema → `npm run migrate:dev` → commit schema + `prisma/migrations/`
+2. Prod/CI: `npm run migrate` · After pull: `npm run db:generate`
+3. Never edit applied migration SQL
 
 ## Seed
-`apps/api/src/db/seed.js` — dev data only; use `prisma.*.upsert`
+`apps/api/src/db/seed.js` — dev only, use `prisma.*.upsert`
+
+## Phase 0 models
+`Venue`, `User`, `Terminal` — see `docs/TEAM_LOG.md`

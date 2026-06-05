@@ -2,7 +2,7 @@
 # Unified Hub POS & Management System
 # Version 1.0 | 6 June 2026
 
-> **Note:** Sections 1–5 (architecture, repo layout, full schema, API catalog) are consolidated in [AGENTS.md](../AGENTS.md) and [.cursor/PROJECT_SPEC.md](../.cursor/PROJECT_SPEC.md). This file contains environment config, conventions, contracts, and deployment detail.
+> **Note:** Architecture and repo layout → [DEVELOPMENT.md](DEVELOPMENT.md). Database schema → [apps/api/prisma/schema.prisma](../apps/api/prisma/schema.prisma). Product stories → [PRD.md](PRD.md). This file covers env config, conventions, WebSocket contracts, security, and deployment.
 
 ---
 
