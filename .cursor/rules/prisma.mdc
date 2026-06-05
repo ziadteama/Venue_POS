@@ -1,0 +1,39 @@
+---
+description: Prisma schema, migrations, and query patterns for the API
+globs: apps/api/prisma/**,apps/api/src/**/*
+alwaysApply: false
+---
+
+# Prisma Rules
+
+## Files
+- Schema: `apps/api/prisma/schema.prisma`
+- Client: `apps/api/src/db/prisma.js` — always import `prisma` from here
+- Migrations: `apps/api/prisma/migrations/`
+
+## Schema conventions
+```prisma
+model MenuItem {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameEn    String   @map("name_en")
+  nameAr    String   @map("name_ar")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@map("menu_items")
+}
+```
+
+## Workflow
+1. Edit `schema.prisma`
+2. `npm run migrate:dev` (creates migration SQL)
+3. `npm run db:generate` (if client stale)
+4. Commit schema + migration folder together
+
+## Never
+- Edit applied migration SQL files
+- Use `pg` Pool directly
+- Return `passwordHash` / `pinHash` / `secretHash` in API responses
+
+## Seed
+`apps/api/src/db/seed.js` — dev data only; use `prisma.*.upsert`

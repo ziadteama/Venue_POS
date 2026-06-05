@@ -1,0 +1,31 @@
+---
+description: Docker, deployment, and CI pipeline conventions
+globs: docker/**,docker-compose*.yml,ops/**,.github/**/*
+alwaysApply: false
+---
+
+# Docker & CI
+
+## Local infra
+```bash
+docker compose up -d postgres redis   # DB + cache only
+npm run dev:api                       # API on host (hot reload)
+```
+
+## Files
+- `docker-compose.yml` — postgres, redis, api (production image)
+- `docker-compose.dev.yml` — api volume mount override
+- `docker/Dockerfile.api` — runs `prisma migrate deploy` then `node src/index.js`
+- `ops/nginx/nginx.conf` — TLS + WebSocket proxy stub
+- `ops/secrets/` — JWT keys (gitignored); generate via `npm run generate:jwt-keys`
+
+## CI (`.github/workflows/ci.yml`)
+1. lint + lint:i18n
+2. api job: postgres service → migrate → seed → test
+3. build dashboard, pos, kds
+
+## Env templates
+Never commit secrets. Update `apps/*/.env.example` when adding variables.
+
+## Production deploy (later phases)
+API image push → SSH → `docker compose pull && docker compose up -d --no-deps api`

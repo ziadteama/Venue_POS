@@ -1,0 +1,34 @@
+---
+description: Bilingual Arabic/English UI and RTL layout rules
+globs: apps/{dashboard,pos,kds}/**/*,packages/i18n/**/*
+alwaysApply: false
+---
+
+# i18n & RTL
+
+## Single source of truth
+`packages/i18n/locales/en.json` and `ar.json` — both apps import via `@venue-pos/i18n`
+
+## Rules
+- No hardcoded user-facing strings in JSX
+- Add key to **both** locale files before using `t('key')`
+- Run `npm run lint:i18n` to verify key parity
+
+## Setup per app
+```javascript
+import { resources, getDirection } from '@venue-pos/i18n';
+// init react-i18next with resources
+document.documentElement.dir = getDirection(i18n.language);
+```
+
+## RTL Tailwind
+Use logical properties: `ms-4`, `me-4`, `ps-4`, `text-start` — not `ml-4`, `text-left`
+
+## DB content (bilingual)
+API returns both `nameEn` and `nameAr`; UI picks by active locale:
+```javascript
+const name = i18n.language === 'ar' ? item.nameAr : item.nameEn;
+```
+
+## Kitchen printer
+Uses venue default language — not cashier preference (per PRD).

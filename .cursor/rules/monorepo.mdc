@@ -1,0 +1,41 @@
+---
+description: npm workspaces monorepo layout and package boundaries
+globs: package.json,apps/**/package.json,packages/**/*
+alwaysApply: false
+---
+
+# Monorepo Conventions
+
+## Workspaces
+Root `package.json` → `apps/*` + `packages/*`
+
+## Package names
+- `@venue-pos/api`, `@venue-pos/dashboard`, `@venue-pos/pos`, `@venue-pos/kds`, `@venue-pos/local-agent`
+- `@venue-pos/shared`, `@venue-pos/i18n`
+
+## Dependency rules
+- Apps import `@venue-pos/shared` and `@venue-pos/i18n`
+- Apps do **not** import each other (no `dashboard` → `api` code imports)
+- Shared packages have **zero** app dependencies
+
+## Root scripts (use these)
+```bash
+npm run dev:api|dashboard|pos|kds|agent
+npm run migrate:dev    # Prisma dev migrations
+npm run seed
+```
+
+## Adding a dependency
+```bash
+npm install zod -w @venue-pos/api
+npm install react-router-dom -w @venue-pos/dashboard
+```
+
+## Ports (fixed)
+| App | Port |
+|-----|------|
+| API | 3000 |
+| Dashboard | 5173 |
+| POS | 5174 |
+| KDS | 5175 |
+| Local agent | 3456 |

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run lint:i18n
+
+  api:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hub_pos
+          POSTGRES_PASSWORD: hub_pos_test
+          POSTGRES_DB: hub_pos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hub_pos -d hub_pos_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://hub_pos:hub_pos_test@localhost:5432/hub_pos_test
+      JWT_PRIVATE_KEY_PATH: ../../ops/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: ../../ops/secrets/jwt-public.pem
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run generate:jwt-keys
+      - run: npm run migrate -w @venue-pos/api
+      - run: npm run seed -w @venue-pos/api
+      - run: npm run test -w @venue-pos/api --if-present
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [lint, api]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build:dashboard
+      - run: npm run build:pos
+      - run: npm run build:kds

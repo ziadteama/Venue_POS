@@ -1,0 +1,35 @@
+---
+description: Core Venue POS context, stack, and non-negotiable constraints
+alwaysApply: true
+---
+
+# Venue POS — Core
+
+## Read first
+- Team setup: `docs/DEVELOPMENT.md`
+- What's built: `docs/TEAM_LOG.md`
+- Build spec: `.cursor/PROJECT_SPEC.md`
+- User stories: `docs/PRD.md`
+
+## Stack (do not swap)
+Node 20 · Fastify · **Prisma 6** · PostgreSQL 16 · Redis · Socket.IO 4 · React 18 · Vite 5 · Tailwind 3 · Electron 30 · better-sqlite3 (local-agent) · Zod · bcrypt · JWT RS256
+
+## Layers
+| Layer | Path | Runtime |
+|-------|------|---------|
+| Server API | `apps/api` | Node + Postgres |
+| Admin web | `apps/dashboard` | Browser |
+| POS / KDS | `apps/pos`, `apps/kds` | Electron |
+| Terminal service | `apps/local-agent` | Node + SQLite |
+| Shared | `packages/shared`, `packages/i18n` | Imported by apps |
+
+## Hard rules
+- POS renderer → local-agent IPC only (no SQLite in Electron renderer)
+- Offline-first: local write → sync queue → idempotent `syncId`
+- Menu read-only on POS; publish from dashboard
+- Bilingual UI via `@venue-pos/i18n`; DB fields `nameEn`/`nameAr` with `@map`
+- No PAN storage; PINs never in API responses
+- Prisma for all server DB access — no raw `pg` pool
+
+## After every feature
+Update `docs/TEAM_LOG.md` with date, author intent, files touched, and how to verify.

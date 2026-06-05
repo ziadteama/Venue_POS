@@ -1,0 +1,36 @@
+---
+description: Backend API conventions for Venue POS server package
+globs: apps/api/**/*
+alwaysApply: false
+---
+
+# API Server Rules
+
+## Structure
+```
+apps/api/
+  prisma/schema.prisma   # DB schema
+  src/
+    routes/              # HTTP handlers, thin
+    services/            # business logic
+    middleware/          # auth, rate-limit
+    db/prisma.js         # PrismaClient singleton
+    validators/          # Zod schemas (co-locate or here)
+```
+
+## Data access
+- Use `prisma` from `src/db/prisma.js` — no raw SQL unless necessary (`$queryRaw` for health checks only)
+- Map Prisma camelCase to API camelCase in responses
+
+## Auth
+- Manager: username/password → JWT (15m) + httpOnly refresh cookie (30d, later)
+- Cashier: PIN via `POST /auth/pin` with `X-Terminal-ID` + `X-Terminal-Secret`
+- Validate `role` claim on every protected route
+
+## Errors
+```json
+{ "error": { "code": "INVALID_CREDENTIALS", "message": "...", "request_id": "uuid" } }
+```
+
+## Logging
+Fastify/Pino structured logs with `requestId`.

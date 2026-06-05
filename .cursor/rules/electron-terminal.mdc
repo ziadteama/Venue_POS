@@ -1,0 +1,32 @@
+---
+description: Electron POS, KDS, and local-agent terminal constraints
+globs: apps/{pos,kds,local-agent}/**/*
+alwaysApply: false
+---
+
+# Electron & Terminal Rules
+
+## Process split
+- **POS/KDS renderer**: UI only, IPC to local-agent
+- **local-agent**: SQLite, sync, printers, WebSocket, watchdog
+
+## POS Electron
+- `--kiosk` fullscreen, single BrowserWindow
+- `ELECTRON_DISABLE_DEV_TOOLS=true` in production
+- No Node integration in renderer; use preload + contextBridge
+- Auto-update via electron-updater on shift close
+
+## local-agent
+- HTTP on `127.0.0.1:3456` for POS IPC
+- SQLite WAL mode at `/data/local.db`
+- Sync poll: 5s interval, batch 50, FIFO queue
+- Watchdog: check every 5s, max 3 restarts per 10 min
+
+## Printers
+- ESC/POS via agent, UTF-8 encoding
+- 3 retries then alert; fallback to KDS if kitchen printer down
+
+## Lightweight
+- No moment.js, no full lodash, no heavy icon packs in POS
+- Lazy-load menu images from server
+- Combined RAM target: < 300 MB

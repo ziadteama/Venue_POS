@@ -1,0 +1,41 @@
+---
+description: React and UI conventions for dashboard, POS, and KDS
+globs: apps/{dashboard,pos,kds}/**/*
+alwaysApply: false
+---
+
+# React UI Rules
+
+## Patterns
+- Functional components + hooks
+- Custom hooks: `use` prefix (`useOrders`, `useSyncStatus`)
+- Components: PascalCase files (`OrderScreen.jsx`)
+- CSS: Tailwind utilities; classes kebab-case
+
+## i18n (required)
+- `react-i18next` with `locales/en.json` and `locales/ar.json`
+- No hardcoded user-facing strings
+- Menu content: pick `nameEn`/`nameAr` from API based on active locale
+
+## RTL
+```jsx
+// Set on root when locale === 'ar'
+<html dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+```
+Use logical Tailwind: `ms-4`, `me-4`, `text-start` — not `ml-4`, `text-left`.
+
+## POS-specific
+- Touch targets ≥ 48px (`TOUCH_TARGET_SIZE`)
+- No animations (`ENABLE_ANIMATIONS=false`)
+- Large buttons, simple grid layouts
+- Offline banner when disconnected
+- Menu grid read-only — no edit controls for staff
+
+## Dashboard
+- Recharts for analytics
+- Role-scoped data: venue_manager sees own venue only
+- Live metrics via `dashboard:metrics_tick` WebSocket
+
+## State
+- Server state: fetch + WebSocket updates
+- POS order state: local-agent as source of truth during session

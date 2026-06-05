@@ -1,0 +1,35 @@
+node_modules/
+dist/
+build/
+out/
+coverage/
+.env
+.env.local
+.env.*.local
+# Keep .env.example tracked; local .env files are gitignored
+apps/api/.env
+apps/dashboard/.env
+apps/pos/.env
+apps/local-agent/.env
+*.log
+.DS_Store
+Thumbs.db
+
+# JWT keys — never commit
+ops/secrets/*.pem
+!ops/secrets/.gitkeep
+
+# SQLite local data
+*.db
+*.db-shm
+*.db-wal
+/data/
+
+# Electron
+apps/pos/dist-electron/
+apps/kds/dist-electron/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json

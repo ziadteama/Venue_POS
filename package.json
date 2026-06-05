@@ -1,0 +1,43 @@
+{
+  "name": "venue-pos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Unified Hub POS & Management System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @venue-pos/api",
+    "dev:dashboard": "npm run dev -w @venue-pos/dashboard",
+    "dev:pos": "npm run dev -w @venue-pos/pos",
+    "dev:kds": "npm run dev -w @venue-pos/kds",
+    "dev:agent": "npm run dev -w @venue-pos/local-agent",
+    "build:api": "npm run build -w @venue-pos/api",
+    "build:dashboard": "npm run build -w @venue-pos/dashboard",
+    "build:pos": "npm run build -w @venue-pos/pos",
+    "build:kds": "npm run build -w @venue-pos/kds",
+    "build:agent": "npm run build -w @venue-pos/local-agent",
+    "migrate": "npm run migrate -w @venue-pos/api",
+    "migrate:dev": "npm run migrate:dev -w @venue-pos/api",
+    "db:generate": "npm run db:generate -w @venue-pos/api",
+    "seed": "npm run seed -w @venue-pos/api",
+    "generate:jwt-keys": "node scripts/generate-jwt-keys.mjs",
+    "lint": "eslint .",
+    "lint:i18n": "node scripts/lint-i18n.mjs",
+    "test": "npm run test -w @venue-pos/api --if-present",
+    "docker:up": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d",
+    "docker:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2"
+  }
+}

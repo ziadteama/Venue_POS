@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: hub_pos
+      POSTGRES_PASSWORD: hub_pos_dev
+      POSTGRES_DB: hub_pos
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hub_pos -d hub_pos']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://hub_pos:hub_pos_dev@postgres:5432/hub_pos
+      REDIS_URL: redis://redis:6379
+      JWT_PRIVATE_KEY_PATH: /secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_PATH: /secrets/jwt-public.pem
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - '3000:3000'
+    volumes:
+      - ./ops/secrets:/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -1,0 +1,25 @@
+---
+description: Shared package conventions for constants and locales
+globs: packages/**/*
+alwaysApply: false
+---
+
+# Shared Packages
+
+## `@venue-pos/shared`
+- `ROLES`, `ORDER_STATUSES`, `API_BASE`, `ERROR_CODES`
+- No runtime deps; pure JS exports
+- Add new error codes here before using in API
+
+## `@venue-pos/i18n`
+- `locales/en.json`, `locales/ar.json` — keep keys identical
+- `resources`, `getDirection()`, `supportedLocales`
+- Apps wire up react-i18next locally; do not add app-specific strings outside locale files
+
+## When to create a new shared package
+Only when **2+ apps** need the same code. Otherwise keep logic in the app.
+
+## Do not put in shared
+- Prisma client
+- React components (until `packages/ui` is intentionally introduced in Phase 5+)
+- Electron or Fastify-specific code

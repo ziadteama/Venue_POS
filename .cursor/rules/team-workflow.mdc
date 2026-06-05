@@ -1,0 +1,41 @@
+---
+description: Team workflow — branches, commits, docs, and handoff checklist
+alwaysApply: true
+---
+
+# Team Workflow
+
+## Before coding
+1. Find PRD story (`US-X.X`) in `docs/PRD.md`
+2. Check `docs/TEAM_LOG.md` for overlapping work
+3. Branch: `feature/US-X.X-short-description`
+
+## While coding
+- Smallest vertical slice: Prisma schema → migrate → service → route → test → UI
+- Shared constants/errors → `packages/shared`
+- New UI strings → `packages/i18n/locales/en.json` + `ar.json` (run `npm run lint:i18n`)
+
+## Commits
+```
+type(scope): description
+```
+Types: `feat`, `fix`, `test`, `chore`, `docs`  
+Scopes: `api`, `dashboard`, `pos`, `kds`, `agent`, `prisma`, `i18n`, `docker`
+
+## After merging — update TEAM_LOG
+Append to `docs/TEAM_LOG.md`:
+```markdown
+### YYYY-MM-DD — [Title]
+**Phase:** N · **Story:** US-X.X (if any)
+**What:** One-line summary
+**Files:** key paths
+**Verify:** commands or steps to test
+**Notes:** breaking changes, env vars, migrations
+```
+
+## PR checklist
+- [ ] Prisma migration included if schema changed
+- [ ] `npm run lint` + `npm run lint:i18n` pass
+- [ ] API tests pass (`npm run test -w @venue-pos/api`)
+- [ ] `.env.example` updated if new env vars
+- [ ] `TEAM_LOG.md` entry added
