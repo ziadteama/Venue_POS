@@ -24,12 +24,13 @@ before(async () => {
     },
   });
 
+  const passwordHash = await bcrypt.hash('testpass', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'testadmin' },
-    update: {},
+    update: { passwordHash, role: 'hub_manager', venueId: venue.id },
     create: {
       username: 'testadmin',
-      passwordHash: await bcrypt.hash('testpass', config.bcryptRounds),
+      passwordHash,
       role: 'hub_manager',
       venueId: venue.id,
     },

@@ -1,5 +1,5 @@
-import en from '../locales/en.json' with { type: 'json' };
-import ar from '../locales/ar.json' with { type: 'json' };
+import en from '../locales/en.json';
+import ar from '../locales/ar.json';
 
 export const resources = {
   en: { translation: en },
