@@ -59,6 +59,7 @@ async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/orders\/[^/]+\/receipt$/)) {
       return window.venuePos.getReceipt(path.split('/')[3]);
     }
+    if (path === '/v1/cheques/open' && method === 'GET') return window.venuePos.listOpenCheques();
     if (path === '/v1/cheques/open' && method === 'POST') return window.venuePos.openCheque(body);
     if (path.match(/^\/v1\/cheques\/[^/]+\/fire$/) && method === 'POST') {
       return window.venuePos.fireCheque(path.split('/')[3]);
@@ -361,6 +362,7 @@ export default function App() {
   const [paying, setPaying] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [kitchenWatch, setKitchenWatch] = useState(null);
+  const [openCheques, setOpenCheques] = useState([]);
   const [clock, setClock] = useState(() => new Date());
 
   const applyItemStatus = useCallback((payload) => {
@@ -419,6 +421,15 @@ export default function App() {
     [order, applyDraftOrder],
   );
 
+  const refreshOpenCheques = useCallback(async () => {
+    try {
+      const list = await callAgent('/v1/cheques/open');
+      setOpenCheques(Array.isArray(list) ? list : []);
+    } catch {
+      setOpenCheques([]);
+    }
+  }, []);
+
   const openCheque = useCallback(async (label) => {
     setError('');
     const table = (label ?? tableLabelRef.current).trim();
@@ -429,10 +440,21 @@ export default function App() {
         body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel: table }),
       });
       setCheque(opened);
+      setTableLabel(table);
+      await refreshOpenCheques();
     } catch {
       setError(t('pos.chequeOpenFailed'));
     }
-  }, [t]);
+  }, [t, refreshOpenCheques]);
+
+  const switchToCheque = useCallback(
+    async (tab) => {
+      setTableLabel(tab.tableLabel);
+      tableLabelRef.current = tab.tableLabel;
+      await openCheque(tab.tableLabel);
+    },
+    [openCheque],
+  );
 
   useEffect(() => {
     loadMenu();
@@ -441,6 +463,10 @@ export default function App() {
   useEffect(() => {
     if (!loading && menu && !cheque) openCheque();
   }, [loading, menu, cheque, openCheque]);
+
+  useEffect(() => {
+    if (!loading && menu) refreshOpenCheques();
+  }, [loading, menu, refreshOpenCheques]);
 
   useEffect(() => {
     const tick = setInterval(() => setClock(new Date()), 30_000);
@@ -555,6 +581,7 @@ export default function App() {
       const result = await callAgent(`/v1/cheques/${cheque.id}/fire`, { method: 'POST' });
       setKitchenWatch(result.sentOrder);
       setCheque(result.cheque);
+      await refreshOpenCheques();
     } catch {
       setError(t('pos.sendFailed'));
     } finally {
@@ -568,6 +595,7 @@ export default function App() {
     try {
       const updated = await callAgent(`/v1/cheques/${cheque.id}/clear`, { method: 'POST' });
       setCheque(updated);
+      await refreshOpenCheques();
     } catch {
       setError(t('pos.clearFailed'));
     }
@@ -671,6 +699,24 @@ export default function App() {
         <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="font-semibold text-slate-900">{t('pos.currentOrder')}</h2>
+            {openCheques.length > 0 && (
+              <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
+                {openCheques.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => switchToCheque(tab)}
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
+                      cheque?.id === tab.id
+                        ? 'bg-primary-gradient text-white'
+                        : 'bg-slate-100 text-secondary hover:bg-slate-200'
+                    }`}
+                  >
+                    {tab.tableLabel} · {tab.total.toFixed(0)}
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-sm text-secondary">
               {cheque
                 ? t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })

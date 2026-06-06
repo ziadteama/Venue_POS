@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('venuePos', {
   abandonDraft: (orderId) =>
     agentFetch(`/v1/orders/${orderId}/abandon`, { method: 'POST' }),
   getReceipt: (orderId) => agentFetch(`/v1/orders/${orderId}/receipt`),
+  listOpenCheques: () => agentFetch('/v1/cheques/open'),
   openCheque: (body) =>
     agentFetch('/v1/cheques/open', { method: 'POST', body: JSON.stringify(body) }),
   fireCheque: (chequeId) =>

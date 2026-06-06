@@ -391,7 +391,7 @@ test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
   assert.ok(payRes.json().receipt?.includes('TOTAL'));
   assert.ok(payRes.json().cheque.payments.length >= 1);
   assert.equal(
-    payRes.json().cheque.orders.filter((o) => o.status === 'billed').length,
+    payRes.json().cheque.orders.filter((o) => o.status === 'closed').length,
     2,
   );
 
@@ -531,6 +531,130 @@ test('manager can void a kitchen round on open cheque', async () => {
     headers: { authorization: `Bearer ${managerToken}` },
   });
   assert.ok(listRes.json().some((c) => c.id === chequeId));
+});
+
+test('manager can comp a line item on open cheque', async () => {
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'CP1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const sentOrder = fireRes.json().sentOrder;
+  const itemId = sentOrder.items[0].id;
+  const totalBefore = fireRes.json().cheque.total;
+  assert.ok(totalBefore > 0);
+
+  const compRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/cheques/${chequeId}/orders/${sentOrder.id}/items/${itemId}/comp`,
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: { managerPin: '8888', reason: 'Guest complaint' },
+  });
+  assert.equal(compRes.statusCode, 200);
+  assert.equal(compRes.json().total, 0);
+  const compedLine = compRes
+    .json()
+    .orders.find((o) => o.id === sentOrder.id)
+    .items.find((i) => i.id === itemId);
+  assert.equal(compedLine.isComped, true);
+});
+
+test('manager can list paid cheque history', async () => {
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'PH1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+
+  const paidListRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/manager/cheques?status=paid',
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(paidListRes.statusCode, 200);
+  const paidCheque = paidListRes.json().find((c) => c.id === chequeId);
+  assert.ok(paidCheque);
+  assert.equal(paidCheque.status, 'paid');
+  assert.ok(paidCheque.payments.length >= 1);
 });
 
 test('manager can void entire open cheque', async () => {
