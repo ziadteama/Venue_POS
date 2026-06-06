@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "dev": "node scripts/dev-all.mjs",
+    "dev:stop": "node scripts/dev-stop.mjs",
+    "setup:node20": "node scripts/node20.mjs setup",
     "dev:api": "npm run dev -w @venue-pos/api",
     "dev:dashboard": "npm run dev -w @venue-pos/dashboard",
     "dev:pos": "npm run dev -w @venue-pos/pos",

@@ -17,6 +17,11 @@ function lineTotal(line) {
   return line.unitPrice * line.quantity + mods;
 }
 
+function displayInitial(value) {
+  const text = value ?? '?';
+  return String(text).charAt(0) || '?';
+}
+
 function modifierLabel(line, language) {
   const mods = line.modifiersSnapshot ?? [];
   if (!mods.length) return null;
@@ -181,6 +186,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [modifierItem, setModifierItem] = useState(null);
   const [printerOk, setPrinterOk] = useState(true);
+  const [sending, setSending] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
   const loadMenu = useCallback(async () => {
@@ -307,13 +313,16 @@ export default function App() {
   }
 
   async function handleSend() {
+    if (!order || sending) return;
+    setSending(true);
+    setError('');
     try {
-      const updated = await callAgent(`/v1/orders/${order.id}/send`, { method: 'POST' });
-      setOrder(updated);
-      setError('');
+      await callAgent(`/v1/orders/${order.id}/send`, { method: 'POST' });
       await startOrder();
     } catch {
       setError(t('pos.sendFailed'));
+    } finally {
+      setSending(false);
     }
   }
 
@@ -407,7 +416,7 @@ export default function App() {
                     className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
                   >
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-gradient text-sm font-bold text-white">
-                      {(i18n.language === 'ar' ? line.nameAr : line.nameEn).charAt(0)}
+                      {displayInitial(i18n.language === 'ar' ? line.nameAr : line.nameEn)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex justify-between gap-2">
@@ -487,9 +496,10 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleSend}
-                  className="flex-[2] rounded-lg bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90"
+                  disabled={sending}
+                  className="flex-[2] rounded-lg bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
                 >
-                  {t('pos.checkout')}
+                  {sending ? t('common.loading') : t('pos.checkout')}
                 </button>
               )}
             </div>
@@ -541,7 +551,7 @@ export default function App() {
                   >
                     <div className="flex h-28 items-center justify-center bg-gradient-to-br from-primary-from/10 to-primary-to/10">
                       <span className="text-3xl font-bold text-primary-from/40">
-                        {itemName(item, i18n.language).charAt(0)}
+                        {displayInitial(itemName(item, i18n.language))}
                       </span>
                     </div>
                     <div className="flex flex-1 flex-col justify-between p-3">

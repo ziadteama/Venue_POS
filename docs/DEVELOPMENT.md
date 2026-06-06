@@ -86,9 +86,12 @@ npm run seed
 ### One command (recommended)
 
 ```bash
-nvm use 20          # required — Node 24 breaks better-sqlite3 (local-agent)
-npm run dev
+npm run setup:node20   # once — rebuilds sqlite/bcrypt (scripts/node20.mjs)
+npm run dev:stop       # if ports stuck from a prior run
+npm run dev            # starts full stack; uses Node 20 even when shell has Node 24
 ```
+
+**Windows + nvm:** `nvm use 20` often needs Administrator. `npm run dev` picks up nvm’s Node 20 automatically via `scripts/node20.mjs` — no `nvm use` required.
 
 Starts **API** (:3000), **dashboard** (:5173), **local-agent** (:3456), and **POS** (Electron + :5174).  
 Postgres must already be running (`pgAdmin` or `npm run docker:up`).
@@ -98,6 +101,9 @@ Postgres must already be running (`pgAdmin` or `npm run docker:up`).
 | `npm run dev -- --browser` | POS in browser only (no Electron window) |
 | `npm run dev -- --kds` | Also start KDS Vite (:5175) |
 | `npm run dev -- --docker` | Start Redis container before apps |
+| `npm run dev:stop` | Kill leftover processes on ports 3000, 3456, 5173–5175 |
+
+If you see **`EADDRINUSE :3000`**, a previous dev session is still running. Run `npm run dev:stop`, then `npm run dev` again.
 
 ### Individual apps (if you prefer separate terminals)
 

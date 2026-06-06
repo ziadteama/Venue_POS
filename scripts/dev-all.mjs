@@ -14,14 +14,16 @@ import { copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import concurrently from 'concurrently';
+import { ensureNode20Process } from './node20.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const nodeMajor = Number(process.versions.node.split('.')[0]);
-if (nodeMajor !== 20) {
-  console.warn(
-    `Warning: Node ${process.version} — project targets Node 20 LTS (see package.json engines).`,
-  );
-  console.warn('  nvm use 20   then   npm rebuild better-sqlite3\n');
+const selfPath = fileURLToPath(import.meta.url);
+
+const { ok, env: devEnv } = ensureNode20Process(selfPath, process.argv.slice(2), root);
+if (!ok) {
+  console.error(`Node ${process.version} detected; Node 20 required.`);
+  console.error('Install: nvm install 20   then: npm run setup:node20');
+  process.exit(1);
 }
 const flags = new Set(process.argv.slice(2));
 const withKds = flags.has('--kds');
@@ -83,7 +85,9 @@ console.log('  Ctrl+C to stop all\n');
 
 const { result } = concurrently(jobs, {
   cwd: root,
-  killOthersOn: { failure: true },
+  env: devEnv,
+  // Closing the Electron window stops POS only — keep API/dashboard/agent running.
+  killOthersOn: { failure: ['api', 'dashboard', 'agent', ...(withKds ? ['kds'] : [])] },
 });
 
 await result;

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/index.js",
-    "start": "node src/index.js",
+    "dev": "node ../../scripts/node20.mjs --watch src/index.js",
+    "start": "node ../../scripts/node20.mjs src/index.js",
     "db:generate": "node ../../scripts/prisma-generate.mjs",
     "migrate": "prisma migrate deploy",
     "migrate:dev": "prisma migrate dev",
