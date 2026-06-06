@@ -387,10 +387,11 @@ test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
     payload: { cashierId: CASHIER_ID, method: 'cash' },
   });
   assert.equal(payRes.statusCode, 200);
-  assert.equal(payRes.json().status, 'paid');
-  assert.ok(payRes.json().payments.length >= 1);
+  assert.equal(payRes.json().cheque.status, 'paid');
+  assert.ok(payRes.json().receipt?.includes('TOTAL'));
+  assert.ok(payRes.json().cheque.payments.length >= 1);
   assert.equal(
-    payRes.json().orders.filter((o) => o.status === 'billed').length,
+    payRes.json().cheque.orders.filter((o) => o.status === 'billed').length,
     2,
   );
 
@@ -403,6 +404,70 @@ test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
   assert.equal(resumeRes.statusCode, 200);
   assert.notEqual(resumeRes.json().id, chequeId);
   assert.equal(resumeRes.json().status, 'open');
+});
+
+test('cheque split payment: cash + card', async () => {
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'S1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const total = fireRes.json().cheque.total;
+  const cashPart = Math.round(total * 0.4 * 100) / 100;
+  const cardPart = Math.round((total - cashPart) * 100) / 100;
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      payments: [
+        { method: 'cash', amount: cashPart },
+        { method: 'card', amount: cardPart },
+      ],
+      tendered: cashPart,
+    },
+  });
+  assert.equal(payRes.statusCode, 200);
+  assert.equal(payRes.json().cheque.payments.length, 2);
+  assert.equal(payRes.json().change, 0);
 });
 
 test('manager can void a kitchen round on open cheque', async () => {

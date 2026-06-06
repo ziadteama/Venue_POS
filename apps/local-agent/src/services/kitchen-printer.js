@@ -76,3 +76,19 @@ export async function printKitchenTicket(order, { host, port = 9100, retries = 3
   }
   return { printed: false, reason: 'unknown' };
 }
+
+export async function printCustomerReceipt(text, { host, port = 9100, log }) {
+  if (!host) {
+    return { printed: false, reason: 'not_configured' };
+  }
+
+  const payload = `\x1B\x40${text}\n\n`;
+  try {
+    await sendToPrinter(host, port, payload);
+    log?.info({ host, port }, 'Customer receipt printed');
+    return { printed: true };
+  } catch (err) {
+    log?.warn({ err, host, port }, 'Customer receipt print failed');
+    return { printed: false, reason: err.message };
+  }
+}

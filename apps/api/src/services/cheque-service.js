@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
-import { serializeOrder } from '../utils/serialize.js';
+import { serializeOrder, buildChequeReceiptText } from '../utils/serialize.js';
 import { verifyManagerPin } from './auth-service.js';
 import { createOrder, sendOrderToKitchen } from './order-service.js';
 
@@ -205,7 +205,37 @@ export async function clearChequeDraft(chequeId, venueId) {
   return getCheque(chequeId, venueId);
 }
 
-export async function payCheque(chequeId, { cashierId, method = 'cash', amount }, venueId) {
+function normalizePayments({ payments, method, amount }, total) {
+  let lines = payments;
+  if (!lines?.length) {
+    lines = [{ method: method ?? 'cash', amount: amount != null ? Number(amount) : total }];
+  }
+
+  const sum = lines.reduce((s, p) => s + Number(p.amount), 0);
+  if (Math.abs(sum - total) > 0.009) {
+    throw validationError('Payment total must match cheque total');
+  }
+
+  return lines.map((p) => ({ method: p.method, amount: Number(p.amount) }));
+}
+
+export async function getChequeReceipt(chequeId, venueId, { tendered, change } = {}) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
+
+  const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+  const serialized = serializeCheque(cheque);
+  return {
+    text: buildChequeReceiptText(serialized, venue, { tendered, change }),
+    cheque: serialized,
+  };
+}
+
+export async function payCheque(
+  chequeId,
+  { cashierId, payments, method, amount, tendered },
+  venueId,
+) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
@@ -218,18 +248,28 @@ export async function payCheque(chequeId, { cashierId, method = 'cash', amount }
   const total = computeChequeTotal(cheque);
   if (total <= 0) throw validationError('Nothing to pay on this cheque');
 
-  const payAmount = amount != null ? Number(amount) : total;
-  if (payAmount < total) throw validationError('Payment amount is less than cheque total');
+  const paymentLines = normalizePayments({ payments, method, amount }, total);
+
+  const cashTotal = paymentLines
+    .filter((p) => p.method === 'cash')
+    .reduce((s, p) => s + p.amount, 0);
+  let change = null;
+  if (tendered != null) {
+    if (tendered < cashTotal) throw validationError('Tendered amount is less than cash due');
+    change = Number((tendered - cashTotal).toFixed(2));
+  }
 
   await prisma.$transaction(async (tx) => {
-    await tx.payment.create({
-      data: {
-        chequeId,
-        cashierId,
-        method,
-        amount: payAmount,
-      },
-    });
+    for (const line of paymentLines) {
+      await tx.payment.create({
+        data: {
+          chequeId,
+          cashierId,
+          method: line.method,
+          amount: line.amount,
+        },
+      });
+    }
 
     await tx.cheque.update({
       where: { id: chequeId },
@@ -252,7 +292,13 @@ export async function payCheque(chequeId, { cashierId, method = 'cash', amount }
     }
   });
 
-  return getCheque(chequeId, venueId);
+  const paid = await getCheque(chequeId, venueId);
+  const receipt = await getChequeReceipt(chequeId, venueId, {
+    tendered: tendered ?? undefined,
+    change: change ?? undefined,
+  });
+
+  return { cheque: paid, receipt: receipt.text, change };
 }
 
 export async function voidChequeRound(chequeId, orderId, { managerPin, reason }, venueId) {

@@ -14,7 +14,11 @@ import {
   abandonLocalDraft,
   syncOrderAction,
 } from './services/orders.js';
-import { getPrinterHealth, printKitchenTicket } from './services/kitchen-printer.js';
+import {
+  getPrinterHealth,
+  printKitchenTicket,
+  printCustomerReceipt,
+} from './services/kitchen-printer.js';
 
 export async function buildAgentServer({ db, config }) {
   const app = Fastify({ logger: { level: 'info' } });
@@ -360,13 +364,36 @@ export async function buildAgentServer({ db, config }) {
     }),
   );
 
+  app.get('/v1/cheques/:id/receipt', async (request) =>
+    apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/receipt`,
+    ),
+  );
+
   app.post('/v1/cheques/:id/pay', async (request, reply) => {
-    const { cashierId, method, amount } = request.body ?? {};
+    const { cashierId, payments, method, amount, tendered } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}/pay`, {
-      method: 'POST',
-      body: JSON.stringify({ cashierId, method, amount }),
-    });
+    const result = await apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/pay`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ cashierId, payments, method, amount, tendered }),
+      },
+    );
+    if (result.receipt) {
+      printCustomerReceipt(result.receipt, {
+        host: kitchenPrinterHost,
+        port: kitchenPrinterPort,
+        log: app.log,
+      }).catch((err) => app.log.warn({ err }, 'Receipt print failed'));
+    }
+    return result;
   });
 
   await app.listen({ port, host });
