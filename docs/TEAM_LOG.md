@@ -417,9 +417,20 @@ npm run dev -- --kds
 npm run test -w @venue-pos/api
 ```
 
+### 2026-06-06 — US-6.2 / US-3.4 kitchen item status (started)
+
+**What:** `OrderItem.kitchenStatus` enum, `PATCH /api/v1/kitchen/orders/:id/items/:itemId/status`, auto order status (`sent` → `partially_ready` → `ready` → `served`), `order:item_status` WebSocket to POS + KDS. KDS Start/Ready/Bump buttons; POS kitchen progress bar after checkout.
+
+**Migration:** `20260606150000_phase2_item_kitchen_status`
+
+**Verify:**
+```bash
+npm run migrate -w @venue-pos/api
+npm run dev -- --kds
+# POS checkout → KDS Start/Ready/Bump → POS footer updates live
+```
+
 **Remaining Phase 2:**
-- US-6.2 KDS status updates (`order:item_status`)
-- US-3.4 order status lifecycle API
 - US-6.3 kitchen printer
 - US-3.5 void order
 

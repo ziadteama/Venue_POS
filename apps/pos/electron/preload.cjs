@@ -2,6 +2,19 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const { contextBridge } = require('electron');
+const { io } = require('socket.io-client');
+
+let posSocket;
+function ensurePosSocket() {
+  if (!posSocket) {
+    posSocket = io(apiUrl, {
+      path: '/socket.io',
+      auth: { terminalId, terminalSecret, clientType: 'pos' },
+      transports: ['websocket'],
+    });
+  }
+  return posSocket;
+}
 
 const agentUrl = process.env.VITE_LOCAL_AGENT_URL ?? 'http://127.0.0.1:3456';
 const apiUrl = process.env.VITE_API_URL ?? 'http://localhost:3000';
@@ -59,4 +72,10 @@ contextBridge.exposeInMainWorld('venuePos', {
     return data;
   },
   platform: process.platform,
+  onItemStatusChange(handler) {
+    const socket = ensurePosSocket();
+    const listener = (msg) => handler(msg?.payload ?? msg);
+    socket.on('order:item_status', listener);
+    return () => socket.off('order:item_status', listener);
+  },
 });
