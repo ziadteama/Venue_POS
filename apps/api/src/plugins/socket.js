@@ -84,6 +84,18 @@ export function emitOrderCreated(io, order) {
   });
 }
 
+export function emitOrderVoided(io, { orderId, venueId, reason, voidedBy }) {
+  const payload = {
+    orderId,
+    venueId,
+    reason,
+    voidedBy,
+    voidedAt: new Date().toISOString(),
+  };
+  io.to(`venue:${venueId}:kitchen`).emit('order:voided', { event: 'order:voided', payload });
+  io.to(`venue:${venueId}:pos`).emit('order:voided', { event: 'order:voided', payload });
+}
+
 export function emitOrderItemStatus(io, { order, itemId, kitchenStatus, updatedBy }) {
   const payload = {
     orderId: order.id,

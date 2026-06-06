@@ -77,6 +77,15 @@ export function updateLocalOrderTableLabel(db, orderId, tableLabel) {
   return getLocalOrder(db, orderId);
 }
 
+export function voidLocalOrder(db, orderId) {
+  const order = getLocalOrder(db, orderId);
+  if (!order) throw new Error('Order not found');
+  if (!['draft', 'sent'].includes(order.status)) throw new Error('Order cannot be voided');
+
+  db.prepare(`UPDATE orders SET status = 'voided' WHERE id = ?`).run(orderId);
+  return getLocalOrder(db, orderId);
+}
+
 export function sendLocalOrder(db, orderId) {
   const order = getLocalOrder(db, orderId);
   if (!order) throw new Error('Order not found');
@@ -201,6 +210,13 @@ export async function syncOrderAction({
 
   if (action === 'receipt') {
     return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${orderId}/receipt`);
+  }
+
+  if (action === 'void') {
+    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${orderId}/void`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   }
 
   throw new Error(`Unknown action ${action}`);

@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld('venuePos', {
     agentFetch(`/v1/orders/${orderId}/items/${itemId}`, { method: 'DELETE' }),
   sendOrder: (orderId) =>
     agentFetch(`/v1/orders/${orderId}/send`, { method: 'POST' }),
+  voidOrder: (orderId, body) =>
+    agentFetch(`/v1/orders/${orderId}/void`, { method: 'POST', body: JSON.stringify(body) }),
   getReceipt: (orderId) => agentFetch(`/v1/orders/${orderId}/receipt`),
   loginPin: async (pin) => {
     const res = await fetch(`${apiUrl}/api/v1/auth/pin`, {
@@ -79,5 +81,11 @@ contextBridge.exposeInMainWorld('venuePos', {
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('order:item_status', listener);
     return () => socket.off('order:item_status', listener);
+  },
+  onOrderVoided(handler) {
+    const socket = ensurePosSocket();
+    const listener = (msg) => handler(msg?.payload ?? msg);
+    socket.on('order:voided', listener);
+    return () => socket.off('order:voided', listener);
   },
 });

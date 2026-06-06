@@ -74,8 +74,10 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue  Venue?  @relation(fields: [venueId], references: [id])
-  orders Order[]
+  venue         Venue?           @relation(fields: [venueId], references: [id])
+  orders        Order[]
+  voidsApproved OrderVoidAudit[] @relation("VoidApprover")
+  voidsCashier  OrderVoidAudit[] @relation("VoidCashier")
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -233,8 +235,9 @@ model Order {
 
   venue    Venue      @relation(fields: [venueId], references: [id])
   terminal Terminal?  @relation(fields: [terminalId], references: [id])
-  cashier  User       @relation(fields: [cashierId], references: [id])
-  items    OrderItem[]
+  cashier   User            @relation(fields: [cashierId], references: [id])
+  items     OrderItem[]
+  voidAudit OrderVoidAudit?
 
   @@unique([venueId, orderNumber], map: "uq_orders_venue_number")
   @@index([venueId], map: "idx_orders_venue")
@@ -258,4 +261,21 @@ model OrderItem {
 
   @@index([orderId], map: "idx_order_items_order")
   @@map("order_items")
+}
+
+model OrderVoidAudit {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId    String   @unique @map("order_id") @db.Uuid
+  cashierId  String   @map("cashier_id") @db.Uuid
+  approverId String   @map("approver_id") @db.Uuid
+  reason     String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  order    Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  cashier  User  @relation("VoidCashier", fields: [cashierId], references: [id])
+  approver User  @relation("VoidApprover", fields: [approverId], references: [id])
+
+  @@index([cashierId], map: "idx_void_audit_cashier")
+  @@index([approverId], map: "idx_void_audit_approver")
+  @@map("order_void_audits")
 }

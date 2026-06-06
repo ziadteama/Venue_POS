@@ -430,9 +430,38 @@ npm run dev -- --kds
 # POS checkout → KDS Start/Ready/Bump → POS footer updates live
 ```
 
-**Remaining Phase 2:**
-- US-6.3 kitchen printer
-- US-3.5 void order
+### 2026-06-06 — US-3.5 void order
+
+**What:** Manager PIN approval (`verifyManagerPin` for hub/venue managers), `POST /api/v1/orders/:id/void` (draft or sent only), `order_void_audits` trail, `order:voided` WebSocket to POS + KDS. POS void modal (reason + manager PIN); agent void + sync; KDS removes voided tickets.
+
+**Migration:** `20260606160000_phase2_void_audit`
+
+**Demo manager PIN:** `admin` user → `9999` (re-seed: `npm run seed -w @venue-pos/api`)
+
+**Verify:**
+```bash
+npm run migrate -w @venue-pos/api
+npm run test -w @venue-pos/api
+npm run dev -- --kds
+# POS: add items → Void → reason + manager PIN 9999 → new draft order
+# KDS: void a sent ticket from POS → ticket disappears
+```
+
+### 2026-06-06 — US-6.3 kitchen printer
+
+**What:** Local agent prints ESC/POS text ticket on send when `KITCHEN_PRINTER_HOST` is set (TCP port 9100, 3 retries). `/health` exposes `printer` status; POS footer shows printer connected/offline from agent health.
+
+**Env:** `apps/local-agent/.env` — `KITCHEN_PRINTER_HOST`, `KITCHEN_PRINTER_PORT` (see `.env.example`)
+
+**Verify:**
+```bash
+# Without printer host: health shows not_configured, POS shows connected
+# With host: send order → ticket prints; failed host → printer offline in POS
+```
+
+**Remaining Phase 2 (nice-to-have):**
+- SLA alerts, station grouping, KDS undo
+- Venue-level printer config in dashboard
 
 ---
 
