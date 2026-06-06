@@ -182,6 +182,17 @@ export async function getOrder(orderId) {
   return serializeOrder(order);
 }
 
+const KITCHEN_ACTIVE_STATUSES = ['sent', 'partially_ready', 'ready'];
+
+export async function listKitchenOrders(venueId) {
+  const orders = await prisma.order.findMany({
+    where: { venueId, status: { in: KITCHEN_ACTIVE_STATUSES } },
+    include: orderInclude,
+    orderBy: { sentAt: 'asc' },
+  });
+  return orders.map(serializeOrder);
+}
+
 export async function getOrderReceipt(orderId) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },

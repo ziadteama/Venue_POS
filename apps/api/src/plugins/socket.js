@@ -11,7 +11,8 @@ export function registerSocket(app) {
 
   io.use(async (socket, next) => {
     try {
-      const { token, terminalId, terminalSecret } = socket.handshake.auth ?? {};
+      const { token, terminalId, terminalSecret, clientType } = socket.handshake.auth ?? {};
+      socket.data.clientType = clientType ?? 'pos';
 
       if (terminalId && terminalSecret) {
         const terminal = await prisma.terminal.findUnique({ where: { id: terminalId } });
@@ -40,8 +41,12 @@ export function registerSocket(app) {
     if (socket.data.terminal) {
       const { id, venueId } = socket.data.terminal;
       socket.join(`venue:${venueId}`);
-      socket.join(`venue:${venueId}:pos`);
       socket.join(`terminal:${id}`);
+      if (socket.data.clientType === 'kds') {
+        socket.join(`venue:${venueId}:kitchen`);
+      } else {
+        socket.join(`venue:${venueId}:pos`);
+      }
     } else if (socket.data.user?.venue_id) {
       socket.join(`venue:${socket.data.user.venue_id}`);
     }
@@ -68,8 +73,10 @@ export function emitOrderCreated(io, order) {
     event: 'order:created',
     payload: {
       orderId: order.id,
+      orderNumber: order.orderNumber,
       venueId: order.venueId,
       tableId: order.tableLabel,
+      tableLabel: order.tableLabel,
       items: order.items,
       status: order.status,
       sentAt: order.sentAt,

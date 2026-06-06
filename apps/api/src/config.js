@@ -20,6 +20,9 @@ export const config = {
     audience: process.env.JWT_AUDIENCE ?? 'hub-pos-clients',
   },
   bcryptRounds: Number(process.env.BCRYPT_ROUNDS ?? 12),
-  corsOrigins: (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5173').split(','),
+  corsOrigins: (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5175').split(
+    ',',
+  ),
   logLevel: process.env.LOG_LEVEL ?? 'info',
+  featureKdsEnabled: process.env.FEATURE_KDS_ENABLED !== 'false',
 };

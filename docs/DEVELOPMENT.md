@@ -250,5 +250,5 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 |-------|--------|-------|
 | 0 Setup | ✅ Done | Monorepo, Prisma, auth, shells, CI |
 | 1 Core POS | ✅ Done | Menu, modifiers, POS order flow, send to kitchen |
-| 2 Kitchen | In progress | KDS (when `kds_enabled`), printer, order status — see [TEAM_LOG.md](TEAM_LOG.md) |
+| 2 Kitchen | In progress (`phase-2`) | US-6.1 KDS tickets done; printer + status + void next — [TEAM_LOG.md](TEAM_LOG.md) |
 | 3–9 | Planned | `docs/Technical_Proposal.md` §12 |

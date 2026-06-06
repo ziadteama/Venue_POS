@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@venue-pos/i18n": "*",
+    "socket.io-client": "^4.8.3",
     "i18next": "^24.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

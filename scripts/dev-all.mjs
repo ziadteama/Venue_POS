@@ -47,6 +47,7 @@ function ensureFile(exampleRel, targetRel) {
 ensureFile('apps/api/.env.example', 'apps/api/.env');
 ensureFile('apps/local-agent/.env.example', 'apps/local-agent/.env');
 ensureFile('apps/pos/.env.example', 'apps/pos/.env');
+ensureFile('apps/kds/.env.example', 'apps/kds/.env');
 
 if (!existsSync(path.join(root, 'ops/secrets/jwt-private.pem'))) {
   console.log('JWT keys missing — generating…');
