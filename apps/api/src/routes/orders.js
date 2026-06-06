@@ -8,6 +8,7 @@ import {
   updateOrderItemQuantity,
   removeOrderItem,
   updateOrderTableLabel,
+  abandonDraftOrder,
   voidOrder,
   sendOrderToKitchen,
   getOrder,
@@ -120,6 +121,15 @@ export async function orderRoutes(app) {
     async (request) => {
       await assertOrderVenue(request, request.params.id);
       return removeOrderItem(request.params.id, request.params.itemId);
+    },
+  );
+
+  app.post(
+    '/api/v1/orders/:id/abandon',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      await assertOrderVenue(request, request.params.id);
+      return abandonDraftOrder(request.params.id, request.terminal.venueId);
     },
   );
 

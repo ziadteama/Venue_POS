@@ -11,7 +11,7 @@ import {
   getLocalOrder,
   pushOrderToServer,
   sendLocalOrder,
-  voidLocalOrder,
+  abandonLocalDraft,
   syncOrderAction,
 } from './services/orders.js';
 import { getPrinterHealth, printKitchenTicket } from './services/kitchen-printer.js';
@@ -206,25 +206,24 @@ export async function buildAgentServer({ db, config }) {
     }
   });
 
-  app.post('/v1/orders/:id/void', async (request, reply) => {
-    const { cashierId, managerPin, reason } = request.body ?? {};
-    if (!cashierId || !managerPin || !reason?.trim()) {
-      return reply.status(400).send({ error: 'cashierId, managerPin, and reason required' });
-    }
+  app.post('/v1/orders/:id/abandon', async (request, reply) => {
     try {
-      voidLocalOrder(db, request.params.id);
-      const server = await syncOrderAction({
-        db,
-        apiUrl,
-        terminalId,
-        terminalSecret,
-        orderId: request.params.id,
-        action: 'void',
-        body: { cashierId, managerPin, reason: reason.trim() },
-      });
-      return server;
+      const result = abandonLocalDraft(db, request.params.id);
+      try {
+        await syncOrderAction({
+          db,
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          orderId: request.params.id,
+          action: 'abandon',
+        });
+      } catch (err) {
+        app.log.warn({ err }, 'Draft abandon server sync deferred');
+      }
+      return result;
     } catch (err) {
-      app.log.warn({ err }, 'Void failed');
+      app.log.warn({ err }, 'Abandon draft failed');
       return reply.status(400).send({ error: err.message });
     }
   });

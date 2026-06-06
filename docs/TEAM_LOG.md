@@ -430,21 +430,16 @@ npm run dev -- --kds
 # POS checkout → KDS Start/Ready/Bump → POS footer updates live
 ```
 
-### 2026-06-06 — US-3.5 void order
+### 2026-06-06 — POS Clear (start over) — US-3.5 void removed from cashier UI
 
-**What:** Manager PIN approval (`verifyManagerPin` for hub/venue managers), `POST /api/v1/orders/:id/void` (draft or sent only), `order_void_audits` trail, `order:voided` WebSocket to POS + KDS. POS void modal (reason + manager PIN); agent void + sync; KDS removes voided tickets.
+**What:** Draft cart **Clear** abandons the order (`POST /api/v1/orders/:id/abandon`) — no manager PIN. Removes orphan drafts locally + on server. Matches real F&B: fix mistakes with **−** or start over with **Clear** while building the tab.
 
-**Migration:** `20260606160000_phase2_void_audit`
-
-**Demo manager PIN:** `admin` user → `9999` (re-seed: `npm run seed -w @venue-pos/api`)
+**Removed from POS:** Void button/modal (did not match open-cheque workflow). Backend `void` API + audit schema kept for Phase 3 cheque management.
 
 **Verify:**
 ```bash
-npm run migrate -w @venue-pos/api
 npm run test -w @venue-pos/api
-npm run dev -- --kds
-# POS: add items → Void → reason + manager PIN 9999 → new draft order
-# KDS: void a sent ticket from POS → ticket disappears
+# POS: add items → Clear → empty cart, fresh order
 ```
 
 ### 2026-06-06 — US-6.3 kitchen printer
@@ -462,6 +457,26 @@ npm run dev -- --kds
 **Remaining Phase 2 (nice-to-have):**
 - SLA alerts, station grouping, KDS undo
 - Venue-level printer config in dashboard
+
+### Deferred — Phase 3 open cheque / tab management (real F&B model)
+
+Reference: Toast, Square, Lightspeed, Oracle Simphony — **open check** per table/guest.
+
+| Today (Phase 1–2) | Target (Phase 3+) |
+|-------------------|-------------------|
+| Checkout sends to kitchen then **starts a new order** | **Fire** new items to kitchen; **same cheque stays open** |
+| One-shot order session | Guest stays hours; add rounds whenever |
+| No cheque entity in POS | `cheques` table: open → paid / voided |
+| Void on draft cart | **Clear** only on draft; manager void/comp on **running or paid cheques** |
+
+**Phase 3 scope (documented, not started):**
+- Open cheque per table — list open cheques, resume, add items across rounds
+- Fire/send kitchen tickets per round without closing the cheque
+- Cheque explorer: running totals, item history, split (US-3.6)
+- Void/comp/transfer line items on open cheques (manager PIN + audit) — uses existing `order_void_audits` / `void` API patterns
+- Pay cheque → `billed` / `closed` (Phase 3 payments epic)
+
+**Current workaround:** Each checkout is a kitchen ticket; table label is cosmetic until cheque model ships.
 
 ---
 

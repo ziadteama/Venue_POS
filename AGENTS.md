@@ -61,4 +61,4 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 2 in progress** (`phase-2` branch) — US-6.1 KDS live tickets shipped; next: status updates, printer, void. See `docs/TEAM_LOG.md`.
+**Phase 2 in progress** (`phase-2` branch) — KDS, kitchen status, printer shipped. US-3.5 void removed from POS UI; open cheque management deferred to Phase 3. See `docs/TEAM_LOG.md`.
