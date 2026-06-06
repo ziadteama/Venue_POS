@@ -476,7 +476,11 @@ Reference: Toast, Square, Lightspeed, Oracle Simphony — **open check** per tab
 - Void/comp/transfer line items on open cheques (manager PIN + audit) — uses existing `order_void_audits` / `void` API patterns
 - Pay cheque → `billed` / `closed` (Phase 3 payments epic)
 
-**Current workaround:** Each checkout is a kitchen ticket; table label is cosmetic until cheque model ships.
+**Current workaround:** Each **Fire to kitchen** sends one kitchen ticket; table label is cosmetic until cheque model ships.
+
+### 2026-06-06 — POS label: Checkout → Fire to kitchen
+
+**What:** POS primary action uses `pos.sendKitchen` (“Fire to kitchen” / “إرسال للمطبخ”) instead of “Checkout” — avoids implying payment; real checkout comes with Phase 3 cheques.
 
 ---
 

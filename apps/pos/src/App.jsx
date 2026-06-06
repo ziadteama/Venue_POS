@@ -577,7 +577,7 @@ export default function App() {
                   disabled={sending}
                   className="flex-[2] rounded-lg bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
                 >
-                  {sending ? t('common.loading') : t('pos.checkout')}
+                  {sending ? t('common.loading') : t('pos.sendKitchen')}
                 </button>
               )}
             </div>
