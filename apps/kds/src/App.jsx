@@ -180,13 +180,6 @@ export default function App() {
     socket.on('order:item_status', (msg) => {
       applyItemStatusEvent(msg?.payload ?? msg);
     });
-    socket.on('order:voided', (msg) => {
-      const payload = msg?.payload ?? msg;
-      if (payload?.orderId) {
-        setOrders((prev) => prev.filter((o) => o.id !== payload.orderId));
-      }
-    });
-
     return () => socket.disconnect();
   }, [upsertOrder, applyItemStatusEvent]);
 

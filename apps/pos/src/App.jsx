@@ -50,9 +50,8 @@ async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/orders\/[^/]+$/) && method === 'PATCH') {
       return window.venuePos.updateOrder(path.split('/')[3], body);
     }
-    if (path.match(/^\/v1\/orders\/[^/]+\/void$/) && method === 'POST') {
-      const orderId = path.split('/')[3];
-      return window.venuePos.voidOrder(orderId, body);
+    if (path.match(/^\/v1\/orders\/[^/]+\/abandon$/) && method === 'POST') {
+      return window.venuePos.abandonDraft(path.split('/')[3]);
     }
     if (path.match(/^\/v1\/orders\/[^/]+\/send$/)) {
       return window.venuePos.sendOrder(path.split('/')[3]);
@@ -186,52 +185,6 @@ function ClearIcon() {
   );
 }
 
-function VoidModal({ reason, managerPin, onReasonChange, onPinChange, onConfirm, onCancel, t, busy }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
-        <h3 className="mb-4 text-xl font-bold text-slate-900">{t('pos.voidTitle')}</h3>
-        <label className="mb-3 block text-sm font-medium text-slate-700">
-          {t('pos.voidReason')}
-          <textarea
-            value={reason}
-            onChange={(e) => onReasonChange(e.target.value)}
-            rows={3}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="mb-4 block text-sm font-medium text-slate-700">
-          {t('pos.managerPin')}
-          <input
-            type="password"
-            inputMode="numeric"
-            value={managerPin}
-            onChange={(e) => onPinChange(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-          />
-        </label>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={busy || !reason.trim() || managerPin.length < 4}
-            className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {busy ? t('common.loading') : t('pos.voidConfirm')}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg border border-secondary/50 px-4 py-2 text-secondary hover:bg-slate-50"
-          >
-            {t('common.cancel')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   const { t, i18n } = useTranslation();
   const [menu, setMenu] = useState(null);
@@ -247,16 +200,7 @@ export default function App() {
   const [printerOk, setPrinterOk] = useState(true);
   const [sending, setSending] = useState(false);
   const [kitchenWatch, setKitchenWatch] = useState(null);
-  const [voidOpen, setVoidOpen] = useState(false);
-  const [voidReason, setVoidReason] = useState('');
-  const [voidManagerPin, setVoidManagerPin] = useState('');
-  const [voiding, setVoiding] = useState(false);
   const [clock, setClock] = useState(() => new Date());
-
-  const handleOrderVoided = useCallback((payload) => {
-    if (!payload?.orderId) return;
-    setKitchenWatch((prev) => (prev?.id === payload.orderId ? null : prev));
-  }, []);
 
   const applyItemStatus = useCallback((payload) => {
     if (!payload?.orderId) return;
@@ -334,12 +278,7 @@ export default function App() {
 
   useEffect(() => {
     if (window.venuePos?.onItemStatusChange) {
-      const offStatus = window.venuePos.onItemStatusChange(applyItemStatus);
-      const offVoid = window.venuePos.onOrderVoided?.(handleOrderVoided);
-      return () => {
-        offStatus?.();
-        offVoid?.();
-      };
+      return window.venuePos.onItemStatusChange(applyItemStatus);
     }
     if (!TERMINAL_ID || !TERMINAL_SECRET) return undefined;
     const socket = io(API_URL, {
@@ -348,9 +287,8 @@ export default function App() {
       transports: ['websocket'],
     });
     socket.on('order:item_status', (msg) => applyItemStatus(msg?.payload ?? msg));
-    socket.on('order:voided', (msg) => handleOrderVoided(msg?.payload ?? msg));
     return () => socket.disconnect();
-  }, [applyItemStatus, handleOrderVoided]);
+  }, [applyItemStatus]);
 
   useEffect(() => {
     async function checkPrinter() {
@@ -454,37 +392,20 @@ export default function App() {
   }
 
   async function handleClear() {
+    if (!order) return;
     setError('');
-    await startOrder(tableLabelRef.current);
+    try {
+      if (order.status === 'draft') {
+        await callAgent(`/v1/orders/${order.id}/abandon`, { method: 'POST' });
+      }
+      await startOrder(tableLabelRef.current);
+    } catch {
+      setError(t('pos.clearFailed'));
+    }
   }
 
   function handleTableBlur() {
     syncTableLabel(tableLabelRef.current).catch(() => {});
-  }
-
-  async function handleVoid() {
-    if (!order || voiding) return;
-    setVoiding(true);
-    setError('');
-    try {
-      await callAgent(`/v1/orders/${order.id}/void`, {
-        method: 'POST',
-        body: JSON.stringify({
-          cashierId: DEMO_CASHIER_ID,
-          managerPin: voidManagerPin,
-          reason: voidReason.trim(),
-        }),
-      });
-      setVoidOpen(false);
-      setVoidReason('');
-      setVoidManagerPin('');
-      setKitchenWatch((prev) => (prev?.id === order.id ? null : prev));
-      await startOrder(tableLabelRef.current);
-    } catch {
-      setError(t('pos.voidFailed'));
-    } finally {
-      setVoiding(false);
-    }
   }
 
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
@@ -494,23 +415,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
-      {voidOpen && (
-        <VoidModal
-          reason={voidReason}
-          managerPin={voidManagerPin}
-          onReasonChange={setVoidReason}
-          onPinChange={setVoidManagerPin}
-          onConfirm={handleVoid}
-          onCancel={() => {
-            setVoidOpen(false);
-            setVoidReason('');
-            setVoidManagerPin('');
-          }}
-          t={t}
-          busy={voiding}
-        />
-      )}
-
       {modifierItem && (
         <ModifierModal
           item={modifierItem}
@@ -666,15 +570,6 @@ export default function App() {
                 <ClearIcon />
                 {t('pos.clear')}
               </button>
-              {order?.status === 'draft' && order.items?.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setVoidOpen(true)}
-                  className="flex flex-1 rounded-lg border border-red-300 py-3 text-sm font-medium text-red-700 hover:bg-red-50"
-                >
-                  {t('pos.void')}
-                </button>
-              )}
               {order?.status === 'draft' && order.items?.length > 0 && (
                 <button
                   type="button"

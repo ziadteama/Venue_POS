@@ -301,7 +301,7 @@ test('kitchen can advance item status through lifecycle', async () => {
   );
 });
 
-test('void draft order requires manager PIN and reason', async () => {
+test('clear abandons draft order without manager approval', async () => {
   const createRes = await app.inject({
     method: 'POST',
     url: '/api/v1/orders',
@@ -311,99 +311,16 @@ test('void draft order requires manager PIN and reason', async () => {
   assert.equal(createRes.statusCode, 200);
   const draftId = createRes.json().id;
 
-  const badPin = await app.inject({
+  const abandonRes = await app.inject({
     method: 'POST',
-    url: `/api/v1/orders/${draftId}/void`,
-    headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, managerPin: '0000', reason: 'Wrong item' },
-  });
-  assert.equal(badPin.statusCode, 401);
-
-  const voidRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/orders/${draftId}/void`,
-    headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, managerPin: '8888', reason: 'Customer left' },
-  });
-  assert.equal(voidRes.statusCode, 200);
-  assert.equal(voidRes.json().status, 'voided');
-  assert.ok(voidRes.json().closedAt);
-
-  const audit = await prisma.orderVoidAudit.findUnique({ where: { orderId: draftId } });
-  assert.ok(audit);
-  assert.equal(audit.reason, 'Customer left');
-  assert.equal(audit.cashierId, CASHIER_ID);
-});
-
-test('void sent order removes it from kitchen list', async () => {
-  const createRes = await app.inject({
-    method: 'POST',
-    url: '/api/v1/orders',
-    headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, tableLabel: 'V2' },
-  });
-  const sentId = createRes.json().id;
-
-  const menuRes = await app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    url: `/api/v1/orders/${draftId}/abandon`,
     headers: terminalHeaders,
   });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  assert.equal(abandonRes.statusCode, 200);
+  assert.equal(abandonRes.json().abandoned, true);
 
-  const addRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/orders/${sentId}/items`,
-    headers: terminalHeaders,
-    payload: {
-      menuItemId,
-      quantity: 1,
-      modifiers: [
-        {
-          groupId: group.id,
-          optionId: option.id,
-          nameEn: option.nameEn,
-          nameAr: option.nameAr,
-          priceDelta: option.priceDelta,
-        },
-      ],
-    },
-  });
-  assert.equal(addRes.statusCode, 200);
-
-  const sendRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/orders/${sentId}/send`,
-    headers: terminalHeaders,
-  });
-  assert.equal(sendRes.statusCode, 200);
-
-  const beforeKitchen = await app.inject({
-    method: 'GET',
-    url: '/api/v1/kitchen/orders',
-    headers: terminalHeaders,
-  });
-  assert.ok(beforeKitchen.json().some((o) => o.id === sentId));
-
-  const voidRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/orders/${sentId}/void`,
-    headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, managerPin: '8888', reason: 'Duplicate ticket' },
-  });
-  assert.equal(voidRes.statusCode, 200);
-  assert.equal(voidRes.json().status, 'voided');
-
-  const afterKitchen = await app.inject({
-    method: 'GET',
-    url: '/api/v1/kitchen/orders',
-    headers: terminalHeaders,
-  });
-  assert.equal(
-    afterKitchen.json().some((o) => o.id === sentId),
-    false,
-  );
+  const gone = await prisma.order.findUnique({ where: { id: draftId } });
+  assert.equal(gone, null);
 });
 
 test('manager can 86 an item', async () => {

@@ -170,6 +170,18 @@ export async function updateOrderTableLabel(orderId, tableLabel, venueId) {
   return serializeOrder(updated);
 }
 
+export async function abandonDraftOrder(orderId, venueId) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw notFound('Order not found');
+  if (order.venueId !== venueId) throw validationError('Order not found for this terminal');
+  if (order.status !== 'draft') {
+    throw validationError('Only draft orders can be cleared');
+  }
+
+  await prisma.order.delete({ where: { id: orderId } });
+  return { id: orderId, abandoned: true };
+}
+
 export async function voidOrder(orderId, { cashierId, managerPin, reason }, venueId) {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) throw notFound('Order not found');

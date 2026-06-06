@@ -77,6 +77,16 @@ export function updateLocalOrderTableLabel(db, orderId, tableLabel) {
   return getLocalOrder(db, orderId);
 }
 
+export function abandonLocalDraft(db, orderId) {
+  const order = db.prepare('SELECT id, status FROM orders WHERE id = ?').get(orderId);
+  if (!order) throw new Error('Order not found');
+  if (order.status !== 'draft') throw new Error('Only draft orders can be cleared');
+
+  db.prepare('DELETE FROM order_items WHERE order_id = ?').run(orderId);
+  db.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
+  return { id: orderId, abandoned: true };
+}
+
 export function voidLocalOrder(db, orderId) {
   const order = getLocalOrder(db, orderId);
   if (!order) throw new Error('Order not found');
@@ -210,6 +220,12 @@ export async function syncOrderAction({
 
   if (action === 'receipt') {
     return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${orderId}/receipt`);
+  }
+
+  if (action === 'abandon') {
+    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${orderId}/abandon`, {
+      method: 'POST',
+    });
   }
 
   if (action === 'void') {
