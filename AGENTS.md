@@ -61,4 +61,4 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 2 in progress** (`phase-2` branch) — KDS, kitchen status, printer shipped. US-3.5 void removed from POS UI; open cheque management deferred to Phase 3. See `docs/TEAM_LOG.md`.
+**Phase 3 in progress** (`phase-3` branch) — open cheques + payments. Branched from `phase-2`. See `docs/TEAM_LOG.md`.
