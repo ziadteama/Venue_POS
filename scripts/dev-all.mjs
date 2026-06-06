@@ -29,6 +29,7 @@ const flags = new Set(process.argv.slice(2));
 const withKds = flags.has('--kds');
 const withDocker = flags.has('--docker');
 const browserOnly = flags.has('--browser');
+const skipPortCleanup = flags.has('--no-stop');
 
 function runSync(command, args) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: true });
@@ -44,10 +45,21 @@ function ensureFile(exampleRel, targetRel) {
   }
 }
 
+if (!skipPortCleanup) {
+  console.log('Freeing dev ports from a previous run (npm run dev:stop)…');
+  spawnSync('npm', ['run', 'dev:stop'], { cwd: root, stdio: 'inherit', shell: true });
+}
+
 ensureFile('apps/api/.env.example', 'apps/api/.env');
+ensureFile('apps/dashboard/.env.example', 'apps/dashboard/.env');
 ensureFile('apps/local-agent/.env.example', 'apps/local-agent/.env');
 ensureFile('apps/pos/.env.example', 'apps/pos/.env');
 ensureFile('apps/kds/.env.example', 'apps/kds/.env');
+
+if (!existsSync(path.join(root, 'node_modules/.prisma/client'))) {
+  console.log('Prisma client missing — generating…');
+  runSync('npm', ['run', 'db:generate']);
+}
 
 if (!existsSync(path.join(root, 'ops/secrets/jwt-private.pem'))) {
   console.log('JWT keys missing — generating…');
@@ -62,7 +74,11 @@ if (withDocker) {
 const jobs = [
   { command: 'npm run dev:api', name: 'api', prefixColor: 'blue' },
   { command: 'npm run dev:dashboard', name: 'dashboard', prefixColor: 'green' },
-  { command: 'npm run dev:agent', name: 'agent', prefixColor: 'yellow' },
+  {
+    command: 'node scripts/wait-api-health.mjs && npm run dev:agent',
+    name: 'agent',
+    prefixColor: 'yellow',
+  },
   browserOnly
     ? { command: 'npm run dev:pos', name: 'pos', prefixColor: 'magenta' }
     : {
@@ -76,7 +92,7 @@ if (withKds) {
   jobs.push({ command: 'npm run dev:kds', name: 'kds', prefixColor: 'cyan' });
 }
 
-console.log('\nVenue POS dev stack');
+console.log('\nVenue POS dev stack (run from repo root: npm run dev)');
 console.log('  API        http://localhost:3000');
 console.log('  Dashboard  http://localhost:5173');
 console.log('  Agent      http://127.0.0.1:3456');

@@ -93,17 +93,27 @@ npm run dev            # starts full stack; uses Node 20 even when shell has Nod
 
 **Windows + nvm:** `nvm use 20` often needs Administrator. `npm run dev` picks up nvm’s Node 20 automatically via `scripts/node20.mjs` — no `nvm use` required.
 
-Starts **API** (:3000), **dashboard** (:5173), **local-agent** (:3456), and **POS** (Electron + :5174).  
+Run from the **repo root** (`Venue_POS/`), not `apps/api/`:
+
+```bash
+cd Venue_POS
+npm run dev
+```
+
+Starts **API** (:3000), **dashboard** (:5173), **local-agent** (:3456, after API is healthy), and **POS** (Electron + :5174).  
 Postgres must already be running (`pgAdmin` or `npm run docker:up`).
+
+`npm run dev` automatically frees ports 3000, 3456, 5173–5175 from a crashed prior session before starting.
 
 | Flag | Effect |
 |------|--------|
 | `npm run dev -- --browser` | POS in browser only (no Electron window) |
 | `npm run dev -- --kds` | Also start KDS Vite (:5175) |
 | `npm run dev -- --docker` | Start Redis container before apps |
-| `npm run dev:stop` | Kill leftover processes on ports 3000, 3456, 5173–5175 |
+| `npm run dev -- --no-stop` | Skip automatic port cleanup |
+| `npm run dev:stop` | Manually kill processes on dev ports |
 
-If you see **`EADDRINUSE :3000`**, a previous dev session is still running. Run `npm run dev:stop`, then `npm run dev` again.
+If you still see **`EADDRINUSE`**, run `npm run dev:stop`, then `npm run dev` again.
 
 ### Individual apps (if you prefer separate terminals)
 
