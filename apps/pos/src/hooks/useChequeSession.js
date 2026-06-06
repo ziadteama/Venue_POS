@@ -194,40 +194,57 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     }
   }
 
+  const refreshCheque = useCallback(async () => {
+    if (!cheque?.id) return;
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}`);
+      setCheque(updated);
+      await refreshOpenCheques();
+    } catch {
+      /* ignore */
+    }
+  }, [cheque?.id, refreshOpenCheques]);
+
   async function confirmDiscount(discountBody) {
     if (!cheque) return false;
     setError('');
     try {
-      await callAgent(`/v1/cheques/${cheque.id}/discount/request`, {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/discount`, {
         method: 'POST',
         body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
       });
-
-      const pollMs = 2000;
-      const maxAttempts = 60;
-      for (let i = 0; i < maxAttempts; i++) {
-        await new Promise((r) => setTimeout(r, pollMs));
-        const [updated, requests] = await Promise.all([
-          callAgent(`/v1/cheques/${cheque.id}`),
-          callAgent(`/v1/cheques/${cheque.id}/approval-requests`),
-        ]);
-        const discountReq = requests?.find?.((r) => r.type === 'discount');
-        if (discountReq?.status === 'rejected') {
-          setError(t('pos.discountRejected'));
-          return false;
-        }
-        if ((updated.discountAmount ?? 0) > 0) {
-          setCheque(updated);
-          await refreshOpenCheques();
-          return true;
-        }
-        if (discountReq?.status === 'pending') continue;
-        if (i > 2) break;
-      }
-      setError(t('pos.discountPending'));
-      return 'pending';
+      setCheque(updated);
+      await refreshOpenCheques();
+      return true;
     } catch {
       setError(t('pos.discountFailed'));
+      return false;
+    }
+  }
+
+  async function loadPaidCheques() {
+    try {
+      const list = await callAgent('/v1/cheques/paid');
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function confirmRefund(chequeId, refundBody) {
+    setError('');
+    try {
+      await callAgent(`/v1/cheques/${chequeId}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...refundBody }),
+      });
+      if (cheque?.id === chequeId) {
+        const updated = await callAgent(`/v1/cheques/${chequeId}`);
+        setCheque(updated);
+      }
+      return true;
+    } catch {
+      setError(t('pos.refundFailed'));
       return false;
     }
   }
@@ -275,6 +292,9 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     confirmSplitAmount,
     confirmTransfer,
     confirmDiscount,
+    confirmRefund,
+    loadPaidCheques,
+    refreshCheque,
     confirmPay,
     handleTableBlur,
     switchToCheque,

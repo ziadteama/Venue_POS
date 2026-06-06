@@ -42,7 +42,7 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
         className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
       >
         <h3 className="mb-2 text-lg font-semibold text-slate-900">{t('pos.discountTitle')}</h3>
-        <p className="mb-4 text-sm text-secondary">{t('pos.discountRequestHint')}</p>
+        <p className="mb-4 text-sm text-secondary">{t('pos.discountApplyHint')}</p>
 
         <div className="mb-3 flex gap-2 text-sm">
           <button
@@ -128,7 +128,7 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
             type="submit"
             className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700"
           >
-            {t('pos.discountRequestSubmit')}
+            {t('pos.discountApplySubmit')}
           </button>
           <button
             type="button"

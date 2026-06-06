@@ -1,34 +1,11 @@
 import { Link, Outlet } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { useAuth } from '../hooks/useAuth.js';
-import { apiFetch } from '../api/client.js';
 
 export function Layout() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
-  const [pendingCount, setPendingCount] = useState(0);
-
-  useEffect(() => {
-    if (user?.role !== 'hub_manager') return;
-    let cancelled = false;
-    async function refresh() {
-      try {
-        const q = user.venueId ? `?venueId=${user.venueId}` : '';
-        const data = await apiFetch(`/api/v1/manager/approval-requests/count${q}`);
-        if (!cancelled) setPendingCount(data.count ?? 0);
-      } catch {
-        if (!cancelled) setPendingCount(0);
-      }
-    }
-    refresh();
-    const timer = setInterval(refresh, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
-    };
-  }, [user?.role, user?.venueId]);
 
   return (
     <div className="min-h-screen">
@@ -59,9 +36,8 @@ export function Layout() {
           {t('cheque.title')}
         </Link>
         {user?.role === 'hub_manager' && (
-          <Link to="/approvals" className="text-secondary hover:text-primary-from">
-            {t('approval.title')}
-            {pendingCount > 0 ? ` (${pendingCount})` : ''}
+          <Link to="/activity" className="text-secondary hover:text-primary-from">
+            {t('activity.title')}
           </Link>
         )}
       </nav>

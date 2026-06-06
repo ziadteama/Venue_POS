@@ -49,7 +49,19 @@ function ChildChequesPanel({ childCheques, t }) {
   );
 }
 
-function OrderRoundCard({ order, detail, isOpenTab, busy, language, t, onComp, onVoidRound }) {
+function OrderRoundCard({
+  order,
+  detail,
+  canManage,
+  isOpenTab,
+  isPaidTab,
+  busy,
+  language,
+  t,
+  onComp,
+  onVoidRound,
+}) {
+  const showManage = canManage && (isOpenTab || isPaidTab);
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -72,7 +84,7 @@ function OrderRoundCard({ order, detail, isOpenTab, busy, language, t, onComp, o
               {line.quantity}× {language === 'ar' ? line.nameAr : line.nameEn}
               {line.isComped ? ` (${t('cheque.comped')})` : ''}
             </span>
-            {isOpenTab && !line.isComped && (
+            {showManage && !line.isComped && (
               <button
                 type="button"
                 disabled={busy}
@@ -93,7 +105,7 @@ function OrderRoundCard({ order, detail, isOpenTab, busy, language, t, onComp, o
           </li>
         ))}
       </ul>
-      {isOpenTab && (
+      {showManage && (
         <button
           type="button"
           disabled={busy}
@@ -178,7 +190,7 @@ function ChequeDetailActions({
           onClick={() => onDiscountRequest(detail)}
           className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
         >
-          {t('cheque.requestDiscount')}
+          {t('cheque.applyDiscount')}
         </button>
       )}
       {user?.role === 'venue_manager' && !isOpenTab && detail.status === 'paid' && (
@@ -188,13 +200,13 @@ function ChequeDetailActions({
           onClick={() => onRefundRequest(detail)}
           className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
         >
-          {t('cheque.requestRefund')}
+          {t('cheque.applyRefund')}
         </button>
       )}
       {user?.role === 'hub_manager' && (
-        <p className="text-sm text-secondary">{t('cheque.gmUseApprovals')}</p>
+        <p className="text-sm text-secondary">{t('cheque.gmReviewActivity')}</p>
       )}
-      {isOpenTab && (
+      {user?.role === 'venue_manager' && isOpenTab && (
         <button
           type="button"
           disabled={busy}
@@ -230,6 +242,8 @@ export function ChequeDetailView({
   }
 
   const isOpenTab = statusTab === 'open';
+  const isPaidTab = statusTab === 'paid';
+  const canManage = user?.role === 'venue_manager';
   const orders = billableOrders(detail);
 
   return (
@@ -242,7 +256,9 @@ export function ChequeDetailView({
             key={order.id}
             order={order}
             detail={detail}
+            canManage={canManage}
             isOpenTab={isOpenTab}
+            isPaidTab={isPaidTab}
             busy={busy}
             language={language}
             t={t}

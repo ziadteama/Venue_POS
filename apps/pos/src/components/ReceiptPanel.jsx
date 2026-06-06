@@ -20,7 +20,9 @@ export function ReceiptPanel({
   onTransfer,
   lineTransferEnabled,
   discountsEnabled,
+  refundsEnabled,
   onDiscount,
+  onRefund,
   onPay,
   onChangeQty,
 }) {
@@ -220,6 +222,15 @@ export function ReceiptPanel({
                 {paying ? t('common.loading') : t('pos.pay')}
               </button>
             </>
+          )}
+          {refundsEnabled && (
+            <button
+              type="button"
+              onClick={onRefund}
+              className="w-full rounded-lg border border-red-300 py-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+            >
+              {t('pos.refundPaidCheque')}
+            </button>
           )}
         </div>
       </div>

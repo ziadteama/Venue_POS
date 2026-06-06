@@ -104,30 +104,19 @@ export function emitOrderVoided(io, { orderId, venueId, reason, voidedBy }) {
   io.to(`venue:${venueId}:pos`).emit('order:voided', { event: 'order:voided', payload });
 }
 
-export function emitApprovalRequested(io, request) {
-  io.to('dashboard:hub_manager').emit('approval:requested', {
-    event: 'approval:requested',
-    payload: request,
-  });
-  io.to(`venue:${request.venueId}:pos`).emit('approval:requested', {
-    event: 'approval:requested',
-    payload: request,
-  });
-}
-
-export function emitApprovalResolved(io, { venueId, terminalId, request, result }) {
-  const payload = { request, result };
-  io.to('dashboard:hub_manager').emit('approval:resolved', {
-    event: 'approval:resolved',
+export function emitManagerAction(io, { venueId, terminalId, type, chequeId, result }) {
+  const payload = { type, chequeId, result, at: new Date().toISOString() };
+  io.to('dashboard:hub_manager').emit('manager:action', {
+    event: 'manager:action',
     payload,
   });
-  io.to(`venue:${venueId}:pos`).emit('approval:resolved', {
-    event: 'approval:resolved',
+  io.to(`venue:${venueId}:pos`).emit('manager:action', {
+    event: 'manager:action',
     payload,
   });
   if (terminalId) {
-    io.to(`terminal:${terminalId}`).emit('approval:resolved', {
-      event: 'approval:resolved',
+    io.to(`terminal:${terminalId}`).emit('manager:action', {
+      event: 'manager:action',
       payload,
     });
   }
