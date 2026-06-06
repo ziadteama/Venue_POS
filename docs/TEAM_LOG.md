@@ -516,7 +516,21 @@ npm run test
 # POS: add items → Fire twice → Pay cash → new cheque for same table
 ```
 
-**Still deferred:** Line-item comp, split pay, card terminal.
+**Still deferred:** Line-item comp, integrated card terminal, vouchers, refunds, cross-venue.
+
+### 2026-06-07 — Payments slice (split pay + receipt)
+
+**What:** US-5.1/US-5.4 partial — cash with change, split cash+card, cheque receipt text + auto-print on pay.
+
+**API:**
+- `payCheque` accepts `payments[]` (1–5 lines); sum must equal cheque total
+- `tendered` for cash change on receipt
+- Returns `{ cheque, receipt, change }`
+- `GET /api/v1/cheques/:id/receipt`
+
+**POS:** Pay modal — Cash (tender + change) or Split (cash + card amounts).
+
+**Agent:** Prints customer receipt on pay when printer configured.
 
 ### 2026-06-07 — Dashboard open cheques + manager void (slice 2)
 

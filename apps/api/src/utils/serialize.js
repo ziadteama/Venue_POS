@@ -132,3 +132,44 @@ export function buildReceiptText(order, venue) {
   if (order.sentAt) lines.push(`Sent: ${order.sentAt}`);
   return lines.join('\n');
 }
+
+export function buildChequeReceiptText(cheque, venue, { tendered, change } = {}) {
+  const lines = [
+    venue?.nameEn ?? 'Venue POS',
+    `Cheque #${cheque.chequeNumber}`,
+    `Table: ${cheque.tableLabel ?? '—'}`,
+    '---',
+  ];
+
+  const rounds = (cheque.orders ?? []).filter(
+    (o) => o.status !== 'draft' && o.status !== 'voided' && o.items?.length,
+  );
+
+  for (const order of rounds) {
+    lines.push(`Round #${order.orderNumber} (${order.status})`);
+    for (const item of order.items) {
+      const mods = item.modifiersSnapshot ?? [];
+      const modTotal = mods.reduce((s, m) => s + Number(m.priceDelta ?? 0), 0);
+      const lineTotal = (Number(item.unitPrice) + modTotal) * item.quantity;
+      lines.push(`  ${item.quantity}x ${item.nameEn} — ${lineTotal.toFixed(2)}`);
+    }
+    lines.push(`  Round subtotal: ${order.subtotal.toFixed(2)}`);
+  }
+
+  lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`);
+
+  if (cheque.payments?.length) {
+    lines.push('Payments:');
+    for (const p of cheque.payments) {
+      lines.push(`  ${p.method}: ${Number(p.amount).toFixed(2)}`);
+    }
+  }
+
+  if (tendered != null && change != null) {
+    lines.push(`Tendered: ${Number(tendered).toFixed(2)}`);
+    lines.push(`Change: ${Number(change).toFixed(2)}`);
+  }
+
+  lines.push('---', 'Thank you!');
+  return lines.join('\n');
+}

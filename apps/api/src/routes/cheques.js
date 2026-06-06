@@ -6,6 +6,7 @@ import {
   openOrResumeCheque,
   listOpenCheques,
   getCheque,
+  getChequeReceipt,
   fireChequeRound,
   clearChequeDraft,
   payCheque,
@@ -16,10 +17,17 @@ const openChequeSchema = z.object({
   tableLabel: z.string().min(1).max(50),
 });
 
+const paymentLineSchema = z.object({
+  method: z.enum(['cash', 'card', 'voucher']),
+  amount: z.number().positive(),
+});
+
 const payChequeSchema = z.object({
   cashierId: z.string().uuid(),
-  method: z.enum(['cash', 'card', 'voucher']).default('cash'),
+  payments: z.array(paymentLineSchema).min(1).max(5).optional(),
+  method: z.enum(['cash', 'card', 'voucher']).optional(),
   amount: z.number().positive().optional(),
+  tendered: z.number().positive().optional(),
 });
 
 export async function chequeRoutes(app) {
@@ -30,6 +38,14 @@ export async function chequeRoutes(app) {
   app.get('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
     return getCheque(request.params.id, request.terminal.venueId);
   });
+
+  app.get(
+    '/api/v1/cheques/:id/receipt',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      return getChequeReceipt(request.params.id, request.terminal.venueId);
+    },
+  );
 
   app.post('/api/v1/cheques/open', { preHandler: authenticateTerminal }, async (request) => {
     const parsed = openChequeSchema.safeParse(request.body);
