@@ -10,7 +10,20 @@ import {
   fireChequeRound,
   clearChequeDraft,
   payCheque,
+  splitChequeByItems,
 } from '../services/cheque-service.js';
+
+const splitChequeSchema = z.object({
+  splits: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(50),
+        itemIds: z.array(z.string().uuid()).min(1),
+      }),
+    )
+    .min(1)
+    .max(8),
+});
 
 const openChequeSchema = z.object({
   cashierId: z.string().uuid(),
@@ -87,6 +100,17 @@ export async function chequeRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       return payCheque(request.params.id, parsed.data, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/split',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = splitChequeSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return splitChequeByItems(request.params.id, parsed.data, request.terminal.venueId);
     },
   );
 }

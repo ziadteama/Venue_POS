@@ -15,6 +15,15 @@ const chequeOrderInclude = {
 const chequeInclude = {
   orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
   payments: { orderBy: { processedAt: 'desc' } },
+  childCheques: {
+    include: { payments: { orderBy: { processedAt: 'desc' } } },
+    orderBy: { chequeNumber: 'asc' },
+  },
+  parentCheque: {
+    include: {
+      orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
+    },
+  },
 };
 
 const BILLABLE_ORDER_STATUSES = ['sent', 'partially_ready', 'ready', 'served'];
@@ -28,23 +37,87 @@ function findDraftOrder(cheque) {
   return ordersFromCheque(cheque).find((o) => o.status === 'draft') ?? null;
 }
 
-function computeOrderSubtotal(order) {
-  return serializeOrder(order).subtotal;
+function itemLineTotal(item) {
+  if (item.isComped) return 0;
+  const mods =
+    item.modifiersSnapshot?.reduce((s, m) => s + Number(m.priceDelta ?? 0), 0) ?? 0;
+  return (Number(item.unitPrice) + mods) * item.quantity;
+}
+
+function billingOrdersFromCheque(cheque) {
+  if (cheque.parentChequeId && cheque.parentCheque) {
+    return ordersFromCheque(cheque.parentCheque);
+  }
+  return ordersFromCheque(cheque);
+}
+
+function itemBelongsToCheque(item, chequeId, isParentCheque, forDisplay = false) {
+  if (!forDisplay && item.paidAt) return false;
+  if (isParentCheque) {
+    if (forDisplay && item.paidAt) return !item.billingChequeId;
+    return !item.billingChequeId && !item.paidAt;
+  }
+  if (forDisplay) return item.billingChequeId === chequeId;
+  return item.billingChequeId === chequeId && !item.paidAt;
+}
+
+function filterOrderForCheque(order, chequeId, isParentCheque, forDisplay = false) {
+  const serialized = serializeOrder(order);
+  const items = serialized.items.filter((item) =>
+    itemBelongsToCheque(item, chequeId, isParentCheque, forDisplay),
+  );
+  const subtotal = items.reduce((sum, item) => {
+    if (item.isComped) return sum;
+    const mods =
+      item.modifiersSnapshot?.reduce((m, mod) => m + Number(mod.priceDelta ?? 0), 0) ?? 0;
+    return sum + (Number(item.unitPrice) + mods) * item.quantity;
+  }, 0);
+  return { ...serialized, items, subtotal };
 }
 
 function computeChequeTotal(cheque) {
-  return ordersFromCheque(cheque)
+  const isParent = !cheque.parentChequeId;
+  return billingOrdersFromCheque(cheque)
     .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
-    .reduce((sum, order) => sum + computeOrderSubtotal(order), 0);
+    .flatMap((o) => o.items)
+    .filter((item) => itemBelongsToCheque(item, cheque.id, isParent))
+    .reduce((sum, item) => sum + itemLineTotal(item), 0);
+}
+
+function serializeChildSummary(child, parentCheque) {
+  const total =
+    child.status === 'paid' && child.payments?.length
+      ? child.payments.reduce((sum, p) => sum + Number(p.amount), 0)
+      : billingOrdersFromCheque({ ...child, parentCheque })
+          .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+          .flatMap((o) => o.items)
+          .filter((item) => itemBelongsToCheque(item, child.id, false))
+          .reduce((sum, item) => sum + itemLineTotal(item), 0);
+
+  return {
+    id: child.id,
+    chequeNumber: child.chequeNumber,
+    splitLabel: child.splitLabel,
+    status: child.status,
+    total,
+  };
 }
 
 export function serializeCheque(cheque) {
-  const orders = ordersFromCheque(cheque).map(serializeOrder);
-  const draftOrder = orders.find((o) => o.status === 'draft') ?? null;
+  const isParent = !cheque.parentChequeId;
+  const forDisplay = cheque.status !== 'open';
+  const rawOrders = billingOrdersFromCheque(cheque);
+  const orders = rawOrders
+    .filter((o) => isParent || o.status !== 'draft')
+    .map((o) => filterOrderForCheque(o, cheque.id, isParent, forDisplay))
+    .filter((o) => {
+      if (o.status === 'draft') return true;
+      if (forDisplay && (o.status === 'closed' || o.status === 'voided')) return true;
+      return o.items.length > 0;
+    });
+  const draftOrder = isParent ? (orders.find((o) => o.status === 'draft') ?? null) : null;
 
-  let total = orders
-    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
-    .reduce((sum, o) => sum + o.subtotal, 0);
+  let total = computeChequeTotal(cheque);
 
   if (cheque.status === 'paid' && cheque.payments?.length) {
     total = cheque.payments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -61,12 +134,23 @@ export function serializeCheque(cheque) {
     cashierId: cheque.cashierId,
     chequeNumber: cheque.chequeNumber,
     tableLabel: cheque.tableLabel,
+    splitLabel: cheque.splitLabel ?? null,
+    parentChequeId: cheque.parentChequeId ?? null,
     status: cheque.status,
     openedAt: cheque.openedAt,
     closedAt: cheque.closedAt ?? null,
     total,
     orders,
     draftOrder,
+    parentCheque: cheque.parentCheque
+      ? {
+          id: cheque.parentCheque.id,
+          chequeNumber: cheque.parentCheque.chequeNumber,
+          tableLabel: cheque.parentCheque.tableLabel,
+        }
+      : null,
+    childCheques:
+      cheque.childCheques?.map((child) => serializeChildSummary(child, cheque)) ?? [],
     payments:
       cheque.payments?.map((p) => ({
         id: p.id,
@@ -119,7 +203,7 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
   if (!trimmed) throw validationError('Table label is required');
 
   let cheque = await prisma.cheque.findFirst({
-    where: { venueId, tableLabel: trimmed, status: 'open' },
+    where: { venueId, tableLabel: trimmed, status: 'open', parentChequeId: null },
     include: chequeInclude,
   });
 
@@ -245,6 +329,53 @@ export async function getChequeReceipt(chequeId, venueId, { tendered, change } =
   };
 }
 
+async function maybeFinalizeSplitParent(tx, parentChequeId) {
+  const parent = await tx.cheque.findUnique({
+    where: { id: parentChequeId },
+    include: {
+      orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
+      childCheques: true,
+    },
+  });
+  if (!parent || parent.status !== 'open') return;
+
+  const children = parent.childCheques;
+  if (children.length && !children.every((c) => c.status === 'paid')) return;
+
+  const orders = ordersFromCheque(parent);
+  const billableItems = orders
+    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+    .flatMap((o) => o.items)
+    .filter((i) => !i.isComped);
+
+  const parentRemainder = billableItems.filter((i) => !i.billingChequeId);
+  if (parentRemainder.some((i) => !i.paidAt)) return;
+
+  const allocated = billableItems.filter((i) => i.billingChequeId);
+  if (allocated.some((i) => !i.paidAt)) return;
+
+  const orderIds = orders
+    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+    .map((o) => o.id);
+
+  if (orderIds.length) {
+    await tx.order.updateMany({
+      where: { id: { in: orderIds } },
+      data: { status: 'closed', closedAt: new Date() },
+    });
+  }
+
+  const draft = orders.find((o) => o.status === 'draft');
+  if (draft && !draft.items.length) {
+    await tx.order.delete({ where: { id: draft.id } });
+  }
+
+  await tx.cheque.update({
+    where: { id: parentChequeId },
+    data: { status: 'paid', closedAt: new Date() },
+  });
+}
+
 export async function payCheque(
   chequeId,
   { cashierId, payments, method, amount, tendered },
@@ -254,12 +385,18 @@ export async function payCheque(
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
 
-  const draft = findDraftOrder(cheque);
+  const draft = cheque.parentChequeId ? null : findDraftOrder(cheque);
   if (draft?.items?.length) {
     throw validationError('Send or clear the current round before paying');
   }
 
-  const total = computeChequeTotal(cheque);
+  const isParent = !cheque.parentChequeId;
+  const itemsToPay = billingOrdersFromCheque(cheque)
+    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+    .flatMap((o) => o.items)
+    .filter((item) => itemBelongsToCheque(item, cheque.id, isParent));
+
+  const total = itemsToPay.reduce((sum, item) => sum + itemLineTotal(item), 0);
   if (total <= 0) throw validationError('Nothing to pay on this cheque');
 
   const paymentLines = normalizePayments({ payments, method, amount }, total);
@@ -273,6 +410,9 @@ export async function payCheque(
     change = Number((tendered - cashTotal).toFixed(2));
   }
 
+  const itemIds = itemsToPay.map((i) => i.id);
+  const parentChequeId = cheque.parentChequeId ?? null;
+
   await prisma.$transaction(async (tx) => {
     for (const line of paymentLines) {
       await tx.payment.create({
@@ -285,24 +425,35 @@ export async function payCheque(
       });
     }
 
+    await tx.orderItem.updateMany({
+      where: { id: { in: itemIds } },
+      data: { paidAt: new Date() },
+    });
+
     await tx.cheque.update({
       where: { id: chequeId },
       data: { status: 'paid', closedAt: new Date() },
     });
 
-    const orderIds = ordersFromCheque(cheque)
-      .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
-      .map((o) => o.id);
+    if (parentChequeId) {
+      await maybeFinalizeSplitParent(tx, parentChequeId);
+    } else if (cheque.childCheques?.length) {
+      await maybeFinalizeSplitParent(tx, cheque.id);
+    } else {
+      const orderIds = ordersFromCheque(cheque)
+        .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+        .map((o) => o.id);
 
-    if (orderIds.length) {
-      await tx.order.updateMany({
-        where: { id: { in: orderIds } },
-        data: { status: 'closed', closedAt: new Date() },
-      });
-    }
+      if (orderIds.length) {
+        await tx.order.updateMany({
+          where: { id: { in: orderIds } },
+          data: { status: 'closed', closedAt: new Date() },
+        });
+      }
 
-    if (draft && !draft.items.length) {
-      await tx.order.delete({ where: { id: draft.id } });
+      if (draft && !draft.items.length) {
+        await tx.order.delete({ where: { id: draft.id } });
+      }
     }
   });
 
@@ -313,6 +464,70 @@ export async function payCheque(
   });
 
   return { cheque: paid, receipt: receipt.text, change };
+}
+
+export async function splitChequeByItems(chequeId, { splits }, venueId) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
+  if (cheque.status !== 'open') throw validationError('Cheque is not open');
+  if (cheque.parentChequeId) throw validationError('Cannot split a sub-cheque');
+
+  const draft = findDraftOrder(cheque);
+  if (draft?.items?.length) {
+    throw validationError('Send or clear the current round before splitting');
+  }
+
+  if (!splits?.length) throw validationError('At least one split is required');
+
+  const billableOrders = ordersFromCheque(cheque).filter((o) =>
+    BILLABLE_ORDER_STATUSES.includes(o.status),
+  );
+  const allocatable = billableOrders
+    .flatMap((o) => o.items)
+    .filter((i) => !i.billingChequeId && !i.paidAt && !i.isComped);
+
+  const requestedIds = new Set();
+
+  for (const split of splits) {
+    const label = split.label?.trim();
+    if (!label) throw validationError('Each split needs a label');
+    if (!split.itemIds?.length) throw validationError('Each split needs at least one item');
+
+    for (const itemId of split.itemIds) {
+      if (requestedIds.has(itemId)) {
+        throw validationError('An item cannot appear in multiple splits');
+      }
+      requestedIds.add(itemId);
+      if (!allocatable.some((i) => i.id === itemId)) {
+        throw validationError('Invalid or already allocated item');
+      }
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const split of splits) {
+      const chequeNumber = await nextChequeNumber(tx, venueId);
+      const child = await tx.cheque.create({
+        data: {
+          venueId: cheque.venueId,
+          terminalId: cheque.terminalId,
+          cashierId: cheque.cashierId,
+          chequeNumber,
+          tableLabel: cheque.tableLabel,
+          splitLabel: split.label.trim(),
+          parentChequeId: cheque.id,
+          status: 'open',
+        },
+      });
+
+      await tx.orderItem.updateMany({
+        where: { id: { in: split.itemIds } },
+        data: { billingChequeId: child.id },
+      });
+    }
+  });
+
+  return getCheque(chequeId, venueId);
 }
 
 export async function voidChequeRound(chequeId, orderId, { managerPin, reason }, venueId) {

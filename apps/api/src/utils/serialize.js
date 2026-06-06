@@ -86,6 +86,8 @@ export function serializeOrder(order) {
       modifiersSnapshot: item.modifiersSnapshot,
       kitchenStatus: item.kitchenStatus ?? 'pending',
       isComped: item.isComped ?? false,
+      billingChequeId: item.billingChequeId ?? null,
+      paidAt: item.paidAt ?? null,
       nameEn: item.menuItem?.nameEn,
       nameAr: item.menuItem?.nameAr,
     })) ?? [];
@@ -147,9 +149,19 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
     (o) => o.status !== 'draft' && o.status !== 'voided' && o.items?.length,
   );
 
+  const chequeId = cheque.id;
+  const isChild = Boolean(cheque.parentChequeId);
+
   for (const order of rounds) {
+    const visibleItems = order.items.filter((item) => {
+      if (item.paidAt) return false;
+      if (isChild) return item.billingChequeId === chequeId;
+      return !item.billingChequeId || item.billingChequeId === chequeId;
+    });
+    if (!visibleItems.length) continue;
+
     lines.push(`Round #${order.orderNumber} (${order.status})`);
-    for (const item of order.items) {
+    for (const item of visibleItems) {
       const mods = item.modifiersSnapshot ?? [];
       const modTotal = mods.reduce((s, m) => s + Number(m.priceDelta ?? 0), 0);
       const lineTotal = item.isComped

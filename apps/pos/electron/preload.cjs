@@ -62,6 +62,7 @@ contextBridge.exposeInMainWorld('venuePos', {
     agentFetch(`/v1/orders/${orderId}/abandon`, { method: 'POST' }),
   getReceipt: (orderId) => agentFetch(`/v1/orders/${orderId}/receipt`),
   listOpenCheques: () => agentFetch('/v1/cheques/open'),
+  getCheque: (chequeId) => agentFetch(`/v1/cheques/${chequeId}`),
   openCheque: (body) =>
     agentFetch('/v1/cheques/open', { method: 'POST', body: JSON.stringify(body) }),
   fireCheque: (chequeId) =>
@@ -70,6 +71,11 @@ contextBridge.exposeInMainWorld('venuePos', {
     agentFetch(`/v1/cheques/${chequeId}/clear`, { method: 'POST' }),
   payCheque: (chequeId, body) =>
     agentFetch(`/v1/cheques/${chequeId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  splitCheque: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/split`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),

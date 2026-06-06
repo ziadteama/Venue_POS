@@ -273,14 +273,18 @@ model OrderItem {
   modifiersSnapshot  Json?    @map("modifiers_snapshot")
   kitchenStatus      OrderItemKitchenStatus @default(pending) @map("kitchen_status")
   isComped           Boolean                @default(false) @map("is_comped")
+  billingChequeId    String?                @map("billing_cheque_id") @db.Uuid
+  paidAt             DateTime?              @map("paid_at") @db.Timestamptz(6)
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem @relation(fields: [menuItemId], references: [id])
-  compAudit OrderItemCompAudit?
+  compAudit       OrderItemCompAudit?
+  billingCheque   Cheque? @relation("ItemBillingCheque", fields: [billingChequeId], references: [id])
 
   @@index([orderId], map: "idx_order_items_order")
+  @@index([billingChequeId], map: "idx_order_items_billing_cheque")
   @@map("order_items")
 }
 
@@ -325,9 +329,11 @@ model Cheque {
   terminalId   String?      @map("terminal_id") @db.Uuid
   cashierId    String       @map("cashier_id") @db.Uuid
   chequeNumber Int          @map("cheque_number")
-  tableLabel   String       @map("table_label") @db.VarChar(50)
-  status       ChequeStatus @default(open)
-  openedAt     DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
+  tableLabel     String       @map("table_label") @db.VarChar(50)
+  splitLabel     String?      @map("split_label") @db.VarChar(50)
+  parentChequeId String?      @map("parent_cheque_id") @db.Uuid
+  status         ChequeStatus @default(open)
+  openedAt       DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
   closedAt     DateTime?    @map("closed_at") @db.Timestamptz(6)
   createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -335,13 +341,17 @@ model Cheque {
   venue    Venue         @relation(fields: [venueId], references: [id])
   terminal Terminal?     @relation(fields: [terminalId], references: [id])
   cashier  User          @relation("ChequeCashier", fields: [cashierId], references: [id])
-  orders    ChequeOrder[]
-  payments  Payment[]
-  compAudits OrderItemCompAudit[]
+  orders         ChequeOrder[]
+  payments       Payment[]
+  compAudits     OrderItemCompAudit[]
+  billedItems    OrderItem[] @relation("ItemBillingCheque")
+  parentCheque   Cheque?  @relation("ChequeSplit", fields: [parentChequeId], references: [id])
+  childCheques   Cheque[] @relation("ChequeSplit")
 
   @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
   @@index([venueId, status], map: "idx_cheques_venue_status")
   @@index([venueId, tableLabel], map: "idx_cheques_venue_table")
+  @@index([parentChequeId], map: "idx_cheques_parent")
   @@map("cheques")
 }
 

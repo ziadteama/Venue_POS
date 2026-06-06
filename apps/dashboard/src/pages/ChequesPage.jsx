@@ -245,7 +245,8 @@ export function ChequesPage() {
                     }`}
                   >
                     <div>
-                      {t('cheque.number', { number: c.chequeNumber })} — {c.tableLabel}
+                      {t('cheque.number', { number: c.chequeNumber })} —{' '}
+                      {c.splitLabel ? `${c.tableLabel} (${c.splitLabel})` : c.tableLabel}
                     </div>
                     <div className="text-secondary">
                       {c.total.toFixed(2)} {t('pos.currency')}
@@ -268,9 +269,15 @@ export function ChequesPage() {
                     {t('cheque.number', { number: detail.chequeNumber })}
                   </h3>
                   <p className="text-sm text-secondary">
-                    {t('cheque.table', { label: detail.tableLabel })} ·{' '}
+                    {t('cheque.table', { label: detail.tableLabel })}
+                    {detail.splitLabel ? ` · ${detail.splitLabel}` : ''} ·{' '}
                     {detail.status === 'paid' ? t('cheque.statusPaid') : t('cheque.statusOpen')}
                   </p>
+                  {detail.parentCheque && (
+                    <p className="text-xs text-secondary">
+                      {t('cheque.splitFrom', { number: detail.parentCheque.chequeNumber })}
+                    </p>
+                  )}
                 </div>
                 <div className="text-end">
                   <p className="text-sm text-secondary">{t('cheque.total')}</p>
@@ -279,6 +286,24 @@ export function ChequesPage() {
                   </p>
                 </div>
               </div>
+
+              {detail.childCheques?.length > 0 && (
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-2 font-medium">{t('cheque.childCheques')}</p>
+                  <ul className="space-y-1 text-sm">
+                    {detail.childCheques.map((child) => (
+                      <li key={child.id} className="flex justify-between text-secondary">
+                        <span>
+                          #{child.chequeNumber} — {child.splitLabel} ({child.status})
+                        </span>
+                        <span>
+                          {child.total.toFixed(2)} {t('pos.currency')}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               <div className="mb-4 space-y-3">
                 {billableOrders.map((order) => (
