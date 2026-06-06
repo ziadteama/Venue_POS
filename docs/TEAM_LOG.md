@@ -478,6 +478,19 @@ Reference: Toast, Square, Lightspeed, Oracle Simphony — **open check** per tab
 
 **Current workaround:** Each **Fire to kitchen** sends one kitchen ticket; table label is cosmetic until cheque model ships.
 
+---
+
+## Phase 3 — In progress (`phase-3` branch)
+
+Open cheques / tabs + payments (see deferred scope above). Branch created from `phase-2`; merge PR #2 to `main` when ready, then rebase `phase-3` on `main` if needed.
+
+**First slice (planned):**
+1. `cheques` + `cheque_orders` schema + migration
+2. API: open cheque, list open by venue/table, attach orders
+3. POS: open/resume table cheque; **Fire** keeps same cheque open
+4. Pay cheque (cash) → close
+5. Dashboard: open cheques + manager void/comp (web)
+
 ### 2026-06-06 — KDS feature-flag hardening (PR #2 review)
 
 **What:** KDS shows `kds.disabled` on API 403 (env mismatch). Socket rejects `clientType: 'kds'` when `FEATURE_KDS_ENABLED=false`; kitchen WS emits (`order:created`, `order:item_status`, `order:voided`) skipped when KDS off.
