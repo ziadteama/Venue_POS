@@ -491,6 +491,33 @@ Open cheques / tabs + payments (see deferred scope above). Branch created from `
 4. Pay cheque (cash) → close
 5. Dashboard: open cheques + manager void/comp (web)
 
+### 2026-06-07 — Open cheque model (API + POS slice 1)
+
+**What:** Real tab/cheque lifecycle — one open cheque per table, multiple kitchen rounds, cash pay to close.
+
+**Schema:** `Cheque`, `ChequeOrder`, `Payment` + enums `ChequeStatus`, `PaymentMethod`. Migration `20260607120000_phase3_cheques`.
+
+**API** (`apps/api/src/services/cheque-service.js`, `routes/cheques.js`):
+- `POST /api/v1/cheques/open` — open or resume by `tableLabel`
+- `GET /api/v1/cheques/open` — list open cheques for venue
+- `GET /api/v1/cheques/:id` — detail + running total
+- `POST /api/v1/cheques/:id/fire` — send draft round, spawn new draft on same cheque
+- `POST /api/v1/cheques/:id/clear` — abandon current draft round
+- `POST /api/v1/cheques/:id/pay` — cash (or card/voucher) closes cheque; sent orders → `billed`
+
+**POS:** Opens cheque on load / table change; **Fire to kitchen** calls cheque fire (stays on same cheque); **Pay cash** when fired total > 0 and draft empty. Receipt panel shows cheque # + cheque total.
+
+**Agent:** Proxies `/v1/cheques/*` to API; prints kitchen ticket on fire.
+
+**Verify:**
+```bash
+npm run migrate
+npm run test
+# POS: add items → Fire twice → Pay cash → new cheque for same table
+```
+
+**Still deferred:** Dashboard open-cheque list, manager void/comp on running cheques.
+
 ### 2026-06-06 — KDS feature-flag hardening (PR #2 review)
 
 **What:** KDS shows `kds.disabled` on API 403 (env mismatch). Socket rejects `clientType: 'kds'` when `FEATURE_KDS_ENABLED=false`; kitchen WS emits (`order:created`, `order:item_status`, `order:voided`) skipped when KDS off.

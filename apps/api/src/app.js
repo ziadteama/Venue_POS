@@ -6,6 +6,7 @@ import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
 import { menuRoutes } from './routes/menus.js';
 import { orderRoutes } from './routes/orders.js';
+import { chequeRoutes } from './routes/cheques.js';
 import { kitchenRoutes } from './routes/kitchen.js';
 import { venueRoutes } from './routes/venues.js';
 
@@ -28,6 +29,7 @@ export async function buildApp() {
   await app.register(authRoutes);
   await app.register(menuRoutes);
   await app.register(orderRoutes);
+  await app.register(chequeRoutes);
   await app.register(kitchenRoutes);
   await app.register(venueRoutes);
 

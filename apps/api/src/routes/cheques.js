@@ -1,0 +1,76 @@
+import { z } from 'zod';
+import { authenticateTerminal } from '../middleware/terminal.js';
+import { validationError } from '../utils/errors.js';
+import { emitOrderCreated } from '../plugins/socket.js';
+import {
+  openOrResumeCheque,
+  listOpenCheques,
+  getCheque,
+  fireChequeRound,
+  clearChequeDraft,
+  payCheque,
+} from '../services/cheque-service.js';
+
+const openChequeSchema = z.object({
+  cashierId: z.string().uuid(),
+  tableLabel: z.string().min(1).max(50),
+});
+
+const payChequeSchema = z.object({
+  cashierId: z.string().uuid(),
+  method: z.enum(['cash', 'card', 'voucher']).default('cash'),
+  amount: z.number().positive().optional(),
+});
+
+export async function chequeRoutes(app) {
+  app.get('/api/v1/cheques/open', { preHandler: authenticateTerminal }, async (request) => {
+    return listOpenCheques(request.terminal.venueId);
+  });
+
+  app.get('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
+    return getCheque(request.params.id, request.terminal.venueId);
+  });
+
+  app.post('/api/v1/cheques/open', { preHandler: authenticateTerminal }, async (request) => {
+    const parsed = openChequeSchema.safeParse(request.body);
+    if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+    return openOrResumeCheque({
+      venueId: request.terminal.venueId,
+      terminalId: request.terminal.id,
+      cashierId: parsed.data.cashierId,
+      tableLabel: parsed.data.tableLabel,
+    });
+  });
+
+  app.post(
+    '/api/v1/cheques/:id/fire',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const result = await fireChequeRound(request.params.id, request.terminal.venueId);
+      if (request.server.io) {
+        emitOrderCreated(request.server.io, result.sentOrder);
+      }
+      return result;
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/clear',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      return clearChequeDraft(request.params.id, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/pay',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = payChequeSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return payCheque(request.params.id, parsed.data, request.terminal.venueId);
+    },
+  );
+}

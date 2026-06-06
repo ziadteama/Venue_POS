@@ -44,6 +44,18 @@ enum OrderItemKitchenStatus {
   served
 }
 
+enum ChequeStatus {
+  open
+  paid
+  voided
+}
+
+enum PaymentMethod {
+  cash
+  card
+  voucher
+}
+
 model Venue {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nameEn    String    @map("name_en") @db.VarChar(255)
@@ -58,6 +70,7 @@ model Venue {
   terminals    Terminal[]
   menuTemplates MenuTemplateVenue[]
   orders       Order[]
+  cheques      Cheque[]
 
   @@map("venues")
 }
@@ -78,6 +91,8 @@ model User {
   orders        Order[]
   voidsApproved OrderVoidAudit[] @relation("VoidApprover")
   voidsCashier  OrderVoidAudit[] @relation("VoidCashier")
+  chequesOpened Cheque[]         @relation("ChequeCashier")
+  payments      Payment[]
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -95,7 +110,8 @@ model Terminal {
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   venue  Venue   @relation(fields: [venueId], references: [id])
-  orders Order[]
+  orders  Order[]
+  cheques Cheque[]
 
   @@index([venueId], map: "idx_terminals_venue")
   @@map("terminals")
@@ -236,8 +252,9 @@ model Order {
   venue    Venue      @relation(fields: [venueId], references: [id])
   terminal Terminal?  @relation(fields: [terminalId], references: [id])
   cashier   User            @relation(fields: [cashierId], references: [id])
-  items     OrderItem[]
-  voidAudit OrderVoidAudit?
+  items       OrderItem[]
+  voidAudit   OrderVoidAudit?
+  chequeLink  ChequeOrder?
 
   @@unique([venueId, orderNumber], map: "uq_orders_venue_number")
   @@index([venueId], map: "idx_orders_venue")
@@ -278,4 +295,57 @@ model OrderVoidAudit {
   @@index([cashierId], map: "idx_void_audit_cashier")
   @@index([approverId], map: "idx_void_audit_approver")
   @@map("order_void_audits")
+}
+
+model Cheque {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId      String       @map("venue_id") @db.Uuid
+  terminalId   String?      @map("terminal_id") @db.Uuid
+  cashierId    String       @map("cashier_id") @db.Uuid
+  chequeNumber Int          @map("cheque_number")
+  tableLabel   String       @map("table_label") @db.VarChar(50)
+  status       ChequeStatus @default(open)
+  openedAt     DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt     DateTime?    @map("closed_at") @db.Timestamptz(6)
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue    Venue         @relation(fields: [venueId], references: [id])
+  terminal Terminal?     @relation(fields: [terminalId], references: [id])
+  cashier  User          @relation("ChequeCashier", fields: [cashierId], references: [id])
+  orders   ChequeOrder[]
+  payments Payment[]
+
+  @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
+  @@index([venueId, status], map: "idx_cheques_venue_status")
+  @@index([venueId, tableLabel], map: "idx_cheques_venue_table")
+  @@map("cheques")
+}
+
+model ChequeOrder {
+  chequeId  String   @map("cheque_id") @db.Uuid
+  orderId   String   @unique @map("order_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cheque Cheque @relation(fields: [chequeId], references: [id], onDelete: Cascade)
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@id([chequeId, orderId])
+  @@index([chequeId], map: "idx_cheque_orders_cheque")
+  @@map("cheque_orders")
+}
+
+model Payment {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chequeId    String        @map("cheque_id") @db.Uuid
+  cashierId   String        @map("cashier_id") @db.Uuid
+  method      PaymentMethod
+  amount      Decimal       @db.Decimal(10, 2)
+  processedAt DateTime      @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  cheque  Cheque @relation(fields: [chequeId], references: [id])
+  cashier User   @relation(fields: [cashierId], references: [id])
+
+  @@index([chequeId], map: "idx_payments_cheque")
+  @@map("payments")
 }
