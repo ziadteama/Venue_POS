@@ -33,4 +33,5 @@
 ## Current status
 
 **Phase 0 complete** — monorepo, Prisma API, auth, app shells, CI.  
-**Next: Phase 1** — menu + core POS. Details in [TEAM_LOG.md](TEAM_LOG.md).
+**Phase 1 complete** — menu manager, POS order flow, modifiers, send to kitchen, receipt.  
+**Next: Phase 2** — KDS + kitchen printer. Details in [TEAM_LOG.md](TEAM_LOG.md).

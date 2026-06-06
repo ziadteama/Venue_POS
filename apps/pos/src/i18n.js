@@ -8,6 +8,7 @@ document.documentElement.dir = getDirection(saved);
 
 i18n.on('languageChanged', (lng) => {
   localStorage.setItem('locale', lng);
+  document.documentElement.lang = lng;
   document.documentElement.dir = getDirection(lng);
 });
 

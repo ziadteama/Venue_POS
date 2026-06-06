@@ -6,7 +6,7 @@ export function DashboardHome() {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-8">
       <h2 className="text-xl font-semibold">{t('dashboard.title')}</h2>
-      <p className="mt-2 text-slate-600">Phase 0 scaffold — modules coming in Phase 5.</p>
+      <p className="mt-2 text-secondary">Phase 0 scaffold — modules coming in Phase 5.</p>
     </div>
   );
 }

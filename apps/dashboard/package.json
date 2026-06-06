@@ -17,6 +17,7 @@
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
+    "@venue-pos/shared": "*",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",

@@ -1,5 +1,7 @@
-const { app, BrowserWindow } = require('electron');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+const { app, BrowserWindow } = require('electron');
 
 const isDev = process.env.NODE_ENV === 'development';
 const isKiosk = process.env.ELECTRON_IS_KIOSK === 'true';

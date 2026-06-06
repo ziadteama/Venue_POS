@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { DashboardHome } from './pages/DashboardHome.jsx';
+import { MenuManagerPage } from './pages/MenuManagerPage.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 function ProtectedRoute({ children }) {
@@ -23,6 +24,7 @@ export default function App() {
         }
       >
         <Route index element={<DashboardHome />} />
+        <Route path="menus" element={<MenuManagerPage />} />
       </Route>
     </Routes>
   );
