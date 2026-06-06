@@ -32,6 +32,9 @@ export function Layout() {
         <Link to="/menus" className="text-secondary hover:text-primary-from">
           {t('menu.title')}
         </Link>
+        <Link to="/cheques" className="text-secondary hover:text-primary-from">
+          {t('cheque.title')}
+        </Link>
       </nav>
       <main className="p-6">
         <Outlet />

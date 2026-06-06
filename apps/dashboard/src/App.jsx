@@ -3,6 +3,7 @@ import { Layout } from './components/Layout.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { DashboardHome } from './pages/DashboardHome.jsx';
 import { MenuManagerPage } from './pages/MenuManagerPage.jsx';
+import { ChequesPage } from './pages/ChequesPage.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 function ProtectedRoute({ children }) {
@@ -25,6 +26,7 @@ export default function App() {
       >
         <Route index element={<DashboardHome />} />
         <Route path="menus" element={<MenuManagerPage />} />
+        <Route path="cheques" element={<ChequesPage />} />
       </Route>
     </Routes>
   );
