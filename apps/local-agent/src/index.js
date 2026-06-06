@@ -32,22 +32,36 @@ const app = await buildAgentServer({
   },
 });
 
+async function withRetry(label, fn, { attempts = 12, delayMs = 1000 } = {}) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts - 1) {
+        app.log.warn({ err, attempt: i + 1, attempts }, `${label} failed — retrying`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 if (venueId && terminalId && terminalSecret) {
   try {
-    const result = await syncMenuFromServer({
-      db,
-      apiUrl,
-      venueId,
-      terminalId,
-      terminalSecret,
-    });
+    const result = await withRetry('Menu sync on startup', () =>
+      syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),
+    );
     app.log.info({ updated: result.updated }, 'Menu cache synced on startup');
   } catch (err) {
     app.log.warn({ err }, 'Menu sync on startup failed');
   }
 
   try {
-    await processSyncQueue({ db, apiUrl, terminalId, terminalSecret });
+    await withRetry('Initial sync replay', () =>
+      processSyncQueue({ db, apiUrl, terminalId, terminalSecret }),
+    );
   } catch (err) {
     app.log.warn({ err }, 'Initial sync replay failed');
   }
