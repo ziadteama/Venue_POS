@@ -183,6 +183,61 @@ export async function getOrder(orderId) {
 }
 
 const KITCHEN_ACTIVE_STATUSES = ['sent', 'partially_ready', 'ready'];
+const KITCHEN_ITEM_TRANSITIONS = {
+  pending: ['in_progress'],
+  in_progress: ['ready'],
+  ready: ['served'],
+  served: [],
+};
+
+function deriveOrderStatusFromItems(items) {
+  if (!items.length) return 'sent';
+  const statuses = items.map((i) => i.kitchenStatus ?? 'pending');
+  if (statuses.every((s) => s === 'served')) return 'served';
+  if (statuses.every((s) => s === 'ready' || s === 'served')) return 'ready';
+  if (statuses.some((s) => s === 'in_progress' || s === 'ready')) return 'partially_ready';
+  return 'sent';
+}
+
+export async function updateKitchenItemStatus(orderId, itemId, status, venueId) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: orderInclude,
+  });
+  if (!order) throw notFound('Order not found');
+  if (order.venueId !== venueId) throw validationError('Order not found for this venue');
+  if (!KITCHEN_ACTIVE_STATUSES.includes(order.status) && order.status !== 'served') {
+    throw validationError('Order is not active in kitchen');
+  }
+
+  const item = order.items.find((i) => i.id === itemId);
+  if (!item) throw notFound('Order item not found');
+
+  const current = item.kitchenStatus ?? 'pending';
+  const allowed = KITCHEN_ITEM_TRANSITIONS[current] ?? [];
+  if (!allowed.includes(status)) {
+    throw validationError(`Cannot transition item from ${current} to ${status}`);
+  }
+
+  await prisma.orderItem.update({
+    where: { id: itemId },
+    data: { kitchenStatus: status },
+  });
+
+  const refreshed = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: orderInclude,
+  });
+  const nextStatus = deriveOrderStatusFromItems(refreshed.items);
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { status: nextStatus },
+    include: orderInclude,
+  });
+
+  return { order: serializeOrder(updated), itemId, kitchenStatus: status };
+}
 
 export async function listKitchenOrders(venueId) {
   const orders = await prisma.order.findMany({

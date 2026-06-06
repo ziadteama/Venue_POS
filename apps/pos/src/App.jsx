@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { io } from 'socket.io-client';
 import { LanguageToggle } from './components/LanguageToggle.jsx';
 
 const AGENT_URL = import.meta.env.VITE_LOCAL_AGENT_URL ?? 'http://127.0.0.1:3456';
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+const TERMINAL_ID = import.meta.env.VITE_TERMINAL_ID ?? '';
+const TERMINAL_SECRET = import.meta.env.VITE_TERMINAL_SECRET ?? '';
 const DEMO_CASHIER_ID = '00000000-0000-4000-8000-000000000011';
 
 function itemName(item, language) {
@@ -187,7 +191,23 @@ export default function App() {
   const [modifierItem, setModifierItem] = useState(null);
   const [printerOk, setPrinterOk] = useState(true);
   const [sending, setSending] = useState(false);
+  const [kitchenWatch, setKitchenWatch] = useState(null);
   const [clock, setClock] = useState(() => new Date());
+
+  const applyItemStatus = useCallback((payload) => {
+    if (!payload?.orderId) return;
+    setKitchenWatch((prev) => {
+      if (!prev || prev.id !== payload.orderId) return prev;
+      const items = payload.items?.length
+        ? payload.items
+        : prev.items.map((item) =>
+            item.id === payload.itemId ? { ...item, kitchenStatus: payload.status } : item,
+          );
+      const next = { ...prev, status: payload.orderStatus ?? prev.status, items };
+      if (next.status === 'served') return null;
+      return next;
+    });
+  }, []);
 
   const loadMenu = useCallback(async () => {
     setLoading(true);
@@ -231,6 +251,20 @@ export default function App() {
     const tick = setInterval(() => setClock(new Date()), 30_000);
     return () => clearInterval(tick);
   }, []);
+
+  useEffect(() => {
+    if (window.venuePos?.onItemStatusChange) {
+      return window.venuePos.onItemStatusChange(applyItemStatus);
+    }
+    if (!TERMINAL_ID || !TERMINAL_SECRET) return undefined;
+    const socket = io(API_URL, {
+      path: '/socket.io',
+      auth: { terminalId: TERMINAL_ID, terminalSecret: TERMINAL_SECRET, clientType: 'pos' },
+      transports: ['websocket'],
+    });
+    socket.on('order:item_status', (msg) => applyItemStatus(msg?.payload ?? msg));
+    return () => socket.disconnect();
+  }, [applyItemStatus]);
 
   useEffect(() => {
     async function checkPrinter() {
@@ -317,7 +351,8 @@ export default function App() {
     setSending(true);
     setError('');
     try {
-      await callAgent(`/v1/orders/${order.id}/send`, { method: 'POST' });
+      const sent = await callAgent(`/v1/orders/${order.id}/send`, { method: 'POST' });
+      setKitchenWatch(sent);
       await startOrder();
     } catch {
       setError(t('pos.sendFailed'));
@@ -569,6 +604,27 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {kitchenWatch && (
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-5 py-3">
+          <p className="mb-2 text-sm font-semibold text-slate-800">
+            {t('pos.kitchenProgress', { number: kitchenWatch.orderNumber ?? '—' })}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {kitchenWatch.items?.map((line) => {
+              const status = line.kitchenStatus ?? 'pending';
+              return (
+                <span
+                  key={line.id}
+                  className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700 ring-1 ring-slate-200"
+                >
+                  {itemName(line, i18n.language)} — {t(`pos.itemStatus.${status}`)}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-5 py-2 text-xs text-secondary">
         <span className="flex items-center gap-2">

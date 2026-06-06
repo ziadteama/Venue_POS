@@ -7,6 +7,8 @@ const TERMINAL_ID = import.meta.env.VITE_TERMINAL_ID ?? '';
 const TERMINAL_SECRET = import.meta.env.VITE_TERMINAL_SECRET ?? '';
 const KDS_ENABLED = import.meta.env.VITE_FEATURE_KDS_ENABLED !== 'false';
 
+const ACTIVE_ORDER_STATUSES = ['sent', 'partially_ready', 'ready'];
+
 function normalizeOrder(raw) {
   if (!raw) return null;
   const id = raw.orderId ?? raw.id;
@@ -42,17 +44,51 @@ function modifierText(item, language) {
   return mods.map((m) => (language === 'ar' ? m.nameAr : m.nameEn)).join(', ');
 }
 
+function itemStatusClass(status) {
+  if (status === 'in_progress') return 'border-sky-500/60 bg-sky-950/30';
+  if (status === 'ready') return 'border-emerald-500/60 bg-emerald-950/30';
+  if (status === 'served') return 'border-white/10 bg-black/40 opacity-60';
+  return 'border-white/10 bg-black/25';
+}
+
+function nextKitchenAction(status) {
+  if (status === 'pending') return 'in_progress';
+  if (status === 'in_progress') return 'ready';
+  if (status === 'ready') return 'served';
+  return null;
+}
+
+async function apiFetch(path, options = {}) {
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'content-type': 'application/json',
+      'x-terminal-id': TERMINAL_ID,
+      'x-terminal-secret': TERMINAL_SECRET,
+      ...options.headers,
+    },
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
+  const [updatingItem, setUpdatingItem] = useState(null);
   const [clock, setClock] = useState(() => Date.now());
 
   const upsertOrder = useCallback((incoming) => {
     const order = normalizeOrder(incoming);
     if (!order) return;
+    if (order.status === 'served') {
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      return;
+    }
+    if (!ACTIVE_ORDER_STATUSES.includes(order.status)) return;
     setOrders((prev) => {
       const idx = prev.findIndex((o) => o.id === order.id);
       if (idx === -1) return [...prev, order].sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
@@ -62,6 +98,25 @@ export default function App() {
     });
   }, []);
 
+  const applyItemStatusEvent = useCallback((payload) => {
+    if (!payload?.orderId) return;
+    if (payload.orderStatus === 'served') {
+      setOrders((prev) => prev.filter((o) => o.id !== payload.orderId));
+      return;
+    }
+    setOrders((prev) =>
+      prev.map((order) => {
+        if (order.id !== payload.orderId) return order;
+        const items = payload.items?.length
+          ? payload.items
+          : order.items.map((item) =>
+              item.id === payload.itemId ? { ...item, kitchenStatus: payload.status } : item,
+            );
+        return { ...order, status: payload.orderStatus ?? order.status, items };
+      }),
+    );
+  }, []);
+
   const loadOrders = useCallback(async () => {
     if (!KDS_ENABLED) {
       setLoading(false);
@@ -69,14 +124,7 @@ export default function App() {
     }
     setError('');
     try {
-      const res = await fetch(`${API_URL}/api/v1/kitchen/orders`, {
-        headers: {
-          'x-terminal-id': TERMINAL_ID,
-          'x-terminal-secret': TERMINAL_SECRET,
-        },
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      const data = await apiFetch('/api/v1/kitchen/orders');
       setOrders(
         (Array.isArray(data) ? data : [])
           .map(normalizeOrder)
@@ -89,6 +137,22 @@ export default function App() {
       setLoading(false);
     }
   }, [t]);
+
+  async function updateItemStatus(orderId, itemId, status) {
+    setUpdatingItem(itemId);
+    setError('');
+    try {
+      const updated = await apiFetch(`/api/v1/kitchen/orders/${orderId}/items/${itemId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      upsertOrder(updated);
+    } catch {
+      setError(t('kds.statusFailed'));
+    } finally {
+      setUpdatingItem(null);
+    }
+  }
 
   useEffect(() => {
     loadOrders();
@@ -111,15 +175,17 @@ export default function App() {
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
     socket.on('order:created', (msg) => {
-      const payload = msg?.payload ?? msg;
-      upsertOrder(payload);
+      upsertOrder(msg?.payload ?? msg);
+    });
+    socket.on('order:item_status', (msg) => {
+      applyItemStatusEvent(msg?.payload ?? msg);
     });
 
     return () => socket.disconnect();
-  }, [upsertOrder]);
+  }, [upsertOrder, applyItemStatusEvent]);
 
   const activeOrders = useMemo(
-    () => orders.filter((o) => ['sent', 'partially_ready', 'ready'].includes(o.status)),
+    () => orders.filter((o) => ACTIVE_ORDER_STATUSES.includes(o.status)),
     [orders, clock],
   );
 
@@ -186,20 +252,42 @@ export default function App() {
                     </span>
                   </div>
                   <ul className="space-y-2">
-                    {order.items.map((item) => (
-                      <li key={item.id} className="rounded-lg bg-black/25 px-3 py-2">
-                        <div className="flex justify-between gap-2 text-lg font-medium">
-                          <span>
-                            {item.quantity}× {itemLabel(item, i18n.language)}
-                          </span>
-                        </div>
-                        {modifierText(item, i18n.language) && (
-                          <p className="mt-1 text-sm text-white/70">
-                            {modifierText(item, i18n.language)}
-                          </p>
-                        )}
-                      </li>
-                    ))}
+                    {order.items.map((item) => {
+                      const status = item.kitchenStatus ?? 'pending';
+                      const next = nextKitchenAction(status);
+                      return (
+                        <li
+                          key={item.id}
+                          className={`rounded-lg border px-3 py-2 ${itemStatusClass(status)}`}
+                        >
+                          <div className="flex justify-between gap-2 text-lg font-medium">
+                            <span>
+                              {item.quantity}× {itemLabel(item, i18n.language)}
+                            </span>
+                            <span className="text-xs uppercase tracking-wide text-white/60">
+                              {t(`kds.itemStatus.${status}`)}
+                            </span>
+                          </div>
+                          {modifierText(item, i18n.language) && (
+                            <p className="mt-1 text-sm text-white/70">
+                              {modifierText(item, i18n.language)}
+                            </p>
+                          )}
+                          {next && (
+                            <button
+                              type="button"
+                              disabled={updatingItem === item.id}
+                              onClick={() => updateItemStatus(order.id, item.id, next)}
+                              className="mt-2 w-full rounded-lg bg-white/15 py-2 text-sm font-semibold hover:bg-white/25 disabled:opacity-50"
+                            >
+                              {updatingItem === item.id
+                                ? t('common.loading')
+                                : t(`kds.action.${next}`)}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </article>
               );

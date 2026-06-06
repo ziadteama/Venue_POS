@@ -249,6 +249,41 @@ test('kitchen orders list returns sent tickets', async () => {
   assert.ok(list.some((o) => o.status === 'sent' && o.items.length > 0));
 });
 
+test('kitchen can advance item status through lifecycle', async () => {
+  const listRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/kitchen/orders',
+    headers: terminalHeaders,
+  });
+  const ticket = listRes.json().find((o) => o.status === 'sent');
+  assert.ok(ticket);
+  const itemId = ticket.items[0].id;
+
+  for (const status of ['in_progress', 'ready', 'served']) {
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/kitchen/orders/${ticket.id}/items/${itemId}/status`,
+      headers: terminalHeaders,
+      payload: { status },
+    });
+    assert.equal(res.statusCode, 200);
+    const item = res.json().items.find((i) => i.id === itemId);
+    assert.equal(item.kitchenStatus, status);
+  }
+  assert.equal(
+    (
+      await app.inject({
+        method: 'GET',
+        url: '/api/v1/kitchen/orders',
+        headers: terminalHeaders,
+      })
+    )
+      .json()
+      .some((o) => o.id === ticket.id),
+    false,
+  );
+});
+
 test('manager can 86 an item', async () => {
   const res = await app.inject({
     method: 'PATCH',

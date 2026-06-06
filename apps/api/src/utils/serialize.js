@@ -84,6 +84,7 @@ export function serializeOrder(order) {
       quantity: item.quantity,
       unitPrice: decimalToNumber(item.unitPrice),
       modifiersSnapshot: item.modifiersSnapshot,
+      kitchenStatus: item.kitchenStatus ?? 'pending',
       nameEn: item.menuItem?.nameEn,
       nameAr: item.menuItem?.nameAr,
     })) ?? [];

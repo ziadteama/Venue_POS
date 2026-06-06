@@ -37,6 +37,13 @@ enum OrderStatus {
   voided
 }
 
+enum OrderItemKitchenStatus {
+  pending
+  in_progress
+  ready
+  served
+}
+
 model Venue {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nameEn    String    @map("name_en") @db.VarChar(255)
@@ -242,6 +249,7 @@ model OrderItem {
   quantity           Int      @default(1)
   unitPrice          Decimal  @map("unit_price") @db.Decimal(10, 2)
   modifiersSnapshot  Json?    @map("modifiers_snapshot")
+  kitchenStatus      OrderItemKitchenStatus @default(pending) @map("kitchen_status")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

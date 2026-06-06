@@ -83,3 +83,23 @@ export function emitOrderCreated(io, order) {
     },
   });
 }
+
+export function emitOrderItemStatus(io, { order, itemId, kitchenStatus, updatedBy }) {
+  const payload = {
+    orderId: order.id,
+    itemId,
+    status: kitchenStatus,
+    orderStatus: order.status,
+    updatedBy: updatedBy ?? null,
+    updatedAt: new Date().toISOString(),
+    items: order.items,
+  };
+  io.to(`venue:${order.venueId}:pos`).emit('order:item_status', {
+    event: 'order:item_status',
+    payload,
+  });
+  io.to(`venue:${order.venueId}:kitchen`).emit('order:item_status', {
+    event: 'order:item_status',
+    payload,
+  });
+}
