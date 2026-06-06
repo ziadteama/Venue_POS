@@ -11,6 +11,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+// generate does not connect to the DB; CI lint job has no DATABASE_URL
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL =
+    'postgresql://generate:generate@127.0.0.1:5432/generate?schema=public';
+}
 const apiDir = path.join(root, 'apps', 'api');
 const enginePath = path.join(
   root,

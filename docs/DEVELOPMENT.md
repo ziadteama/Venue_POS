@@ -109,7 +109,7 @@ After `npm install`, npm may report **3 high** findings. They are **not** from P
 
 | Package | Source | Risk context | Action |
 |---------|--------|--------------|--------|
-| `electron` | `apps/pos` dev shell | Dev/desktop only; POS loads localhost in dev | Keep `electron` on latest stable (`^42.x`); run `npm audit` after upgrades |
+| `electron` | `apps/pos` + `apps/kds` dev shells | Dev/desktop only; POS loads localhost in dev | Pin `^40.x` (Node 20 compatible). **Do not** jump to `42.x` without upgrading Node to ≥22 |
 | `tar` | old `bcrypt@5` → `@mapbox/node-pre-gyp` | Install-time extraction only | Fixed: `bcrypt@6` (no `node-pre-gyp`). Root `overrides` kept as belt-and-suspenders |
 
 **Do not** run `npm audit fix --force` blindly — it can jump Electron major versions without testing the POS/KDS shells.
@@ -117,7 +117,7 @@ After `npm install`, npm may report **3 high** findings. They are **not** from P
 If audit still reports old `electron@33` after `git pull`, refresh the lockfile:
 
 ```bash
-npm install electron@42.3.3 -w @venue-pos/pos -w @venue-pos/kds --save-dev
+npm install electron@40.10.2 -w @venue-pos/pos -w @venue-pos/kds --save-dev
 ```
 
 Prisma deprecation (`package.json#prisma`) is fixed via `apps/api/prisma.config.ts`. Upgrading Prisma (`^6.x`) is normal maintenance, not required for the EPERM issue.
@@ -163,7 +163,7 @@ If `npm install` fails on Prisma generate, **stop dev servers first**, then `npm
 
 ## Prisma workflow
 
-Config lives in `apps/api/prisma.config.ts` (schema path, migrations, seed). Do not add a `"prisma"` block back to `package.json`.
+Config lives in `apps/api/prisma.config.ts` (schema path, migrations, seed). Do not add a `"prisma"` block back to `package.json`. Do not put `env('DATABASE_URL')` in the config — `npm ci` runs `prisma generate` before any DB exists (CI lint job).
 
 1. Edit `apps/api/prisma/schema.prisma` (source of truth for DB)
 2. `npm run migrate:dev -- --name describe_change`

@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import path from 'node:path';
-import { defineConfig, env } from 'prisma/config';
+import { defineConfig } from 'prisma/config';
 
 export default defineConfig({
   schema: path.join('prisma', 'schema.prisma'),
@@ -8,7 +8,6 @@ export default defineConfig({
     path: path.join('prisma', 'migrations'),
     seed: 'node src/db/seed.js',
   },
-  datasource: {
-    url: env('DATABASE_URL'),
-  },
+  // DATABASE_URL comes from schema.prisma + .env — not required for `prisma generate`
+  // (CI lint/build run npm ci without a database).
 });

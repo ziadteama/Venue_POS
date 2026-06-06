@@ -330,6 +330,16 @@ node scripts/phase1-scenarios.mjs   # with API + agent running
 
 ---
 
+### 2026-06-06 — CI fix: Prisma generate without DB + Electron Node 20
+**Phase:** 1 (tooling)  
+**What:** CI `npm ci` failed — `prisma.config.ts` required `DATABASE_URL` at install time; `electron@42` requires Node ≥22 while CI/dev use Node 20.
+
+**Fix:** Removed `datasource` from `prisma.config.ts`; dummy `DATABASE_URL` in `prisma-generate.mjs` for generate-only; Electron `^40.10.2` (Node 20 + audit clean).
+
+**Verify:** `DATABASE_URL= npm ci` on lint job path; `npm audit` → 0 vulnerabilities.
+
+---
+
 ### 2026-06-06 — Install/audit/Prisma team docs
 **Phase:** 1 (tooling)  
 **What:** Clarified npm audit highs (Electron + tar, not Prisma), migrated to `prisma.config.ts`, pinned `tar` override, upgraded Electron, made `prisma-generate` retry-only on failure.

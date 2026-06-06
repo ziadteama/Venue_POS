@@ -34,7 +34,7 @@
     "node": ">=20"
   },
   "overrides": {
-    "electron": "^42.3.3",
+    "electron": "^40.10.2",
     "tar": "^7.5.16",
     "@mapbox/node-pre-gyp": {
       "tar": "^7.5.16"
