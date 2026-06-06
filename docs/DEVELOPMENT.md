@@ -135,8 +135,8 @@ Not every hub needs every app. During **provider / client onboarding**, feature 
 | `kds_enabled` | `FEATURE_KDS_ENABLED=false` | ON in spec; **turn OFF** for printer-only kitchens | No KDS installer, no `venue:*:kitchen` WS clients required. Orders still **send to kitchen** via API + printer. `apps/kds` not run in prod. |
 | `manual_card_payment` | `FEATURE_MANUAL_CARD_PAYMENT=false` | **OFF** (cash-only venues) | POS hides card / split-card pay; API rejects `method: card`. Set `true` when the client uses an external PDQ and cashiers record card manually (US-5.3). |
 | `line_transfer` | `FEATURE_LINE_TRANSFER=false` | **OFF** | POS hides transfer UI; API rejects line moves. Set `true` when venues move fired lines between tables (manager PIN + audit). |
-| `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque discount — `venue_manager` requests (POS PIN), `hub_manager` approves on dashboard **Approvals**. |
-| `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refund — same approval queue; audit at `/manager/refunds`. |
+| `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque discount — `venue_manager` applies (POS PIN or dashboard JWT); logged for GM review. |
+| `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refund — venue manager applies; audit at `/manager/refunds` and Activity log. |
 | `auto_receipt_print` | `FEATURE_AUTO_RECEIPT_PRINT=true` | **ON** | Local agent prints customer receipt on pay/refund when `KITCHEN_PRINTER_HOST` is set. |
 | Kitchen printer | (venue config) | varies | Primary ticket path when KDS is OFF |
 
@@ -146,11 +146,11 @@ See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US fe
 
 ## Manager workflows
 
-Two patterns — do not mix them when testing:
+**Venue manager authority** (discount, refund, void, comp, line transfer): `venue_manager` PIN on POS (`7777` in seed) or JWT on dashboard. All actions audit-logged.
 
-**Approval queue** (discount, refund): restaurant manager submits → general manager approves on dashboard `/approvals`. POS only needs restaurant manager PIN.
+**GM review** (`hub_manager`): read-only **Activity log** at `/activity` — no approval queue.
 
-**Instant PIN** (void, comp, line transfer, large manual card, shift over/short): one manager PIN (`hub_manager` or `venue_manager`) on the same screen.
+**Policy PIN** (manual card above threshold, shift over/short): manager PIN on POS; hub or venue manager per policy.
 
 Full matrix: `AGENTS.md` § Manager workflows.
 
@@ -276,5 +276,6 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 |-------|--------|-------|
 | 0 Setup | ✅ Done | Monorepo, Prisma, auth, shells, CI |
 | 1 Core POS | ✅ Done | Menu, modifiers, POS order flow, send to kitchen |
-| 2 Kitchen | In progress (`phase-2`) | US-6.1 KDS tickets done; printer + status + void next — [TEAM_LOG.md](TEAM_LOG.md) |
-| 3–9 | Planned | `docs/Technical_Proposal.md` §12 |
+| 2 Kitchen | ✅ Done (optional KDS) | Printer, item status, void — [TEAM_LOG.md](TEAM_LOG.md) |
+| 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
+| 5 Dashboard analytics | Next | Revenue, live metrics — `docs/Technical_Proposal.md` §12 |

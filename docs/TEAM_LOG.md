@@ -473,7 +473,7 @@ Reference: Toast, Square, Lightspeed, Oracle Simphony — **open check** per tab
 
 ---
 
-## Phase 3 — In progress (`phase-3` branch)
+## Phase 3 — Closed (`phase-3` branch → PR to `main`)
 
 Open cheques / tabs + payments (see deferred scope above). Branch created from `phase-2`; merge PR #2 to `main` when ready, then rebase `phase-3` on `main` if needed.
 
@@ -702,7 +702,7 @@ npm run test -w @venue-pos/api
 
 **Schema:** `Cheque.discountAmount`, `ChequeDiscountAudit`, `Refund` (+ shift cash impact).
 
-**API:** `GET /api/v1/features` — `discounts`, `refunds`, `autoReceiptPrint`. See slice 9b for request/approve endpoints.
+**API:** `GET /api/v1/features` — `discounts`, `refunds`, `autoReceiptPrint`. Direct apply endpoints in slice 10.
 
 **Flags (default ON):** `FEATURE_DISCOUNTS_ENABLED`, `FEATURE_REFUNDS_ENABLED`, `FEATURE_AUTO_RECEIPT_PRINT`
 
@@ -718,41 +718,44 @@ npm run test -w @venue-pos/api
 
 ---
 
-## Slice 9b — GM approves from dashboard (approval queue)
+## Slice 9b — GM approval queue (superseded by slice 10)
 
-**What:** Split workflow — **restaurant manager** requests from POS (venue manager PIN only); **general manager** approves/rejects from dashboard **Approvals** page (no GM PIN on terminal).
-
-**Schema:** `ManagerApprovalRequest` (`pending` → `approved` / `rejected`).
-
-**API:**
-- `POST /api/v1/cheques/:id/discount/request` · `POST .../refund/request` (terminal)
-- `POST /api/v1/manager/cheques/:id/discount/request` · `.../refund/request` (venue_manager JWT)
-- `GET /api/v1/manager/approval-requests` · `POST .../:id/approve` · `POST .../:id/reject` (hub_manager)
-- `GET /api/v1/cheques/:id/approval-requests` — POS poll status
-
-**Dashboard:** `/approvals` nav link with pending count (hub_manager).
-
-**POS:** Discount modal → send for approval → polls until GM approves.
+**Historical:** Restaurant manager requested → GM approved on `/approvals`. Replaced by venue-manager direct apply + Activity log.
 
 ---
 
-## Phase 3 closure checklist
+## Slice 10 — Venue manager authority + Phase 3 close
 
-**Done (slices 1–9b):** Open cheques, fire/pay, split item + amount, line transfer, shifts, manual card, comp/void, discounts, refunds, receipt print, GM approval queue.
+**What:** Venue manager executes all sensitive cheque actions; GM reviews audit feed (no approval queue).
 
-**Remaining before calling Phase 3 complete:**
+**API:**
+- `POST /api/v1/cheques/:id/discount` · `POST .../refund` (terminal + venue manager PIN)
+- `POST /api/v1/manager/cheques/:id/discount` · `.../refund` (venue_manager JWT)
+- `GET /api/v1/manager/activity` — unified audit (hub_manager)
+- `GET /api/v1/cheques/paid` — POS paid-cheque picker
+- Void/comp/transfer — `venue_manager` PIN only; paid void/comp triggers partial refund
 
-| Item | Priority |
-|------|----------|
-| Seat split (US-3.6) | Client-driven |
-| Vouchers (US-5.5) | P2 |
-| Integrated PDQ (US-5.2) | Provider flag |
-| Receipt PDF (US-10.2) | P2 |
-| POS refund UI (paid cheques) | Polish |
-| Socket-based approval on POS (replace poll) | Polish |
-| Unify void/comp/transfer into approval queue? | Product decision |
+**Socket:** `manager:action` on POS (replaces approval poll).
 
-See `docs/PHASE3_SCALABLE_PLAN.md` for flags and deferred detail.
+**Dashboard:** `/activity` replaces `/approvals`; ChequesPage refactored into components + `useChequeManager`.
+
+**POS:** Direct discount apply; refund paid cheque flow; `useManagerSocket`.
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run lint && npm run lint:i18n
+```
+
+---
+
+## Phase 3 — closed
+
+**Shipped (slices 1–10):** Open cheques, fire/pay, split item + amount, line transfer, shifts, manual card, comp/void, discounts, refunds, receipt print, venue-manager authority, Activity log, POS refund UI, paid void/comp, socket updates, dashboard cheques refactor.
+
+**Deferred (post–Phase 3):** Seat split, vouchers, integrated PDQ, receipt PDF, cross-venue (Epic 4), offline sync (Phase 6). See `docs/PHASE3_SCALABLE_PLAN.md`.
+
+**Next phase:** Phase 5 — dashboard revenue analytics (GM / hub owner view).
 
 ---
 

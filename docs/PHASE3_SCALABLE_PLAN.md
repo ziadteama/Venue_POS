@@ -31,7 +31,11 @@ Paid-cheque corrections: comp/void round on paid cheques auto-create partial ref
 
 **Still hub/venue PIN (policy):** manual-card threshold, shift over/short.
 
-## Phase 3 remaining (not yet built)
+## Phase 3 — closed (June 2026)
+
+Core F&B tab lifecycle shipped on `phase-3`. Venue manager executes; hub manager reviews Activity log.
+
+## Deferred (post–Phase 3 / client-driven)
 
 | Item | PRD | Notes |
 |------|-----|-------|
@@ -39,13 +43,18 @@ Paid-cheque corrections: comp/void round on paid cheques auto-create partial ref
 | **Vouchers / promos** | US-5.5 | Code validation, one-time use |
 | **Integrated card** terminal | US-5.2 | PDQ SDK; `FEATURE_INTEGRATED_CARD_PAYMENT` |
 | **Receipt PDF** | US-10.2 | Digital/email receipt |
-| Refund from **POS** | US-5.6 | API exists; paid-cheque UI on terminal TBD |
-| Void/comp on **paid** cheques | — | Post-payment correction tail |
 | **Cross-venue** billing | Epic 4 | Multi-hub |
 | **Offline** cheque sync | Phase 6 | SQLite replay |
+| Cashier PIN login on POS | — | Demo uses fixed cashier ID today |
+| `venue_mgr` dashboard password | — | PIN-only on POS in default seed |
 
 ## Shipped (reference)
 
-- Split by custom amount — `POST /cheques/:id/split-amount`
-- Refunds + discounts — approval queue + audit
+- Open cheques, fire/pay, shifts, manual card, comp/void
+- Split by item + custom amount — `POST /cheques/:id/split-amount`
+- Line transfer (flagged) — `POST /cheques/:id/transfer`
+- Discounts + refunds — venue manager applies; audit + `/manager/activity`
+- POS refund UI — paid-cheque picker + refund modal
+- Paid void/comp — partial refund + audit
+- Socket `manager:action` on POS (replaces approval poll)
 - Auto receipt print — agent on pay when `KITCHEN_PRINTER_HOST` set
