@@ -47,6 +47,7 @@ packages/ shared, i18n
 ## Commands
 
 ```bash
+npm run dev              # all apps (see DEVELOPMENT.md)
 npm run dev:api|dashboard|pos|kds|agent
 npm run migrate:dev    # Prisma (dev)
 npm run migrate        # Prisma (deploy)

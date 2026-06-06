@@ -83,14 +83,31 @@ npm run seed
 
 ## Daily workflow
 
+### One command (recommended)
+
+```bash
+nvm use 20          # required — Node 24 breaks better-sqlite3 (local-agent)
+npm run dev
+```
+
+Starts **API** (:3000), **dashboard** (:5173), **local-agent** (:3456), and **POS** (Electron + :5174).  
+Postgres must already be running (`pgAdmin` or `npm run docker:up`).
+
+| Flag | Effect |
+|------|--------|
+| `npm run dev -- --browser` | POS in browser only (no Electron window) |
+| `npm run dev -- --kds` | Also start KDS Vite (:5175) |
+| `npm run dev -- --docker` | Start Redis container before apps |
+
+### Individual apps (if you prefer separate terminals)
+
 ```bash
 npm run dev:api              # :3000
 npm run dev:dashboard        # :5173
 npm run dev:agent            # :3456
-npm run dev:pos              # :5174
+npm run dev:pos              # :5174 (Vite only)
 npm run electron:dev -w @venue-pos/pos
-# KDS only if this client has kds_enabled (see below)
-npm run dev:kds              # :5175
+npm run dev:kds              # :5175 (optional)
 ```
 
 ## Optional features (provider onboarding)
