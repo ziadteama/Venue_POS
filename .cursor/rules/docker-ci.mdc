@@ -20,6 +20,7 @@ npm run dev:api                       # API on host (hot reload)
 - `ops/secrets/` — JWT keys (gitignored); generate via `npm run generate:jwt-keys`
 
 ## CI (`.github/workflows/ci.yml`)
+Runs on **every push** and **every pull request** (all branches).
 1. lint + lint:i18n
 2. api job: postgres service → migrate → seed → test
 3. build dashboard, pos, kds
