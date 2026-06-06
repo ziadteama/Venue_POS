@@ -9,7 +9,7 @@ import {
   listManagerActivity,
 } from '../services/manager-action-service.js';
 
-const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
+const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
 const discountSchema = z.object({
   amount: z.number().positive().optional(),
@@ -34,7 +34,7 @@ function resolveVenueId(request) {
 export async function managerActivityRoutes(app) {
   app.get(
     '/api/v1/manager/activity',
-    { preHandler: managerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');

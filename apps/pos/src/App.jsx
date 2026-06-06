@@ -247,6 +247,7 @@ export default function App() {
         <TransferModal
           cheque={cheque}
           openCheques={openCheques}
+          language={i18n.language}
           t={t}
           onCancel={() => setShowTransferModal(false)}
           onConfirm={onConfirmTransfer}

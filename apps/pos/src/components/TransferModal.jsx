@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { transferableItems } from '../utils/cheque.js';
 
-export function TransferModal({ cheque, openCheques, onConfirm, onCancel, t }) {
+export function TransferModal({ cheque, openCheques, language, onConfirm, onCancel, t }) {
   const items = transferableItems(cheque);
   const [selected, setSelected] = useState([]);
   const [targetTable, setTargetTable] = useState('');
@@ -53,7 +53,9 @@ export function TransferModal({ cheque, openCheques, onConfirm, onCancel, t }) {
                 checked={selected.includes(item.id)}
                 onChange={() => toggle(item.id)}
               />
-              <span className="flex-1">{item.nameEn}</span>
+              <span className="flex-1">
+                {item.quantity}x {language === 'ar' ? item.nameAr : item.nameEn}
+              </span>
             </label>
           ))}
         </div>
