@@ -13,11 +13,23 @@ const venueId = process.env.VENUE_ID ?? '';
 const terminalId = process.env.TERMINAL_ID ?? '';
 const terminalSecret = process.env.TERMINAL_SECRET ?? '';
 const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5174').split(',');
+const kitchenPrinterHost = process.env.KITCHEN_PRINTER_HOST ?? '';
+const kitchenPrinterPort = Number(process.env.KITCHEN_PRINTER_PORT ?? 9100);
 
 const db = createDatabase(dbPath);
 const app = await buildAgentServer({
   db,
-  config: { port, host, apiUrl, venueId, terminalId, terminalSecret, corsOrigins },
+  config: {
+    port,
+    host,
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    corsOrigins,
+    kitchenPrinterHost,
+    kitchenPrinterPort,
+  },
 });
 
 if (venueId && terminalId && terminalSecret) {

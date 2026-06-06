@@ -11,12 +11,24 @@ import {
   getLocalOrder,
   pushOrderToServer,
   sendLocalOrder,
+  voidLocalOrder,
   syncOrderAction,
 } from './services/orders.js';
+import { getPrinterHealth, printKitchenTicket } from './services/kitchen-printer.js';
 
 export async function buildAgentServer({ db, config }) {
   const app = Fastify({ logger: { level: 'info' } });
-  const { port, host, apiUrl, venueId, terminalId, terminalSecret, corsOrigins } = config;
+  const {
+    port,
+    host,
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    corsOrigins,
+    kitchenPrinterHost,
+    kitchenPrinterPort,
+  } = config;
 
   await app.register(cors, {
     origin: corsOrigins,
@@ -30,6 +42,7 @@ export async function buildAgentServer({ db, config }) {
     syncQueueDepth: db.prepare(`SELECT COUNT(*) AS n FROM sync_queue WHERE status = 'pending'`).get()
       .n,
     menuCached: Boolean(getCachedMenu(db, venueId)),
+    printer: getPrinterHealth(),
     timestamp: new Date().toISOString(),
   }));
 
@@ -164,6 +177,7 @@ export async function buildAgentServer({ db, config }) {
 
   app.post('/v1/orders/:id/send', async (request) => {
     const local = sendLocalOrder(db, request.params.id);
+    const orderForPrint = getLocalOrder(db, request.params.id);
     try {
       const server = await syncOrderAction({
         db,
@@ -173,11 +187,45 @@ export async function buildAgentServer({ db, config }) {
         orderId: request.params.id,
         action: 'send',
       });
-      return { ...getLocalOrder(db, request.params.id), server };
+      const merged = { ...getLocalOrder(db, request.params.id), server };
+      printKitchenTicket(orderForPrint, {
+        host: kitchenPrinterHost,
+        port: kitchenPrinterPort,
+        log: app.log,
+      }).catch((err) => app.log.warn({ err }, 'Kitchen print failed'));
+      return merged;
     } catch (err) {
       enqueueSync(db, 'order.send', { orderId: request.params.id });
       app.log.warn({ err }, 'Send queued for sync replay');
+      printKitchenTicket(orderForPrint, {
+        host: kitchenPrinterHost,
+        port: kitchenPrinterPort,
+        log: app.log,
+      }).catch((printErr) => app.log.warn({ err: printErr }, 'Kitchen print failed'));
       return local;
+    }
+  });
+
+  app.post('/v1/orders/:id/void', async (request, reply) => {
+    const { cashierId, managerPin, reason } = request.body ?? {};
+    if (!cashierId || !managerPin || !reason?.trim()) {
+      return reply.status(400).send({ error: 'cashierId, managerPin, and reason required' });
+    }
+    try {
+      voidLocalOrder(db, request.params.id);
+      const server = await syncOrderAction({
+        db,
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        orderId: request.params.id,
+        action: 'void',
+        body: { cashierId, managerPin, reason: reason.trim() },
+      });
+      return server;
+    } catch (err) {
+      app.log.warn({ err }, 'Void failed');
+      return reply.status(400).send({ error: err.message });
     }
   });
 

@@ -105,6 +105,7 @@ export function serializeOrder(order) {
     status: order.status,
     openedAt: order.openedAt,
     sentAt: order.sentAt,
+    closedAt: order.closedAt ?? null,
     items,
     subtotal,
   };

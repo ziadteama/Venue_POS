@@ -18,12 +18,19 @@ async function seed() {
   });
 
   const passwordHash = await bcrypt.hash('admin123', config.bcryptRounds);
+  const managerPinHash = await bcrypt.hash('9999', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'admin' },
-    update: { passwordHash, role: 'hub_manager', venueId: venue.id },
+    update: {
+      passwordHash,
+      pinHash: managerPinHash,
+      role: 'hub_manager',
+      venueId: venue.id,
+    },
     create: {
       username: 'admin',
       passwordHash,
+      pinHash: managerPinHash,
       role: 'hub_manager',
       venueId: venue.id,
     },

@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
+import { verifyManagerPin } from './auth-service.js';
 import { serializeOrder, buildReceiptText } from '../utils/serialize.js';
 
 const orderInclude = {
@@ -167,6 +168,35 @@ export async function updateOrderTableLabel(orderId, tableLabel, venueId) {
     include: orderInclude,
   });
   return serializeOrder(updated);
+}
+
+export async function voidOrder(orderId, { cashierId, managerPin, reason }, venueId) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw notFound('Order not found');
+  if (order.venueId !== venueId) throw validationError('Order not found for this terminal');
+  if (!['draft', 'sent'].includes(order.status)) {
+    throw validationError('Only draft or sent orders can be voided');
+  }
+  if (!reason?.trim()) throw validationError('Void reason is required');
+
+  const approver = await verifyManagerPin(venueId, managerPin);
+
+  await prisma.$transaction([
+    prisma.orderVoidAudit.create({
+      data: {
+        orderId,
+        cashierId,
+        approverId: approver.id,
+        reason: reason.trim(),
+      },
+    }),
+    prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'voided', closedAt: new Date() },
+    }),
+  ]);
+
+  return getOrder(orderId);
 }
 
 export async function sendOrderToKitchen(orderId) {

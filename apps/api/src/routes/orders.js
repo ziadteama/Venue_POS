@@ -1,13 +1,14 @@
 import { z } from 'zod';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError } from '../utils/errors.js';
-import { emitOrderCreated } from '../plugins/socket.js';
+import { emitOrderCreated, emitOrderVoided } from '../plugins/socket.js';
 import {
   createOrder,
   addOrderItem,
   updateOrderItemQuantity,
   removeOrderItem,
   updateOrderTableLabel,
+  voidOrder,
   sendOrderToKitchen,
   getOrder,
   getOrderReceipt,
@@ -41,6 +42,12 @@ const qtySchema = z.object({
 
 const tableLabelSchema = z.object({
   tableLabel: z.string().max(50).nullable().optional(),
+});
+
+const voidOrderSchema = z.object({
+  cashierId: z.string().uuid(),
+  managerPin: z.string().min(4).max(6),
+  reason: z.string().min(1).max(500),
 });
 
 async function assertOrderVenue(request, orderId) {
@@ -113,6 +120,26 @@ export async function orderRoutes(app) {
     async (request) => {
       await assertOrderVenue(request, request.params.id);
       return removeOrderItem(request.params.id, request.params.itemId);
+    },
+  );
+
+  app.post(
+    '/api/v1/orders/:id/void',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = voidOrderSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const order = await voidOrder(request.params.id, parsed.data, request.terminal.venueId);
+      if (request.server.io) {
+        emitOrderVoided(request.server.io, {
+          orderId: order.id,
+          venueId: order.venueId,
+          reason: parsed.data.reason.trim(),
+          voidedBy: parsed.data.cashierId,
+        });
+      }
+      return order;
     },
   );
 

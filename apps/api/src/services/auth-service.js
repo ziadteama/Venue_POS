@@ -70,6 +70,24 @@ export async function loginCashier(pin, terminalId, terminalSecret) {
   };
 }
 
+const MANAGER_ROLES = ['hub_manager', 'venue_manager'];
+
+export async function verifyManagerPin(venueId, pin) {
+  const managers = await prisma.user.findMany({
+    where: {
+      venueId,
+      role: { in: MANAGER_ROLES },
+      isActive: true,
+      pinHash: { not: null },
+    },
+  });
+
+  for (const user of managers) {
+    if (await bcrypt.compare(pin, user.pinHash)) return user;
+  }
+  throw unauthorized('Invalid manager PIN');
+}
+
 async function validateTerminal(terminalId, terminalSecret) {
   if (!terminalId || !terminalSecret) {
     throw unauthorized('Terminal credentials required');
