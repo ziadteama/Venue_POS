@@ -330,6 +330,25 @@ node scripts/phase1-scenarios.mjs   # with API + agent running
 
 ---
 
+### 2026-06-06 — Fix local-agent sync queue false success
+**Phase:** 1 (bugfix)  
+**What:** `fetch()` does not throw on HTTP 4xx/5xx. Sync replay was marking queue jobs `done` even when the API rejected them, so failed orders could disappear from the retry queue.
+
+**Files:**
+- `apps/local-agent/src/services/api-fetch.js` — shared helper with `res.ok` check
+- `apps/local-agent/src/services/sync-processor.js` — uses `apiFetch`; only marks `done` on success
+- `apps/local-agent/src/services/orders.js` — imports shared `apiFetch`
+- `apps/local-agent/src/server.js` — add-item inline fetch uses `apiFetch`
+- `apps/local-agent/src/services/sync-processor.test.js` — failure keeps `pending` + increments `retry_count`
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/local-agent
+npm run dev:agent   # stop API, create order on POS, confirm sync_queue stays pending
+```
+
+---
+
 ## Phase 2 — Next
 
 - KDS order display + status lifecycle (US-3.4)

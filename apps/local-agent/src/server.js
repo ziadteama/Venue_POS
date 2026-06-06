@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import { apiFetch } from './services/api-fetch.js';
 import { getCachedMenu, syncMenuFromServer } from './services/menu-sync.js';
 import { processSyncQueue } from './services/sync-processor.js';
 import {
@@ -90,13 +91,8 @@ export async function buildAgentServer({ db, config }) {
     });
 
     try {
-      await fetch(`${apiUrl}/api/v1/orders/${request.params.id}/items`, {
+      await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${request.params.id}/items`, {
         method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-terminal-id': terminalId,
-          'x-terminal-secret': terminalSecret,
-        },
         body: JSON.stringify({ menuItemId, quantity, modifiers }),
       });
     } catch (err) {

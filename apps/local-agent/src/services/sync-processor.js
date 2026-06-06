@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { apiFetch } from './api-fetch.js';
 
 export async function processSyncQueue({ db, apiUrl, terminalId, terminalSecret }) {
   const pending = db
@@ -10,13 +11,8 @@ export async function processSyncQueue({ db, apiUrl, terminalId, terminalSecret 
     try {
       const payload = JSON.parse(job.payload_json);
       if (job.event_type === 'order.create') {
-        await fetch(`${apiUrl}/api/v1/orders`, {
+        await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/orders', {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-terminal-id': terminalId,
-            'x-terminal-secret': terminalSecret,
-          },
           body: JSON.stringify({
             id: payload.orderId,
             cashierId: payload.cashierId,
@@ -24,13 +20,8 @@ export async function processSyncQueue({ db, apiUrl, terminalId, terminalSecret 
           }),
         });
       } else if (job.event_type === 'order.add_item') {
-        await fetch(`${apiUrl}/api/v1/orders/${payload.orderId}/items`, {
+        await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${payload.orderId}/items`, {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-terminal-id': terminalId,
-            'x-terminal-secret': terminalSecret,
-          },
           body: JSON.stringify({
             menuItemId: payload.menuItemId,
             quantity: payload.quantity,
@@ -38,14 +29,8 @@ export async function processSyncQueue({ db, apiUrl, terminalId, terminalSecret 
           }),
         });
       } else if (job.event_type === 'order.send') {
-        await fetch(`${apiUrl}/api/v1/orders/${payload.orderId}/send`, {
+        await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${payload.orderId}/send`, {
           method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'x-terminal-id': terminalId,
-            'x-terminal-secret': terminalSecret,
-          },
-          body: '{}',
         });
       }
       db.prepare(`UPDATE sync_queue SET status = 'done' WHERE id = ?`).run(job.id);

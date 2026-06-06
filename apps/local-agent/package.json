@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build": "echo \"No build step yet\""
+    "build": "echo \"No build step yet\"",
+    "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

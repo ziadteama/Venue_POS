@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { apiFetch } from './api-fetch.js';
 import { enqueueSync } from './sync-processor.js';
 
 export function createLocalOrder(db, { venueId, cashierId, terminalId, tableLabel }) {
@@ -116,23 +117,6 @@ export function getLocalOrder(db, orderId) {
     })),
     subtotal,
   };
-}
-
-async function apiFetch(apiUrl, terminalId, terminalSecret, path, options = {}) {
-  const method = options.method ?? 'GET';
-  const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
-  const res = await fetch(`${apiUrl}${path}`, {
-    ...options,
-    ...(needsBody ? { body: '{}' } : {}),
-    headers: {
-      'content-type': 'application/json',
-      'x-terminal-id': terminalId,
-      'x-terminal-secret': terminalSecret,
-      ...options.headers,
-    },
-  });
-  if (!res.ok) throw new Error(`API ${path} failed (${res.status})`);
-  return res.status === 204 ? null : res.json();
 }
 
 export async function pushOrderToServer({
