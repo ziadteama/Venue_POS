@@ -237,6 +237,18 @@ test('order lifecycle: create, add with modifier, qty, send, receipt', async () 
   assert.ok(receiptRes.json().text.includes('Burger'));
 });
 
+test('kitchen orders list returns sent tickets', async () => {
+  const kitchenRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/kitchen/orders',
+    headers: terminalHeaders,
+  });
+  assert.equal(kitchenRes.statusCode, 200);
+  const list = kitchenRes.json();
+  assert.ok(Array.isArray(list));
+  assert.ok(list.some((o) => o.status === 'sent' && o.items.length > 0));
+});
+
 test('manager can 86 an item', async () => {
   const res = await app.inject({
     method: 'PATCH',

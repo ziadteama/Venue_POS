@@ -400,13 +400,28 @@ npm run dev:agent   # stop API, create order on POS, confirm sync_queue stays pe
 
 ---
 
-## Phase 2 — Next
+## Phase 2 — In progress (`phase-2` branch)
 
 Kitchen output — **KDS is optional per client** (`kds_enabled` at provider onboarding). Printer-only sites skip `apps/kds`; still deliver send-to-kitchen, printer, and status APIs.
 
-- KDS order display + status lifecycle (US-3.4 / US-6.x) — **when `kds_enabled`**
-- Kitchen printer integration (US-6.3) — all kitchen deployments
-- Order void workflow (US-3.5)
+### 2026-06-06 — US-6.1 KDS order display (started)
+
+**What:** `GET /api/v1/kitchen/orders`, KDS socket joins `venue:{id}:kitchen` via `clientType: 'kds'`, live `order:created` tickets in `apps/kds` with age color coding. Gated by `FEATURE_KDS_ENABLED` / `VITE_FEATURE_KDS_ENABLED`.
+
+**Files:** `apps/api/src/routes/kitchen.js`, `apps/api/src/services/order-service.js`, `apps/api/src/plugins/socket.js`, `apps/kds/src/App.jsx`, `packages/i18n/locales/*.json`
+
+**Verify:**
+```bash
+npm run dev -- --kds
+# POS: checkout an order → ticket appears on http://localhost:5175
+npm run test -w @venue-pos/api
+```
+
+**Remaining Phase 2:**
+- US-6.2 KDS status updates (`order:item_status`)
+- US-3.4 order status lifecycle API
+- US-6.3 kitchen printer
+- US-3.5 void order
 
 ---
 

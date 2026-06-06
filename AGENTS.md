@@ -61,4 +61,4 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 1 done.** Phase 2 — kitchen (KDS when enabled + printer + status). KDS not required for every deployment. See `docs/TEAM_LOG.md`.
+**Phase 2 in progress** (`phase-2` branch) — US-6.1 KDS live tickets shipped; next: status updates, printer, void. See `docs/TEAM_LOG.md`.
