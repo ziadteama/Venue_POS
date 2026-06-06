@@ -606,6 +606,18 @@ npm run test
 
 **Still deferred:** Split by seat, split by custom amount, line transfer, shifts, refunds, cross-venue, receipt PDF.
 
+### 2026-06-09 — Structure refactor (agent routes, POS components, cheque services)
+
+**What:** No behavior change — reorganized bloated files to match `.cursor/rules` and dashboard patterns.
+
+**local-agent:** `server.js` → thin bootstrap; routes in `src/routes/{health,menu,sync,orders,cheques}.js`.
+
+**POS:** `App.jsx` ~200 lines wiring; `api/agent.js`, `hooks/*`, `components/*`, `utils/*`.
+
+**API:** `cheque-service.js` barrel; logic split into `cheque-shared.js`, `cheque-lifecycle.js`, `cheque-pay.js`, `cheque-split.js`, `cheque-manager.js`.
+
+**Verify:** `npm run test` + `npm run lint:i18n` — all green.
+
 ---
 
 ## Quick reference — Phase 0 deliverables
