@@ -87,6 +87,23 @@ before(async () => {
     },
   });
 
+  const venueManagerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'phase1venue' },
+    update: {
+      pinHash: venueManagerPinHash,
+      role: 'venue_manager',
+      venueId: VENUE_ID,
+      isActive: true,
+    },
+    create: {
+      username: 'phase1venue',
+      pinHash: venueManagerPinHash,
+      role: 'venue_manager',
+      venueId: VENUE_ID,
+    },
+  });
+
   await prisma.terminal.upsert({
     where: { id: TERMINAL_ID },
     update: { secretHash: await hashSecret(TERMINAL_SECRET), venueId: VENUE_ID },
@@ -1080,6 +1097,8 @@ test('split cheque by custom amount and pay children', async () => {
 
 test('transfer fired line to another table', async () => {
   await ensureOpenShift();
+  const tableA = `TR-A-${Date.now()}`;
+  const tableB = `TR-B-${Date.now()}`;
 
   const menuRes = await app.inject({
     method: 'GET',
@@ -1100,7 +1119,7 @@ test('transfer fired line to another table', async () => {
     method: 'POST',
     url: '/api/v1/cheques/open',
     headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, tableLabel: 'TR1' },
+    payload: { cashierId: CASHIER_ID, tableLabel: tableA },
   });
   const chequeA = openA.json().id;
   const draftA = openA.json().draftOrder.id;
@@ -1127,7 +1146,7 @@ test('transfer fired line to another table', async () => {
     payload: {
       cashierId: CASHIER_ID,
       itemIds: [itemId],
-      targetTableLabel: 'TR2',
+      targetTableLabel: tableB,
       managerPin: '8888',
       reason: 'Wrong table',
     },
@@ -1198,6 +1217,187 @@ test('pay without open shift is rejected', async () => {
   assert.match(payRes.json().error.message, /shift/i);
 
   await ensureOpenShift();
+});
+
+test('cheque discount reduces total before pay', async () => {
+  await ensureOpenShift();
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'DC1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const beforeTotal = fireRes.json().cheque.total;
+  assert.ok(beforeTotal > 10);
+
+  const discountRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/discount`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      amount: 10,
+      reason: 'Loyalty guest',
+      restaurantManagerPin: '7777',
+      generalManagerPin: '8888',
+    },
+  });
+  assert.equal(discountRes.statusCode, 200);
+  assert.equal(discountRes.json().discountAmount, 10);
+  assert.equal(discountRes.json().total, beforeTotal - 10);
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  assert.equal(payRes.statusCode, 200);
+  assert.ok(payRes.json().receipt.includes('Discount'));
+  assert.equal(payRes.json().cheque.payments[0].amount, beforeTotal - 10);
+});
+
+test('paid cheque refund requires dual manager PIN', async () => {
+  await ensureOpenShift();
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'RF1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  const paidTotal = payRes.json().cheque.payments[0].amount;
+
+  const badRefund = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/refund`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      amount: paidTotal,
+      method: 'cash',
+      reason: 'Complaint',
+      restaurantManagerPin: '8888',
+      generalManagerPin: '8888',
+    },
+  });
+  assert.equal(badRefund.statusCode, 401);
+
+  const refundRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/refund`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      amount: 20,
+      method: 'cash',
+      reason: 'Wrong item served',
+      restaurantManagerPin: '7777',
+      generalManagerPin: '8888',
+    },
+  });
+  assert.equal(refundRes.statusCode, 200);
+  assert.ok(refundRes.json().receipt.includes('REFUND'));
+  assert.equal(refundRes.json().refund.amount, 20);
+  assert.equal(refundRes.json().cheque.refunds.length, 1);
+
+  const audits = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/refunds?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(audits.statusCode, 200);
+  assert.ok(audits.json().some((r) => r.chequeId === chequeId));
+});
+
+test('features endpoint exposes discounts and receipt print flags', async () => {
+  const res = await app.inject({
+    method: 'GET',
+    url: '/api/v1/features',
+    headers: terminalHeaders,
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(typeof res.json().discounts, 'boolean');
+  assert.equal(typeof res.json().refunds, 'boolean');
+  assert.equal(typeof res.json().autoReceiptPrint, 'boolean');
 });
 
 test('manager can 86 an item', async () => {

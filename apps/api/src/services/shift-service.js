@@ -20,7 +20,7 @@ function serializeShift(shift) {
   };
 }
 
-function paymentTotals(payments) {
+function paymentTotals(payments, refunds = []) {
   const byMethod = { cash: 0, card: 0, voucher: 0 };
   let total = 0;
   for (const p of payments) {
@@ -28,23 +28,50 @@ function paymentTotals(payments) {
     total += amt;
     byMethod[p.method] = (byMethod[p.method] ?? 0) + amt;
   }
-  return { total, byMethod, count: payments.length };
+
+  const refundsByMethod = { cash: 0, card: 0, voucher: 0 };
+  let refundTotal = 0;
+  for (const r of refunds) {
+    const amt = Number(r.amount);
+    refundTotal += amt;
+    refundsByMethod[r.method] = (refundsByMethod[r.method] ?? 0) + amt;
+    total -= amt;
+  }
+
+  return {
+    total,
+    byMethod,
+    count: payments.length,
+    refundTotal,
+    refundsByMethod,
+    refundCount: refunds.length,
+  };
 }
 
-export function buildShiftReport(shift, payments) {
-  const { total, byMethod, count } = paymentTotals(payments);
+export function buildShiftReport(shift, payments, refunds = []) {
+  const { total, byMethod, count, refundTotal, refundsByMethod, refundCount } = paymentTotals(
+    payments,
+    refunds,
+  );
   const openFloat = Number(shift.openFloat);
-  const cashIn = byMethod.cash ?? 0;
+  const cashIn = (byMethod.cash ?? 0) - (refundsByMethod.cash ?? 0);
   const expectedCash = Number((openFloat + cashIn).toFixed(2));
 
   return {
     shift: serializeShift(shift),
     paymentCount: count,
+    refundCount,
     totalRevenue: Number(total.toFixed(2)),
+    totalRefunds: Number(refundTotal.toFixed(2)),
     paymentsByMethod: {
       cash: Number((byMethod.cash ?? 0).toFixed(2)),
       card: Number((byMethod.card ?? 0).toFixed(2)),
       voucher: Number((byMethod.voucher ?? 0).toFixed(2)),
+    },
+    refundsByMethod: {
+      cash: Number((refundsByMethod.cash ?? 0).toFixed(2)),
+      card: Number((refundsByMethod.card ?? 0).toFixed(2)),
+      voucher: Number((refundsByMethod.voucher ?? 0).toFixed(2)),
     },
     expectedCash,
   };
@@ -58,10 +85,13 @@ export async function getActiveShift(cashierId, terminalId, venueId) {
       venueId,
       status: 'open',
     },
-    include: { payments: true },
+    include: { payments: true, refunds: true },
   });
   if (!shift) return null;
-  return { ...serializeShift(shift), report: buildShiftReport(shift, shift.payments) };
+  return {
+    ...serializeShift(shift),
+    report: buildShiftReport(shift, shift.payments, shift.refunds),
+  };
 }
 
 export async function requireActiveShift(cashierId, terminalId, venueId) {
@@ -129,11 +159,11 @@ export async function closeShift(
 
   const shift = await prisma.shift.findFirst({
     where: { cashierId, terminalId, venueId, status: 'open' },
-    include: { payments: true },
+    include: { payments: true, refunds: true },
   });
   if (!shift) throw validationError('No open shift for this cashier');
 
-  const report = buildShiftReport(shift, shift.payments);
+  const report = buildShiftReport(shift, shift.payments, shift.refunds);
   const overShort = Number((counted - report.expectedCash).toFixed(2));
 
   if (Math.abs(overShort) > overShortThreshold) {

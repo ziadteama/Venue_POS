@@ -14,6 +14,8 @@ export const chequeOrderInclude = {
 export const chequeInclude = {
   orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
   payments: { orderBy: { processedAt: 'desc' } },
+  discountAudits: { orderBy: { createdAt: 'desc' }, take: 10 },
+  refunds: { orderBy: { processedAt: 'desc' } },
   childCheques: {
     include: { payments: { orderBy: { processedAt: 'desc' } } },
     orderBy: { chequeNumber: 'asc' },
@@ -74,7 +76,7 @@ export function filterOrderForCheque(order, chequeId, isParentCheque, forDisplay
   return { ...serialized, items, subtotal };
 }
 
-export function computeChequeTotal(cheque) {
+export function computeChequeSubtotal(cheque) {
   if (cheque.splitAmount != null) {
     return Number(cheque.splitAmount);
   }
@@ -95,6 +97,12 @@ export function computeChequeTotal(cheque) {
   }
 
   return itemTotal;
+}
+
+export function computeChequeTotal(cheque) {
+  const subtotal = computeChequeSubtotal(cheque);
+  const discount = Number(cheque.discountAmount ?? 0);
+  return Math.max(0, Number((subtotal - discount).toFixed(2)));
 }
 
 function serializeChildSummary(child, parentCheque) {
@@ -135,6 +143,8 @@ export function serializeCheque(cheque) {
     });
   const draftOrder = isParent ? (orders.find((o) => o.status === 'draft') ?? null) : null;
 
+  const subtotalBeforeDiscount = computeChequeSubtotal(cheque);
+  const discountAmount = Number(cheque.discountAmount ?? 0);
   let total = computeChequeTotal(cheque);
 
   if (cheque.status === 'paid' && cheque.payments?.length) {
@@ -154,6 +164,8 @@ export function serializeCheque(cheque) {
     tableLabel: cheque.tableLabel,
     splitLabel: cheque.splitLabel ?? null,
     splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
+    discountAmount,
+    subtotalBeforeDiscount,
     parentChequeId: cheque.parentChequeId ?? null,
     status: cheque.status,
     openedAt: cheque.openedAt,
@@ -178,6 +190,16 @@ export function serializeCheque(cheque) {
         cardLast4: p.cardLast4 ?? null,
         processedAt: p.processedAt,
         cashierId: p.cashierId,
+      })) ?? [],
+    refunds:
+      cheque.refunds?.map((r) => ({
+        id: r.id,
+        method: r.method,
+        amount: Number(r.amount),
+        reason: r.reason,
+        processedAt: r.processedAt,
+        initiatorId: r.initiatorId,
+        approverId: r.approverId,
       })) ?? [],
   };
 }

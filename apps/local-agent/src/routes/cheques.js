@@ -1,9 +1,18 @@
 import { apiFetch } from '../services/api-fetch.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
 
+function maybePrintReceipt(text, { autoReceiptPrint, kitchenPrinterHost, kitchenPrinterPort, log }) {
+  if (!autoReceiptPrint || !text) return;
+  printCustomerReceipt(text, {
+    host: kitchenPrinterHost,
+    port: kitchenPrinterPort,
+    log,
+  }).catch((err) => log.warn({ err }, 'Receipt print failed'));
+}
+
 export function registerChequeRoutes(
   app,
-  { apiUrl, terminalId, terminalSecret, kitchenPrinterHost, kitchenPrinterPort },
+  { apiUrl, terminalId, terminalSecret, kitchenPrinterHost, kitchenPrinterPort, autoReceiptPrint },
 ) {
   app.get('/v1/cheques/open', async () =>
     apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open'),
@@ -103,13 +112,43 @@ export function registerChequeRoutes(
         body: JSON.stringify({ cashierId, payments, method, amount, tendered, managerPin }),
       },
     );
-    if (result.receipt) {
-      printCustomerReceipt(result.receipt, {
-        host: kitchenPrinterHost,
-        port: kitchenPrinterPort,
-        log: app.log,
-      }).catch((err) => app.log.warn({ err }, 'Receipt print failed'));
-    }
+    maybePrintReceipt(result.receipt, {
+      autoReceiptPrint,
+      kitchenPrinterHost,
+      kitchenPrinterPort,
+      log: app.log,
+    });
+    return result;
+  });
+
+  app.post('/v1/cheques/:id/discount', async (request, reply) => {
+    const body = request.body ?? {};
+    if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/discount`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  });
+
+  app.post('/v1/cheques/:id/refund', async (request, reply) => {
+    const body = request.body ?? {};
+    if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const result = await apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/refund`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+    maybePrintReceipt(result.receipt, {
+      autoReceiptPrint,
+      kitchenPrinterHost,
+      kitchenPrinterPort,
+      log: app.log,
+    });
     return result;
   });
 }

@@ -696,6 +696,34 @@ npm run test -w @venue-pos/api
 
 ---
 
+## Slice 9 — Discounts, receipt print, refunds (US-5.6)
+
+**What:** Cheque-level discounts (amount or %), auto customer receipt on checkout via agent, post-payment refunds with **restaurant manager** (`venue_manager`) + **general manager** (`hub_manager`) dual PIN approval and audit.
+
+**Schema:** `Cheque.discountAmount`, `ChequeDiscountAudit`, `Refund` (+ shift cash impact).
+
+**API:**
+- `POST /api/v1/cheques/:id/discount` — terminal + manager routes
+- `POST /api/v1/cheques/:id/refund` — terminal + manager routes
+- `GET /api/v1/manager/discounts`, `GET /api/v1/manager/refunds` — GM audit lists
+- `GET /api/v1/features` — `discounts`, `refunds`, `autoReceiptPrint`
+
+**Flags (default ON):** `FEATURE_DISCOUNTS_ENABLED`, `FEATURE_REFUNDS_ENABLED`, `FEATURE_AUTO_RECEIPT_PRINT`
+
+**POS:** Discount modal (dual PIN); receipt shows discount line; agent prints on pay when printer configured.
+
+**Dashboard:** Apply discount on open cheques; process refund on paid cheques; refund history on detail.
+
+**Seed:** `venue_mgr` PIN `7777` (restaurant manager); `admin` PIN `9999` (hub manager).
+
+**Verify:**
+```bash
+npm run migrate
+npm run test -w @venue-pos/api
+```
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

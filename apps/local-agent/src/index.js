@@ -15,6 +15,7 @@ const terminalSecret = process.env.TERMINAL_SECRET ?? '';
 const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5174').split(',');
 const kitchenPrinterHost = process.env.KITCHEN_PRINTER_HOST ?? '';
 const kitchenPrinterPort = Number(process.env.KITCHEN_PRINTER_PORT ?? 9100);
+const autoReceiptPrint = process.env.FEATURE_AUTO_RECEIPT_PRINT !== 'false';
 
 const db = createDatabase(dbPath);
 const app = await buildAgentServer({
@@ -29,6 +30,7 @@ const app = await buildAgentServer({
     corsOrigins,
     kitchenPrinterHost,
     kitchenPrinterPort,
+    autoReceiptPrint,
   },
 });
 

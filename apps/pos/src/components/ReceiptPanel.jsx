@@ -19,6 +19,8 @@ export function ReceiptPanel({
   onSplitAmount,
   onTransfer,
   lineTransferEnabled,
+  discountsEnabled,
+  onDiscount,
   onPay,
   onChangeQty,
 }) {
@@ -121,6 +123,14 @@ export function ReceiptPanel({
               {order?.subtotal?.toFixed(2) ?? '0.00'} {t('pos.currency')}
             </span>
           </div>
+          {(cheque?.discountAmount ?? 0) > 0 && (
+            <div className="flex justify-between text-amber-700">
+              <span>{t('pos.discountApplied')}</span>
+              <span>
+                -{cheque.discountAmount.toFixed(2)} {t('pos.currency')}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-lg font-bold text-slate-900">
             <span>{t('pos.chequeTotal')}</span>
             <span className="text-primary-to">
@@ -191,14 +201,25 @@ export function ReceiptPanel({
             </>
           )}
           {cheque && cheque.total > 0 && !order?.items?.length && (
-            <button
-              type="button"
-              onClick={onPay}
-              disabled={paying}
-              className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {paying ? t('common.loading') : t('pos.pay')}
-            </button>
+            <>
+              {discountsEnabled && (
+                <button
+                  type="button"
+                  onClick={onDiscount}
+                  className="w-full rounded-lg border border-amber-400 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50"
+                >
+                  {t('pos.applyDiscount')}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onPay}
+                disabled={paying}
+                className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {paying ? t('common.loading') : t('pos.pay')}
+              </button>
+            </>
           )}
         </div>
       </div>

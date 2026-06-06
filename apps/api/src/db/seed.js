@@ -36,6 +36,23 @@ async function seed() {
     },
   });
 
+  const venueManagerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'venue_mgr' },
+    update: {
+      pinHash: venueManagerPinHash,
+      role: 'venue_manager',
+      venueId: venue.id,
+      isActive: true,
+    },
+    create: {
+      username: 'venue_mgr',
+      pinHash: venueManagerPinHash,
+      role: 'venue_manager',
+      venueId: venue.id,
+    },
+  });
+
   const DEMO_CASHIER_ID = '00000000-0000-4000-8000-000000000011';
   const pinHash = await bcrypt.hash('1234', config.bcryptRounds);
   const staleCashier = await prisma.user.findUnique({ where: { username: 'cashier1' } });

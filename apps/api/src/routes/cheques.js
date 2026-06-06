@@ -13,6 +13,8 @@ import {
   splitChequeByItems,
   splitChequeByAmount,
   transferChequeItems,
+  applyChequeDiscount,
+  processRefund,
 } from '../services/cheque-service.js';
 
 const splitAmountSchema = z.object({
@@ -69,6 +71,24 @@ const payChequeSchema = z.object({
   amount: z.number().positive().optional(),
   tendered: z.number().positive().optional(),
   managerPin: z.string().min(4).max(6).optional(),
+});
+
+const dualManagerSchema = z.object({
+  restaurantManagerPin: z.string().min(4).max(6),
+  generalManagerPin: z.string().min(4).max(6),
+  reason: z.string().min(1).max(500),
+});
+
+const discountSchema = dualManagerSchema.extend({
+  cashierId: z.string().uuid(),
+  amount: z.number().positive().optional(),
+  percent: z.number().positive().max(100).optional(),
+});
+
+const refundSchema = dualManagerSchema.extend({
+  cashierId: z.string().uuid(),
+  amount: z.number().positive(),
+  method: z.enum(['cash', 'card', 'voucher']).optional(),
 });
 
 export async function chequeRoutes(app) {
@@ -173,6 +193,35 @@ export async function chequeRoutes(app) {
         parsed.data,
         request.terminal.venueId,
         request.terminal.id,
+      );
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/discount',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = discountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      if (!parsed.data.amount && !parsed.data.percent) {
+        throw validationError('amount or percent required');
+      }
+
+      return applyChequeDiscount(request.params.id, parsed.data, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/refund',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = refundSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return processRefund(
+        request.params.id,
+        { ...parsed.data, terminalId: request.terminal.id },
+        request.terminal.venueId,
       );
     },
   );

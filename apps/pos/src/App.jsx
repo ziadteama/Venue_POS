@@ -10,6 +10,7 @@ import { ReceiptPanel } from './components/ReceiptPanel.jsx';
 import { SplitBillModal } from './components/SplitBillModal.jsx';
 import { SplitAmountModal } from './components/SplitAmountModal.jsx';
 import { TransferModal } from './components/TransferModal.jsx';
+import { DiscountModal } from './components/DiscountModal.jsx';
 import { ShiftCloseModal } from './components/ShiftCloseModal.jsx';
 import { ShiftOpenModal } from './components/ShiftOpenModal.jsx';
 import { useChequeSession } from './hooks/useChequeSession.js';
@@ -29,6 +30,7 @@ export default function App() {
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showSplitAmountModal, setShowSplitAmountModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
   const { features } = useFeatures();
@@ -94,6 +96,7 @@ export default function App() {
     confirmSplit,
     confirmSplitAmount,
     confirmTransfer,
+    confirmDiscount,
     confirmPay,
     handleTableBlur,
     switchToCheque,
@@ -153,6 +156,11 @@ export default function App() {
     if (ok) setShowTransferModal(false);
   }
 
+  async function onConfirmDiscount(body) {
+    const ok = await confirmDiscount(body);
+    if (ok) setShowDiscountModal(false);
+  }
+
   async function onConfirmPay(body) {
     const ok = await confirmPay(body);
     if (ok) {
@@ -198,6 +206,15 @@ export default function App() {
           t={t}
           onCancel={() => setShowTransferModal(false)}
           onConfirm={onConfirmTransfer}
+        />
+      )}
+
+      {showDiscountModal && cheque && (
+        <DiscountModal
+          cheque={cheque}
+          t={t}
+          onCancel={() => setShowDiscountModal(false)}
+          onConfirm={onConfirmDiscount}
         />
       )}
 
@@ -281,6 +298,8 @@ export default function App() {
           onSplitAmount={() => setShowSplitAmountModal(true)}
           onTransfer={() => setShowTransferModal(true)}
           lineTransferEnabled={features.lineTransfer}
+          discountsEnabled={features.discounts}
+          onDiscount={() => setShowDiscountModal(true)}
           onPay={() => setShowPayModal(true)}
           onChangeQty={changeQty}
         />

@@ -106,6 +106,12 @@ model User {
   compsCashier  OrderItemCompAudit[] @relation("CompCashier")
   transfersApproved ChequeItemTransferAudit[] @relation("TransferApprover")
   transfersCashier  ChequeItemTransferAudit[] @relation("TransferCashier")
+  discountsInitiated ChequeDiscountAudit[] @relation("DiscountInitiator")
+  discountsApproved  ChequeDiscountAudit[] @relation("DiscountApprover")
+  discountsCashier   ChequeDiscountAudit[] @relation("DiscountCashier")
+  refundsInitiated Refund[] @relation("RefundInitiator")
+  refundsApproved  Refund[] @relation("RefundApprover")
+  refundsCashier   Refund[] @relation("RefundCashier")
   chequesOpened Cheque[]             @relation("ChequeCashier")
   payments      Payment[]
   shifts        Shift[]
@@ -349,6 +355,7 @@ model Cheque {
   tableLabel     String       @map("table_label") @db.VarChar(50)
   splitLabel     String?      @map("split_label") @db.VarChar(50)
   splitAmount    Decimal?     @map("split_amount") @db.Decimal(10, 2)
+  discountAmount Decimal      @default(0) @map("discount_amount") @db.Decimal(10, 2)
   parentChequeId String?      @map("parent_cheque_id") @db.Uuid
   status         ChequeStatus @default(open)
   openedAt       DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
@@ -367,6 +374,8 @@ model Cheque {
   childCheques      Cheque[] @relation("ChequeSplit")
   transferAuditsOut ChequeItemTransferAudit[] @relation("TransferSource")
   transferAuditsIn  ChequeItemTransferAudit[] @relation("TransferTarget")
+  discountAudits    ChequeDiscountAudit[]
+  refunds           Refund[]
 
   @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
   @@index([venueId, status], map: "idx_cheques_venue_status")
@@ -422,10 +431,56 @@ model Payment {
   cheque  Cheque @relation(fields: [chequeId], references: [id])
   cashier User   @relation(fields: [cashierId], references: [id])
   shift   Shift? @relation(fields: [shiftId], references: [id])
+  refunds Refund[]
 
   @@index([chequeId], map: "idx_payments_cheque")
   @@index([shiftId], map: "idx_payments_shift")
   @@map("payments")
+}
+
+model ChequeDiscountAudit {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chequeId    String   @map("cheque_id") @db.Uuid
+  cashierId   String   @map("cashier_id") @db.Uuid
+  initiatorId String   @map("initiator_id") @db.Uuid
+  approverId  String   @map("approver_id") @db.Uuid
+  amount      Decimal  @db.Decimal(10, 2)
+  percent     Decimal? @db.Decimal(5, 2)
+  reason      String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  cheque    Cheque @relation(fields: [chequeId], references: [id], onDelete: Cascade)
+  cashier   User   @relation("DiscountCashier", fields: [cashierId], references: [id])
+  initiator User   @relation("DiscountInitiator", fields: [initiatorId], references: [id])
+  approver  User   @relation("DiscountApprover", fields: [approverId], references: [id])
+
+  @@index([chequeId], map: "idx_discount_audit_cheque")
+  @@map("cheque_discount_audits")
+}
+
+model Refund {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chequeId    String        @map("cheque_id") @db.Uuid
+  paymentId   String?       @map("payment_id") @db.Uuid
+  cashierId   String        @map("cashier_id") @db.Uuid
+  shiftId     String?       @map("shift_id") @db.Uuid
+  initiatorId String        @map("initiator_id") @db.Uuid
+  approverId  String        @map("approver_id") @db.Uuid
+  method      PaymentMethod
+  amount      Decimal       @db.Decimal(10, 2)
+  reason      String        @db.Text
+  processedAt DateTime      @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  cheque    Cheque   @relation(fields: [chequeId], references: [id])
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+  cashier   User     @relation("RefundCashier", fields: [cashierId], references: [id])
+  initiator User     @relation("RefundInitiator", fields: [initiatorId], references: [id])
+  approver  User     @relation("RefundApprover", fields: [approverId], references: [id])
+  shift     Shift?   @relation(fields: [shiftId], references: [id])
+
+  @@index([chequeId], map: "idx_refunds_cheque")
+  @@index([shiftId], map: "idx_refunds_shift")
+  @@map("refunds")
 }
 
 model Shift {
@@ -447,6 +502,7 @@ model Shift {
   terminal Terminal     @relation(fields: [terminalId], references: [id])
   cashier  User         @relation(fields: [cashierId], references: [id])
   payments Payment[]
+  refunds  Refund[]
   events   ShiftEvent[]
 
   @@index([cashierId, status], map: "idx_shifts_cashier_status")

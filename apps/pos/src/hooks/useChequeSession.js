@@ -194,6 +194,23 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     }
   }
 
+  async function confirmDiscount(discountBody) {
+    if (!cheque) return false;
+    setError('');
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/discount`, {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
+      });
+      setCheque(updated);
+      await refreshOpenCheques();
+      return true;
+    } catch {
+      setError(t('pos.discountFailed'));
+      return false;
+    }
+  }
+
   async function confirmPay(paymentBody) {
     if (!cheque || paying) return false;
     setPaying(true);
@@ -236,6 +253,7 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     confirmSplit,
     confirmSplitAmount,
     confirmTransfer,
+    confirmDiscount,
     confirmPay,
     handleTableBlur,
     switchToCheque,

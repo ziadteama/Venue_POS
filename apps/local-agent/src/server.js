@@ -20,6 +20,7 @@ export async function buildAgentServer({ db, config }) {
     corsOrigins,
     kitchenPrinterHost,
     kitchenPrinterPort,
+    autoReceiptPrint,
   } = config;
 
   await app.register(cors, {
@@ -36,6 +37,7 @@ export async function buildAgentServer({ db, config }) {
     terminalSecret,
     kitchenPrinterHost,
     kitchenPrinterPort,
+    autoReceiptPrint,
   };
 
   registerHealthRoutes(app, routeCtx);
