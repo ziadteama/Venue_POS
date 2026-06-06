@@ -323,6 +323,88 @@ test('clear abandons draft order without manager approval', async () => {
   assert.equal(gone, null);
 });
 
+test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'C3' },
+  });
+  assert.equal(openRes.statusCode, 200);
+  const chequeId = openRes.json().id;
+  let draftId = openRes.json().draftOrder.id;
+
+  const addRound = async (qty) => {
+    const addRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/orders/${draftId}/items`,
+      headers: terminalHeaders,
+      payload: {
+        menuItemId,
+        quantity: qty,
+        modifiers: [
+          {
+            groupId: group.id,
+            optionId: option.id,
+            nameEn: option.nameEn,
+            nameAr: option.nameAr,
+            priceDelta: option.priceDelta,
+          },
+        ],
+      },
+    });
+    assert.equal(addRes.statusCode, 200);
+    const fireRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/cheques/${chequeId}/fire`,
+      headers: terminalHeaders,
+    });
+    assert.equal(fireRes.statusCode, 200);
+    assert.equal(fireRes.json().sentOrder.status, 'sent');
+    draftId = fireRes.json().cheque.draftOrder.id;
+    return fireRes.json().cheque;
+  };
+
+  const afterFirst = await addRound(1);
+  assert.equal(afterFirst.orders.filter((o) => o.status === 'sent').length, 1);
+  assert.ok(afterFirst.total > 0);
+
+  const afterSecond = await addRound(2);
+  assert.equal(afterSecond.orders.filter((o) => o.status === 'sent').length, 2);
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  assert.equal(payRes.statusCode, 200);
+  assert.equal(payRes.json().status, 'paid');
+  assert.ok(payRes.json().payments.length >= 1);
+  assert.equal(
+    payRes.json().orders.filter((o) => o.status === 'billed').length,
+    2,
+  );
+
+  const resumeRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'C3' },
+  });
+  assert.equal(resumeRes.statusCode, 200);
+  assert.notEqual(resumeRes.json().id, chequeId);
+  assert.equal(resumeRes.json().status, 'open');
+});
+
 test('manager can 86 an item', async () => {
   const res = await app.inject({
     method: 'PATCH',

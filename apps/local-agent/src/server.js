@@ -98,6 +98,13 @@ export async function buildAgentServer({ db, config }) {
   app.patch('/v1/orders/:id', async (request, reply) => {
     const { tableLabel } = request.body ?? {};
     try {
+      if (!getLocalOrder(db, request.params.id)) {
+        return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${request.params.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ tableLabel }),
+        });
+      }
+
       const order = updateLocalOrderTableLabel(db, request.params.id, tableLabel);
       try {
         await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${request.params.id}`, {
@@ -120,59 +127,114 @@ export async function buildAgentServer({ db, config }) {
       return reply.status(400).send({ error: 'menuItemId, nameEn, nameAr, unitPrice required' });
     }
 
-    const order = addLocalOrderItem(db, request.params.id, {
-      menuItemId,
-      quantity,
-      nameEn,
-      nameAr,
-      unitPrice,
-      modifiers,
-    });
-
     try {
-      await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${request.params.id}/items`, {
-        method: 'POST',
-        body: JSON.stringify({ menuItemId, quantity, modifiers }),
-      });
-    } catch (err) {
-      enqueueSync(db, 'order.add_item', {
-        orderId: request.params.id,
+      if (!getLocalOrder(db, request.params.id)) {
+        return apiFetch(
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          `/api/v1/orders/${request.params.id}/items`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ menuItemId, quantity, modifiers }),
+          },
+        );
+      }
+
+      const order = addLocalOrderItem(db, request.params.id, {
         menuItemId,
         quantity,
+        nameEn,
+        nameAr,
+        unitPrice,
         modifiers,
       });
-      app.log.warn({ err }, 'Item stored locally; server sync deferred');
-    }
 
-    return order;
-  });
+      try {
+        await apiFetch(
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          `/api/v1/orders/${request.params.id}/items`,
+          {
+            method: 'POST',
+            body: JSON.stringify({ menuItemId, quantity, modifiers }),
+          },
+        );
+      } catch (err) {
+        enqueueSync(db, 'order.add_item', {
+          orderId: request.params.id,
+          menuItemId,
+          quantity,
+          modifiers,
+        });
+        app.log.warn({ err }, 'Item stored locally; server sync deferred');
+      }
 
-  app.patch('/v1/orders/:id/items/:itemId', async (request) => {
-    const { quantity } = request.body ?? {};
-    const order = updateLocalOrderItemQty(db, request.params.id, request.params.itemId, quantity);
-    try {
-      await syncOrderAction({
-        db,
-        apiUrl,
-        terminalId,
-        terminalSecret,
-        orderId: request.params.id,
-        action: 'patch-item',
-        body: { itemId: request.params.itemId, quantity },
-      });
+      return order;
     } catch (err) {
-      enqueueSync(db, 'order.patch_item', {
-        orderId: request.params.id,
-        itemId: request.params.itemId,
-        quantity,
-      });
-      app.log.warn({ err }, 'Qty update deferred to sync queue');
+      return reply.status(400).send({ error: err.message });
     }
-    return order;
   });
 
-  app.delete('/v1/orders/:id/items/:itemId', async (request) => {
-    return updateLocalOrderItemQty(db, request.params.id, request.params.itemId, 0);
+  app.patch('/v1/orders/:id/items/:itemId', async (request, reply) => {
+    const { quantity } = request.body ?? {};
+    try {
+      if (!getLocalOrder(db, request.params.id)) {
+        return apiFetch(
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          `/api/v1/orders/${request.params.id}/items/${request.params.itemId}`,
+          { method: 'PATCH', body: JSON.stringify({ quantity }) },
+        );
+      }
+
+      const order = updateLocalOrderItemQty(
+        db,
+        request.params.id,
+        request.params.itemId,
+        quantity,
+      );
+      try {
+        await syncOrderAction({
+          db,
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          orderId: request.params.id,
+          action: 'patch-item',
+          body: { itemId: request.params.itemId, quantity },
+        });
+      } catch (err) {
+        enqueueSync(db, 'order.patch_item', {
+          orderId: request.params.id,
+          itemId: request.params.itemId,
+          quantity,
+        });
+        app.log.warn({ err }, 'Qty update deferred to sync queue');
+      }
+      return order;
+    } catch (err) {
+      return reply.status(400).send({ error: err.message });
+    }
+  });
+
+  app.delete('/v1/orders/:id/items/:itemId', async (request, reply) => {
+    try {
+      if (!getLocalOrder(db, request.params.id)) {
+        return apiFetch(
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          `/api/v1/orders/${request.params.id}/items/${request.params.itemId}`,
+          { method: 'DELETE' },
+        );
+      }
+      return updateLocalOrderItemQty(db, request.params.id, request.params.itemId, 0);
+    } catch (err) {
+      return reply.status(400).send({ error: err.message });
+    }
   });
 
   app.post('/v1/orders/:id/send', async (request) => {
@@ -257,6 +319,54 @@ export async function buildAgentServer({ db, config }) {
     const order = getLocalOrder(db, request.params.id);
     if (!order) return reply.status(404).send({ error: 'Order not found' });
     return order;
+  });
+
+  app.get('/v1/cheques/open', async () =>
+    apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open'),
+  );
+
+  app.post('/v1/cheques/open', async (request, reply) => {
+    const { cashierId, tableLabel } = request.body ?? {};
+    if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
+      method: 'POST',
+      body: JSON.stringify({ cashierId, tableLabel }),
+    });
+  });
+
+  app.get('/v1/cheques/:id', async (request) =>
+    apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`),
+  );
+
+  app.post('/v1/cheques/:id/fire', async (request) => {
+    const result = await apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/fire`,
+      { method: 'POST' },
+    );
+    printKitchenTicket(result.sentOrder, {
+      host: kitchenPrinterHost,
+      port: kitchenPrinterPort,
+      log: app.log,
+    }).catch((err) => app.log.warn({ err }, 'Kitchen print failed'));
+    return result;
+  });
+
+  app.post('/v1/cheques/:id/clear', async (request) =>
+    apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}/clear`, {
+      method: 'POST',
+    }),
+  );
+
+  app.post('/v1/cheques/:id/pay', async (request, reply) => {
+    const { cashierId, method, amount } = request.body ?? {};
+    if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify({ cashierId, method, amount }),
+    });
   });
 
   await app.listen({ port, host });

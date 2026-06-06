@@ -59,6 +59,16 @@ async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/orders\/[^/]+\/receipt$/)) {
       return window.venuePos.getReceipt(path.split('/')[3]);
     }
+    if (path === '/v1/cheques/open' && method === 'POST') return window.venuePos.openCheque(body);
+    if (path.match(/^\/v1\/cheques\/[^/]+\/fire$/) && method === 'POST') {
+      return window.venuePos.fireCheque(path.split('/')[3]);
+    }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/clear$/) && method === 'POST') {
+      return window.venuePos.clearCheque(path.split('/')[3]);
+    }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/pay$/) && method === 'POST') {
+      return window.venuePos.payCheque(path.split('/')[3], body);
+    }
   }
 
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
@@ -189,7 +199,8 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [menu, setMenu] = useState(null);
   const [activeCategoryId, setActiveCategoryId] = useState('all');
-  const [order, setOrder] = useState(null);
+  const [cheque, setCheque] = useState(null);
+  const order = cheque?.draftOrder ?? null;
   const [tableLabel, setTableLabel] = useState('T4');
   const tableLabelRef = useRef(tableLabel);
   tableLabelRef.current = tableLabel;
@@ -199,6 +210,7 @@ export default function App() {
   const [modifierItem, setModifierItem] = useState(null);
   const [printerOk, setPrinterOk] = useState(true);
   const [sending, setSending] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [kitchenWatch, setKitchenWatch] = useState(null);
   const [clock, setClock] = useState(() => new Date());
 
@@ -234,6 +246,15 @@ export default function App() {
     }
   }, [t]);
 
+  const applyDraftOrder = useCallback((updated) => {
+    setCheque((prev) => {
+      if (!prev) return prev;
+      const orders = (prev.orders ?? []).map((o) => (o.id === updated.id ? updated : o));
+      if (!orders.some((o) => o.id === updated.id)) orders.push(updated);
+      return { ...prev, draftOrder: updated, orders };
+    });
+  }, []);
+
   const syncTableLabel = useCallback(
     async (label) => {
       if (!order || order.status !== 'draft') return order;
@@ -243,23 +264,24 @@ export default function App() {
         method: 'PATCH',
         body: JSON.stringify({ tableLabel: trimmed || null }),
       });
-      setOrder(updated);
+      applyDraftOrder(updated);
       return updated;
     },
-    [order],
+    [order, applyDraftOrder],
   );
 
-  const startOrder = useCallback(async (label) => {
+  const openCheque = useCallback(async (label) => {
     setError('');
     const table = (label ?? tableLabelRef.current).trim();
+    if (!table) return;
     try {
-      const created = await callAgent('/v1/orders', {
+      const opened = await callAgent('/v1/cheques/open', {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel: table || null }),
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel: table }),
       });
-      setOrder(created);
+      setCheque(opened);
     } catch {
-      setError(t('pos.orderCreateFailed'));
+      setError(t('pos.chequeOpenFailed'));
     }
   }, [t]);
 
@@ -268,8 +290,8 @@ export default function App() {
   }, [loadMenu]);
 
   useEffect(() => {
-    if (!loading && menu && !order) startOrder();
-  }, [loading, menu, order, startOrder]);
+    if (!loading && menu && !cheque) openCheque();
+  }, [loading, menu, cheque, openCheque]);
 
   useEffect(() => {
     const tick = setInterval(() => setClock(new Date()), 30_000);
@@ -346,7 +368,7 @@ export default function App() {
         modifiers,
       }),
     });
-    setOrder(updated);
+    applyDraftOrder(updated);
   }
 
   function handleTapItem(item) {
@@ -369,21 +391,21 @@ export default function App() {
         method: 'PATCH',
         body: JSON.stringify({ quantity }),
       });
-      setOrder(updated);
+      applyDraftOrder(updated);
     } catch {
       setError(t('pos.itemAddFailed'));
     }
   }
 
   async function handleSend() {
-    if (!order || sending) return;
+    if (!cheque || !order || sending) return;
     setSending(true);
     setError('');
     try {
       await syncTableLabel(tableLabelRef.current);
-      const sent = await callAgent(`/v1/orders/${order.id}/send`, { method: 'POST' });
-      setKitchenWatch(sent);
-      await startOrder(tableLabelRef.current);
+      const result = await callAgent(`/v1/cheques/${cheque.id}/fire`, { method: 'POST' });
+      setKitchenWatch(result.sentOrder);
+      setCheque(result.cheque);
     } catch {
       setError(t('pos.sendFailed'));
     } finally {
@@ -392,20 +414,36 @@ export default function App() {
   }
 
   async function handleClear() {
-    if (!order) return;
+    if (!cheque) return;
     setError('');
     try {
-      if (order.status === 'draft') {
-        await callAgent(`/v1/orders/${order.id}/abandon`, { method: 'POST' });
-      }
-      await startOrder(tableLabelRef.current);
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/clear`, { method: 'POST' });
+      setCheque(updated);
     } catch {
       setError(t('pos.clearFailed'));
     }
   }
 
+  async function handlePay() {
+    if (!cheque || paying) return;
+    setPaying(true);
+    setError('');
+    try {
+      await callAgent(`/v1/cheques/${cheque.id}/pay`, {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, method: 'cash' }),
+      });
+      setKitchenWatch(null);
+      await openCheque(tableLabelRef.current);
+    } catch {
+      setError(t('pos.payFailed'));
+    } finally {
+      setPaying(false);
+    }
+  }
+
   function handleTableBlur() {
-    syncTableLabel(tableLabelRef.current).catch(() => {});
+    openCheque(tableLabelRef.current).catch(() => {});
   }
 
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
@@ -475,10 +513,15 @@ export default function App() {
           <div className="border-b border-slate-200 px-4 py-3">
             <h2 className="font-semibold text-slate-900">{t('pos.currentOrder')}</h2>
             <p className="text-sm text-secondary">
-              {order
-                ? t('pos.orderNumber', { number: order.orderNumber ?? '—' })
-                : t('pos.noActiveOrder')}
+              {cheque
+                ? t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })
+                : t('pos.noActiveCheque')}
             </p>
+            {order && (
+              <p className="text-xs text-secondary">
+                {t('pos.orderNumber', { number: order.orderNumber ?? '—' })}
+              </p>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-3 py-2">
@@ -541,13 +584,13 @@ export default function App() {
           <div className="mt-auto border-t border-slate-200 p-4">
             <div className="mb-3 space-y-1 text-sm">
               <div className="flex justify-between text-secondary">
-                <span>{t('pos.subtotal')}</span>
+                <span>{t('pos.roundSubtotal')}</span>
                 <span>{order?.subtotal?.toFixed(2) ?? '0.00'} {t('pos.currency')}</span>
               </div>
               <div className="flex justify-between text-lg font-bold text-slate-900">
-                <span>{t('pos.total')}</span>
+                <span>{t('pos.chequeTotal')}</span>
                 <span className="text-primary-to">
-                  {order?.subtotal?.toFixed(2) ?? '0.00'} {t('pos.currency')}
+                  {cheque?.total?.toFixed(2) ?? '0.00'} {t('pos.currency')}
                 </span>
               </div>
             </div>
@@ -561,23 +604,35 @@ export default function App() {
               <span>{printerOk ? t('pos.printerConnected') : t('pos.printerOffline')}</span>
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleClear}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-secondary/50 py-3 text-sm font-medium text-secondary hover:bg-slate-50"
-              >
-                <ClearIcon />
-                {t('pos.clear')}
-              </button>
-              {order?.status === 'draft' && order.items?.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={handleSend}
-                  disabled={sending}
-                  className="flex-[2] rounded-lg bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  onClick={handleClear}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-secondary/50 py-3 text-sm font-medium text-secondary hover:bg-slate-50"
                 >
-                  {sending ? t('common.loading') : t('pos.sendKitchen')}
+                  <ClearIcon />
+                  {t('pos.clear')}
+                </button>
+                {order?.status === 'draft' && order.items?.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={sending}
+                    className="flex-[2] rounded-lg bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+                  >
+                    {sending ? t('common.loading') : t('pos.sendKitchen')}
+                  </button>
+                )}
+              </div>
+              {cheque && cheque.total > 0 && !order?.items?.length && (
+                <button
+                  type="button"
+                  onClick={handlePay}
+                  disabled={paying}
+                  className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  {paying ? t('common.loading') : t('pos.payCash')}
                 </button>
               )}
             </div>

@@ -61,6 +61,17 @@ contextBridge.exposeInMainWorld('venuePos', {
   abandonDraft: (orderId) =>
     agentFetch(`/v1/orders/${orderId}/abandon`, { method: 'POST' }),
   getReceipt: (orderId) => agentFetch(`/v1/orders/${orderId}/receipt`),
+  openCheque: (body) =>
+    agentFetch('/v1/cheques/open', { method: 'POST', body: JSON.stringify(body) }),
+  fireCheque: (chequeId) =>
+    agentFetch(`/v1/cheques/${chequeId}/fire`, { method: 'POST' }),
+  clearCheque: (chequeId) =>
+    agentFetch(`/v1/cheques/${chequeId}/clear`, { method: 'POST' }),
+  payCheque: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   loginPin: async (pin) => {
     const res = await fetch(`${apiUrl}/api/v1/auth/pin`, {
       method: 'POST',
