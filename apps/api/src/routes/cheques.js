@@ -13,9 +13,11 @@ import {
   splitChequeByItems,
   splitChequeByAmount,
   transferChequeItems,
-  applyChequeDiscount,
-  processRefund,
+  requestChequeDiscount,
+  requestChequeRefund,
+  getPendingRequestsForCheque,
 } from '../services/cheque-service.js';
+import { emitApprovalRequested } from '../plugins/socket.js';
 
 const splitAmountSchema = z.object({
   splits: z
@@ -73,20 +75,18 @@ const payChequeSchema = z.object({
   managerPin: z.string().min(4).max(6).optional(),
 });
 
-const dualManagerSchema = z.object({
-  restaurantManagerPin: z.string().min(4).max(6),
-  generalManagerPin: z.string().min(4).max(6),
-  reason: z.string().min(1).max(500),
-});
-
-const discountSchema = dualManagerSchema.extend({
+const discountRequestSchema = z.object({
   cashierId: z.string().uuid(),
+  restaurantManagerPin: z.string().min(4).max(6),
+  reason: z.string().min(1).max(500),
   amount: z.number().positive().optional(),
   percent: z.number().positive().max(100).optional(),
 });
 
-const refundSchema = dualManagerSchema.extend({
+const refundRequestSchema = z.object({
   cashierId: z.string().uuid(),
+  restaurantManagerPin: z.string().min(4).max(6),
+  reason: z.string().min(1).max(500),
   amount: z.number().positive(),
   method: z.enum(['cash', 'card', 'voucher']).optional(),
 });
@@ -197,32 +197,54 @@ export async function chequeRoutes(app) {
     },
   );
 
-  app.post(
-    '/api/v1/cheques/:id/discount',
+  app.get(
+    '/api/v1/cheques/:id/approval-requests',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const parsed = discountSchema.safeParse(request.body);
+      return getPendingRequestsForCheque(request.params.id, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/discount/request',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = discountRequestSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
       if (!parsed.data.amount && !parsed.data.percent) {
         throw validationError('amount or percent required');
       }
 
-      return applyChequeDiscount(request.params.id, parsed.data, request.terminal.venueId);
+      const created = await requestChequeDiscount(
+        request.params.id,
+        parsed.data,
+        request.terminal.venueId,
+        { terminalId: request.terminal.id },
+      );
+      if (request.server.io) {
+        emitApprovalRequested(request.server.io, created);
+      }
+      return created;
     },
   );
 
   app.post(
-    '/api/v1/cheques/:id/refund',
+    '/api/v1/cheques/:id/refund/request',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const parsed = refundSchema.safeParse(request.body);
+      const parsed = refundRequestSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
-      return processRefund(
+      const created = await requestChequeRefund(
         request.params.id,
-        { ...parsed.data, terminalId: request.terminal.id },
+        parsed.data,
         request.terminal.venueId,
+        { terminalId: request.terminal.id },
       );
+      if (request.server.io) {
+        emitApprovalRequested(request.server.io, created);
+      }
+      return created;
     },
   );
 }

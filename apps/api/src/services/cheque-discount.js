@@ -1,7 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
-import { verifyDualManagerApproval } from './auth-service.js';
 import {
   computeChequeSubtotal,
   findDraftOrder,
@@ -9,33 +8,7 @@ import {
 } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
 
-export async function applyChequeDiscount(
-  chequeId,
-  {
-    amount,
-    percent,
-    reason,
-    restaurantManagerPin,
-    generalManagerPin,
-    cashierId,
-  },
-  venueId,
-) {
-  if (!config.featureDiscountsEnabled) {
-    throw validationError('Discounts are not enabled for this venue');
-  }
-
-  const cheque = await loadCheque(chequeId);
-  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
-  if (cheque.status !== 'open') throw validationError('Discounts apply only to open cheques');
-
-  const draft = cheque.parentChequeId ? null : findDraftOrder(cheque);
-  if (draft?.items?.length) {
-    throw validationError('Send or clear the current round before applying a discount');
-  }
-
-  if (!reason?.trim()) throw validationError('Discount reason is required');
-
+export function resolveDiscountAmount(cheque, { amount, percent }) {
   const subtotal = computeChequeSubtotal(cheque);
   if (subtotal <= 0) throw validationError('Nothing to discount on this cheque');
 
@@ -62,11 +35,39 @@ export async function applyChequeDiscount(
     throw validationError('Discount cannot exceed cheque subtotal');
   }
 
-  const { initiator, approver } = await verifyDualManagerApproval(venueId, {
-    restaurantManagerPin,
-    generalManagerPin,
-  });
+  return { discountAmount, percent: pct, subtotal };
+}
 
+export function assertDiscountAllowed(cheque) {
+  if (!config.featureDiscountsEnabled) {
+    throw validationError('Discounts are not enabled for this venue');
+  }
+  if (cheque.status !== 'open') throw validationError('Discounts apply only to open cheques');
+
+  const draft = cheque.parentChequeId ? null : findDraftOrder(cheque);
+  if (draft?.items?.length) {
+    throw validationError('Send or clear the current round before applying a discount');
+  }
+}
+
+export async function executeChequeDiscount(
+  chequeId,
+  {
+    amount,
+    percent,
+    reason,
+    initiatorId,
+    approverId,
+    cashierId,
+  },
+  venueId,
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  assertDiscountAllowed(cheque);
+  if (!reason?.trim()) throw validationError('Discount reason is required');
+
+  const { discountAmount, percent: pct } = resolveDiscountAmount(cheque, { amount, percent });
   const resolvedCashierId = cashierId ?? cheque.cashierId;
 
   await prisma.$transaction([
@@ -74,8 +75,8 @@ export async function applyChequeDiscount(
       data: {
         chequeId,
         cashierId: resolvedCashierId,
-        initiatorId: initiator.id,
-        approverId: approver.id,
+        initiatorId,
+        approverId,
         amount: discountAmount,
         percent: pct,
         reason: reason.trim(),

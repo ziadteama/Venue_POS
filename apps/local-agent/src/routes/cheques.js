@@ -121,34 +121,36 @@ export function registerChequeRoutes(
     return result;
   });
 
-  app.post('/v1/cheques/:id/discount', async (request, reply) => {
+  app.get('/v1/cheques/:id/approval-requests', async (request) =>
+    apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/approval-requests`,
+    ),
+  );
+
+  app.post('/v1/cheques/:id/discount/request', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
     return apiFetch(
       apiUrl,
       terminalId,
       terminalSecret,
-      `/api/v1/cheques/${request.params.id}/discount`,
+      `/api/v1/cheques/${request.params.id}/discount/request`,
       { method: 'POST', body: JSON.stringify(body) },
     );
   });
 
-  app.post('/v1/cheques/:id/refund', async (request, reply) => {
+  app.post('/v1/cheques/:id/refund/request', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    const result = await apiFetch(
+    return apiFetch(
       apiUrl,
       terminalId,
       terminalSecret,
-      `/api/v1/cheques/${request.params.id}/refund`,
+      `/api/v1/cheques/${request.params.id}/refund/request`,
       { method: 'POST', body: JSON.stringify(body) },
     );
-    maybePrintReceipt(result.receipt, {
-      autoReceiptPrint,
-      kitchenPrinterHost,
-      kitchenPrinterPort,
-      log: app.log,
-    });
-    return result;
   });
 }

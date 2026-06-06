@@ -2,7 +2,6 @@ import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
 import { buildRefundReceiptText } from '../utils/serialize.js';
-import { verifyDualManagerApproval } from './auth-service.js';
 import { loadCheque, serializeCheque } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
 import { requireActiveShift } from './shift-service.js';
@@ -23,27 +22,11 @@ function refundTotalsByMethod(refunds) {
   return byMethod;
 }
 
-export async function processRefund(
-  chequeId,
-  {
-    amount,
-    method,
-    reason,
-    restaurantManagerPin,
-    generalManagerPin,
-    cashierId,
-    terminalId,
-  },
-  venueId,
-) {
+export function assertRefundAllowed(cheque, { amount, method }) {
   if (!config.featureRefundsEnabled) {
     throw validationError('Refunds are not enabled for this venue');
   }
-
-  const cheque = await loadCheque(chequeId);
-  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
   if (cheque.status !== 'paid') throw validationError('Refunds apply only to paid cheques');
-  if (!reason?.trim()) throw validationError('Refund reason is required');
 
   const refundAmount = Number(amount);
   if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
@@ -73,10 +56,27 @@ export async function processRefund(
     throw validationError('Total refunds cannot exceed cheque payments');
   }
 
-  const { initiator, approver } = await verifyDualManagerApproval(venueId, {
-    restaurantManagerPin,
-    generalManagerPin,
-  });
+  return { refundAmount, refundMethod };
+}
+
+export async function executeRefund(
+  chequeId,
+  {
+    amount,
+    method,
+    reason,
+    initiatorId,
+    approverId,
+    cashierId,
+    terminalId,
+  },
+  venueId,
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  if (!reason?.trim()) throw validationError('Refund reason is required');
+
+  const { refundAmount, refundMethod } = assertRefundAllowed(cheque, { amount, method });
 
   const resolvedCashierId = cashierId ?? cheque.cashierId;
   const matchingPayment =
@@ -97,8 +97,8 @@ export async function processRefund(
       paymentId: matchingPayment?.id ?? null,
       cashierId: resolvedCashierId,
       shiftId: activeShift?.id ?? null,
-      initiatorId: initiator.id,
-      approverId: approver.id,
+      initiatorId,
+      approverId,
       method: refundMethod,
       amount: refundAmount,
       reason: reason.trim(),

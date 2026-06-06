@@ -66,6 +66,17 @@ enum ShiftEventAction {
   close
 }
 
+enum ApprovalRequestType {
+  discount
+  refund
+}
+
+enum ApprovalRequestStatus {
+  pending
+  approved
+  rejected
+}
+
 model Venue {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nameEn    String    @map("name_en") @db.VarChar(255)
@@ -82,6 +93,7 @@ model Venue {
   orders       Order[]
   cheques      Cheque[]
   shifts       Shift[]
+  approvalRequests ManagerApprovalRequest[]
 
   @@map("venues")
 }
@@ -112,6 +124,9 @@ model User {
   refundsInitiated Refund[] @relation("RefundInitiator")
   refundsApproved  Refund[] @relation("RefundApprover")
   refundsCashier   Refund[] @relation("RefundCashier")
+  approvalsInitiated ManagerApprovalRequest[] @relation("ApprovalInitiator")
+  approvalsResolved  ManagerApprovalRequest[] @relation("ApprovalResolver")
+  approvalsCashier   ManagerApprovalRequest[] @relation("ApprovalCashier")
   chequesOpened Cheque[]             @relation("ChequeCashier")
   payments      Payment[]
   shifts        Shift[]
@@ -376,6 +391,7 @@ model Cheque {
   transferAuditsIn  ChequeItemTransferAudit[] @relation("TransferTarget")
   discountAudits    ChequeDiscountAudit[]
   refunds           Refund[]
+  approvalRequests  ManagerApprovalRequest[]
 
   @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
   @@index([venueId, status], map: "idx_cheques_venue_status")
@@ -481,6 +497,33 @@ model Refund {
   @@index([chequeId], map: "idx_refunds_cheque")
   @@index([shiftId], map: "idx_refunds_shift")
   @@map("refunds")
+}
+
+model ManagerApprovalRequest {
+  id           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId      String                @map("venue_id") @db.Uuid
+  chequeId     String                @map("cheque_id") @db.Uuid
+  type         ApprovalRequestType
+  status       ApprovalRequestStatus @default(pending)
+  payload      Json
+  reason       String                @db.Text
+  cashierId    String                @map("cashier_id") @db.Uuid
+  initiatorId  String                @map("initiator_id") @db.Uuid
+  approverId   String?               @map("approver_id") @db.Uuid
+  terminalId   String?               @map("terminal_id") @db.Uuid
+  rejectReason String?               @map("reject_reason") @db.Text
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedAt   DateTime?             @map("resolved_at") @db.Timestamptz(6)
+
+  venue     Venue @relation(fields: [venueId], references: [id])
+  cheque    Cheque @relation(fields: [chequeId], references: [id])
+  cashier   User  @relation("ApprovalCashier", fields: [cashierId], references: [id])
+  initiator User  @relation("ApprovalInitiator", fields: [initiatorId], references: [id])
+  approver  User? @relation("ApprovalResolver", fields: [approverId], references: [id])
+
+  @@index([venueId, status], map: "idx_approval_requests_venue_status")
+  @@index([chequeId], map: "idx_approval_requests_cheque")
+  @@map("manager_approval_requests")
 }
 
 model Shift {

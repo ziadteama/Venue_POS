@@ -724,6 +724,24 @@ npm run test -w @venue-pos/api
 
 ---
 
+## Slice 9b — GM approves from dashboard (approval queue)
+
+**What:** Split workflow — **restaurant manager** requests from POS (venue manager PIN only); **general manager** approves/rejects from dashboard **Approvals** page (no GM PIN on terminal).
+
+**Schema:** `ManagerApprovalRequest` (`pending` → `approved` / `rejected`).
+
+**API:**
+- `POST /api/v1/cheques/:id/discount/request` · `POST .../refund/request` (terminal)
+- `POST /api/v1/manager/cheques/:id/discount/request` · `.../refund/request` (venue_manager JWT)
+- `GET /api/v1/manager/approval-requests` · `POST .../:id/approve` · `POST .../:id/reject` (hub_manager)
+- `GET /api/v1/cheques/:id/approval-requests` — POS poll status
+
+**Dashboard:** `/approvals` nav link with pending count (hub_manager).
+
+**POS:** Discount modal → send for approval → polls until GM approves.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

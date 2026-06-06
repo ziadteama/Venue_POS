@@ -7,7 +7,6 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
   const [percent, setPercent] = useState('');
   const [reason, setReason] = useState('');
   const [restaurantManagerPin, setRestaurantManagerPin] = useState('');
-  const [generalManagerPin, setGeneralManagerPin] = useState('');
 
   const amountNum = Number(amount) || 0;
   const percentNum = Number(percent) || 0;
@@ -18,14 +17,13 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!reason.trim() || restaurantManagerPin.length < 4 || generalManagerPin.length < 4) return;
+    if (!reason.trim() || restaurantManagerPin.length < 4) return;
     if (mode === 'percent') {
       if (percentNum <= 0 || percentNum > 100) return;
       onConfirm({
         percent: percentNum,
         reason: reason.trim(),
         restaurantManagerPin,
-        generalManagerPin,
       });
       return;
     }
@@ -34,7 +32,6 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
       amount: amountNum,
       reason: reason.trim(),
       restaurantManagerPin,
-      generalManagerPin,
     });
   }
 
@@ -45,9 +42,7 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
         className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
       >
         <h3 className="mb-2 text-lg font-semibold text-slate-900">{t('pos.discountTitle')}</h3>
-        <p className="mb-4 text-sm text-secondary">
-          {t('pos.discountHint', { total: subtotal.toFixed(2) })}
-        </p>
+        <p className="mb-4 text-sm text-secondary">{t('pos.discountRequestHint')}</p>
 
         <div className="mb-3 flex gap-2 text-sm">
           <button
@@ -116,7 +111,7 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
           />
         </label>
 
-        <label className="mb-3 block text-sm">
+        <label className="mb-4 block text-sm">
           <span className="mb-1 block text-secondary">{t('pos.restaurantManagerPin')}</span>
           <input
             type="password"
@@ -128,24 +123,12 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
           />
         </label>
 
-        <label className="mb-4 block text-sm">
-          <span className="mb-1 block text-secondary">{t('pos.generalManagerPin')}</span>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={generalManagerPin}
-            onChange={(e) => setGeneralManagerPin(e.target.value)}
-            className="w-full rounded border px-3 py-2"
-          />
-        </label>
-
         <div className="flex gap-3">
           <button
             type="submit"
             className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700"
           >
-            {t('pos.discountConfirm')}
+            {t('pos.discountRequestSubmit')}
           </button>
           <button
             type="button"
