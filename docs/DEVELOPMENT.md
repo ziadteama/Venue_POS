@@ -209,10 +209,13 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
 Never commit `.env`. Templates: `apps/*/.env.example`.
 
 ```
-DATABASE_URL=postgresql://hub_pos:hub_pos_dev@localhost:5432/hub_pos
+# postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/hub_pos
 JWT_PRIVATE_KEY_PATH=../../ops/secrets/jwt-private.pem
 JWT_PUBLIC_KEY_PATH=../../ops/secrets/jwt-public.pem
 ```
+
+Use database name **`hub_pos`** (create it in pgAdmin if empty). Docker Compose uses user `hub_pos` instead of `postgres` — pick one stack and match `.env`.
 
 ## Team process
 
