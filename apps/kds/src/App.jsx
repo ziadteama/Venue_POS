@@ -68,8 +68,16 @@ async function apiFetch(path, options = {}) {
       ...options.headers,
     },
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const err = new Error(await res.text());
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
+}
+
+function isKdsDisabledError(err) {
+  return err?.status === 403;
 }
 
 export default function App() {
@@ -79,6 +87,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
   const [updatingItem, setUpdatingItem] = useState(null);
+  const [serverKdsDisabled, setServerKdsDisabled] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
 
   const upsertOrder = useCallback((incoming) => {
@@ -131,8 +140,12 @@ export default function App() {
           .filter(Boolean)
           .sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt)),
       );
-    } catch {
-      setError(t('kds.loadFailed'));
+    } catch (err) {
+      if (isKdsDisabledError(err)) {
+        setServerKdsDisabled(true);
+      } else {
+        setError(t('kds.loadFailed'));
+      }
     } finally {
       setLoading(false);
     }
@@ -147,8 +160,12 @@ export default function App() {
         body: JSON.stringify({ status }),
       });
       upsertOrder(updated);
-    } catch {
-      setError(t('kds.statusFailed'));
+    } catch (err) {
+      if (isKdsDisabledError(err)) {
+        setServerKdsDisabled(true);
+      } else {
+        setError(t('kds.statusFailed'));
+      }
     } finally {
       setUpdatingItem(null);
     }
@@ -188,7 +205,7 @@ export default function App() {
     [orders, clock],
   );
 
-  if (!KDS_ENABLED) {
+  if (!KDS_ENABLED || serverKdsDisabled) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-black p-8 text-center text-white">
         <p className="text-2xl text-secondary">{t('kds.disabled')}</p>

@@ -478,6 +478,10 @@ Reference: Toast, Square, Lightspeed, Oracle Simphony — **open check** per tab
 
 **Current workaround:** Each **Fire to kitchen** sends one kitchen ticket; table label is cosmetic until cheque model ships.
 
+### 2026-06-06 — KDS feature-flag hardening (PR #2 review)
+
+**What:** KDS shows `kds.disabled` on API 403 (env mismatch). Socket rejects `clientType: 'kds'` when `FEATURE_KDS_ENABLED=false`; kitchen WS emits (`order:created`, `order:item_status`, `order:voided`) skipped when KDS off.
+
 ### 2026-06-06 — POS label: Checkout → Fire to kitchen
 
 **What:** POS primary action uses `pos.sendKitchen` (“Fire to kitchen” / “إرسال للمطبخ”) instead of “Checkout” — avoids implying payment; real checkout comes with Phase 3 cheques.

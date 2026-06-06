@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import bcrypt from 'bcrypt';
+import { config } from '../config.js';
 import { prisma } from '../db/prisma.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 
@@ -13,6 +14,10 @@ export function registerSocket(app) {
     try {
       const { token, terminalId, terminalSecret, clientType } = socket.handshake.auth ?? {};
       socket.data.clientType = clientType ?? 'pos';
+
+      if (socket.data.clientType === 'kds' && !config.featureKdsEnabled) {
+        return next(new Error('Kitchen display is disabled for this deployment'));
+      }
 
       if (terminalId && terminalSecret) {
         const terminal = await prisma.terminal.findUnique({ where: { id: terminalId } });
@@ -69,6 +74,7 @@ export function emitMenuUpdated(io, { templateId, venueIds, versionHash, publish
 }
 
 export function emitOrderCreated(io, order) {
+  if (!config.featureKdsEnabled) return;
   io.to(`venue:${order.venueId}:kitchen`).emit('order:created', {
     event: 'order:created',
     payload: {
@@ -92,7 +98,9 @@ export function emitOrderVoided(io, { orderId, venueId, reason, voidedBy }) {
     voidedBy,
     voidedAt: new Date().toISOString(),
   };
-  io.to(`venue:${venueId}:kitchen`).emit('order:voided', { event: 'order:voided', payload });
+  if (config.featureKdsEnabled) {
+    io.to(`venue:${venueId}:kitchen`).emit('order:voided', { event: 'order:voided', payload });
+  }
   io.to(`venue:${venueId}:pos`).emit('order:voided', { event: 'order:voided', payload });
 }
 
@@ -110,8 +118,10 @@ export function emitOrderItemStatus(io, { order, itemId, kitchenStatus, updatedB
     event: 'order:item_status',
     payload,
   });
-  io.to(`venue:${order.venueId}:kitchen`).emit('order:item_status', {
-    event: 'order:item_status',
-    payload,
-  });
+  if (config.featureKdsEnabled) {
+    io.to(`venue:${order.venueId}:kitchen`).emit('order:item_status', {
+      event: 'order:item_status',
+      payload,
+    });
+  }
 }
