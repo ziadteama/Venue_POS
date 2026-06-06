@@ -32,6 +32,10 @@ if (!testFiles.length) {
 const result = spawnSync(process.execPath, ['--test', ...testFiles], {
   cwd: apiRoot,
   stdio: 'inherit',
+  env: {
+    ...process.env,
+    FEATURE_MANUAL_CARD_PAYMENT: process.env.FEATURE_MANUAL_CARD_PAYMENT ?? 'true',
+  },
 });
 
 process.exit(result.status ?? 1);

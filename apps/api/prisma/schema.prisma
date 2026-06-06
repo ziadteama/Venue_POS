@@ -56,6 +56,16 @@ enum PaymentMethod {
   voucher
 }
 
+enum ShiftStatus {
+  open
+  closed
+}
+
+enum ShiftEventAction {
+  open
+  close
+}
+
 model Venue {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nameEn    String    @map("name_en") @db.VarChar(255)
@@ -71,6 +81,7 @@ model Venue {
   menuTemplates MenuTemplateVenue[]
   orders       Order[]
   cheques      Cheque[]
+  shifts       Shift[]
 
   @@map("venues")
 }
@@ -95,6 +106,8 @@ model User {
   compsCashier  OrderItemCompAudit[] @relation("CompCashier")
   chequesOpened Cheque[]             @relation("ChequeCashier")
   payments      Payment[]
+  shifts        Shift[]
+  shiftEvents   ShiftEvent[]
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -114,6 +127,7 @@ model Terminal {
   venue  Venue   @relation(fields: [venueId], references: [id])
   orders  Order[]
   cheques Cheque[]
+  shifts  Shift[]
 
   @@index([venueId], map: "idx_terminals_venue")
   @@map("terminals")
@@ -372,13 +386,58 @@ model Payment {
   id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   chequeId    String        @map("cheque_id") @db.Uuid
   cashierId   String        @map("cashier_id") @db.Uuid
+  shiftId     String?       @map("shift_id") @db.Uuid
   method      PaymentMethod
   amount      Decimal       @db.Decimal(10, 2)
+  cardLast4   String?       @map("card_last4") @db.VarChar(4)
   processedAt DateTime      @default(now()) @map("processed_at") @db.Timestamptz(6)
 
   cheque  Cheque @relation(fields: [chequeId], references: [id])
   cashier User   @relation(fields: [cashierId], references: [id])
+  shift   Shift? @relation(fields: [shiftId], references: [id])
 
   @@index([chequeId], map: "idx_payments_cheque")
+  @@index([shiftId], map: "idx_payments_shift")
   @@map("payments")
+}
+
+model Shift {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId         String      @map("venue_id") @db.Uuid
+  terminalId      String      @map("terminal_id") @db.Uuid
+  cashierId       String      @map("cashier_id") @db.Uuid
+  status          ShiftStatus @default(open)
+  openFloat       Decimal     @map("open_float") @db.Decimal(10, 2)
+  closeFloat      Decimal?    @map("close_float") @db.Decimal(10, 2)
+  expectedCash    Decimal?    @map("expected_cash") @db.Decimal(10, 2)
+  overShortAmount Decimal?    @map("over_short_amount") @db.Decimal(10, 2)
+  openedAt        DateTime    @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt        DateTime?   @map("closed_at") @db.Timestamptz(6)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue    Venue        @relation(fields: [venueId], references: [id])
+  terminal Terminal     @relation(fields: [terminalId], references: [id])
+  cashier  User         @relation(fields: [cashierId], references: [id])
+  payments Payment[]
+  events   ShiftEvent[]
+
+  @@index([cashierId, status], map: "idx_shifts_cashier_status")
+  @@index([terminalId, status], map: "idx_shifts_terminal_status")
+  @@map("shifts")
+}
+
+model ShiftEvent {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shiftId   String           @map("shift_id") @db.Uuid
+  action    ShiftEventAction
+  userId    String           @map("user_id") @db.Uuid
+  details   Json?
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  shift Shift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([shiftId], map: "idx_shift_events_shift")
+  @@map("shift_events")
 }

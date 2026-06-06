@@ -618,6 +618,58 @@ npm run test
 
 **Verify:** `npm run test` + `npm run lint:i18n` — all green.
 
+### 2026-06-10 — Shift open/close (US-13.1 / US-13.2 slice 6)
+
+**What:** Cashier declares opening float, payments link to active shift, close shift reconciles cash with over/short + manager PIN when above threshold.
+
+**Schema:** `Shift`, `ShiftEvent`, `Payment.shiftId`. Migration `20260610120000_phase3_shifts`.
+
+**API** (`shift-service.js`, `routes/shifts.js`):
+- `GET /api/v1/shifts/active?cashierId=`
+- `POST /api/v1/shifts/open` — one open shift per cashier
+- `POST /api/v1/shifts/close` — expected cash = open float + cash payments; manager PIN if |over/short| > 50 EGP
+- `payCheque` requires active shift on terminal; links `shiftId` on payments
+
+**POS:** Blocking open-shift modal on load; header shift badge → close modal with reconciliation.
+
+**Agent:** Proxies `/v1/shifts/*`.
+
+**Verify:**
+```bash
+npm run migrate
+npm run test -w @venue-pos/api
+npm run lint:i18n
+# POS: open shift (float) → pay cheque → close shift (counted cash)
+```
+
+**Still deferred:** Split by seat, split by custom amount, line transfer, refunds, cross-venue, receipt PDF.
+
+### 2026-06-11 — Manual card payment + provider flag (US-5.3 slice 7)
+
+**What:** External-terminal card recording with optional last-4, manager PIN above threshold, provider deploy toggle.
+
+**Provider flag:** `FEATURE_MANUAL_CARD_PAYMENT=true|false` (default **OFF**). POS reads `GET /api/v1/features` via agent — card tab hidden when OFF.
+
+**Schema:** `Payment.cardLast4`. Migration `20260611120000_phase3_manual_card`.
+
+**API** (`payment-policy.js`, `routes/features.js`):
+- `GET /api/v1/features` — `manualCardPayment`, `manualCardApprovalThreshold`, `kdsEnabled`
+- `payCheque` — rejects card when flag OFF; manager PIN when card total ≥ `MANUAL_CARD_APPROVAL_THRESHOLD` (default 500 EGP)
+- Receipt shows `card ****1234` when last-4 stored
+
+**POS:** Pay modal — Cash | Card (manual) | Split when enabled; manual-entry banner + optional last-4.
+
+**Verify:**
+```bash
+# In apps/api/.env for local dev:
+FEATURE_MANUAL_CARD_PAYMENT=true
+npm run migrate
+npm run test -w @venue-pos/api
+npm run lint:i18n
+```
+
+**Still deferred:** Split by seat, split by custom amount, line transfer, refunds, cross-venue, receipt PDF, integrated terminal (US-5.2).
+
 ---
 
 ## Quick reference — Phase 0 deliverables

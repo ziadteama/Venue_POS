@@ -24,6 +24,24 @@ const terminalHeaders = {
   'x-terminal-secret': TERMINAL_SECRET,
 };
 
+async function ensureOpenShift(openFloat = 500) {
+  const active = await app.inject({
+    method: 'GET',
+    url: `/api/v1/shifts/active?cashierId=${CASHIER_ID}`,
+    headers: terminalHeaders,
+  });
+  if (active.json()?.id) return active.json();
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, openFloat },
+  });
+  assert.equal(res.statusCode, 200);
+  return res.json();
+}
+
 before(async () => {
   ensureKeys();
   app = await buildApp();
@@ -324,6 +342,7 @@ test('clear abandons draft order without manager approval', async () => {
 });
 
 test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
+  await ensureOpenShift();
   const menuRes = await app.inject({
     method: 'GET',
     url: `/api/v1/venues/${VENUE_ID}/menu`,
@@ -407,6 +426,7 @@ test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
 });
 
 test('cheque split payment: cash + card', async () => {
+  await ensureOpenShift();
   const menuRes = await app.inject({
     method: 'GET',
     url: `/api/v1/venues/${VENUE_ID}/menu`,
@@ -596,6 +616,7 @@ test('manager can comp a line item on open cheque', async () => {
 });
 
 test('manager can list paid cheque history', async () => {
+  await ensureOpenShift();
   const menuRes = await app.inject({
     method: 'GET',
     url: `/api/v1/venues/${VENUE_ID}/menu`,
@@ -687,6 +708,7 @@ test('manager can void entire open cheque', async () => {
 });
 
 test('cheque split by item: pay sub-cheques closes parent', async () => {
+  await ensureOpenShift();
   const menuRes = await app.inject({
     method: 'GET',
     url: `/api/v1/venues/${VENUE_ID}/menu`,
@@ -786,6 +808,241 @@ test('cheque split by item: pay sub-cheques closes parent', async () => {
     parentFinal.json().orders.filter((o) => o.status === 'closed').length,
     2,
   );
+});
+
+test('cashier can open and close shift with payment linkage', async () => {
+  await prisma.shift.deleteMany({ where: { cashierId: CASHIER_ID } });
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, openFloat: 200 },
+  });
+  assert.equal(openRes.statusCode, 200);
+  assert.equal(openRes.json().status, 'open');
+  assert.equal(openRes.json().openFloat, 200);
+
+  const dupRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, openFloat: 100 },
+  });
+  assert.equal(dupRes.statusCode, 400);
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const chequeRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'SH1' },
+  });
+  const chequeId = chequeRes.json().id;
+  const draftId = chequeRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  assert.equal(payRes.statusCode, 200);
+  const paidTotal = payRes.json().cheque.payments[0].amount;
+  assert.ok(paidTotal > 0);
+
+  const activeRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/shifts/active?cashierId=${CASHIER_ID}`,
+    headers: terminalHeaders,
+  });
+  assert.equal(activeRes.statusCode, 200);
+  assert.equal(activeRes.json().report.paymentCount, 1);
+  assert.equal(activeRes.json().report.expectedCash, 200 + paidTotal);
+
+  const payments = await prisma.payment.findMany({
+    where: { shiftId: activeRes.json().id },
+  });
+  assert.equal(payments.length, 1);
+
+  const closeRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts/close',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, closeFloat: 200 + paidTotal },
+  });
+  assert.equal(closeRes.statusCode, 200);
+  assert.equal(closeRes.json().shift.status, 'closed');
+  assert.equal(closeRes.json().report.overShortAmount, 0);
+
+  const events = await prisma.shiftEvent.findMany({
+    where: { shiftId: closeRes.json().shift.id },
+    orderBy: { createdAt: 'asc' },
+  });
+  assert.equal(events.length, 2);
+  assert.equal(events[0].action, 'open');
+  assert.equal(events[1].action, 'close');
+});
+
+test('manual card payment stores optional last-4', async () => {
+  await ensureOpenShift();
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'MC1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const total = fireRes.json().cheque.total;
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      payments: [{ method: 'card', amount: total, cardLast4: '4242' }],
+    },
+  });
+  assert.equal(payRes.statusCode, 200);
+  const cardPayment = payRes.json().cheque.payments.find((p) => p.method === 'card');
+  assert.equal(cardPayment.cardLast4, '4242');
+});
+
+test('features endpoint exposes manual card flag', async () => {
+  const res = await app.inject({
+    method: 'GET',
+    url: '/api/v1/features',
+    headers: terminalHeaders,
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(typeof res.json().manualCardPayment, 'boolean');
+  assert.ok(res.json().manualCardApprovalThreshold > 0);
+});
+
+test('pay without open shift is rejected', async () => {
+  await prisma.shift.deleteMany({ where: { cashierId: CASHIER_ID } });
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'NS1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  assert.equal(fireRes.statusCode, 200);
+
+  const payRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  assert.equal(payRes.statusCode, 400);
+  assert.match(payRes.json().error.message, /shift/i);
+
+  await ensureOpenShift();
 });
 
 test('manager can 86 an item', async () => {

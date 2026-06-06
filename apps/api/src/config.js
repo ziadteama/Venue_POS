@@ -25,4 +25,7 @@ export const config = {
   ),
   logLevel: process.env.LOG_LEVEL ?? 'info',
   featureKdsEnabled: process.env.FEATURE_KDS_ENABLED !== 'false',
+  /** Provider onboarding — set FEATURE_MANUAL_CARD_PAYMENT=true when deploying card acceptance */
+  featureManualCardEnabled: process.env.FEATURE_MANUAL_CARD_PAYMENT === 'true',
+  manualCardApprovalThreshold: Number(process.env.MANUAL_CARD_APPROVAL_THRESHOLD ?? 500),
 };
