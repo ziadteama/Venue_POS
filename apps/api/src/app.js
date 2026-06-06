@@ -4,6 +4,9 @@ import { config } from './config.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
 import { healthRoutes } from './routes/health.js';
 import { authRoutes } from './routes/auth.js';
+import { menuRoutes } from './routes/menus.js';
+import { orderRoutes } from './routes/orders.js';
+import { venueRoutes } from './routes/venues.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -19,6 +22,9 @@ export async function buildApp() {
   registerErrorHandler(app);
   await app.register(healthRoutes);
   await app.register(authRoutes);
+  await app.register(menuRoutes);
+  await app.register(orderRoutes);
+  await app.register(venueRoutes);
 
   return app;
 }

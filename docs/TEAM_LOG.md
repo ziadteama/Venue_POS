@@ -240,14 +240,101 @@ npm run build:dashboard && npm run build:pos && npm run build:kds
 
 ---
 
-## Phase 1 — Core POS (next)
+### 2026-06-06 — Phase 1 core slice: menu + POS order flow
+**Phase:** 1  
+**Stories:** US-2.1–2.3 (foundation), US-2.5 (publish), US-3.1–3.2 (foundation)  
+**What:** Menu templates with categories/items, manager write + terminal read APIs, local-agent menu cache, POS menu grid with draft order creation.
 
-- [ ] Prisma models: `MenuTemplate`, `Category`, `MenuItem`
-- [ ] Menu read API + manager write API
-- [ ] Menu cache in local-agent
-- [ ] POS menu grid + create order flow
+**Schema:** `MenuTemplate`, `MenuTemplateVenue`, `Category`, `MenuItem`, `Order`, `OrderItem`  
+**Migration:** `20260606130000_phase1_menu_orders`
 
-_When starting Phase 1, add a dated entry above this section._
+**API endpoints:**
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET/POST | `/api/v1/menu-templates` | List / create templates |
+| GET/PATCH | `/api/v1/menu-templates/:id` | Read / update template |
+| POST | `/api/v1/menu-templates/:id/categories` | Add category |
+| POST | `/api/v1/categories/:id/items` | Add menu item |
+| POST | `/api/v1/menu-templates/:id/publish` | Publish menu + version hash |
+| GET | `/api/v1/venues/:venueId/menu` | Terminal: published menu |
+| POST | `/api/v1/orders` | Terminal: create draft order |
+| POST | `/api/v1/orders/:id/items` | Terminal: add item to order |
+
+**Local agent:** `GET /v1/menu`, `POST /v1/menu/sync`, `POST /v1/orders`, `POST /v1/orders/:id/items`  
+**POS:** Category tabs, item grid, cart sidebar, new-order flow via IPC  
+**Seed:** Demo Lunch Menu (published) for Demo Cafe
+
+**Verify:**
+```bash
+nvm use 20.20.2
+docker compose up -d postgres redis
+npm run migrate && npm run seed
+npm run test -w @venue-pos/api
+npm run dev:api & npm run dev:agent & npm run dev:pos
+# POS: New order → tap items → see cart total
+```
+
+**Dev IDs (after seed):**
+| Entity | ID |
+|--------|-----|
+| Venue | `00000000-0000-4000-8000-000000000010` |
+| Cashier | use `cashier1` row id from DB (see seed output) |
+
+---
+
+### 2026-06-06 — Phase 1 complete: modifiers, kitchen send, dashboard menu manager
+**Phase:** 1  
+**Stories:** US-2.4, US-2.5, US-3.2–3.3 (foundation), US-1.2 (PIN on POS)  
+**What:** Modifier groups with order-time snapshots, Socket.IO `menu:updated` + `order:created`, full order lifecycle (qty, remove, send, receipt), dashboard menu manager, POS PIN login + modifier modal, local-agent sync replay + WS menu listener.
+
+**Migration:** `20260606140000_phase1_modifiers_kitchen` (ModifierGroup, ModifierOption, MenuItemModifier, Order.sentAt, OrderItem.modifiersSnapshot)
+
+**Additional API endpoints:**
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/v1/venues` | List venues (dashboard) |
+| PUT | `/api/v1/menu-templates/:id/categories/reorder` | Reorder categories |
+| POST | `/api/v1/menu-templates/:id/modifier-groups` | Create modifier group |
+| PATCH | `/api/v1/menu-items/:itemId` | Update item / 86 toggle |
+| PATCH | `/api/v1/orders/:id/items/:itemId` | Update item quantity |
+| DELETE | `/api/v1/orders/:id/items/:itemId` | Remove draft item |
+| POST | `/api/v1/orders/:id/send` | Send order to kitchen |
+| GET | `/api/v1/orders/:id/receipt` | Basic receipt text |
+
+**Local agent:** `POST /v1/sync/replay`, `PATCH/DELETE /v1/orders/:id/items/:itemId`, `POST /v1/orders/:id/send`, `GET /v1/orders/:id/receipt`  
+**Dashboard:** `MenuManagerPage` — templates, categories, items, publish, 86 toggle  
+**POS:** PIN login, modifier modal, cart qty +/-, send kitchen, receipt display  
+**Tests:** `phase1.test.js` (12 API tests total) + `scripts/phase1-scenarios.mjs` (integration smoke)
+
+**Verify:**
+```bash
+nvm use 20.20.2
+docker compose up -d postgres redis
+npm run migrate && npm run seed
+npm run lint && npm run lint:i18n && npm run test -w @venue-pos/api
+npm run dev:api & npm run dev:agent & npm run dev:dashboard & npm run dev:pos
+node scripts/phase1-scenarios.mjs   # with API + agent running
+```
+
+**Dev credentials (after seed):**
+| Entity | Value |
+|--------|-------|
+| Manager | `admin` / `admin123` |
+| Cashier PIN | `1234` |
+| Cashier ID | `00000000-0000-4000-8000-000000000011` |
+| Venue ID | `00000000-0000-4000-8000-000000000010` |
+| Terminal ID | `00000000-0000-4000-8000-000000000001` |
+| Terminal secret | `dev-terminal-secret` |
+
+**Deferred to Phase 2+:** KDS `order:created` UI, kitchen printer, category drag-and-drop UI, full offline conflict resolution (Phase 6).
+
+---
+
+## Phase 2 — Next
+
+- KDS order display + status lifecycle (US-3.4)
+- Kitchen printer integration
+- Order void workflow (US-3.5)
 
 ---
 

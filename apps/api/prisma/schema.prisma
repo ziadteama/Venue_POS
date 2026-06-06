@@ -20,6 +20,23 @@ enum UserRole {
   system_admin
 }
 
+enum MenuStatus {
+  draft
+  published
+  archived
+}
+
+enum OrderStatus {
+  draft
+  sent
+  partially_ready
+  ready
+  served
+  billed
+  closed
+  voided
+}
+
 model Venue {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nameEn    String    @map("name_en") @db.VarChar(255)
@@ -30,8 +47,10 @@ model Venue {
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users     User[]
-  terminals Terminal[]
+  users        User[]
+  terminals    Terminal[]
+  menuTemplates MenuTemplateVenue[]
+  orders       Order[]
 
   @@map("venues")
 }
@@ -48,7 +67,8 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue Venue? @relation(fields: [venueId], references: [id])
+  venue  Venue?  @relation(fields: [venueId], references: [id])
+  orders Order[]
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -65,8 +85,169 @@ model Terminal {
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue Venue @relation(fields: [venueId], references: [id])
+  venue  Venue   @relation(fields: [venueId], references: [id])
+  orders Order[]
 
   @@index([venueId], map: "idx_terminals_venue")
   @@map("terminals")
+}
+
+model MenuTemplate {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameEn      String     @map("name_en") @db.VarChar(255)
+  nameAr      String     @map("name_ar") @db.VarChar(255)
+  status      MenuStatus @default(draft)
+  publishedAt DateTime?  @map("published_at") @db.Timestamptz(6)
+  versionHash String?    @map("version_hash") @db.VarChar(64)
+  isActive    Boolean    @default(true) @map("is_active")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venues         MenuTemplateVenue[]
+  categories     Category[]
+  modifierGroups ModifierGroup[]
+
+  @@map("menu_templates")
+}
+
+model MenuTemplateVenue {
+  menuTemplateId String @map("menu_template_id") @db.Uuid
+  venueId        String @map("venue_id") @db.Uuid
+
+  menuTemplate MenuTemplate @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
+  venue        Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@id([menuTemplateId, venueId])
+  @@map("menu_template_venues")
+}
+
+model Category {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menuTemplateId String   @map("menu_template_id") @db.Uuid
+  nameEn         String   @map("name_en") @db.VarChar(255)
+  nameAr         String   @map("name_ar") @db.VarChar(255)
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  menuTemplate MenuTemplate @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
+  items        MenuItem[]
+
+  @@index([menuTemplateId], map: "idx_categories_template")
+  @@map("categories")
+}
+
+model MenuItem {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId    String   @map("category_id") @db.Uuid
+  nameEn        String   @map("name_en") @db.VarChar(255)
+  nameAr        String   @map("name_ar") @db.VarChar(255)
+  descriptionEn String?  @map("description_en") @db.Text
+  descriptionAr String?  @map("description_ar") @db.Text
+  price         Decimal  @db.Decimal(10, 2)
+  taxRate       Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  imageUrl      String?  @map("image_url") @db.VarChar(500)
+  isAvailable   Boolean  @default(true) @map("is_available")
+  sortOrder     Int      @default(0) @map("sort_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category       Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems     OrderItem[]
+  modifierGroups MenuItemModifier[]
+
+  @@index([categoryId], map: "idx_menu_items_category")
+  @@map("menu_items")
+}
+
+model ModifierGroup {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menuTemplateId String   @map("menu_template_id") @db.Uuid
+  nameEn         String   @map("name_en") @db.VarChar(255)
+  nameAr         String   @map("name_ar") @db.VarChar(255)
+  minSelection   Int      @default(0) @map("min_selection")
+  maxSelection   Int      @default(1) @map("max_selection")
+  sortOrder      Int      @default(0) @map("sort_order")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  menuTemplate MenuTemplate       @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
+  options      ModifierOption[]
+  items        MenuItemModifier[]
+
+  @@index([menuTemplateId], map: "idx_modifier_groups_template")
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  modifierGroupId String   @map("modifier_group_id") @db.Uuid
+  nameEn          String   @map("name_en") @db.VarChar(255)
+  nameAr          String   @map("name_ar") @db.VarChar(255)
+  priceDelta      Decimal  @default(0) @map("price_delta") @db.Decimal(10, 2)
+  sortOrder       Int      @default(0) @map("sort_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@index([modifierGroupId], map: "idx_modifier_options_group")
+  @@map("modifier_options")
+}
+
+model MenuItemModifier {
+  menuItemId      String @map("menu_item_id") @db.Uuid
+  modifierGroupId String @map("modifier_group_id") @db.Uuid
+
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, modifierGroupId])
+  @@map("menu_item_modifiers")
+}
+
+model Order {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId     String      @map("venue_id") @db.Uuid
+  terminalId  String?     @map("terminal_id") @db.Uuid
+  cashierId   String      @map("cashier_id") @db.Uuid
+  orderNumber Int         @map("order_number")
+  tableLabel  String?     @map("table_label") @db.VarChar(50)
+  status      OrderStatus @default(draft)
+  sentAt      DateTime?   @map("sent_at") @db.Timestamptz(6)
+  openedAt    DateTime    @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt    DateTime?   @map("closed_at") @db.Timestamptz(6)
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue    Venue      @relation(fields: [venueId], references: [id])
+  terminal Terminal?  @relation(fields: [terminalId], references: [id])
+  cashier  User       @relation(fields: [cashierId], references: [id])
+  items    OrderItem[]
+
+  @@unique([venueId, orderNumber], map: "uq_orders_venue_number")
+  @@index([venueId], map: "idx_orders_venue")
+  @@index([status], map: "idx_orders_status")
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId    String   @map("order_id") @db.Uuid
+  menuItemId String   @map("menu_item_id") @db.Uuid
+  quantity           Int      @default(1)
+  unitPrice          Decimal  @map("unit_price") @db.Decimal(10, 2)
+  modifiersSnapshot  Json?    @map("modifiers_snapshot")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@index([orderId], map: "idx_order_items_order")
+  @@map("order_items")
 }

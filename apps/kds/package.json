@@ -17,6 +17,7 @@
     "react-i18next": "^15.2.0"
   },
   "devDependencies": {
+    "@venue-pos/shared": "*",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",

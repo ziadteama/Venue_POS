@@ -59,4 +59,4 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 0 done.** Next: Phase 1 — menu models + POS order flow. See `docs/TEAM_LOG.md`.
+**Phase 1 done.** Next: Phase 2 — KDS + kitchen printer. See `docs/TEAM_LOG.md`.
