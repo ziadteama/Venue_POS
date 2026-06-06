@@ -7,6 +7,7 @@ import {
   addOrderItem,
   updateOrderItemQuantity,
   removeOrderItem,
+  updateOrderTableLabel,
   sendOrderToKitchen,
   getOrder,
   getOrderReceipt,
@@ -36,6 +37,10 @@ const addItemSchema = z.object({
 
 const qtySchema = z.object({
   quantity: z.number().int().min(0),
+});
+
+const tableLabelSchema = z.object({
+  tableLabel: z.string().max(50).nullable().optional(),
 });
 
 async function assertOrderVenue(request, orderId) {
@@ -68,6 +73,16 @@ export async function orderRoutes(app) {
     await assertOrderVenue(request, request.params.id);
     const text = await getOrderReceipt(request.params.id);
     return { text };
+  });
+
+  app.patch('/api/v1/orders/:id', { preHandler: authenticateTerminal }, async (request) => {
+    const parsed = tableLabelSchema.safeParse(request.body);
+    if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+    return updateOrderTableLabel(
+      request.params.id,
+      parsed.data.tableLabel,
+      request.terminal.venueId,
+    );
   });
 
   app.post('/api/v1/orders/:id/items', { preHandler: authenticateTerminal }, async (request) => {

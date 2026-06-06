@@ -7,6 +7,7 @@ import {
   createLocalOrder,
   addLocalOrderItem,
   updateLocalOrderItemQty,
+  updateLocalOrderTableLabel,
   getLocalOrder,
   pushOrderToServer,
   sendLocalOrder,
@@ -78,6 +79,24 @@ export async function buildAgentServer({ db, config }) {
       });
       app.log.warn({ err }, 'Order created locally; server sync deferred');
       return order;
+    }
+  });
+
+  app.patch('/v1/orders/:id', async (request, reply) => {
+    const { tableLabel } = request.body ?? {};
+    try {
+      const order = updateLocalOrderTableLabel(db, request.params.id, tableLabel);
+      try {
+        await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${request.params.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ tableLabel }),
+        });
+      } catch (err) {
+        app.log.warn({ err }, 'Table label server sync deferred');
+      }
+      return order;
+    } catch (err) {
+      return reply.status(400).send({ error: err.message });
     }
   });
 
