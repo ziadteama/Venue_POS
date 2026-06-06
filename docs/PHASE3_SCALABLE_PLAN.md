@@ -14,27 +14,34 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 | Auto receipt print | `FEATURE_AUTO_RECEIPT_PRINT` | ON | ✅ Shipped |
 | Integrated PDQ (US-5.2) | `FEATURE_INTEGRATED_CARD_PAYMENT` | OFF | **Future** |
 
-## Deferred features
+## Manager approval queue (shipped)
 
-### Split by seat (US-3.6)
-- Requires `seat` on `OrderItem` + POS seat picker at fire time.
-- Auto-group items by seat into sub-cheques.
-- **Not in main build** until seat model exists.
+Discounts and refunds use **request → approve**, not dual PIN on one screen:
 
-### Split by custom amount (US-3.6)
-- ✅ Shipped — `POST /cheques/:id/split-amount`, child `splitAmount`.
+1. **Restaurant manager** (`venue_manager`) submits from POS (PIN) or dashboard (JWT).
+2. Request sits in `ManagerApprovalRequest` (`pending`).
+3. **General manager** (`hub_manager`) approves/rejects on dashboard **Approvals** (`/approvals`).
+4. POS polls cheque until discount applied or request rejected.
 
-### Post-payment corrections (refunds & cheque edits)
-- ✅ **Refunds (US-5.6)** — `venue_manager` initiates + `hub_manager` approves; audit at `GET /manager/refunds`.
-- ✅ **Cheque discounts** — before pay; dual PIN; `ChequeDiscountAudit`.
-- Still **future**: void/comp on **paid** cheques, payment reversals beyond partial refund.
+Audit: `ChequeDiscountAudit`, `Refund`, `GET /api/v1/manager/approval-requests`.
 
-### Integrated card terminal (US-5.2)
-- Ingenico/PAX SDK, transaction ID storage, PCI-safe.
-- Behind `FEATURE_INTEGRATED_CARD_PAYMENT`; manual card remains fallback.
+**Still instant (single manager PIN):** void, comp, line transfer, manual-card threshold, shift over/short.
 
-### Other Phase 3 tail
-- Vouchers (US-5.5)
-- Receipt PDF (US-10.2)
-- Cross-venue billing → Epic 4
-- Offline cheque sync → Phase 6
+## Phase 3 remaining (not yet built)
+
+| Item | PRD | Notes |
+|------|-----|-------|
+| Split by **seat** | US-3.6 | `seat` on `OrderItem` + POS picker |
+| **Vouchers / promos** | US-5.5 | Code validation, one-time use |
+| **Integrated card** terminal | US-5.2 | PDQ SDK; `FEATURE_INTEGRATED_CARD_PAYMENT` |
+| **Receipt PDF** | US-10.2 | Digital/email receipt |
+| Refund from **POS** | US-5.6 | API exists; paid-cheque UI on terminal TBD |
+| Void/comp on **paid** cheques | — | Post-payment correction tail |
+| **Cross-venue** billing | Epic 4 | Multi-hub |
+| **Offline** cheque sync | Phase 6 | SQLite replay |
+
+## Shipped (reference)
+
+- Split by custom amount — `POST /cheques/:id/split-amount`
+- Refunds + discounts — approval queue + audit
+- Auto receipt print — agent on pay when `KITCHEN_PRINTER_HOST` set

@@ -9,7 +9,7 @@ Read this before writing code.
 | [docs/README.md](docs/README.md) | Team doc index |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setup, repo layout, ports, commands |
 | [docs/TEAM_LOG.md](docs/TEAM_LOG.md) | What's built + roadmap — **update every feature** |
-| [docs/PHASE3_SCALABLE_PLAN.md](docs/PHASE3_SCALABLE_PLAN.md) | Deferred / provider-flag features (seat split, PDQ, GM refunds) |
+| [docs/PHASE3_SCALABLE_PLAN.md](docs/PHASE3_SCALABLE_PLAN.md) | Deferred features + provider flags (seat split, PDQ, vouchers) |
 | [docs/PRD.md](docs/PRD.md) | User stories & acceptance criteria |
 | [docs/Technical_Proposal.md](docs/Technical_Proposal.md) | Architecture & phased delivery |
 | [docs/TechSpec.md](docs/TechSpec.md) | WebSocket contracts, security, deployment |
@@ -62,7 +62,16 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 3 in progress** (`phase-3` branch) — open cheques + payments. Branched from `phase-2`. See `docs/TEAM_LOG.md`.
+**Phase 3 nearing close** (`phase-3` branch) — open cheques, payments, shifts, discounts/refunds with GM approval queue. Remaining tail: seat split, vouchers, integrated PDQ, receipt PDF. See `docs/TEAM_LOG.md` + `docs/PHASE3_SCALABLE_PLAN.md`.
+
+## Manager workflows (quick reference)
+
+| Action | Who initiates | Who approves | Where |
+|--------|---------------|--------------|-------|
+| Discount | `venue_manager` (POS PIN or dashboard) | `hub_manager` | Dashboard **Approvals** |
+| Refund | `venue_manager` (dashboard; POS TBD) | `hub_manager` | Dashboard **Approvals** |
+| Void / comp / line transfer | Either manager | Same step (one PIN) | POS or dashboard |
+| Shift over/short | Cashier | Either manager PIN | POS close shift |
 
 ## Prompt tip (save tokens)
 

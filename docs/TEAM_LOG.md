@@ -698,23 +698,17 @@ npm run test -w @venue-pos/api
 
 ## Slice 9 — Discounts, receipt print, refunds (US-5.6)
 
-**What:** Cheque-level discounts (amount or %), auto customer receipt on checkout via agent, post-payment refunds with **restaurant manager** (`venue_manager`) + **general manager** (`hub_manager`) dual PIN approval and audit.
+**What:** Cheque-level discounts (amount or %), auto customer receipt on checkout via agent, post-payment refunds with audit.
 
 **Schema:** `Cheque.discountAmount`, `ChequeDiscountAudit`, `Refund` (+ shift cash impact).
 
-**API:**
-- `POST /api/v1/cheques/:id/discount` — terminal + manager routes
-- `POST /api/v1/cheques/:id/refund` — terminal + manager routes
-- `GET /api/v1/manager/discounts`, `GET /api/v1/manager/refunds` — GM audit lists
-- `GET /api/v1/features` — `discounts`, `refunds`, `autoReceiptPrint`
+**API:** `GET /api/v1/features` — `discounts`, `refunds`, `autoReceiptPrint`. See slice 9b for request/approve endpoints.
 
 **Flags (default ON):** `FEATURE_DISCOUNTS_ENABLED`, `FEATURE_REFUNDS_ENABLED`, `FEATURE_AUTO_RECEIPT_PRINT`
 
-**POS:** Discount modal (dual PIN); receipt shows discount line; agent prints on pay when printer configured.
+**POS:** Receipt shows discount line; agent prints on pay when printer configured.
 
-**Dashboard:** Apply discount on open cheques; process refund on paid cheques; refund history on detail.
-
-**Seed:** `venue_mgr` PIN `7777` (restaurant manager); `admin` PIN `9999` (hub manager).
+**Seed:** `venue_mgr` PIN `7777` (restaurant manager); `admin` / `9999` (hub manager).
 
 **Verify:**
 ```bash
@@ -739,6 +733,26 @@ npm run test -w @venue-pos/api
 **Dashboard:** `/approvals` nav link with pending count (hub_manager).
 
 **POS:** Discount modal → send for approval → polls until GM approves.
+
+---
+
+## Phase 3 closure checklist
+
+**Done (slices 1–9b):** Open cheques, fire/pay, split item + amount, line transfer, shifts, manual card, comp/void, discounts, refunds, receipt print, GM approval queue.
+
+**Remaining before calling Phase 3 complete:**
+
+| Item | Priority |
+|------|----------|
+| Seat split (US-3.6) | Client-driven |
+| Vouchers (US-5.5) | P2 |
+| Integrated PDQ (US-5.2) | Provider flag |
+| Receipt PDF (US-10.2) | P2 |
+| POS refund UI (paid cheques) | Polish |
+| Socket-based approval on POS (replace poll) | Polish |
+| Unify void/comp/transfer into approval queue? | Product decision |
+
+See `docs/PHASE3_SCALABLE_PLAN.md` for flags and deferred detail.
 
 ---
 
