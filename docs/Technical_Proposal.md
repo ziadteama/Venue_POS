@@ -564,7 +564,7 @@ The server maintains a Socket.IO event bus. Clients (POS terminals, KDS, admin d
 | ---                                               | ---                                                                                                              |
 | Phase 1 - Core POS (Weeks 2-4)                    | POS Electron app: order entry, menu display, send to kitchen, basic receipt printing. Single-venue, online only. |
 | ---                                               | ---                                                                                                              |
-| Phase 2 - Kitchen & Display (Week 5)              | KDS application, kitchen printer integration, order status lifecycle.                                            |
+| Phase 2 - Kitchen & Display (Week 5)              | Kitchen printer + order status for all clients; KDS app when `kds_enabled` at onboarding.                          |
 | ---                                               | ---                                                                                                              |
 | Phase 3 - Payments (Week 6)                       | Cash payment, split payment, card (manual). Shift open/close. Basic receipt PDF.                                 |
 | ---                                               | ---                                                                                                              |
@@ -860,7 +860,7 @@ Optional or experimental features are controlled by a per-client feature flag co
 | ---                     | ---         | ---                                                           |
 | digital_receipts        | ON          | WhatsApp / email receipt dispatch.                            |
 | ---                     | ---         | ---                                                           |
-| kds_enabled             | ON          | Kitchen Display System support.                               |
+| kds_enabled             | ON          | Kitchen Display System. **Optional at onboarding** — set OFF for printer-only kitchens; POS send-to-kitchen and tickets still work without `apps/kds`. |
 | ---                     | ---         | ---                                                           |
 | cross_venue_billing     | ON          | Anchor venue cross-cheque feature.                            |
 | ---                     | ---         | ---                                                           |
@@ -870,7 +870,7 @@ Optional or experimental features are controlled by a per-client feature flag co
 ## **15.7 Client Onboarding Process**
 
 - Sales agreement signed. Client provides: logo file, brand colors, hub name, number of venues, number of terminals.
-- Ops team opens Control Plane → New Client wizard. Enters client details, uploads branding assets, selects feature flags, chooses server region.
+- Ops team opens Control Plane → New Client wizard. Enters client details, uploads branding assets, selects feature flags (e.g. **KDS on/off**, card payments, cross-venue billing), chooses server region.
 - Control Plane runs Terraform to provision a VM, installs Docker, deploys the client's stack (API + DB + Nginx + dashboard). Estimated time: 15-20 minutes automated.
 - DNS is pointed to the new server. TLS certificate auto-issued via Let's Encrypt.
 - Ops team runs the venue setup: creates venues, manager accounts, and generates terminal installer packages pre-configured for this client.

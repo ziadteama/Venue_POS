@@ -330,6 +330,14 @@ node scripts/phase1-scenarios.mjs   # with API + agent running
 
 ---
 
+### 2026-06-06 — Docs: KDS optional at onboarding + cleanup
+**Phase:** 1 (docs)  
+**What:** Documented `kds_enabled` / `FEATURE_KDS_ENABLED` — KDS is a provider onboarding toggle, not required for every hub (printer-only OK). Cleaned stale roadmap/audit/Electron references across `DEVELOPMENT.md`, `README.md`, `AGENTS.md`, `PRD.md`, `TEAM_LOG.md`.
+
+**Verify:** Read `docs/DEVELOPMENT.md` § Optional features (provider onboarding).
+
+---
+
 ### 2026-06-06 — CI fix: Prisma generate without DB + Electron Node 20
 **Phase:** 1 (tooling)  
 **What:** CI `npm ci` failed — `prisma.config.ts` required `DATABASE_URL` at install time; `electron@42` requires Node ≥22 while CI/dev use Node 20.
@@ -346,7 +354,7 @@ node scripts/phase1-scenarios.mjs   # with API + agent running
 
 **Files:** `apps/api/prisma.config.ts`, `scripts/prisma-generate.mjs`, root `package.json` overrides, `apps/pos/package.json`, `docs/DEVELOPMENT.md`
 
-**Also:** `bcrypt@6` (drops vulnerable `tar` chain), Electron `42.3.3` in POS + KDS.
+**Also:** `bcrypt@6` (drops vulnerable `tar` chain), Electron `^40.10.2` in POS + KDS (Node 20).
 
 **Verify:** `npm install` → `found 0 vulnerabilities`; no `package.json#prisma` warn; `npm run db:generate` quiet unless EPERM retry on Z:.
 
@@ -394,8 +402,10 @@ npm run dev:agent   # stop API, create order on POS, confirm sync_queue stays pe
 
 ## Phase 2 — Next
 
-- KDS order display + status lifecycle (US-3.4)
-- Kitchen printer integration
+Kitchen output — **KDS is optional per client** (`kds_enabled` at provider onboarding). Printer-only sites skip `apps/kds`; still deliver send-to-kitchen, printer, and status APIs.
+
+- KDS order display + status lifecycle (US-3.4 / US-6.x) — **when `kds_enabled`**
+- Kitchen printer integration (US-6.3) — all kitchen deployments
 - Order void workflow (US-3.5)
 
 ---
@@ -408,7 +418,7 @@ npm run dev:agent   # stop API, create order on POS, confirm sync_queue stays pe
 | Prisma + Postgres | ✅ |
 | Auth (login + PIN) | ✅ |
 | Dashboard shell + i18n | ✅ |
-| POS + KDS + local-agent shells | ✅ |
+| POS + KDS shell (optional app) + local-agent | ✅ |
 | Docker Compose | ✅ |
 | CI pipeline | ✅ |
 | Team documentation | ✅ |

@@ -32,6 +32,6 @@
 
 ## Current status
 
-**Phase 0 complete** — monorepo, Prisma API, auth, app shells, CI.  
-**Phase 1 complete** — menu manager, POS order flow, modifiers, send to kitchen, receipt.  
-**Next: Phase 2** — KDS + kitchen printer. Details in [TEAM_LOG.md](TEAM_LOG.md).
+**Phase 0** — monorepo, Prisma API, auth, app shells, CI.  
+**Phase 1** — menu manager, POS order flow, modifiers, send to kitchen, receipt.  
+**Phase 2** — kitchen display + printer + order status. **KDS is optional** per client (`kds_enabled` at provider onboarding); many sites use kitchen printer only. See [DEVELOPMENT.md § Optional features](DEVELOPMENT.md#optional-features-provider-onboarding) and [TEAM_LOG.md](TEAM_LOG.md).

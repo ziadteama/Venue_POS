@@ -411,6 +411,8 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 
 ### Epic 6: Kitchen Display System (KDS)
 
+> **Optional deployment:** `kds_enabled` is set during provider/client onboarding (see feature-flag epic). When OFF, venues rely on kitchen printer only — Epic 6 stories do not apply to that client, but US-6.3 (printer) and send-to-kitchen from Phase 1 still do. Implement KDS behind the flag; do not assume every hub runs `apps/kds`.
+
 #### US-6.1: KDS Order Display
 **As a** Kitchen Staff, **I want** to see incoming orders on a screen, **so that** I can prepare food efficiently.
 
@@ -872,7 +874,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
   - loyalty_program (default OFF)
   - inventory_management (default ON)
   - digital_receipts (default ON)
-  - kds_enabled (default ON)
+  - kds_enabled (default ON in spec; **OFF allowed** — printer-only kitchens skip KDS app and kitchen WS UI)
   - cross_venue_billing (default ON)
   - multi_language (default ON)
 - [ ] Flag changes take effect without code deployment

@@ -16,7 +16,7 @@ Read this before writing code.
 
 ## Stack
 
-Node 20 · Fastify · Prisma 6 · PostgreSQL 16 · React 18 · Vite 5 · Electron 30 · Socket.IO 4 · Tailwind 3 · Zod · JWT RS256
+Node 20 · Fastify · Prisma 6 · PostgreSQL 16 · React 18 · Vite 5 · Electron 40 · Socket.IO 4 · Tailwind 3 · Zod · JWT RS256
 
 ## Monorepo
 
@@ -32,6 +32,7 @@ packages/ shared, i18n
 - Menu read-only on POS; managers publish from dashboard
 - Bilingual UI via `@venue-pos/i18n`; DB uses `nameEn`/`nameAr` with `@map`
 - Prisma for all server DB access
+- **KDS is optional** — `kds_enabled` / `FEATURE_KDS_ENABLED` set at provider onboarding; printer-only venues skip `apps/kds`. Still implement KDS behind the flag in Phase 2.
 
 ## Workflow
 
@@ -59,4 +60,4 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 1 done.** Next: Phase 2 — KDS + kitchen printer. See `docs/TEAM_LOG.md`.
+**Phase 1 done.** Phase 2 — kitchen (KDS when enabled + printer + status). KDS not required for every deployment. See `docs/TEAM_LOG.md`.

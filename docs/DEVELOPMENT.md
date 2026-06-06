@@ -23,7 +23,7 @@ Venue_POS/
 │   ├── api/              # Fastify + Prisma + PostgreSQL
 │   ├── dashboard/        # React admin (Vite + Tailwind)
 │   ├── pos/              # Electron kiosk POS
-│   ├── kds/              # Kitchen display
+│   ├── kds/              # Kitchen display (optional per deployment)
 │   └── local-agent/      # SQLite + sync + printers (:3456)
 ├── packages/
 │   ├── shared/           # ROLES, ERROR_CODES
@@ -60,7 +60,7 @@ Venue_POS/
 | API | 3000 |
 | Dashboard | 5173 |
 | POS | 5174 |
-| KDS | 5175 |
+| KDS (optional) | 5175 |
 | Local agent | 3456 |
 | Postgres | 5432 |
 | Redis | 6379 |
@@ -89,8 +89,22 @@ npm run dev:dashboard        # :5173
 npm run dev:agent            # :3456
 npm run dev:pos              # :5174
 npm run electron:dev -w @venue-pos/pos
+# KDS only if this client has kds_enabled (see below)
 npm run dev:kds              # :5175
 ```
+
+## Optional features (provider onboarding)
+
+Not every hub needs every app. During **provider / client onboarding**, feature flags choose what gets deployed and shown. The monorepo still contains all apps; flags control runtime behaviour and ops focus.
+
+| Flag | Env (dev) | Default | When OFF |
+|------|-------------|---------|----------|
+| `kds_enabled` | `FEATURE_KDS_ENABLED=false` | ON in spec; **turn OFF** for printer-only kitchens | No KDS installer, no `venue:*:kitchen` WS clients required. Orders still **send to kitchen** via API + printer. `apps/kds` not run in prod. |
+| Kitchen printer | (venue config) | varies | Primary ticket path when KDS is OFF |
+
+**Developing Phase 2:** Build KDS against `FEATURE_KDS_ENABLED=true` locally, but gate UI/routes/WS subscriptions so printer-only venues are unaffected. Core order send + `order:created` emit stay useful for printer integration either way.
+
+See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US feature-flag epic).
 
 ## Dev credentials (after seed)
 
@@ -103,9 +117,9 @@ npm run dev:kds              # :5175
 
 ## Troubleshooting
 
-### `npm audit` — 3 high severity (not Prisma)
+### `npm audit` (not Prisma)
 
-After `npm install`, npm may report **3 high** findings. They are **not** from Prisma:
+If `npm audit` reports highs, they are usually **Electron** or legacy **tar** — not Prisma. After the pinned versions below, expect **0 vulnerabilities**:
 
 | Package | Source | Risk context | Action |
 |---------|--------|--------------|--------|
@@ -179,7 +193,7 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
-## Troubleshooting
+### Other common problems
 
 | Problem | Fix |
 |---------|-----|
@@ -209,5 +223,6 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | Phase | Status | Focus |
 |-------|--------|-------|
 | 0 Setup | ✅ Done | Monorepo, Prisma, auth, shells, CI |
-| 1 Core POS | **Next** | Menu models, POS order flow |
-| 2–9 | Planned | See `docs/Technical_Proposal.md` §12 |
+| 1 Core POS | ✅ Done | Menu, modifiers, POS order flow, send to kitchen |
+| 2 Kitchen | In progress | KDS (when `kds_enabled`), printer, order status — see [TEAM_LOG.md](TEAM_LOG.md) |
+| 3–9 | Planned | `docs/Technical_Proposal.md` §12 |
