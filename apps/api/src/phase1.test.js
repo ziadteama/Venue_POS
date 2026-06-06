@@ -985,6 +985,161 @@ test('features endpoint exposes manual card flag', async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(typeof res.json().manualCardPayment, 'boolean');
   assert.ok(res.json().manualCardApprovalThreshold > 0);
+  assert.equal(typeof res.json().lineTransfer, 'boolean');
+});
+
+test('split cheque by custom amount and pay children', async () => {
+  await ensureOpenShift();
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'AM1' },
+  });
+  const parentId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${parentId}/fire`,
+    headers: terminalHeaders,
+  });
+  const total = fireRes.json().cheque.total;
+  const half = Number((total / 2).toFixed(2));
+  const rest = Number((total - half).toFixed(2));
+
+  const splitRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${parentId}/split-amount`,
+    headers: terminalHeaders,
+    payload: {
+      splits: [
+        { label: 'Guest A', amount: half },
+        { label: 'Guest B', amount: rest },
+      ],
+    },
+  });
+  assert.equal(splitRes.statusCode, 200);
+  assert.equal(splitRes.json().childCheques.length, 2);
+  assert.equal(splitRes.json().total, 0);
+
+  const childA = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest A');
+  assert.equal(childA.splitAmount, half);
+  assert.equal(childA.total, half);
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${childA.id}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+
+  const childB = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest B');
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${childB.id}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+
+  const parentFinal = await app.inject({
+    method: 'GET',
+    url: `/api/v1/cheques/${parentId}`,
+    headers: terminalHeaders,
+  });
+  assert.equal(parentFinal.json().status, 'paid');
+});
+
+test('transfer fired line to another table', async () => {
+  await ensureOpenShift();
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+  const modifier = {
+    groupId: group.id,
+    optionId: option.id,
+    nameEn: option.nameEn,
+    nameAr: option.nameAr,
+    priceDelta: option.priceDelta,
+  };
+
+  const openA = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'TR1' },
+  });
+  const chequeA = openA.json().id;
+  const draftA = openA.json().draftOrder.id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftA}/items`,
+    headers: terminalHeaders,
+    payload: { menuItemId, quantity: 1, modifiers: [modifier] },
+  });
+
+  const fireA = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeA}/fire`,
+    headers: terminalHeaders,
+  });
+  const itemId = fireA.json().sentOrder.items[0].id;
+  assert.ok(fireA.json().cheque.total > 0);
+
+  const transferRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeA}/transfer`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      itemIds: [itemId],
+      targetTableLabel: 'TR2',
+      managerPin: '8888',
+      reason: 'Wrong table',
+    },
+  });
+  assert.equal(transferRes.statusCode, 200);
+  assert.equal(transferRes.json().source.total, 0);
+  assert.ok(transferRes.json().target.total > 0);
+
+  const audits = await prisma.chequeItemTransferAudit.findMany({
+    where: { sourceChequeId: chequeA },
+  });
+  assert.equal(audits.length, 1);
 });
 
 test('pay without open shift is rejected', async () => {

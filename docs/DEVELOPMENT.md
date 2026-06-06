@@ -134,6 +134,7 @@ Not every hub needs every app. During **provider / client onboarding**, feature 
 |------|-------------|---------|----------|
 | `kds_enabled` | `FEATURE_KDS_ENABLED=false` | ON in spec; **turn OFF** for printer-only kitchens | No KDS installer, no `venue:*:kitchen` WS clients required. Orders still **send to kitchen** via API + printer. `apps/kds` not run in prod. |
 | `manual_card_payment` | `FEATURE_MANUAL_CARD_PAYMENT=false` | **OFF** (cash-only venues) | POS hides card / split-card pay; API rejects `method: card`. Set `true` when the client uses an external PDQ and cashiers record card manually (US-5.3). |
+| `line_transfer` | `FEATURE_LINE_TRANSFER=false` | **OFF** | POS hides transfer UI; API rejects line moves. Set `true` when venues move fired lines between tables (manager PIN + audit). |
 | Kitchen printer | (venue config) | varies | Primary ticket path when KDS is OFF |
 
 **Developing Phase 2:** Build KDS against `FEATURE_KDS_ENABLED=true` locally, but gate UI/routes/WS subscriptions so printer-only venues are unaffected. Core order send + `order:created` emit stay useful for printer integration either way.

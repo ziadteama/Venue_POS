@@ -1,4 +1,4 @@
-import { splittableItems } from '../utils/cheque.js';
+import { canSplitByAmount, splittableItems, transferableItems } from '../utils/cheque.js';
 import { displayInitial, itemName, lineTotal, modifierLabel } from '../utils/orderLine.js';
 import { ClearIcon, PrinterIcon } from './icons.jsx';
 
@@ -16,6 +16,9 @@ export function ReceiptPanel({
   onClear,
   onSend,
   onSplit,
+  onSplitAmount,
+  onTransfer,
+  lineTransferEnabled,
   onPay,
   onChangeQty,
 }) {
@@ -156,17 +159,37 @@ export function ReceiptPanel({
               </button>
             )}
           </div>
-          {!cheque?.parentChequeId &&
-            splittableItems(cheque).length >= 2 &&
-            !order?.items?.length && (
-              <button
-                type="button"
-                onClick={onSplit}
-                className="w-full rounded-lg border border-primary-to py-3 text-sm font-semibold text-primary-to hover:bg-slate-50"
-              >
-                {t('pos.splitBill')}
-              </button>
-            )}
+          {!cheque?.parentChequeId && !order?.items?.length && (
+            <>
+              {splittableItems(cheque).length >= 2 && (
+                <button
+                  type="button"
+                  onClick={onSplit}
+                  className="w-full rounded-lg border border-primary-to py-3 text-sm font-semibold text-primary-to hover:bg-slate-50"
+                >
+                  {t('pos.splitBill')}
+                </button>
+              )}
+              {canSplitByAmount(cheque) && (
+                <button
+                  type="button"
+                  onClick={onSplitAmount}
+                  className="w-full rounded-lg border border-primary-to py-3 text-sm font-semibold text-primary-to hover:bg-slate-50"
+                >
+                  {t('pos.splitByAmount')}
+                </button>
+              )}
+              {lineTransferEnabled && transferableItems(cheque).length > 0 && (
+                <button
+                  type="button"
+                  onClick={onTransfer}
+                  className="w-full rounded-lg border border-slate-400 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  {t('pos.transferLines')}
+                </button>
+              )}
+            </>
+          )}
           {cheque && cheque.total > 0 && !order?.items?.length && (
             <button
               type="button"

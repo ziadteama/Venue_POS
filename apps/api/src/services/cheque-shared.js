@@ -75,28 +75,47 @@ export function filterOrderForCheque(order, chequeId, isParentCheque, forDisplay
 }
 
 export function computeChequeTotal(cheque) {
+  if (cheque.splitAmount != null) {
+    return Number(cheque.splitAmount);
+  }
+
   const isParent = !cheque.parentChequeId;
-  return billingOrdersFromCheque(cheque)
+  let itemTotal = billingOrdersFromCheque(cheque)
     .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
     .flatMap((o) => o.items)
     .filter((item) => itemBelongsToCheque(item, cheque.id, isParent))
     .reduce((sum, item) => sum + itemLineTotal(item), 0);
+
+  if (isParent && cheque.childCheques?.length) {
+    const amountChildren = cheque.childCheques.filter((c) => c.splitAmount != null);
+    if (amountChildren.length) {
+      const allocated = amountChildren.reduce((s, c) => s + Number(c.splitAmount), 0);
+      return Math.max(0, Number((itemTotal - allocated).toFixed(2)));
+    }
+  }
+
+  return itemTotal;
 }
 
 function serializeChildSummary(child, parentCheque) {
-  const total =
-    child.status === 'paid' && child.payments?.length
-      ? child.payments.reduce((sum, p) => sum + Number(p.amount), 0)
-      : billingOrdersFromCheque({ ...child, parentCheque })
-          .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
-          .flatMap((o) => o.items)
-          .filter((item) => itemBelongsToCheque(item, child.id, false))
-          .reduce((sum, item) => sum + itemLineTotal(item), 0);
+  let total;
+  if (child.splitAmount != null) {
+    total = Number(child.splitAmount);
+  } else if (child.status === 'paid' && child.payments?.length) {
+    total = child.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  } else {
+    total = billingOrdersFromCheque({ ...child, parentCheque })
+      .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+      .flatMap((o) => o.items)
+      .filter((item) => itemBelongsToCheque(item, child.id, false))
+      .reduce((sum, item) => sum + itemLineTotal(item), 0);
+  }
 
   return {
     id: child.id,
     chequeNumber: child.chequeNumber,
     splitLabel: child.splitLabel,
+    splitAmount: child.splitAmount != null ? Number(child.splitAmount) : null,
     status: child.status,
     total,
   };
@@ -134,6 +153,7 @@ export function serializeCheque(cheque) {
     chequeNumber: cheque.chequeNumber,
     tableLabel: cheque.tableLabel,
     splitLabel: cheque.splitLabel ?? null,
+    splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
     parentChequeId: cheque.parentChequeId ?? null,
     status: cheque.status,
     openedAt: cheque.openedAt,

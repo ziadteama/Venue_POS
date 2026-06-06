@@ -668,7 +668,31 @@ npm run test -w @venue-pos/api
 npm run lint:i18n
 ```
 
-**Still deferred:** Split by seat, split by custom amount, line transfer, refunds, cross-venue, receipt PDF, integrated terminal (US-5.2).
+**Still deferred:** Split by seat, refunds, cross-venue, receipt PDF, integrated terminal (US-5.2). See `docs/PHASE3_SCALABLE_PLAN.md`.
+
+### 2026-06-12 — Line transfer + split by amount (slice 8)
+
+**What:** Move fired lines between tables (provider flag); split cheque by arbitrary dollar amounts.
+
+**Provider flag:** `FEATURE_LINE_TRANSFER=true|false` (default OFF). POS `lineTransfer` from `/api/v1/features`.
+
+**Schema:** `Cheque.splitAmount`, `ChequeItemTransferAudit`. Migration `20260612120000_phase3_transfer_amount`.
+
+**API:**
+- `POST /api/v1/cheques/:id/transfer` — manager PIN, audit log
+- `POST /api/v1/cheques/:id/split-amount` — `{ splits: [{ label, amount }] }`
+- `GET /api/v1/manager/cheques/transfers` — GM/manager audit list
+
+**POS:** Transfer modal (flagged); split-by-amount modal; pay amount-split child chips.
+
+**Scalable plan:** `docs/PHASE3_SCALABLE_PLAN.md` — seat split, integrated PDQ, post-payment GM refunds (deferred).
+
+**Verify:**
+```bash
+FEATURE_LINE_TRANSFER=true
+npm run migrate
+npm run test -w @venue-pos/api
+```
 
 ---
 

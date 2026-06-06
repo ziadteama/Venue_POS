@@ -160,6 +160,40 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     }
   }
 
+  async function confirmSplitAmount(splitBody) {
+    if (!cheque) return false;
+    setError('');
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/split-amount`, {
+        method: 'POST',
+        body: JSON.stringify(splitBody),
+      });
+      setCheque(updated);
+      await refreshOpenCheques();
+      return true;
+    } catch {
+      setError(t('pos.splitAmountFailed'));
+      return false;
+    }
+  }
+
+  async function confirmTransfer(transferBody) {
+    if (!cheque) return false;
+    setError('');
+    try {
+      const result = await callAgent(`/v1/cheques/${cheque.id}/transfer`, {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...transferBody }),
+      });
+      setCheque(result.source);
+      await refreshOpenCheques();
+      return true;
+    } catch {
+      setError(t('pos.transferFailed'));
+      return false;
+    }
+  }
+
   async function confirmPay(paymentBody) {
     if (!cheque || paying) return false;
     setPaying(true);
@@ -200,6 +234,8 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     handleSend,
     handleClear,
     confirmSplit,
+    confirmSplitAmount,
+    confirmTransfer,
     confirmPay,
     handleTableBlur,
     switchToCheque,

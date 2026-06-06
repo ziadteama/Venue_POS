@@ -9,6 +9,7 @@ Read this before writing code.
 | [docs/README.md](docs/README.md) | Team doc index |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setup, repo layout, ports, commands |
 | [docs/TEAM_LOG.md](docs/TEAM_LOG.md) | What's built + roadmap — **update every feature** |
+| [docs/PHASE3_SCALABLE_PLAN.md](docs/PHASE3_SCALABLE_PLAN.md) | Deferred / provider-flag features (seat split, PDQ, GM refunds) |
 | [docs/PRD.md](docs/PRD.md) | User stories & acceptance criteria |
 | [docs/Technical_Proposal.md](docs/Technical_Proposal.md) | Architecture & phased delivery |
 | [docs/TechSpec.md](docs/TechSpec.md) | WebSocket contracts, security, deployment |
