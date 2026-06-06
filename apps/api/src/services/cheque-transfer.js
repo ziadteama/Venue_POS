@@ -1,7 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { forbidden, validationError } from '../utils/errors.js';
-import { verifyManagerPin } from './auth-service.js';
+import { verifyManagerPinByRole } from './auth-service.js';
 import {
   BILLABLE_ORDER_STATUSES,
   billingOrdersFromCheque,
@@ -57,7 +57,7 @@ export async function transferChequeItems(
   if (!itemIds?.length) throw validationError('At least one item is required');
   if (!managerPin) throw validationError('Manager PIN required for line transfer');
 
-  const approver = await verifyManagerPin(venueId, managerPin);
+  const approver = await verifyManagerPinByRole(venueId, managerPin, 'venue_manager');
 
   const source = await loadCheque(sourceChequeId);
   if (source.venueId !== venueId) throw validationError('Cheque not found for this terminal');

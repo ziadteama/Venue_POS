@@ -18,6 +18,16 @@ export function registerChequeRoutes(
     apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open'),
   );
 
+  app.get('/v1/cheques/paid', async (request) => {
+    const limit = request.query?.limit ?? 30;
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/paid?limit=${limit}`,
+    );
+  });
+
   app.post('/v1/cheques/open', async (request, reply) => {
     const { cashierId, tableLabel } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
@@ -121,36 +131,34 @@ export function registerChequeRoutes(
     return result;
   });
 
-  app.get('/v1/cheques/:id/approval-requests', async (request) =>
-    apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/approval-requests`,
-    ),
-  );
-
-  app.post('/v1/cheques/:id/discount/request', async (request, reply) => {
+  app.post('/v1/cheques/:id/discount', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
     return apiFetch(
       apiUrl,
       terminalId,
       terminalSecret,
-      `/api/v1/cheques/${request.params.id}/discount/request`,
+      `/api/v1/cheques/${request.params.id}/discount`,
       { method: 'POST', body: JSON.stringify(body) },
     );
   });
 
-  app.post('/v1/cheques/:id/refund/request', async (request, reply) => {
+  app.post('/v1/cheques/:id/refund', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    return apiFetch(
+    const result = await apiFetch(
       apiUrl,
       terminalId,
       terminalSecret,
-      `/api/v1/cheques/${request.params.id}/refund/request`,
+      `/api/v1/cheques/${request.params.id}/refund`,
       { method: 'POST', body: JSON.stringify(body) },
     );
+    maybePrintReceipt(result.receipt, {
+      autoReceiptPrint,
+      kitchenPrinterHost,
+      kitchenPrinterPort,
+      log: app.log,
+    });
+    return result;
   });
 }

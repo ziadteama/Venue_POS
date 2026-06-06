@@ -11,6 +11,9 @@ import { SplitBillModal } from './components/SplitBillModal.jsx';
 import { SplitAmountModal } from './components/SplitAmountModal.jsx';
 import { TransferModal } from './components/TransferModal.jsx';
 import { DiscountModal } from './components/DiscountModal.jsx';
+import { RefundModal } from './components/RefundModal.jsx';
+import { PaidChequePickerModal } from './components/PaidChequePickerModal.jsx';
+import { useManagerSocket } from './hooks/useManagerSocket.js';
 import { ShiftCloseModal } from './components/ShiftCloseModal.jsx';
 import { ShiftOpenModal } from './components/ShiftOpenModal.jsx';
 import { useChequeSession } from './hooks/useChequeSession.js';
@@ -31,6 +34,11 @@ export default function App() {
   const [showSplitAmountModal, setShowSplitAmountModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [showRefundPicker, setShowRefundPicker] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundCheque, setRefundCheque] = useState(null);
+  const [paidCheques, setPaidCheques] = useState([]);
+  const [loadingPaid, setLoadingPaid] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
   const { features } = useFeatures();
@@ -97,6 +105,9 @@ export default function App() {
     confirmSplitAmount,
     confirmTransfer,
     confirmDiscount,
+    confirmRefund,
+    loadPaidCheques,
+    refreshCheque,
     confirmPay,
     handleTableBlur,
     switchToCheque,
@@ -158,9 +169,41 @@ export default function App() {
 
   async function onConfirmDiscount(body) {
     const ok = await confirmDiscount(body);
-    if (ok === true) setShowDiscountModal(false);
-    else if (ok === 'pending') setShowDiscountModal(false);
+    if (ok) setShowDiscountModal(false);
   }
+
+  async function openRefundFlow() {
+    setLoadingPaid(true);
+    setShowRefundPicker(true);
+    const list = await loadPaidCheques();
+    setPaidCheques(list);
+    setLoadingPaid(false);
+  }
+
+  async function onPickRefundCheque(tab) {
+    try {
+      const detail = await callAgent(`/v1/cheques/${tab.id}`);
+      setRefundCheque(detail);
+      setShowRefundPicker(false);
+      setShowRefundModal(true);
+    } catch {
+      setError(t('pos.refundLoadFailed'));
+      setShowRefundPicker(false);
+    }
+  }
+
+  async function onConfirmRefund(body) {
+    if (!refundCheque) return;
+    const ok = await confirmRefund(refundCheque.id, body);
+    if (ok) {
+      setShowRefundModal(false);
+      setRefundCheque(null);
+    }
+  }
+
+  useManagerSocket(cheque?.id, () => {
+    refreshCheque();
+  });
 
   async function onConfirmPay(body) {
     const ok = await confirmPay(body);
@@ -216,6 +259,28 @@ export default function App() {
           t={t}
           onCancel={() => setShowDiscountModal(false)}
           onConfirm={onConfirmDiscount}
+        />
+      )}
+
+      {showRefundPicker && (
+        <PaidChequePickerModal
+          cheques={paidCheques}
+          loading={loadingPaid}
+          t={t}
+          onCancel={() => setShowRefundPicker(false)}
+          onSelect={onPickRefundCheque}
+        />
+      )}
+
+      {showRefundModal && refundCheque && (
+        <RefundModal
+          cheque={refundCheque}
+          t={t}
+          onCancel={() => {
+            setShowRefundModal(false);
+            setRefundCheque(null);
+          }}
+          onConfirm={onConfirmRefund}
         />
       )}
 
@@ -300,7 +365,9 @@ export default function App() {
           onTransfer={() => setShowTransferModal(true)}
           lineTransferEnabled={features.lineTransfer}
           discountsEnabled={features.discounts}
+          refundsEnabled={features.refunds}
           onDiscount={() => setShowDiscountModal(true)}
+          onRefund={openRefundFlow}
           onPay={() => setShowPayModal(true)}
           onChangeQty={changeQty}
         />

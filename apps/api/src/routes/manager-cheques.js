@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
-import { emitOrderVoided } from '../plugins/socket.js';
+import { emitManagerAction, emitOrderVoided } from '../plugins/socket.js';
 import {
   listOpenCheques,
   listChequesForVenue,
@@ -16,6 +16,7 @@ import {
 } from '../services/cheque-service.js';
 
 const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
+const venueManagerPreHandler = requireRoles(ROLES.VENUE_MANAGER);
 
 const managerActionSchema = z.object({
   managerPin: z.string().min(4).max(6),
@@ -68,7 +69,7 @@ export async function managerChequeRoutes(app) {
 
   app.post(
     '/api/v1/manager/cheques/:id/void',
-    { preHandler: managerPreHandler },
+    { preHandler: venueManagerPreHandler },
     async (request) => {
       const parsed = managerActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
@@ -87,13 +88,21 @@ export async function managerChequeRoutes(app) {
           });
         }
       }
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'void',
+          chequeId: request.params.id,
+          result: result.cheque,
+        });
+      }
       return result.cheque;
     },
   );
 
   app.post(
     '/api/v1/manager/cheques/:id/orders/:orderId/void',
-    { preHandler: managerPreHandler },
+    { preHandler: venueManagerPreHandler },
     async (request) => {
       const parsed = managerActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
@@ -115,13 +124,21 @@ export async function managerChequeRoutes(app) {
           voidedBy: request.user.sub,
         });
       }
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'void',
+          chequeId: request.params.id,
+          result: result.cheque,
+        });
+      }
       return result.cheque;
     },
   );
 
   app.post(
     '/api/v1/manager/cheques/:id/orders/:orderId/items/:itemId/comp',
-    { preHandler: managerPreHandler },
+    { preHandler: venueManagerPreHandler },
     async (request) => {
       const parsed = managerActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
@@ -129,13 +146,22 @@ export async function managerChequeRoutes(app) {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
 
-      return compChequeItem(
+      const cheque = await compChequeItem(
         request.params.id,
         request.params.orderId,
         request.params.itemId,
         parsed.data,
         venueId,
       );
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'comp',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
     },
   );
 

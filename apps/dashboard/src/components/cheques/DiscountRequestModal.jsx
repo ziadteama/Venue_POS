@@ -16,7 +16,7 @@ export function DiscountRequestModal({
     <RequestActionModal
       title={t('cheque.discountTitle', { number: chequeNumber })}
       reasonLabel={t('cheque.discountReason')}
-      confirmLabel={t('cheque.requestDiscount')}
+      confirmLabel={t('cheque.applyDiscount')}
       confirmClass="bg-amber-600 hover:bg-amber-700"
       t={t}
       onCancel={onCancel}

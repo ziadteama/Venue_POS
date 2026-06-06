@@ -14,6 +14,7 @@ const CASHIER_ID = '00000000-0000-4000-8000-000000000094';
 
 let app;
 let managerToken;
+let venueManagerToken;
 let templateId;
 let categoryId;
 let menuItemId;
@@ -88,10 +89,12 @@ before(async () => {
   });
 
   const venueManagerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
+  const venuePasswordHash = await bcrypt.hash('venue123', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'phase1venue' },
     update: {
       pinHash: venueManagerPinHash,
+      passwordHash: venuePasswordHash,
       role: 'venue_manager',
       venueId: VENUE_ID,
       isActive: true,
@@ -99,6 +102,7 @@ before(async () => {
     create: {
       username: 'phase1venue',
       pinHash: venueManagerPinHash,
+      passwordHash: venuePasswordHash,
       role: 'venue_manager',
       venueId: VENUE_ID,
     },
@@ -121,6 +125,13 @@ before(async () => {
     payload: { username: 'phase1admin', password: 'phase1admin' },
   });
   managerToken = login.json().accessToken;
+
+  const venueLogin = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'phase1venue', password: 'venue123' },
+  });
+  venueManagerToken = venueLogin.json().accessToken;
 });
 
 after(async () => {
@@ -554,8 +565,8 @@ test('manager can void a kitchen round on open cheque', async () => {
   const voidRes = await app.inject({
     method: 'POST',
     url: `/api/v1/manager/cheques/${chequeId}/orders/${sentOrderId}/void`,
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: { managerPin: '8888', reason: 'Wrong table' },
+    headers: { authorization: `Bearer ${venueManagerToken}` },
+    payload: { managerPin: '7777', reason: 'Wrong table' },
   });
   assert.equal(voidRes.statusCode, 200);
   const voided = voidRes.json().orders.find((o) => o.id === sentOrderId);
@@ -620,8 +631,8 @@ test('manager can comp a line item on open cheque', async () => {
   const compRes = await app.inject({
     method: 'POST',
     url: `/api/v1/manager/cheques/${chequeId}/orders/${sentOrder.id}/items/${itemId}/comp`,
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: { managerPin: '8888', reason: 'Guest complaint' },
+    headers: { authorization: `Bearer ${venueManagerToken}` },
+    payload: { managerPin: '7777', reason: 'Guest complaint' },
   });
   assert.equal(compRes.statusCode, 200);
   assert.equal(compRes.json().total, 0);
@@ -707,8 +718,8 @@ test('manager can void entire open cheque', async () => {
   const voidRes = await app.inject({
     method: 'POST',
     url: `/api/v1/manager/cheques/${chequeId}/void`,
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: { managerPin: '8888', reason: 'Guest left' },
+    headers: { authorization: `Bearer ${venueManagerToken}` },
+    payload: { managerPin: '7777', reason: 'Guest left' },
   });
   assert.equal(voidRes.statusCode, 200);
   assert.equal(voidRes.json().status, 'voided');
@@ -1147,7 +1158,7 @@ test('transfer fired line to another table', async () => {
       cashierId: CASHIER_ID,
       itemIds: [itemId],
       targetTableLabel: tableB,
-      managerPin: '8888',
+      managerPin: '7777',
       reason: 'Wrong table',
     },
   });
@@ -1267,9 +1278,9 @@ test('cheque discount reduces total before pay', async () => {
   const beforeTotal = fireRes.json().cheque.total;
   assert.ok(beforeTotal > 10);
 
-  const requestRes = await app.inject({
+  const discountRes = await app.inject({
     method: 'POST',
-    url: `/api/v1/cheques/${chequeId}/discount/request`,
+    url: `/api/v1/cheques/${chequeId}/discount`,
     headers: terminalHeaders,
     payload: {
       cashierId: CASHIER_ID,
@@ -1278,24 +1289,9 @@ test('cheque discount reduces total before pay', async () => {
       restaurantManagerPin: '7777',
     },
   });
-  assert.equal(requestRes.statusCode, 200);
-  assert.equal(requestRes.json().status, 'pending');
-
-  const approveRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/manager/approval-requests/${requestRes.json().id}/approve?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: {},
-  });
-  assert.equal(approveRes.statusCode, 200);
-
-  const discounted = await app.inject({
-    method: 'GET',
-    url: `/api/v1/cheques/${chequeId}`,
-    headers: terminalHeaders,
-  });
-  assert.equal(discounted.json().discountAmount, 10);
-  assert.equal(discounted.json().total, beforeTotal - 10);
+  assert.equal(discountRes.statusCode, 200);
+  assert.equal(discountRes.json().discountAmount, 10);
+  assert.equal(discountRes.json().total, beforeTotal - 10);
 
   const payRes = await app.inject({
     method: 'POST',
@@ -1308,7 +1304,7 @@ test('cheque discount reduces total before pay', async () => {
   assert.equal(payRes.json().cheque.payments[0].amount, beforeTotal - 10);
 });
 
-test('paid cheque refund: venue manager requests, hub manager approves', async () => {
+test('paid cheque refund: venue manager applies directly', async () => {
   await ensureOpenShift();
   const tableLabel = `RF-${Date.now()}`;
 
@@ -1362,9 +1358,9 @@ test('paid cheque refund: venue manager requests, hub manager approves', async (
   });
   const paidTotal = payRes.json().cheque.payments[0].amount;
 
-  const requestRes = await app.inject({
+  const refundRes = await app.inject({
     method: 'POST',
-    url: `/api/v1/cheques/${chequeId}/refund/request`,
+    url: `/api/v1/cheques/${chequeId}/refund`,
     headers: terminalHeaders,
     payload: {
       cashierId: CASHIER_ID,
@@ -1374,19 +1370,10 @@ test('paid cheque refund: venue manager requests, hub manager approves', async (
       restaurantManagerPin: '7777',
     },
   });
-  assert.equal(requestRes.statusCode, 200);
-  assert.equal(requestRes.json().status, 'pending');
-
-  const approveRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/manager/approval-requests/${requestRes.json().id}/approve?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: {},
-  });
-  assert.equal(approveRes.statusCode, 200);
-  assert.ok(approveRes.json().result.receipt.includes('REFUND'));
-  assert.equal(approveRes.json().result.refund.amount, 20);
-  assert.equal(approveRes.json().result.cheque.refunds.length, 1);
+  assert.equal(refundRes.statusCode, 200);
+  assert.ok(refundRes.json().receipt.includes('REFUND'));
+  assert.equal(refundRes.json().refund.amount, 20);
+  assert.equal(refundRes.json().cheque.refunds.length, 1);
   assert.ok(paidTotal >= 20);
 
   const audits = await app.inject({

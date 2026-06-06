@@ -14,18 +14,22 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 | Auto receipt print | `FEATURE_AUTO_RECEIPT_PRINT` | ON | ✅ Shipped |
 | Integrated PDQ (US-5.2) | `FEATURE_INTEGRATED_CARD_PAYMENT` | OFF | **Future** |
 
-## Manager approval queue (shipped)
+## Manager authority (shipped)
 
-Discounts and refunds use **request → approve**, not dual PIN on one screen:
+**Venue manager** (`venue_manager`) executes all sensitive cheque actions directly (POS PIN or dashboard JWT):
 
-1. **Restaurant manager** (`venue_manager`) submits from POS (PIN) or dashboard (JWT).
-2. Request sits in `ManagerApprovalRequest` (`pending`).
-3. **General manager** (`hub_manager`) approves/rejects on dashboard **Approvals** (`/approvals`).
-4. POS polls cheque until discount applied or request rejected.
+- Discount, refund, void, comp, line transfer
 
-Audit: `ChequeDiscountAudit`, `Refund`, `GET /api/v1/manager/approval-requests`.
+**General manager** (`hub_manager`) has **read-only review** on dashboard **Activity log** (`/activity`):
 
-**Still instant (single manager PIN):** void, comp, line transfer, manual-card threshold, shift over/short.
+- Unified feed: discounts, refunds, voids, comps, transfers
+- `GET /api/v1/manager/activity`
+
+POS receives live updates via Socket.IO `manager:action` (no approval polling).
+
+Paid-cheque corrections: comp/void round on paid cheques auto-create partial refunds + audit.
+
+**Still hub/venue PIN (policy):** manual-card threshold, shift over/short.
 
 ## Phase 3 remaining (not yet built)
 

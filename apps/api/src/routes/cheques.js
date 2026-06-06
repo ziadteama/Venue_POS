@@ -13,11 +13,10 @@ import {
   splitChequeByItems,
   splitChequeByAmount,
   transferChequeItems,
-  requestChequeDiscount,
-  requestChequeRefund,
-  getPendingRequestsForCheque,
+  listChequesForVenue,
 } from '../services/cheque-service.js';
-import { emitApprovalRequested } from '../plugins/socket.js';
+import { applyChequeDiscount, applyChequeRefund } from '../services/manager-action-service.js';
+import { emitManagerAction } from '../plugins/socket.js';
 
 const splitAmountSchema = z.object({
   splits: z
@@ -75,7 +74,7 @@ const payChequeSchema = z.object({
   managerPin: z.string().min(4).max(6).optional(),
 });
 
-const discountRequestSchema = z.object({
+const discountSchema = z.object({
   cashierId: z.string().uuid(),
   restaurantManagerPin: z.string().min(4).max(6),
   reason: z.string().min(1).max(500),
@@ -83,7 +82,7 @@ const discountRequestSchema = z.object({
   percent: z.number().positive().max(100).optional(),
 });
 
-const refundRequestSchema = z.object({
+const refundSchema = z.object({
   cashierId: z.string().uuid(),
   restaurantManagerPin: z.string().min(4).max(6),
   reason: z.string().min(1).max(500),
@@ -94,6 +93,11 @@ const refundRequestSchema = z.object({
 export async function chequeRoutes(app) {
   app.get('/api/v1/cheques/open', { preHandler: authenticateTerminal }, async (request) => {
     return listOpenCheques(request.terminal.venueId);
+  });
+
+  app.get('/api/v1/cheques/paid', { preHandler: authenticateTerminal }, async (request) => {
+    const limit = Number(request.query?.limit ?? 30);
+    return listChequesForVenue(request.terminal.venueId, { status: 'paid', limit });
   });
 
   app.get('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
@@ -188,63 +192,72 @@ export async function chequeRoutes(app) {
         throw validationError('targetChequeId or targetTableLabel required');
       }
 
-      return transferChequeItems(
+      const venueId = request.terminal.venueId;
+      const result = await transferChequeItems(
         request.params.id,
         parsed.data,
-        request.terminal.venueId,
+        venueId,
         request.terminal.id,
       );
-    },
-  );
-
-  app.get(
-    '/api/v1/cheques/:id/approval-requests',
-    { preHandler: authenticateTerminal },
-    async (request) => {
-      return getPendingRequestsForCheque(request.params.id, request.terminal.venueId);
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          type: 'transfer',
+          chequeId: request.params.id,
+          result,
+        });
+      }
+      return result;
     },
   );
 
   app.post(
-    '/api/v1/cheques/:id/discount/request',
+    '/api/v1/cheques/:id/discount',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const parsed = discountRequestSchema.safeParse(request.body);
+      const parsed = discountSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
       if (!parsed.data.amount && !parsed.data.percent) {
         throw validationError('amount or percent required');
       }
 
-      const created = await requestChequeDiscount(
-        request.params.id,
-        parsed.data,
-        request.terminal.venueId,
-        { terminalId: request.terminal.id },
-      );
+      const venueId = request.terminal.venueId;
+      const cheque = await applyChequeDiscount(request.params.id, parsed.data, venueId);
       if (request.server.io) {
-        emitApprovalRequested(request.server.io, created);
+        emitManagerAction(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          type: 'discount',
+          chequeId: request.params.id,
+          result: cheque,
+        });
       }
-      return created;
+      return cheque;
     },
   );
 
   app.post(
-    '/api/v1/cheques/:id/refund/request',
+    '/api/v1/cheques/:id/refund',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const parsed = refundRequestSchema.safeParse(request.body);
+      const parsed = refundSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
-      const created = await requestChequeRefund(
-        request.params.id,
-        parsed.data,
-        request.terminal.venueId,
-        { terminalId: request.terminal.id },
-      );
+      const venueId = request.terminal.venueId;
+      const result = await applyChequeRefund(request.params.id, parsed.data, venueId, {
+        terminalId: request.terminal.id,
+      });
       if (request.server.io) {
-        emitApprovalRequested(request.server.io, created);
+        emitManagerAction(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          type: 'refund',
+          chequeId: request.params.id,
+          result,
+        });
       }
-      return created;
+      return result;
     },
   );
 }

@@ -14,11 +14,9 @@ export { voidChequeRound, voidOpenCheque, compChequeItem } from './cheque-manage
 export { executeChequeDiscount, listDiscountAudits } from './cheque-discount.js';
 export { executeRefund, listRefundAudits } from './cheque-refund.js';
 export {
-  requestChequeDiscount,
-  requestChequeRefund,
-  listApprovalRequests,
-  getPendingRequestsForCheque,
-  approveRequest,
-  rejectRequest,
-  countPendingApprovals,
-} from './manager-approval-service.js';
+  applyChequeDiscount,
+  applyChequeRefund,
+  listManagerActivity,
+  listCompAudits,
+  listVoidAudits,
+} from './manager-action-service.js';

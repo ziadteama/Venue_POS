@@ -68,9 +68,9 @@ npm run lint && npm run lint:i18n
 
 | Action | Who initiates | Who approves | Where |
 |--------|---------------|--------------|-------|
-| Discount | `venue_manager` (POS PIN or dashboard) | `hub_manager` | Dashboard **Approvals** |
-| Refund | `venue_manager` (dashboard; POS TBD) | `hub_manager` | Dashboard **Approvals** |
-| Void / comp / line transfer | Either manager | Same step (one PIN) | POS or dashboard |
+| Discount / refund | `venue_manager` (POS PIN or dashboard JWT) | — (logged for review) | POS or dashboard |
+| Void / comp / line transfer | `venue_manager` (PIN) | — (logged for review) | POS or dashboard |
+| GM review | `hub_manager` | Read-only | Dashboard **Activity log** |
 | Shift over/short | Cashier | Either manager PIN | POS close shift |
 
 ## Prompt tip (save tokens)
