@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
 import { DEMO_CASHIER_ID } from '../constants.js';
 
-export function useChequeSession({ menu, loading }) {
+export function useChequeSession({ menu, loading, shiftReady }) {
   const { t } = useTranslation();
   const [cheque, setCheque] = useState(null);
   const order = cheque?.draftOrder ?? null;
@@ -83,8 +83,8 @@ export function useChequeSession({ menu, loading }) {
   );
 
   useEffect(() => {
-    if (!loading && menu && !cheque) openCheque();
-  }, [loading, menu, cheque, openCheque]);
+    if (!loading && menu && shiftReady && !cheque) openCheque();
+  }, [loading, menu, shiftReady, cheque, openCheque]);
 
   useEffect(() => {
     if (!loading && menu) refreshOpenCheques();

@@ -1,0 +1,181 @@
+import { prisma } from '../db/prisma.js';
+import { validationError } from '../utils/errors.js';
+import { verifyManagerPin } from './auth-service.js';
+
+export const OVER_SHORT_THRESHOLD = 50;
+
+function serializeShift(shift) {
+  return {
+    id: shift.id,
+    venueId: shift.venueId,
+    terminalId: shift.terminalId,
+    cashierId: shift.cashierId,
+    status: shift.status,
+    openFloat: Number(shift.openFloat),
+    closeFloat: shift.closeFloat != null ? Number(shift.closeFloat) : null,
+    expectedCash: shift.expectedCash != null ? Number(shift.expectedCash) : null,
+    overShortAmount: shift.overShortAmount != null ? Number(shift.overShortAmount) : null,
+    openedAt: shift.openedAt.toISOString(),
+    closedAt: shift.closedAt?.toISOString() ?? null,
+  };
+}
+
+function paymentTotals(payments) {
+  const byMethod = { cash: 0, card: 0, voucher: 0 };
+  let total = 0;
+  for (const p of payments) {
+    const amt = Number(p.amount);
+    total += amt;
+    byMethod[p.method] = (byMethod[p.method] ?? 0) + amt;
+  }
+  return { total, byMethod, count: payments.length };
+}
+
+export function buildShiftReport(shift, payments) {
+  const { total, byMethod, count } = paymentTotals(payments);
+  const openFloat = Number(shift.openFloat);
+  const cashIn = byMethod.cash ?? 0;
+  const expectedCash = Number((openFloat + cashIn).toFixed(2));
+
+  return {
+    shift: serializeShift(shift),
+    paymentCount: count,
+    totalRevenue: Number(total.toFixed(2)),
+    paymentsByMethod: {
+      cash: Number((byMethod.cash ?? 0).toFixed(2)),
+      card: Number((byMethod.card ?? 0).toFixed(2)),
+      voucher: Number((byMethod.voucher ?? 0).toFixed(2)),
+    },
+    expectedCash,
+  };
+}
+
+export async function getActiveShift(cashierId, terminalId, venueId) {
+  const shift = await prisma.shift.findFirst({
+    where: {
+      cashierId,
+      terminalId,
+      venueId,
+      status: 'open',
+    },
+    include: { payments: true },
+  });
+  if (!shift) return null;
+  return { ...serializeShift(shift), report: buildShiftReport(shift, shift.payments) };
+}
+
+export async function requireActiveShift(cashierId, terminalId, venueId) {
+  const shift = await prisma.shift.findFirst({
+    where: { cashierId, terminalId, venueId, status: 'open' },
+  });
+  if (!shift) {
+    throw validationError('Open a shift before taking payments');
+  }
+  return shift;
+}
+
+export async function openShift({ cashierId, terminalId, venueId, openFloat }) {
+  const float = Number(openFloat);
+  if (!Number.isFinite(float) || float < 0) {
+    throw validationError('Opening float must be zero or greater');
+  }
+
+  const cashier = await prisma.user.findUnique({ where: { id: cashierId } });
+  if (!cashier?.isActive || cashier.role !== 'cashier') {
+    throw validationError('Invalid cashier');
+  }
+  if (cashier.venueId !== venueId) {
+    throw validationError('Cashier does not belong to this venue');
+  }
+
+  const existing = await prisma.shift.findFirst({
+    where: { cashierId, status: 'open' },
+  });
+  if (existing) {
+    throw validationError('Cashier already has an open shift');
+  }
+
+  const shift = await prisma.$transaction(async (tx) => {
+    const created = await tx.shift.create({
+      data: {
+        venueId,
+        terminalId,
+        cashierId,
+        openFloat: float,
+      },
+    });
+    await tx.shiftEvent.create({
+      data: {
+        shiftId: created.id,
+        action: 'open',
+        userId: cashierId,
+        details: { openFloat: float, terminalId },
+      },
+    });
+    return created;
+  });
+
+  return serializeShift(shift);
+}
+
+export async function closeShift(
+  { cashierId, terminalId, venueId, closeFloat, managerPin },
+  { overShortThreshold = OVER_SHORT_THRESHOLD } = {},
+) {
+  const counted = Number(closeFloat);
+  if (!Number.isFinite(counted) || counted < 0) {
+    throw validationError('Close float must be zero or greater');
+  }
+
+  const shift = await prisma.shift.findFirst({
+    where: { cashierId, terminalId, venueId, status: 'open' },
+    include: { payments: true },
+  });
+  if (!shift) throw validationError('No open shift for this cashier');
+
+  const report = buildShiftReport(shift, shift.payments);
+  const overShort = Number((counted - report.expectedCash).toFixed(2));
+
+  if (Math.abs(overShort) > overShortThreshold) {
+    if (!managerPin) {
+      throw validationError('Manager approval required for over/short above threshold');
+    }
+    await verifyManagerPin(venueId, managerPin);
+  }
+
+  const closed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.shift.update({
+      where: { id: shift.id },
+      data: {
+        status: 'closed',
+        closeFloat: counted,
+        expectedCash: report.expectedCash,
+        overShortAmount: overShort,
+        closedAt: new Date(),
+      },
+    });
+    await tx.shiftEvent.create({
+      data: {
+        shiftId: shift.id,
+        action: 'close',
+        userId: cashierId,
+        details: {
+          closeFloat: counted,
+          expectedCash: report.expectedCash,
+          overShortAmount: overShort,
+          report,
+        },
+      },
+    });
+    return updated;
+  });
+
+  return {
+    shift: serializeShift(closed),
+    report: {
+      ...report,
+      closeFloat: counted,
+      overShortAmount: overShort,
+    },
+  };
+}

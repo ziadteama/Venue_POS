@@ -1,6 +1,15 @@
 import { LanguageToggle } from './LanguageToggle.jsx';
 
-export function PosHeader({ t, search, onSearchChange, tableLabel, onTableLabelChange, onTableBlur }) {
+export function PosHeader({
+  t,
+  search,
+  onSearchChange,
+  tableLabel,
+  onTableLabelChange,
+  onTableBlur,
+  shift,
+  onCloseShift,
+}) {
   return (
     <header className="flex shrink-0 items-center gap-4 bg-primary-gradient px-5 py-3 text-white shadow-md">
       <div className="flex items-center gap-3">
@@ -30,6 +39,16 @@ export function PosHeader({ t, search, onSearchChange, tableLabel, onTableLabelC
             className="w-16 rounded border border-white/30 bg-white/15 px-2 py-1 text-center text-sm"
           />
         </label>
+        {shift && (
+          <button
+            type="button"
+            onClick={onCloseShift}
+            className="rounded-full bg-white/15 px-3 py-1 text-xs font-medium ring-1 ring-white/25 hover:bg-white/25"
+            title={t('pos.shiftCloseTitle')}
+          >
+            {t('pos.shiftActive', { float: Number(shift.openFloat).toFixed(0) })}
+          </button>
+        )}
         <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-medium ring-1 ring-white/25">
           {t('pos.dineIn')}
         </span>

@@ -66,7 +66,7 @@ export function registerChequeRoutes(
   });
 
   app.post('/v1/cheques/:id/pay', async (request, reply) => {
-    const { cashierId, payments, method, amount, tendered } = request.body ?? {};
+    const { cashierId, payments, method, amount, tendered, managerPin } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
     const result = await apiFetch(
       apiUrl,
@@ -75,7 +75,7 @@ export function registerChequeRoutes(
       `/api/v1/cheques/${request.params.id}/pay`,
       {
         method: 'POST',
-        body: JSON.stringify({ cashierId, payments, method, amount, tendered }),
+        body: JSON.stringify({ cashierId, payments, method, amount, tendered, managerPin }),
       },
     );
     if (result.receipt) {

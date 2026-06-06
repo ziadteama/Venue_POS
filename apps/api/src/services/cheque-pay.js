@@ -1,5 +1,7 @@
 import { prisma } from '../db/prisma.js';
+import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
+import { assertManualCardPaymentsAllowed } from './payment-policy.js';
 import { buildChequeReceiptText } from '../utils/serialize.js';
 import {
   BILLABLE_ORDER_STATUSES,
@@ -13,6 +15,7 @@ import {
   serializeCheque,
 } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
+import { requireActiveShift } from './shift-service.js';
 
 function normalizePayments({ payments, method, amount }, total) {
   let lines = payments;
@@ -25,7 +28,11 @@ function normalizePayments({ payments, method, amount }, total) {
     throw validationError('Payment total must match cheque total');
   }
 
-  return lines.map((p) => ({ method: p.method, amount: Number(p.amount) }));
+  return lines.map((p) => ({
+    method: p.method,
+    amount: Number(p.amount),
+    cardLast4: p.cardLast4?.trim() || null,
+  }));
 }
 
 async function maybeFinalizeSplitParent(tx, parentChequeId) {
@@ -89,7 +96,7 @@ export async function getChequeReceipt(chequeId, venueId, { tendered, change } =
 
 export async function payCheque(
   chequeId,
-  { cashierId, payments, method, amount, tendered },
+  { cashierId, payments, method, amount, tendered, terminalId, managerPin },
   venueId,
 ) {
   const cheque = await loadCheque(chequeId);
@@ -112,6 +119,22 @@ export async function payCheque(
 
   const paymentLines = normalizePayments({ payments, method, amount }, total);
 
+  for (const line of paymentLines) {
+    if (line.cardLast4 && !/^\d{4}$/.test(line.cardLast4)) {
+      throw validationError('Card last-4 must be exactly 4 digits');
+    }
+    if (line.cardLast4 && line.method !== 'card') {
+      throw validationError('Card last-4 is only valid for card payments');
+    }
+  }
+
+  await assertManualCardPaymentsAllowed(paymentLines, {
+    manualCardEnabled: config.featureManualCardEnabled,
+    approvalThreshold: config.manualCardApprovalThreshold,
+    managerPin,
+    venueId,
+  });
+
   const cashTotal = paymentLines
     .filter((p) => p.method === 'cash')
     .reduce((s, p) => s + p.amount, 0);
@@ -124,14 +147,20 @@ export async function payCheque(
   const itemIds = itemsToPay.map((i) => i.id);
   const parentChequeId = cheque.parentChequeId ?? null;
 
+  const activeShift = terminalId
+    ? await requireActiveShift(cashierId, terminalId, venueId)
+    : null;
+
   await prisma.$transaction(async (tx) => {
     for (const line of paymentLines) {
       await tx.payment.create({
         data: {
           chequeId,
           cashierId,
+          shiftId: activeShift?.id ?? null,
           method: line.method,
           amount: line.amount,
+          cardLast4: line.method === 'card' ? line.cardLast4 : null,
         },
       });
     }

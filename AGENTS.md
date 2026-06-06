@@ -62,3 +62,9 @@ npm run lint && npm run lint:i18n
 ## Status
 
 **Phase 3 in progress** (`phase-3` branch) — open cheques + payments. Branched from `phase-2`. See `docs/TEAM_LOG.md`.
+
+## Prompt tip (save tokens)
+
+When continuing phase work, point the agent at **`AGENTS.md`** + **`docs/TEAM_LOG.md`** (Phase 3 section) first — not the whole repo. Use `docs/PRD.md` only for a specific user story’s acceptance criteria.
+
+Example prefix: *Read `AGENTS.md` and `docs/TEAM_LOG.md` (Phase 3). Continue from the latest slice; don’t re-explore completed work.*

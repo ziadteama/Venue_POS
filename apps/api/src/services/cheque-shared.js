@@ -155,6 +155,7 @@ export function serializeCheque(cheque) {
         id: p.id,
         method: p.method,
         amount: Number(p.amount),
+        cardLast4: p.cardLast4 ?? null,
         processedAt: p.processedAt,
         cashierId: p.cashierId,
       })) ?? [],

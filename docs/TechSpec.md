@@ -79,6 +79,8 @@ LOG_FILE_PATH=/var/log/hub-pos/app.log
 
 # Feature Flags (Server-side defaults)
 FEATURE_INTEGRATED_CARD_PAYMENT=false
+FEATURE_MANUAL_CARD_PAYMENT=false   # provider onboarding — external PDQ + manual record in POS (US-5.3)
+MANUAL_CARD_APPROVAL_THRESHOLD=500
 FEATURE_RESERVATION_MODULE=false
 FEATURE_LOYALTY_PROGRAM=false
 FEATURE_INVENTORY_MANAGEMENT=true

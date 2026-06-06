@@ -8,7 +8,11 @@ import { PayModal } from './components/PayModal.jsx';
 import { PosHeader } from './components/PosHeader.jsx';
 import { ReceiptPanel } from './components/ReceiptPanel.jsx';
 import { SplitBillModal } from './components/SplitBillModal.jsx';
+import { ShiftCloseModal } from './components/ShiftCloseModal.jsx';
+import { ShiftOpenModal } from './components/ShiftOpenModal.jsx';
 import { useChequeSession } from './hooks/useChequeSession.js';
+import { useShiftSession } from './hooks/useShiftSession.js';
+import { useFeatures } from './hooks/useFeatures.js';
 import { useKitchenSocket } from './hooks/useKitchenSocket.js';
 import { usePrinterHealth } from './hooks/usePrinterHealth.js';
 
@@ -23,6 +27,7 @@ export default function App() {
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
+  const { features } = useFeatures();
   const printerOk = usePrinterHealth();
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket();
 
@@ -51,7 +56,23 @@ export default function App() {
     return () => clearInterval(tick);
   }, []);
 
-  const session = useChequeSession({ menu, loading });
+  const shiftSession = useShiftSession();
+  const {
+    shift,
+    shiftReady,
+    needsOpen,
+    opening,
+    closing,
+    showCloseModal,
+    setShowCloseModal,
+    openShift,
+    closeShift,
+    refreshShift,
+    error: shiftError,
+    setError: setShiftError,
+  } = shiftSession;
+
+  const session = useChequeSession({ menu, loading, shiftReady });
   const {
     cheque,
     order,
@@ -121,6 +142,7 @@ export default function App() {
     if (ok) {
       setShowPayModal(false);
       setKitchenWatch(null);
+      await refreshShift();
     }
   }
 
@@ -130,7 +152,7 @@ export default function App() {
   });
 
   const menuError = !loading && !menu?.categories?.length ? t('pos.menuLoadFailed') : '';
-  const bannerError = error || menuError;
+  const bannerError = error || shiftError || menuError;
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
@@ -148,8 +170,31 @@ export default function App() {
         <PayModal
           cheque={cheque}
           t={t}
+          manualCardEnabled={features.manualCardPayment}
+          manualCardThreshold={features.manualCardApprovalThreshold}
           onCancel={() => setShowPayModal(false)}
           onConfirm={onConfirmPay}
+        />
+      )}
+
+      {needsOpen && (
+        <ShiftOpenModal
+          t={t}
+          opening={opening}
+          onConfirm={(float) => {
+            setShiftError('');
+            openShift(float);
+          }}
+        />
+      )}
+
+      {showCloseModal && shift && (
+        <ShiftCloseModal
+          shift={shift}
+          t={t}
+          closing={closing}
+          onCancel={() => setShowCloseModal(false)}
+          onConfirm={closeShift}
         />
       )}
 
@@ -173,6 +218,8 @@ export default function App() {
         tableLabel={tableLabel}
         onTableLabelChange={setTableLabel}
         onTableBlur={handleTableBlur}
+        shift={shift}
+        onCloseShift={() => setShowCloseModal(true)}
       />
 
       {bannerError && (

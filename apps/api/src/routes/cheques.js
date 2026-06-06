@@ -33,6 +33,10 @@ const openChequeSchema = z.object({
 const paymentLineSchema = z.object({
   method: z.enum(['cash', 'card', 'voucher']),
   amount: z.number().positive(),
+  cardLast4: z
+    .string()
+    .regex(/^\d{4}$/)
+    .optional(),
 });
 
 const payChequeSchema = z.object({
@@ -41,6 +45,7 @@ const payChequeSchema = z.object({
   method: z.enum(['cash', 'card', 'voucher']).optional(),
   amount: z.number().positive().optional(),
   tendered: z.number().positive().optional(),
+  managerPin: z.string().min(4).max(6).optional(),
 });
 
 export async function chequeRoutes(app) {
@@ -99,7 +104,11 @@ export async function chequeRoutes(app) {
       const parsed = payChequeSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
-      return payCheque(request.params.id, parsed.data, request.terminal.venueId);
+      return payCheque(
+        request.params.id,
+        { ...parsed.data, terminalId: request.terminal.id },
+        request.terminal.venueId,
+      );
     },
   );
 

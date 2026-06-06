@@ -178,7 +178,8 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
   if (cheque.payments?.length) {
     lines.push('Payments:');
     for (const p of cheque.payments) {
-      lines.push(`  ${p.method}: ${Number(p.amount).toFixed(2)}`);
+      const cardNote = p.cardLast4 ? ` ****${p.cardLast4}` : '';
+      lines.push(`  ${p.method}${cardNote}: ${Number(p.amount).toFixed(2)}`);
     }
   }
 
