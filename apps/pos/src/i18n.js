@@ -4,6 +4,7 @@ import { resources, getDirection } from '@venue-pos/i18n';
 
 const saved = localStorage.getItem('locale') ?? 'en';
 i18n.use(initReactI18next).init({ resources, lng: saved, fallbackLng: 'en' });
+document.documentElement.lang = saved;
 document.documentElement.dir = getDirection(saved);
 
 i18n.on('languageChanged', (lng) => {

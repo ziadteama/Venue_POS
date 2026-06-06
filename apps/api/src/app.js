@@ -14,6 +14,9 @@ export async function buildApp() {
     genReqId: () => crypto.randomUUID(),
   });
 
+  // Decorate on root so encapsulated route plugins can access request.server.io
+  app.decorate('io', null);
+
   await app.register(cors, {
     origin: config.corsOrigins,
     credentials: true,

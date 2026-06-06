@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { apiFetch } from './services/api-fetch.js';
 import { getCachedMenu, syncMenuFromServer } from './services/menu-sync.js';
-import { processSyncQueue } from './services/sync-processor.js';
+import { enqueueSync, processSyncQueue } from './services/sync-processor.js';
 import {
   createLocalOrder,
   addLocalOrderItem,
@@ -69,6 +69,13 @@ export async function buildAgentServer({ db, config }) {
       });
       return { ...getLocalOrder(db, order.id), serverOrderNumber: serverOrder.orderNumber };
     } catch (err) {
+      enqueueSync(db, 'order.create', {
+        orderId: order.id,
+        venueId,
+        cashierId,
+        terminalId,
+        tableLabel,
+      });
       app.log.warn({ err }, 'Order created locally; server sync deferred');
       return order;
     }
@@ -96,6 +103,12 @@ export async function buildAgentServer({ db, config }) {
         body: JSON.stringify({ menuItemId, quantity, modifiers }),
       });
     } catch (err) {
+      enqueueSync(db, 'order.add_item', {
+        orderId: request.params.id,
+        menuItemId,
+        quantity,
+        modifiers,
+      });
       app.log.warn({ err }, 'Item stored locally; server sync deferred');
     }
 
@@ -116,6 +129,11 @@ export async function buildAgentServer({ db, config }) {
         body: { itemId: request.params.itemId, quantity },
       });
     } catch (err) {
+      enqueueSync(db, 'order.patch_item', {
+        orderId: request.params.id,
+        itemId: request.params.itemId,
+        quantity,
+      });
       app.log.warn({ err }, 'Qty update deferred to sync queue');
     }
     return order;
@@ -138,6 +156,7 @@ export async function buildAgentServer({ db, config }) {
       });
       return { ...getLocalOrder(db, request.params.id), server };
     } catch (err) {
+      enqueueSync(db, 'order.send', { orderId: request.params.id });
       app.log.warn({ err }, 'Send queued for sync replay');
       return local;
     }

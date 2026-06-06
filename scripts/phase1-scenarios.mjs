@@ -153,75 +153,81 @@ async function run() {
     } else fail('POS new order', JSON.stringify(body));
   }
 
-  // Scenario 7: Add item with modifier
   let itemId;
-  {
-    const modifiers = [
-      {
-        groupId: cappuccino.modifierGroups[0].id,
-        optionId: sizeOption.id,
-        nameEn: sizeOption.nameEn,
-        nameAr: sizeOption.nameAr,
-        priceDelta: Number(sizeOption.priceDelta),
-      },
-    ];
-    const unitPrice = Number(cappuccino.price);
-    const expected = unitPrice + Number(sizeOption.priceDelta);
-    const { res, body } = await agent(`/v1/orders/${orderId}/items`, {
-      method: 'POST',
-      body: JSON.stringify({
-        menuItemId: cappuccino.id,
-        quantity: 1,
-        nameEn: cappuccino.nameEn,
-        nameAr: cappuccino.nameAr,
-        unitPrice,
-        modifiers,
-      }),
-    });
-    if (res.ok && body.items?.length === 1) {
-      itemId = body.items[0].id;
-      if (Math.abs(body.subtotal - expected) < 0.01) {
-        ok('POS: add Cappuccino Large with correct subtotal');
-      } else {
-        fail('POS subtotal', `expected ${expected}, got ${body.subtotal}`);
-      }
-    } else fail('POS add item', JSON.stringify(body));
-  }
+  if (!cappuccino || !sizeOption || !orderId) {
+    fail('POS order flow', 'skipped — missing menu fixture or draft order from prior scenarios');
+  } else {
+    // Scenario 7: Add item with modifier
+    {
+      const modifiers = [
+        {
+          groupId: cappuccino.modifierGroups[0].id,
+          optionId: sizeOption.id,
+          nameEn: sizeOption.nameEn,
+          nameAr: sizeOption.nameAr,
+          priceDelta: Number(sizeOption.priceDelta),
+        },
+      ];
+      const unitPrice = Number(cappuccino.price);
+      const expected = unitPrice + Number(sizeOption.priceDelta);
+      const { res, body } = await agent(`/v1/orders/${orderId}/items`, {
+        method: 'POST',
+        body: JSON.stringify({
+          menuItemId: cappuccino.id,
+          quantity: 1,
+          nameEn: cappuccino.nameEn,
+          nameAr: cappuccino.nameAr,
+          unitPrice,
+          modifiers,
+        }),
+      });
+      if (res.ok && body.items?.length === 1) {
+        itemId = body.items[0].id;
+        if (Math.abs(body.subtotal - expected) < 0.01) {
+          ok('POS: add Cappuccino Large with correct subtotal');
+        } else {
+          fail('POS subtotal', `expected ${expected}, got ${body.subtotal}`);
+        }
+      } else fail('POS add item', JSON.stringify(body));
+    }
 
-  // Scenario 8: Qty update
-  {
-    const { res, body } = await agent(`/v1/orders/${orderId}/items/${itemId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ quantity: 2 }),
-    });
-    if (res.ok && body.items[0].quantity === 2) ok('POS: quantity increased to 2');
-    else fail('POS qty update', JSON.stringify(body));
-  }
+    // Scenario 8: Qty update
+    if (itemId) {
+      const { res, body } = await agent(`/v1/orders/${orderId}/items/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity: 2 }),
+      });
+      if (res.ok && body.items[0].quantity === 2) ok('POS: quantity increased to 2');
+      else fail('POS qty update', JSON.stringify(body));
+    } else {
+      fail('POS qty update', 'skipped — no line item from scenario 7');
+    }
 
-  // Scenario 9: Send to kitchen
-  {
-    const { res, body } = await agent(`/v1/orders/${orderId}/send`, { method: 'POST', body: '{}' });
-    if (res.ok && (body.status === 'sent' || body.server?.status === 'sent')) {
-      ok('POS: send to kitchen locks order');
-    } else fail('POS send kitchen', JSON.stringify(body));
-  }
+    // Scenario 9: Send to kitchen
+    {
+      const { res, body } = await agent(`/v1/orders/${orderId}/send`, { method: 'POST', body: '{}' });
+      if (res.ok && (body.status === 'sent' || body.server?.status === 'sent')) {
+        ok('POS: send to kitchen locks order');
+      } else fail('POS send kitchen', JSON.stringify(body));
+    }
 
-  // Scenario 10: Cannot add items after send
-  {
-    const { res } = await api(`/api/v1/orders/${orderId}/items`, {
-      method: 'POST',
-      headers: terminalHeaders,
-      body: JSON.stringify({ menuItemId: cappuccino.id, quantity: 1 }),
-    });
-    if (res.status === 400) ok('POS: add item blocked after send');
-    else fail('Post-send add', `expected 400, got ${res.status}`);
-  }
+    // Scenario 10: Cannot add items after send
+    {
+      const { res } = await api(`/api/v1/orders/${orderId}/items`, {
+        method: 'POST',
+        headers: terminalHeaders,
+        body: JSON.stringify({ menuItemId: cappuccino.id, quantity: 1 }),
+      });
+      if (res.status === 400) ok('POS: add item blocked after send');
+      else fail('Post-send add', `expected 400, got ${res.status}`);
+    }
 
-  // Scenario 11: Receipt
-  {
-    const { res, body } = await agent(`/v1/orders/${orderId}/receipt`);
-    if (res.ok && (body.text || body.lines)) ok('POS: receipt generated');
-    else fail('POS receipt', JSON.stringify(body));
+    // Scenario 11: Receipt
+    {
+      const { res, body } = await agent(`/v1/orders/${orderId}/receipt`);
+      if (res.ok && (body.text || body.lines)) ok('POS: receipt generated');
+      else fail('POS receipt', JSON.stringify(body));
+    }
   }
 
   // Scenario 12: Manager 86 item

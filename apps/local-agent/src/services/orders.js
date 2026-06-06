@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { apiFetch } from './api-fetch.js';
-import { enqueueSync } from './sync-processor.js';
 
 export function createLocalOrder(db, { venueId, cashierId, terminalId, tableLabel }) {
   const id = randomUUID();
@@ -11,7 +10,6 @@ export function createLocalOrder(db, { venueId, cashierId, terminalId, tableLabe
      VALUES (?, ?, ?, ?, ?, 'draft', ?)`,
   ).run(id, venueId, cashierId, terminalId ?? null, tableLabel ?? null, openedAt);
 
-  enqueueSync(db, 'order.create', { orderId: id, venueId, cashierId, terminalId, tableLabel });
   return getLocalOrder(db, id);
 }
 
@@ -51,7 +49,6 @@ export function addLocalOrderItem(
     );
   }
 
-  enqueueSync(db, 'order.add_item', { orderId, menuItemId, quantity, modifiers });
   return getLocalOrder(db, orderId);
 }
 
@@ -78,7 +75,6 @@ export function sendLocalOrder(db, orderId) {
   if (!order.items.length) throw new Error('Cannot send empty order');
 
   db.prepare(`UPDATE orders SET status = 'sent' WHERE id = ?`).run(orderId);
-  enqueueSync(db, 'order.send', { orderId });
   return getLocalOrder(db, orderId);
 }
 

@@ -330,6 +330,27 @@ node scripts/phase1-scenarios.mjs   # with API + agent running
 
 ---
 
+### 2026-06-06 — PR #1 review fixes (Phase 1 hardening)
+**Phase:** 1 (bugfix)  
+**What:** Addressed valid Copilot review comments from PR #1 — Socket.IO decoration, sync queue enqueue-on-failure only, qty replay, smoke script guards, POS `lang` on load.
+
+**Files:**
+- `apps/api/src/app.js` — `app.decorate('io', null)` so encapsulated routes see `request.server.io`
+- `apps/local-agent/src/services/orders.js` — removed eager `enqueueSync` from local writes
+- `apps/local-agent/src/server.js` — enqueue only when immediate API sync fails; `order.patch_item` on qty failure
+- `apps/local-agent/src/services/sync-processor.js` — replay handler for `order.patch_item`
+- `apps/pos/src/i18n.js` — set `<html lang>` on initial load
+- `scripts/phase1-scenarios.mjs` — skip order scenarios when menu/order prerequisites missing
+
+**Verify:**
+```bash
+npm run lint && npm run test -w @venue-pos/api && npm run test -w @venue-pos/local-agent
+npm run dev:api & npm run dev:agent
+node scripts/phase1-scenarios.mjs
+```
+
+---
+
 ### 2026-06-06 — Fix local-agent sync queue false success
 **Phase:** 1 (bugfix)  
 **What:** `fetch()` does not throw on HTTP 4xx/5xx. Sync replay was marking queue jobs `done` even when the API rejected them, so failed orders could disappear from the retry queue.

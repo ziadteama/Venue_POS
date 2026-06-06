@@ -32,6 +32,17 @@ export async function processSyncQueue({ db, apiUrl, terminalId, terminalSecret 
         await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${payload.orderId}/send`, {
           method: 'POST',
         });
+      } else if (job.event_type === 'order.patch_item') {
+        await apiFetch(
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          `/api/v1/orders/${payload.orderId}/items/${payload.itemId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ quantity: payload.quantity }),
+          },
+        );
       }
       db.prepare(`UPDATE sync_queue SET status = 'done' WHERE id = ?`).run(job.id);
       results.push({ id: job.id, status: 'done' });

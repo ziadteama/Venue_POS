@@ -39,6 +39,32 @@ describe('processSyncQueue', () => {
     assert.equal(job.retry_count, 1);
   });
 
+  it('replays order.patch_item with PATCH', async () => {
+    let url;
+    let method;
+    global.fetch = async (fetchUrl, options = {}) => {
+      url = fetchUrl;
+      method = options.method;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({}),
+      };
+    };
+
+    enqueueSync(db, 'order.patch_item', { orderId: 'o1', itemId: 'i1', quantity: 2 });
+    const results = await processSyncQueue({
+      db,
+      apiUrl: 'http://api',
+      terminalId: 't1',
+      terminalSecret: 'secret',
+    });
+
+    assert.equal(results[0].status, 'done');
+    assert.equal(method, 'PATCH');
+    assert.match(url, /\/api\/v1\/orders\/o1\/items\/i1$/);
+  });
+
   it('marks job done when API succeeds', async () => {
     global.fetch = async () => ({
       ok: true,

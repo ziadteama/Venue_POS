@@ -51,6 +51,7 @@ export function registerSocket(app) {
   });
 
   app.io = io;
+  app.log.info('Socket.IO attached');
 }
 
 export function emitMenuUpdated(io, { templateId, venueIds, versionHash, publishedAt }) {
