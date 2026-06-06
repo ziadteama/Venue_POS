@@ -82,14 +82,10 @@ export async function executeRefund(
   const matchingPayment =
     cheque.payments.find((p) => p.method === refundMethod) ?? cheque.payments[0];
 
-  let activeShift = null;
-  if (terminalId && refundMethod === 'cash') {
-    try {
-      activeShift = await requireActiveShift(resolvedCashierId, terminalId, venueId);
-    } catch {
-      activeShift = null;
-    }
-  }
+  const activeShift =
+    terminalId && refundMethod === 'cash'
+      ? await requireActiveShift(resolvedCashierId, terminalId, venueId)
+      : null;
 
   const refund = await prisma.refund.create({
     data: {
