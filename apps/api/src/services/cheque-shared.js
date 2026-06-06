@@ -1,0 +1,198 @@
+import { prisma } from '../db/prisma.js';
+import { notFound } from '../utils/errors.js';
+import { serializeOrder } from '../utils/serialize.js';
+import { createOrder } from './order-service.js';
+
+export const chequeOrderInclude = {
+  order: {
+    include: {
+      items: { include: { menuItem: true }, orderBy: { createdAt: 'asc' } },
+    },
+  },
+};
+
+export const chequeInclude = {
+  orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
+  payments: { orderBy: { processedAt: 'desc' } },
+  childCheques: {
+    include: { payments: { orderBy: { processedAt: 'desc' } } },
+    orderBy: { chequeNumber: 'asc' },
+  },
+  parentCheque: {
+    include: {
+      orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
+    },
+  },
+};
+
+export const BILLABLE_ORDER_STATUSES = ['sent', 'partially_ready', 'ready', 'served'];
+export const VOIDABLE_ROUND_STATUSES = ['draft', 'sent', 'partially_ready', 'ready', 'served'];
+
+export function ordersFromCheque(cheque) {
+  return cheque.orders.map((link) => link.order);
+}
+
+export function findDraftOrder(cheque) {
+  return ordersFromCheque(cheque).find((o) => o.status === 'draft') ?? null;
+}
+
+export function itemLineTotal(item) {
+  if (item.isComped) return 0;
+  const mods =
+    item.modifiersSnapshot?.reduce((s, m) => s + Number(m.priceDelta ?? 0), 0) ?? 0;
+  return (Number(item.unitPrice) + mods) * item.quantity;
+}
+
+export function billingOrdersFromCheque(cheque) {
+  if (cheque.parentChequeId && cheque.parentCheque) {
+    return ordersFromCheque(cheque.parentCheque);
+  }
+  return ordersFromCheque(cheque);
+}
+
+export function itemBelongsToCheque(item, chequeId, isParentCheque, forDisplay = false) {
+  if (!forDisplay && item.paidAt) return false;
+  if (isParentCheque) {
+    if (forDisplay && item.paidAt) return !item.billingChequeId;
+    return !item.billingChequeId && !item.paidAt;
+  }
+  if (forDisplay) return item.billingChequeId === chequeId;
+  return item.billingChequeId === chequeId && !item.paidAt;
+}
+
+export function filterOrderForCheque(order, chequeId, isParentCheque, forDisplay = false) {
+  const serialized = serializeOrder(order);
+  const items = serialized.items.filter((item) =>
+    itemBelongsToCheque(item, chequeId, isParentCheque, forDisplay),
+  );
+  const subtotal = items.reduce((sum, item) => {
+    if (item.isComped) return sum;
+    const mods =
+      item.modifiersSnapshot?.reduce((m, mod) => m + Number(mod.priceDelta ?? 0), 0) ?? 0;
+    return sum + (Number(item.unitPrice) + mods) * item.quantity;
+  }, 0);
+  return { ...serialized, items, subtotal };
+}
+
+export function computeChequeTotal(cheque) {
+  const isParent = !cheque.parentChequeId;
+  return billingOrdersFromCheque(cheque)
+    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+    .flatMap((o) => o.items)
+    .filter((item) => itemBelongsToCheque(item, cheque.id, isParent))
+    .reduce((sum, item) => sum + itemLineTotal(item), 0);
+}
+
+function serializeChildSummary(child, parentCheque) {
+  const total =
+    child.status === 'paid' && child.payments?.length
+      ? child.payments.reduce((sum, p) => sum + Number(p.amount), 0)
+      : billingOrdersFromCheque({ ...child, parentCheque })
+          .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+          .flatMap((o) => o.items)
+          .filter((item) => itemBelongsToCheque(item, child.id, false))
+          .reduce((sum, item) => sum + itemLineTotal(item), 0);
+
+  return {
+    id: child.id,
+    chequeNumber: child.chequeNumber,
+    splitLabel: child.splitLabel,
+    status: child.status,
+    total,
+  };
+}
+
+export function serializeCheque(cheque) {
+  const isParent = !cheque.parentChequeId;
+  const forDisplay = cheque.status !== 'open';
+  const rawOrders = billingOrdersFromCheque(cheque);
+  const orders = rawOrders
+    .filter((o) => isParent || o.status !== 'draft')
+    .map((o) => filterOrderForCheque(o, cheque.id, isParent, forDisplay))
+    .filter((o) => {
+      if (o.status === 'draft') return true;
+      if (forDisplay && (o.status === 'closed' || o.status === 'voided')) return true;
+      return o.items.length > 0;
+    });
+  const draftOrder = isParent ? (orders.find((o) => o.status === 'draft') ?? null) : null;
+
+  let total = computeChequeTotal(cheque);
+
+  if (cheque.status === 'paid' && cheque.payments?.length) {
+    total = cheque.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  } else if (cheque.status !== 'open') {
+    total = orders
+      .filter((o) => o.status === 'closed')
+      .reduce((sum, o) => sum + o.subtotal, 0);
+  }
+
+  return {
+    id: cheque.id,
+    venueId: cheque.venueId,
+    terminalId: cheque.terminalId,
+    cashierId: cheque.cashierId,
+    chequeNumber: cheque.chequeNumber,
+    tableLabel: cheque.tableLabel,
+    splitLabel: cheque.splitLabel ?? null,
+    parentChequeId: cheque.parentChequeId ?? null,
+    status: cheque.status,
+    openedAt: cheque.openedAt,
+    closedAt: cheque.closedAt ?? null,
+    total,
+    orders,
+    draftOrder,
+    parentCheque: cheque.parentCheque
+      ? {
+          id: cheque.parentCheque.id,
+          chequeNumber: cheque.parentCheque.chequeNumber,
+          tableLabel: cheque.parentCheque.tableLabel,
+        }
+      : null,
+    childCheques:
+      cheque.childCheques?.map((child) => serializeChildSummary(child, cheque)) ?? [],
+    payments:
+      cheque.payments?.map((p) => ({
+        id: p.id,
+        method: p.method,
+        amount: Number(p.amount),
+        processedAt: p.processedAt,
+        cashierId: p.cashierId,
+      })) ?? [],
+  };
+}
+
+export async function loadCheque(chequeId) {
+  const cheque = await prisma.cheque.findUnique({
+    where: { id: chequeId },
+    include: chequeInclude,
+  });
+  if (!cheque) throw notFound('Cheque not found');
+  return cheque;
+}
+
+export async function nextChequeNumber(tx, venueId) {
+  const last = await tx.cheque.findFirst({
+    where: { venueId },
+    orderBy: { chequeNumber: 'desc' },
+    select: { chequeNumber: true },
+  });
+  return (last?.chequeNumber ?? 0) + 1;
+}
+
+export async function linkDraftOrder(chequeId, orderId) {
+  await prisma.chequeOrder.create({ data: { chequeId, orderId } });
+}
+
+export async function ensureDraftOrder(cheque, { venueId, terminalId, cashierId }) {
+  const draft = findDraftOrder(cheque);
+  if (draft) return draft;
+
+  const created = await createOrder({
+    venueId,
+    terminalId,
+    cashierId,
+    tableLabel: cheque.tableLabel,
+  });
+  await linkDraftOrder(cheque.id, created.id);
+  return created;
+}
