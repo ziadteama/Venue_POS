@@ -330,6 +330,18 @@ node scripts/phase1-scenarios.mjs   # with API + agent running
 
 ---
 
+### 2026-06-06 — Install/audit/Prisma team docs
+**Phase:** 1 (tooling)  
+**What:** Clarified npm audit highs (Electron + tar, not Prisma), migrated to `prisma.config.ts`, pinned `tar` override, upgraded Electron, made `prisma-generate` retry-only on failure.
+
+**Files:** `apps/api/prisma.config.ts`, `scripts/prisma-generate.mjs`, root `package.json` overrides, `apps/pos/package.json`, `docs/DEVELOPMENT.md`
+
+**Also:** `bcrypt@6` (drops vulnerable `tar` chain), Electron `42.3.3` in POS + KDS.
+
+**Verify:** `npm install` → `found 0 vulnerabilities`; no `package.json#prisma` warn; `npm run db:generate` quiet unless EPERM retry on Z:.
+
+---
+
 ### 2026-06-06 — PR #1 review fixes (Phase 1 hardening)
 **Phase:** 1 (bugfix)  
 **What:** Addressed valid Copilot review comments from PR #1 — Socket.IO decoration, sync queue enqueue-on-failure only, qty replay, smoke script guards, POS `lang` on load.

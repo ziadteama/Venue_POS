@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "postinstall": "prisma generate",
-    "db:generate": "prisma generate",
+    "db:generate": "node ../../scripts/prisma-generate.mjs",
     "migrate": "prisma migrate deploy",
     "migrate:dev": "prisma migrate dev",
     "db:push": "prisma db push",
@@ -20,7 +19,7 @@
     "@fastify/cors": "^10.0.1",
     "@prisma/client": "^6.1.0",
     "@venue-pos/shared": "*",
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.0",
     "jsonwebtoken": "^9.0.2",
@@ -29,9 +28,5 @@
   },
   "devDependencies": {
     "prisma": "^6.1.0"
-  },
-  "prisma": {
-    "schema": "prisma/schema.prisma",
-    "seed": "node src/db/seed.js"
   }
 }

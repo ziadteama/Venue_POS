@@ -20,7 +20,8 @@
     "build:agent": "npm run build -w @venue-pos/local-agent",
     "migrate": "npm run migrate -w @venue-pos/api",
     "migrate:dev": "npm run migrate:dev -w @venue-pos/api",
-    "db:generate": "npm run db:generate -w @venue-pos/api",
+    "db:generate": "node scripts/prisma-generate.mjs",
+    "postinstall": "node scripts/prisma-generate.mjs",
     "seed": "npm run seed -w @venue-pos/api",
     "generate:jwt-keys": "node scripts/generate-jwt-keys.mjs",
     "lint": "eslint .",
@@ -31,6 +32,13 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "overrides": {
+    "electron": "^42.3.3",
+    "tar": "^7.5.16",
+    "@mapbox/node-pre-gyp": {
+      "tar": "^7.5.16"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

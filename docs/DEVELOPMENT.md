@@ -101,6 +101,54 @@ npm run dev:kds              # :5175
 | Terminal ID | `00000000-0000-4000-8000-000000000001` |
 | Terminal secret | `dev-terminal-secret` |
 
+## Troubleshooting
+
+### `npm audit` — 3 high severity (not Prisma)
+
+After `npm install`, npm may report **3 high** findings. They are **not** from Prisma:
+
+| Package | Source | Risk context | Action |
+|---------|--------|--------------|--------|
+| `electron` | `apps/pos` dev shell | Dev/desktop only; POS loads localhost in dev | Keep `electron` on latest stable (`^42.x`); run `npm audit` after upgrades |
+| `tar` | old `bcrypt@5` → `@mapbox/node-pre-gyp` | Install-time extraction only | Fixed: `bcrypt@6` (no `node-pre-gyp`). Root `overrides` kept as belt-and-suspenders |
+
+**Do not** run `npm audit fix --force` blindly — it can jump Electron major versions without testing the POS/KDS shells.
+
+If audit still reports old `electron@33` after `git pull`, refresh the lockfile:
+
+```bash
+npm install electron@42.3.3 -w @venue-pos/pos -w @venue-pos/kds --save-dev
+```
+
+Prisma deprecation (`package.json#prisma`) is fixed via `apps/api/prisma.config.ts`. Upgrading Prisma (`^6.x`) is normal maintenance, not required for the EPERM issue.
+
+### `EPERM` on `query_engine-windows.dll.node` (Windows)
+
+Prisma replaces the query engine DLL during `prisma generate`. On Windows — especially on **mapped drives** (`Z:`) — that rename fails if the file is locked.
+
+**You will only see** `prisma-generate: moved locked query engine aside, retrying…` when the first generate attempt failed and the script retried. On a local `C:` drive with no servers running, generate is usually silent.
+
+**Fix (in order):**
+
+1. Stop all Node dev servers (`dev:api`, `dev:agent`, Prisma Studio).
+2. Run `npm run db:generate` (retry-safe wrapper in `scripts/prisma-generate.mjs`).
+3. If it still fails, close apps indexing the repo (antivirus, backup sync) and retry.
+4. Last resort: clone/work from a local path such as `C:\dev\Venue_POS` instead of a network share.
+
+`npm install` runs the same generate script via root `postinstall` (once per install).
+
+### Team checklist after `git pull`
+
+```bash
+nvm use 20          # or 20.20.2 — match .nvmrc if present
+npm install         # runs postinstall → prisma generate
+npm run db:generate # only if install warned or API fails with Prisma client errors
+npm run migrate     # if migrations changed
+npm run seed        # optional, refresh dev data
+```
+
+If `npm install` fails on Prisma generate, **stop dev servers first**, then `npm run db:generate`, then `npm install` again.
+
 ## Common commands
 
 | Command | Purpose |
@@ -114,6 +162,8 @@ npm run dev:kds              # :5175
 | `npm run test -w @venue-pos/api` | API tests |
 
 ## Prisma workflow
+
+Config lives in `apps/api/prisma.config.ts` (schema path, migrations, seed). Do not add a `"prisma"` block back to `package.json`.
 
 1. Edit `apps/api/prisma/schema.prisma` (source of truth for DB)
 2. `npm run migrate:dev -- --name describe_change`
