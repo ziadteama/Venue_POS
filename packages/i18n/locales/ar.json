@@ -170,6 +170,7 @@
   "cheque.restaurantManagerPin": "رمز مدير المطعم",
   "cheque.generalManagerPin": "رمز المدير العام",
   "cheque.requestDiscount": "طلب خصم",
+  "cheque.processRefund": "معالجة استرداد",
   "cheque.requestRefund": "طلب استرداد",
   "cheque.requestGmApproval": "سيوافق المدير العام من صفحة الموافقات.",
   "cheque.gmUseApprovals": "وافق على الخصومات والمستردات من صفحة الموافقات.",

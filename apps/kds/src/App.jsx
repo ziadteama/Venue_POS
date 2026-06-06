@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { io } from 'socket.io-client';
 
@@ -23,9 +23,9 @@ function normalizeOrder(raw) {
   };
 }
 
-function elapsedMinutes(sentAt) {
+function elapsedMinutes(sentAt, now = Date.now()) {
   if (!sentAt) return 0;
-  return Math.floor((Date.now() - new Date(sentAt).getTime()) / 60_000);
+  return Math.floor((now - new Date(sentAt).getTime()) / 60_000);
 }
 
 function ageClass(minutes) {
@@ -200,10 +200,7 @@ export default function App() {
     return () => socket.disconnect();
   }, [upsertOrder, applyItemStatusEvent]);
 
-  const activeOrders = useMemo(
-    () => orders.filter((o) => ACTIVE_ORDER_STATUSES.includes(o.status)),
-    [orders, clock],
-  );
+  const activeOrders = orders.filter((o) => ACTIVE_ORDER_STATUSES.includes(o.status));
 
   if (!KDS_ENABLED || serverKdsDisabled) {
     return (
@@ -248,7 +245,7 @@ export default function App() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {activeOrders.map((order) => {
-              const minutes = elapsedMinutes(order.sentAt);
+              const minutes = elapsedMinutes(order.sentAt, clock);
               return (
                 <article
                   key={order.id}

@@ -135,8 +135,8 @@ Not every hub needs every app. During **provider / client onboarding**, feature 
 | `kds_enabled` | `FEATURE_KDS_ENABLED=false` | ON in spec; **turn OFF** for printer-only kitchens | No KDS installer, no `venue:*:kitchen` WS clients required. Orders still **send to kitchen** via API + printer. `apps/kds` not run in prod. |
 | `manual_card_payment` | `FEATURE_MANUAL_CARD_PAYMENT=false` | **OFF** (cash-only venues) | POS hides card / split-card pay; API rejects `method: card`. Set `true` when the client uses an external PDQ and cashiers record card manually (US-5.3). |
 | `line_transfer` | `FEATURE_LINE_TRANSFER=false` | **OFF** | POS hides transfer UI; API rejects line moves. Set `true` when venues move fired lines between tables (manager PIN + audit). |
-| `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque-level discount before pay; `venue_manager` + `hub_manager` PIN. |
-| `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refunds (US-5.6); dual manager PIN; audit at `/manager/refunds`. |
+| `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque discount — `venue_manager` requests (POS PIN), `hub_manager` approves on dashboard **Approvals**. |
+| `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refund — same approval queue; audit at `/manager/refunds`. |
 | `auto_receipt_print` | `FEATURE_AUTO_RECEIPT_PRINT=true` | **ON** | Local agent prints customer receipt on pay/refund when `KITCHEN_PRINTER_HOST` is set. |
 | Kitchen printer | (venue config) | varies | Primary ticket path when KDS is OFF |
 
@@ -144,11 +144,22 @@ Not every hub needs every app. During **provider / client onboarding**, feature 
 
 See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US feature-flag epic).
 
+## Manager workflows
+
+Two patterns — do not mix them when testing:
+
+**Approval queue** (discount, refund): restaurant manager submits → general manager approves on dashboard `/approvals`. POS only needs restaurant manager PIN.
+
+**Instant PIN** (void, comp, line transfer, large manual card, shift over/short): one manager PIN (`hub_manager` or `venue_manager`) on the same screen.
+
+Full matrix: `AGENTS.md` § Manager workflows.
+
 ## Dev credentials (after seed)
 
 | Role | Credentials |
 |------|-------------|
-| Hub manager | `admin` / `admin123` |
+| Hub manager | `admin` / `admin123` (PIN `9999` for terminal-style actions) |
+| Restaurant manager | `venue_mgr` / PIN `7777` (discount/refund requests from POS) |
 | Cashier PIN | `1234` |
 | Terminal ID | `00000000-0000-4000-8000-000000000001` |
 | Terminal secret | `dev-terminal-secret` |

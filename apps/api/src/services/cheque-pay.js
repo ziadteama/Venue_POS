@@ -9,7 +9,6 @@ import {
   chequeOrderInclude,
   findDraftOrder,
   itemBelongsToCheque,
-  itemLineTotal,
   computeChequeTotal,
   loadCheque,
   ordersFromCheque,

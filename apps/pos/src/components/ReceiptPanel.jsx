@@ -1,5 +1,5 @@
 import { canSplitByAmount, splittableItems, transferableItems } from '../utils/cheque.js';
-import { displayInitial, itemName, lineTotal, modifierLabel } from '../utils/orderLine.js';
+import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
 import { ClearIcon, PrinterIcon } from './icons.jsx';
 
 export function ReceiptPanel({
