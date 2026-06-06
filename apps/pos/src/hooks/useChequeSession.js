@@ -198,13 +198,34 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     if (!cheque) return false;
     setError('');
     try {
-      const updated = await callAgent(`/v1/cheques/${cheque.id}/discount`, {
+      await callAgent(`/v1/cheques/${cheque.id}/discount/request`, {
         method: 'POST',
         body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
       });
-      setCheque(updated);
-      await refreshOpenCheques();
-      return true;
+
+      const pollMs = 2000;
+      const maxAttempts = 60;
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, pollMs));
+        const [updated, requests] = await Promise.all([
+          callAgent(`/v1/cheques/${cheque.id}`),
+          callAgent(`/v1/cheques/${cheque.id}/approval-requests`),
+        ]);
+        const discountReq = requests?.find?.((r) => r.type === 'discount');
+        if (discountReq?.status === 'rejected') {
+          setError(t('pos.discountRejected'));
+          return false;
+        }
+        if ((updated.discountAmount ?? 0) > 0) {
+          setCheque(updated);
+          await refreshOpenCheques();
+          return true;
+        }
+        if (discountReq?.status === 'pending') continue;
+        if (i > 2) break;
+      }
+      setError(t('pos.discountPending'));
+      return 'pending';
     } catch {
       setError(t('pos.discountFailed'));
       return false;

@@ -11,8 +11,6 @@ import {
   voidOpenCheque,
   compChequeItem,
   listTransferAudits,
-  applyChequeDiscount,
-  processRefund,
   listDiscountAudits,
   listRefundAudits,
 } from '../services/cheque-service.js';
@@ -22,22 +20,6 @@ const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
 const managerActionSchema = z.object({
   managerPin: z.string().min(4).max(6),
   reason: z.string().min(1).max(500),
-});
-
-const dualManagerSchema = z.object({
-  restaurantManagerPin: z.string().min(4).max(6),
-  generalManagerPin: z.string().min(4).max(6),
-  reason: z.string().min(1).max(500),
-});
-
-const discountSchema = dualManagerSchema.extend({
-  amount: z.number().positive().optional(),
-  percent: z.number().positive().max(100).optional(),
-});
-
-const refundSchema = dualManagerSchema.extend({
-  amount: z.number().positive(),
-  method: z.enum(['cash', 'card', 'voucher']).optional(),
 });
 
 function resolveVenueId(request) {
@@ -164,45 +146,6 @@ export async function managerChequeRoutes(app) {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
       return listTransferAudits(venueId);
-    },
-  );
-
-  app.post(
-    '/api/v1/manager/cheques/:id/discount',
-    { preHandler: managerPreHandler },
-    async (request) => {
-      const parsed = discountSchema.safeParse(request.body);
-      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      if (!parsed.data.amount && !parsed.data.percent) {
-        throw validationError('amount or percent required');
-      }
-
-      const venueId = resolveVenueId(request);
-      if (!venueId) throw validationError('Venue is required');
-
-      return applyChequeDiscount(
-        request.params.id,
-        { ...parsed.data, cashierId: request.user.sub },
-        venueId,
-      );
-    },
-  );
-
-  app.post(
-    '/api/v1/manager/cheques/:id/refund',
-    { preHandler: managerPreHandler },
-    async (request) => {
-      const parsed = refundSchema.safeParse(request.body);
-      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-
-      const venueId = resolveVenueId(request);
-      if (!venueId) throw validationError('Venue is required');
-
-      return processRefund(
-        request.params.id,
-        { ...parsed.data, cashierId: request.user.sub },
-        venueId,
-      );
     },
   );
 

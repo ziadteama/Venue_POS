@@ -8,6 +8,7 @@ import { menuRoutes } from './routes/menus.js';
 import { orderRoutes } from './routes/orders.js';
 import { chequeRoutes } from './routes/cheques.js';
 import { managerChequeRoutes } from './routes/manager-cheques.js';
+import { managerApprovalRoutes } from './routes/manager-approvals.js';
 import { shiftRoutes } from './routes/shifts.js';
 import { featureRoutes } from './routes/features.js';
 import { kitchenRoutes } from './routes/kitchen.js';
@@ -34,6 +35,7 @@ export async function buildApp() {
   await app.register(orderRoutes);
   await app.register(chequeRoutes);
   await app.register(managerChequeRoutes);
+  await app.register(managerApprovalRoutes);
   await app.register(shiftRoutes);
   await app.register(featureRoutes);
   await app.register(kitchenRoutes);

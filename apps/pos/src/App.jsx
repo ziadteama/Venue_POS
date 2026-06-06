@@ -158,7 +158,8 @@ export default function App() {
 
   async function onConfirmDiscount(body) {
     const ok = await confirmDiscount(body);
-    if (ok) setShowDiscountModal(false);
+    if (ok === true) setShowDiscountModal(false);
+    else if (ok === 'pending') setShowDiscountModal(false);
   }
 
   async function onConfirmPay(body) {

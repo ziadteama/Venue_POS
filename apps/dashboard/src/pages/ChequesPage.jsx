@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
-function DualManagerActionModal({
+function RequestActionModal({
   title,
   reasonLabel,
   confirmLabel,
@@ -13,18 +13,12 @@ function DualManagerActionModal({
   t,
   children,
 }) {
-  const [restaurantManagerPin, setRestaurantManagerPin] = useState('');
-  const [generalManagerPin, setGeneralManagerPin] = useState('');
   const [reason, setReason] = useState('');
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!restaurantManagerPin.trim() || !generalManagerPin.trim() || !reason.trim()) return;
-    onConfirm({
-      restaurantManagerPin: restaurantManagerPin.trim(),
-      generalManagerPin: generalManagerPin.trim(),
-      reason: reason.trim(),
-    });
+    if (!reason.trim()) return;
+    onConfirm({ reason: reason.trim() });
   }
 
   return (
@@ -33,30 +27,9 @@ function DualManagerActionModal({
         onSubmit={handleSubmit}
         className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
       >
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">{title}</h3>
+        <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
+        <p className="mb-4 text-sm text-secondary">{t('cheque.requestGmApproval')}</p>
         {children}
-        <label className="mb-3 block text-sm">
-          <span className="mb-1 block text-secondary">{t('cheque.restaurantManagerPin')}</span>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={restaurantManagerPin}
-            onChange={(e) => setRestaurantManagerPin(e.target.value)}
-            className="w-full rounded border px-3 py-2"
-          />
-        </label>
-        <label className="mb-3 block text-sm">
-          <span className="mb-1 block text-secondary">{t('cheque.generalManagerPin')}</span>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={generalManagerPin}
-            onChange={(e) => setGeneralManagerPin(e.target.value)}
-            className="w-full rounded border px-3 py-2"
-          />
-        </label>
         <label className="mb-4 block text-sm">
           <span className="mb-1 block text-secondary">{reasonLabel}</span>
           <textarea
@@ -210,9 +183,9 @@ export function ChequesPage() {
       } else if (actionTarget.type === 'cheque') {
         path = `/api/v1/manager/cheques/${actionTarget.chequeId}/void`;
       } else if (actionTarget.type === 'discount') {
-        path = `/api/v1/manager/cheques/${actionTarget.chequeId}/discount`;
+        path = `/api/v1/manager/cheques/${actionTarget.chequeId}/discount/request`;
       } else if (actionTarget.type === 'refund') {
-        path = `/api/v1/manager/cheques/${actionTarget.chequeId}/refund`;
+        path = `/api/v1/manager/cheques/${actionTarget.chequeId}/refund/request`;
       } else {
         path = `/api/v1/manager/cheques/${actionTarget.chequeId}/orders/${actionTarget.orderId}/items/${actionTarget.itemId}/comp`;
       }
@@ -294,15 +267,15 @@ export function ChequesPage() {
       )}
 
       {actionTarget?.type === 'discount' && (
-        <DualManagerActionModal
+        <RequestActionModal
           title={t('cheque.discountTitle', { number: actionTarget.chequeNumber })}
           reasonLabel={t('cheque.discountReason')}
-          confirmLabel={t('cheque.confirmDiscount')}
+          confirmLabel={t('cheque.requestDiscount')}
           confirmClass="bg-amber-600 hover:bg-amber-700"
           t={t}
           onCancel={() => setActionTarget(null)}
-          onConfirm={(pins) => {
-            const payload = { ...pins };
+          onConfirm={({ reason }) => {
+            const payload = { reason };
             if (discountMode === 'percent') {
               payload.percent = Number(discountPercent);
             } else {
@@ -356,20 +329,20 @@ export function ChequesPage() {
               />
             </label>
           )}
-        </DualManagerActionModal>
+        </RequestActionModal>
       )}
 
       {actionTarget?.type === 'refund' && (
-        <DualManagerActionModal
+        <RequestActionModal
           title={t('cheque.refundTitle', { number: actionTarget.chequeNumber })}
           reasonLabel={t('cheque.refundReason')}
-          confirmLabel={t('cheque.confirmRefund')}
+          confirmLabel={t('cheque.requestRefund')}
           confirmClass="bg-red-600 hover:bg-red-700"
           t={t}
           onCancel={() => setActionTarget(null)}
-          onConfirm={(pins) =>
+          onConfirm={({ reason }) =>
             runAction({
-              ...pins,
+              reason,
               amount: Number(refundAmount),
               method: refundMethod,
             })
@@ -398,7 +371,7 @@ export function ChequesPage() {
               <option value="voucher">voucher</option>
             </select>
           </label>
-        </DualManagerActionModal>
+        </RequestActionModal>
       )}
 
       {actionTarget &&
@@ -617,7 +590,7 @@ export function ChequesPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {isOpenTab && detail.total > 0 && (
+                {user?.role === 'venue_manager' && isOpenTab && detail.total > 0 && (
                   <button
                     type="button"
                     disabled={busy}
@@ -633,10 +606,10 @@ export function ChequesPage() {
                     }}
                     className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                   >
-                    {t('cheque.applyDiscount')}
+                    {t('cheque.requestDiscount')}
                   </button>
                 )}
-                {!isOpenTab && detail.status === 'paid' && (
+                {user?.role === 'venue_manager' && !isOpenTab && detail.status === 'paid' && (
                   <button
                     type="button"
                     disabled={busy}
@@ -651,8 +624,11 @@ export function ChequesPage() {
                     }}
                     className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
                   >
-                    {t('cheque.processRefund')}
+                    {t('cheque.requestRefund')}
                   </button>
+                )}
+                {user?.role === 'hub_manager' && (
+                  <p className="text-sm text-secondary">{t('cheque.gmUseApprovals')}</p>
                 )}
                 {isOpenTab && (
                   <button

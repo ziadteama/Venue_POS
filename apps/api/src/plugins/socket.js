@@ -104,6 +104,35 @@ export function emitOrderVoided(io, { orderId, venueId, reason, voidedBy }) {
   io.to(`venue:${venueId}:pos`).emit('order:voided', { event: 'order:voided', payload });
 }
 
+export function emitApprovalRequested(io, request) {
+  io.to('dashboard:hub_manager').emit('approval:requested', {
+    event: 'approval:requested',
+    payload: request,
+  });
+  io.to(`venue:${request.venueId}:pos`).emit('approval:requested', {
+    event: 'approval:requested',
+    payload: request,
+  });
+}
+
+export function emitApprovalResolved(io, { venueId, terminalId, request, result }) {
+  const payload = { request, result };
+  io.to('dashboard:hub_manager').emit('approval:resolved', {
+    event: 'approval:resolved',
+    payload,
+  });
+  io.to(`venue:${venueId}:pos`).emit('approval:resolved', {
+    event: 'approval:resolved',
+    payload,
+  });
+  if (terminalId) {
+    io.to(`terminal:${terminalId}`).emit('approval:resolved', {
+      event: 'approval:resolved',
+      payload,
+    });
+  }
+}
+
 export function emitOrderItemStatus(io, { order, itemId, kitchenStatus, updatedBy }) {
   const payload = {
     orderId: order.id,
