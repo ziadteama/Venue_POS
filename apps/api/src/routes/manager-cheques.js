@@ -10,6 +10,7 @@ import {
   voidChequeRound,
   voidOpenCheque,
   compChequeItem,
+  listTransferAudits,
 } from '../services/cheque-service.js';
 
 const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
@@ -133,6 +134,16 @@ export async function managerChequeRoutes(app) {
         parsed.data,
         venueId,
       );
+    },
+  );
+
+  app.get(
+    '/api/v1/manager/cheques/transfers',
+    { preHandler: managerPreHandler },
+    async (request) => {
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+      return listTransferAudits(venueId);
     },
   );
 }

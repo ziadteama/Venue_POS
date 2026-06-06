@@ -8,6 +8,8 @@ import { PayModal } from './components/PayModal.jsx';
 import { PosHeader } from './components/PosHeader.jsx';
 import { ReceiptPanel } from './components/ReceiptPanel.jsx';
 import { SplitBillModal } from './components/SplitBillModal.jsx';
+import { SplitAmountModal } from './components/SplitAmountModal.jsx';
+import { TransferModal } from './components/TransferModal.jsx';
 import { ShiftCloseModal } from './components/ShiftCloseModal.jsx';
 import { ShiftOpenModal } from './components/ShiftOpenModal.jsx';
 import { useChequeSession } from './hooks/useChequeSession.js';
@@ -25,6 +27,8 @@ export default function App() {
   const [modifierItem, setModifierItem] = useState(null);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showSplitAmountModal, setShowSplitAmountModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
   const { features } = useFeatures();
@@ -88,6 +92,8 @@ export default function App() {
     handleSend,
     handleClear,
     confirmSplit,
+    confirmSplitAmount,
+    confirmTransfer,
     confirmPay,
     handleTableBlur,
     switchToCheque,
@@ -137,6 +143,16 @@ export default function App() {
     if (ok) setShowSplitModal(false);
   }
 
+  async function onConfirmSplitAmount(body) {
+    const ok = await confirmSplitAmount(body);
+    if (ok) setShowSplitAmountModal(false);
+  }
+
+  async function onConfirmTransfer(body) {
+    const ok = await confirmTransfer(body);
+    if (ok) setShowTransferModal(false);
+  }
+
   async function onConfirmPay(body) {
     const ok = await confirmPay(body);
     if (ok) {
@@ -163,6 +179,25 @@ export default function App() {
           t={t}
           onCancel={() => setShowSplitModal(false)}
           onConfirm={onConfirmSplit}
+        />
+      )}
+
+      {showSplitAmountModal && cheque && (
+        <SplitAmountModal
+          cheque={cheque}
+          t={t}
+          onCancel={() => setShowSplitAmountModal(false)}
+          onConfirm={onConfirmSplitAmount}
+        />
+      )}
+
+      {showTransferModal && cheque && (
+        <TransferModal
+          cheque={cheque}
+          openCheques={openCheques}
+          t={t}
+          onCancel={() => setShowTransferModal(false)}
+          onConfirm={onConfirmTransfer}
         />
       )}
 
@@ -243,6 +278,9 @@ export default function App() {
           onClear={handleClear}
           onSend={onSend}
           onSplit={() => setShowSplitModal(true)}
+          onSplitAmount={() => setShowSplitAmountModal(true)}
+          onTransfer={() => setShowTransferModal(true)}
+          lineTransferEnabled={features.lineTransfer}
           onPay={() => setShowPayModal(true)}
           onChangeQty={changeQty}
         />

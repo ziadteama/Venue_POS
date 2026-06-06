@@ -4,6 +4,7 @@ import { callAgent } from '../api/agent.js';
 const DEFAULT_FEATURES = {
   manualCardPayment: false,
   manualCardApprovalThreshold: 500,
+  lineTransfer: false,
 };
 
 export function useFeatures() {
@@ -19,6 +20,7 @@ export function useFeatures() {
           setFeatures({
             manualCardPayment: Boolean(data?.manualCardPayment),
             manualCardApprovalThreshold: Number(data?.manualCardApprovalThreshold) || 500,
+            lineTransfer: Boolean(data?.lineTransfer),
           });
         }
       } catch {

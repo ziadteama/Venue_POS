@@ -6,5 +6,6 @@ export async function featureRoutes(app) {
     manualCardPayment: config.featureManualCardEnabled,
     manualCardApprovalThreshold: config.manualCardApprovalThreshold,
     kdsEnabled: config.featureKdsEnabled,
+    lineTransfer: config.featureLineTransferEnabled,
   }));
 }

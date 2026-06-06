@@ -54,11 +54,24 @@ async function maybeFinalizeSplitParent(tx, parentChequeId) {
     .flatMap((o) => o.items)
     .filter((i) => !i.isComped);
 
-  const parentRemainder = billableItems.filter((i) => !i.billingChequeId);
-  if (parentRemainder.some((i) => !i.paidAt)) return;
+  const amountOnlySplit =
+    children.length > 0 && children.every((c) => c.splitAmount != null);
 
-  const allocated = billableItems.filter((i) => i.billingChequeId);
-  if (allocated.some((i) => !i.paidAt)) return;
+  if (!amountOnlySplit) {
+    const parentRemainder = billableItems.filter((i) => !i.billingChequeId);
+    if (parentRemainder.some((i) => !i.paidAt)) return;
+
+    const allocated = billableItems.filter((i) => i.billingChequeId);
+    if (allocated.some((i) => !i.paidAt)) return;
+  } else {
+    const unpaidIds = billableItems.filter((i) => !i.paidAt).map((i) => i.id);
+    if (unpaidIds.length) {
+      await tx.orderItem.updateMany({
+        where: { id: { in: unpaidIds } },
+        data: { paidAt: new Date() },
+      });
+    }
+  }
 
   const orderIds = orders
     .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
@@ -109,12 +122,20 @@ export async function payCheque(
   }
 
   const isParent = !cheque.parentChequeId;
-  const itemsToPay = billingOrdersFromCheque(cheque)
-    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
-    .flatMap((o) => o.items)
-    .filter((item) => itemBelongsToCheque(item, cheque.id, isParent));
+  const isAmountSplitChild = cheque.splitAmount != null;
+  let itemsToPay = [];
+  let total = 0;
 
-  const total = itemsToPay.reduce((sum, item) => sum + itemLineTotal(item), 0);
+  if (isAmountSplitChild) {
+    total = Number(cheque.splitAmount);
+  } else {
+    itemsToPay = billingOrdersFromCheque(cheque)
+      .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+      .flatMap((o) => o.items)
+      .filter((item) => itemBelongsToCheque(item, cheque.id, isParent));
+    total = itemsToPay.reduce((sum, item) => sum + itemLineTotal(item), 0);
+  }
+
   if (total <= 0) throw validationError('Nothing to pay on this cheque');
 
   const paymentLines = normalizePayments({ payments, method, amount }, total);
@@ -146,6 +167,7 @@ export async function payCheque(
 
   const itemIds = itemsToPay.map((i) => i.id);
   const parentChequeId = cheque.parentChequeId ?? null;
+  const skipItemPaidMark = isAmountSplitChild;
 
   const activeShift = terminalId
     ? await requireActiveShift(cashierId, terminalId, venueId)
@@ -165,10 +187,12 @@ export async function payCheque(
       });
     }
 
-    await tx.orderItem.updateMany({
-      where: { id: { in: itemIds } },
-      data: { paidAt: new Date() },
-    });
+    if (!skipItemPaidMark && itemIds.length) {
+      await tx.orderItem.updateMany({
+        where: { id: { in: itemIds } },
+        data: { paidAt: new Date() },
+      });
+    }
 
     await tx.cheque.update({
       where: { id: chequeId },

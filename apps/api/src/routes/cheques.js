@@ -11,7 +11,30 @@ import {
   clearChequeDraft,
   payCheque,
   splitChequeByItems,
+  splitChequeByAmount,
+  transferChequeItems,
 } from '../services/cheque-service.js';
+
+const splitAmountSchema = z.object({
+  splits: z
+    .array(
+      z.object({
+        label: z.string().min(1).max(50),
+        amount: z.coerce.number().positive(),
+      }),
+    )
+    .min(1)
+    .max(8),
+});
+
+const transferItemsSchema = z.object({
+  cashierId: z.string().uuid(),
+  itemIds: z.array(z.string().uuid()).min(1),
+  targetChequeId: z.string().uuid().optional(),
+  targetTableLabel: z.string().min(1).max(50).optional(),
+  managerPin: z.string().min(4).max(6),
+  reason: z.string().max(500).optional(),
+});
 
 const splitChequeSchema = z.object({
   splits: z
@@ -120,6 +143,37 @@ export async function chequeRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       return splitChequeByItems(request.params.id, parsed.data, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/split-amount',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = splitAmountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return splitChequeByAmount(request.params.id, parsed.data, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/transfer',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = transferItemsSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      if (!parsed.data.targetChequeId && !parsed.data.targetTableLabel) {
+        throw validationError('targetChequeId or targetTableLabel required');
+      }
+
+      return transferChequeItems(
+        request.params.id,
+        parsed.data,
+        request.terminal.venueId,
+        request.terminal.id,
+      );
     },
   );
 }

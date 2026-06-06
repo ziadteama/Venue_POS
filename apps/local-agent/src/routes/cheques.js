@@ -53,6 +53,31 @@ export function registerChequeRoutes(
     ),
   );
 
+  app.post('/v1/cheques/:id/split-amount', async (request, reply) => {
+    const { splits } = request.body ?? {};
+    if (!splits?.length) return reply.status(400).send({ error: 'splits required' });
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/split-amount`,
+      { method: 'POST', body: JSON.stringify({ splits }) },
+    );
+  });
+
+  app.post('/v1/cheques/:id/transfer', async (request, reply) => {
+    const body = request.body ?? {};
+    if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    if (!body.itemIds?.length) return reply.status(400).send({ error: 'itemIds required' });
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/transfer`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  });
+
   app.post('/v1/cheques/:id/split', async (request, reply) => {
     const { splits } = request.body ?? {};
     if (!splits?.length) return reply.status(400).send({ error: 'splits required' });

@@ -104,6 +104,8 @@ model User {
   voidsCashier  OrderVoidAudit[]     @relation("VoidCashier")
   compsApproved OrderItemCompAudit[] @relation("CompApprover")
   compsCashier  OrderItemCompAudit[] @relation("CompCashier")
+  transfersApproved ChequeItemTransferAudit[] @relation("TransferApprover")
+  transfersCashier  ChequeItemTransferAudit[] @relation("TransferCashier")
   chequesOpened Cheque[]             @relation("ChequeCashier")
   payments      Payment[]
   shifts        Shift[]
@@ -295,6 +297,7 @@ model OrderItem {
   order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem @relation(fields: [menuItemId], references: [id])
   compAudit       OrderItemCompAudit?
+  transferAudits  ChequeItemTransferAudit[]
   billingCheque   Cheque? @relation("ItemBillingCheque", fields: [billingChequeId], references: [id])
 
   @@index([orderId], map: "idx_order_items_order")
@@ -345,6 +348,7 @@ model Cheque {
   chequeNumber Int          @map("cheque_number")
   tableLabel     String       @map("table_label") @db.VarChar(50)
   splitLabel     String?      @map("split_label") @db.VarChar(50)
+  splitAmount    Decimal?     @map("split_amount") @db.Decimal(10, 2)
   parentChequeId String?      @map("parent_cheque_id") @db.Uuid
   status         ChequeStatus @default(open)
   openedAt       DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
@@ -360,7 +364,9 @@ model Cheque {
   compAudits     OrderItemCompAudit[]
   billedItems    OrderItem[] @relation("ItemBillingCheque")
   parentCheque   Cheque?  @relation("ChequeSplit", fields: [parentChequeId], references: [id])
-  childCheques   Cheque[] @relation("ChequeSplit")
+  childCheques      Cheque[] @relation("ChequeSplit")
+  transferAuditsOut ChequeItemTransferAudit[] @relation("TransferSource")
+  transferAuditsIn  ChequeItemTransferAudit[] @relation("TransferTarget")
 
   @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
   @@index([venueId, status], map: "idx_cheques_venue_status")
@@ -380,6 +386,27 @@ model ChequeOrder {
   @@id([chequeId, orderId])
   @@index([chequeId], map: "idx_cheque_orders_cheque")
   @@map("cheque_orders")
+}
+
+model ChequeItemTransferAudit {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceChequeId String   @map("source_cheque_id") @db.Uuid
+  targetChequeId String   @map("target_cheque_id") @db.Uuid
+  orderItemId    String   @map("order_item_id") @db.Uuid
+  cashierId      String   @map("cashier_id") @db.Uuid
+  approverId     String   @map("approver_id") @db.Uuid
+  reason         String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  sourceCheque Cheque    @relation("TransferSource", fields: [sourceChequeId], references: [id])
+  targetCheque Cheque    @relation("TransferTarget", fields: [targetChequeId], references: [id])
+  orderItem    OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  cashier      User      @relation("TransferCashier", fields: [cashierId], references: [id])
+  approver     User      @relation("TransferApprover", fields: [approverId], references: [id])
+
+  @@index([sourceChequeId], map: "idx_transfer_audit_source")
+  @@index([targetChequeId], map: "idx_transfer_audit_target")
+  @@map("cheque_item_transfer_audits")
 }
 
 model Payment {
