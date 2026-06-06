@@ -85,11 +85,13 @@ export function serializeOrder(order) {
       unitPrice: decimalToNumber(item.unitPrice),
       modifiersSnapshot: item.modifiersSnapshot,
       kitchenStatus: item.kitchenStatus ?? 'pending',
+      isComped: item.isComped ?? false,
       nameEn: item.menuItem?.nameEn,
       nameAr: item.menuItem?.nameAr,
     })) ?? [];
 
   const subtotal = items.reduce((sum, item) => {
+    if (item.isComped) return sum;
     const mods =
       item.modifiersSnapshot?.reduce((m, mod) => m + Number(mod.priceDelta ?? 0), 0) ?? 0;
     return sum + (Number(item.unitPrice) + mods) * item.quantity;
@@ -150,8 +152,11 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
     for (const item of order.items) {
       const mods = item.modifiersSnapshot ?? [];
       const modTotal = mods.reduce((s, m) => s + Number(m.priceDelta ?? 0), 0);
-      const lineTotal = (Number(item.unitPrice) + modTotal) * item.quantity;
-      lines.push(`  ${item.quantity}x ${item.nameEn} — ${lineTotal.toFixed(2)}`);
+      const lineTotal = item.isComped
+        ? 0
+        : (Number(item.unitPrice) + modTotal) * item.quantity;
+      const compTag = item.isComped ? ' [COMP]' : '';
+      lines.push(`  ${item.quantity}x ${item.nameEn}${compTag} — ${lineTotal.toFixed(2)}`);
     }
     lines.push(`  Round subtotal: ${order.subtotal.toFixed(2)}`);
   }

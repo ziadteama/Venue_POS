@@ -469,14 +469,7 @@ Reference: Toast, Square, Lightspeed, Oracle Simphony — **open check** per tab
 | No cheque entity in POS | `cheques` table: open → paid / voided |
 | Void on draft cart | **Clear** only on draft; manager void/comp on **running or paid cheques** |
 
-**Phase 3 scope (documented, not started):**
-- Open cheque per table — list open cheques, resume, add items across rounds
-- Fire/send kitchen tickets per round without closing the cheque
-- Cheque explorer: running totals, item history, split (US-3.6)
-- Void/comp/transfer line items on open cheques (manager PIN + audit) — uses existing `order_void_audits` / `void` API patterns
-- Pay cheque → `billed` / `closed` (Phase 3 payments epic)
-
-**Current workaround:** Each **Fire to kitchen** sends one kitchen ticket; table label is cosmetic until cheque model ships.
+**Phase 3 scope:** See **Phase 3 — In progress** below. Slice 1–4 shipped on `phase-3`; bill split (US-3.6), transfers, shifts, refunds still deferred.
 
 ---
 
@@ -503,7 +496,7 @@ Open cheques / tabs + payments (see deferred scope above). Branch created from `
 - `GET /api/v1/cheques/:id` — detail + running total
 - `POST /api/v1/cheques/:id/fire` — send draft round, spawn new draft on same cheque
 - `POST /api/v1/cheques/:id/clear` — abandon current draft round
-- `POST /api/v1/cheques/:id/pay` — cash (or card/voucher) closes cheque; sent orders → `billed`
+- `POST /api/v1/cheques/:id/pay` — cash (or card/voucher) closes cheque; sent orders → `closed`
 
 **POS:** Opens cheque on load / table change; **Fire to kitchen** calls cheque fire (stays on same cheque); **Pay cash** when fired total > 0 and draft empty. Receipt panel shows cheque # + cheque total.
 
@@ -516,7 +509,7 @@ npm run test
 # POS: add items → Fire twice → Pay cash → new cheque for same table
 ```
 
-**Still deferred:** Line-item comp, integrated card terminal, vouchers, refunds, cross-venue.
+**Still deferred:** Bill split (US-3.6), line transfer, integrated card terminal, vouchers, refunds, cross-venue.
 
 ### 2026-06-07 — Payments slice (split pay + receipt)
 
@@ -558,6 +551,36 @@ npm run test
 ### 2026-06-06 — POS label: Checkout → Fire to kitchen
 
 **What:** POS primary action uses `pos.sendKitchen` (“Fire to kitchen” / “إرسال للمطبخ”) instead of “Checkout” — avoids implying payment; real checkout comes with Phase 3 cheques.
+
+### 2026-06-08 — Comp, paid history, POS open-tab browser (slice 4)
+
+**Stories:** US-3.5 (manager comp on running cheque), US-5.1 (pay closes orders)
+
+**What:** Manager comps individual fired line items (excluded from total/receipt); pay sets kitchen orders to `closed`; dashboard Open/Paid tabs; POS horizontal open-cheque picker.
+
+**Schema:** `OrderItem.isComped`, `OrderItemCompAudit`. Migration `20260608120000_phase3_item_comp`.
+
+**API:**
+- `GET /api/v1/manager/cheques?status=open|paid|voided` — paid history (newest first)
+- `POST /api/v1/manager/cheques/:id/orders/:orderId/items/:itemId/comp` — manager PIN + reason + audit
+- `payCheque` — billable orders → `closed` (not `billed`)
+- Paid cheque `total` from payment sum; comped lines show `[COMP]` on receipt
+
+**Dashboard:** `/cheques` — Open / Paid tabs, per-line **Comp**, payments on paid detail.
+
+**POS:** Chip row of open tables (`GET /v1/cheques/open`) — tap to resume another tab.
+
+**Verify:**
+```bash
+npm run migrate
+npm run test
+npm run lint:i18n
+# Dashboard: Open tab → Comp line (PIN 9999) → total drops
+# Dashboard: Paid tab after POS pay
+# POS: two tables open → switch via chips
+```
+
+**Still deferred:** Bill split (US-3.6), line transfer, shifts (US-13.1), refunds (US-5.6), cross-venue (Epic 4), receipt PDF.
 
 ---
 

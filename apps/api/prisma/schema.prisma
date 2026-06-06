@@ -89,9 +89,11 @@ model User {
 
   venue         Venue?           @relation(fields: [venueId], references: [id])
   orders        Order[]
-  voidsApproved OrderVoidAudit[] @relation("VoidApprover")
-  voidsCashier  OrderVoidAudit[] @relation("VoidCashier")
-  chequesOpened Cheque[]         @relation("ChequeCashier")
+  voidsApproved OrderVoidAudit[]     @relation("VoidApprover")
+  voidsCashier  OrderVoidAudit[]     @relation("VoidCashier")
+  compsApproved OrderItemCompAudit[] @relation("CompApprover")
+  compsCashier  OrderItemCompAudit[] @relation("CompCashier")
+  chequesOpened Cheque[]             @relation("ChequeCashier")
   payments      Payment[]
 
   @@index([venueId], map: "idx_users_venue")
@@ -270,11 +272,13 @@ model OrderItem {
   unitPrice          Decimal  @map("unit_price") @db.Decimal(10, 2)
   modifiersSnapshot  Json?    @map("modifiers_snapshot")
   kitchenStatus      OrderItemKitchenStatus @default(pending) @map("kitchen_status")
+  isComped           Boolean                @default(false) @map("is_comped")
   createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+  compAudit OrderItemCompAudit?
 
   @@index([orderId], map: "idx_order_items_order")
   @@map("order_items")
@@ -297,6 +301,24 @@ model OrderVoidAudit {
   @@map("order_void_audits")
 }
 
+model OrderItemCompAudit {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderItemId String   @unique @map("order_item_id") @db.Uuid
+  chequeId    String   @map("cheque_id") @db.Uuid
+  cashierId   String   @map("cashier_id") @db.Uuid
+  approverId  String   @map("approver_id") @db.Uuid
+  reason      String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  cheque    Cheque    @relation(fields: [chequeId], references: [id], onDelete: Cascade)
+  cashier   User      @relation("CompCashier", fields: [cashierId], references: [id])
+  approver  User      @relation("CompApprover", fields: [approverId], references: [id])
+
+  @@index([chequeId], map: "idx_comp_audit_cheque")
+  @@map("order_item_comp_audits")
+}
+
 model Cheque {
   id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   venueId      String       @map("venue_id") @db.Uuid
@@ -313,8 +335,9 @@ model Cheque {
   venue    Venue         @relation(fields: [venueId], references: [id])
   terminal Terminal?     @relation(fields: [terminalId], references: [id])
   cashier  User          @relation("ChequeCashier", fields: [cashierId], references: [id])
-  orders   ChequeOrder[]
-  payments Payment[]
+  orders    ChequeOrder[]
+  payments  Payment[]
+  compAudits OrderItemCompAudit[]
 
   @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
   @@index([venueId, status], map: "idx_cheques_venue_status")

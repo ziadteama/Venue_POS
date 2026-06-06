@@ -5,14 +5,16 @@ import { validationError } from '../utils/errors.js';
 import { emitOrderVoided } from '../plugins/socket.js';
 import {
   listOpenCheques,
+  listChequesForVenue,
   getCheque,
   voidChequeRound,
   voidOpenCheque,
+  compChequeItem,
 } from '../services/cheque-service.js';
 
 const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
 
-const voidSchema = z.object({
+const managerActionSchema = z.object({
   managerPin: z.string().min(4).max(6),
   reason: z.string().min(1).max(500),
 });
@@ -35,6 +37,23 @@ export async function managerChequeRoutes(app) {
   );
 
   app.get(
+    '/api/v1/manager/cheques',
+    { preHandler: managerPreHandler },
+    async (request) => {
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+      const status = request.query?.status ?? 'open';
+      if (!['open', 'paid', 'voided'].includes(status)) {
+        throw validationError('Invalid status filter');
+      }
+      return listChequesForVenue(venueId, {
+        status,
+        limit: Number(request.query?.limit ?? 50),
+      });
+    },
+  );
+
+  app.get(
     '/api/v1/manager/cheques/:id',
     { preHandler: managerPreHandler },
     async (request) => {
@@ -48,7 +67,7 @@ export async function managerChequeRoutes(app) {
     '/api/v1/manager/cheques/:id/void',
     { preHandler: managerPreHandler },
     async (request) => {
-      const parsed = voidSchema.safeParse(request.body);
+      const parsed = managerActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = resolveVenueId(request);
@@ -73,7 +92,7 @@ export async function managerChequeRoutes(app) {
     '/api/v1/manager/cheques/:id/orders/:orderId/void',
     { preHandler: managerPreHandler },
     async (request) => {
-      const parsed = voidSchema.safeParse(request.body);
+      const parsed = managerActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = resolveVenueId(request);
@@ -94,6 +113,26 @@ export async function managerChequeRoutes(app) {
         });
       }
       return result.cheque;
+    },
+  );
+
+  app.post(
+    '/api/v1/manager/cheques/:id/orders/:orderId/items/:itemId/comp',
+    { preHandler: managerPreHandler },
+    async (request) => {
+      const parsed = managerActionSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+
+      return compChequeItem(
+        request.params.id,
+        request.params.orderId,
+        request.params.itemId,
+        parsed.data,
+        venueId,
+      );
     },
   );
 }

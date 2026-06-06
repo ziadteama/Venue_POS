@@ -41,9 +41,18 @@ function computeChequeTotal(cheque) {
 export function serializeCheque(cheque) {
   const orders = ordersFromCheque(cheque).map(serializeOrder);
   const draftOrder = orders.find((o) => o.status === 'draft') ?? null;
-  const total = orders
+
+  let total = orders
     .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
     .reduce((sum, o) => sum + o.subtotal, 0);
+
+  if (cheque.status === 'paid' && cheque.payments?.length) {
+    total = cheque.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  } else if (cheque.status !== 'open') {
+    total = orders
+      .filter((o) => o.status === 'closed')
+      .reduce((sum, o) => sum + o.subtotal, 0);
+  }
 
   return {
     id: cheque.id,
@@ -147,10 +156,15 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
 }
 
 export async function listOpenCheques(venueId) {
+  return listChequesForVenue(venueId, { status: 'open' });
+}
+
+export async function listChequesForVenue(venueId, { status = 'open', limit = 50 } = {}) {
   const cheques = await prisma.cheque.findMany({
-    where: { venueId, status: 'open' },
+    where: { venueId, status },
     include: chequeInclude,
-    orderBy: { openedAt: 'asc' },
+    orderBy: status === 'paid' ? { closedAt: 'desc' } : { openedAt: 'asc' },
+    take: limit,
   });
   return cheques.map(serializeCheque);
 }
@@ -283,7 +297,7 @@ export async function payCheque(
     if (orderIds.length) {
       await tx.order.updateMany({
         where: { id: { in: orderIds } },
-        data: { status: 'billed', closedAt: new Date() },
+        data: { status: 'closed', closedAt: new Date() },
       });
     }
 
@@ -378,4 +392,41 @@ export async function voidOpenCheque(chequeId, { managerPin, reason }, venueId) 
   });
 
   return { cheque: await getCheque(chequeId, venueId), voidedOrderIds };
+}
+
+export async function compChequeItem(chequeId, orderId, itemId, { managerPin, reason }, venueId) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  if (cheque.status !== 'open') throw validationError('Only open cheques can have items comped');
+
+  const order = ordersFromCheque(cheque).find((o) => o.id === orderId);
+  if (!order) throw validationError('Order not on this cheque');
+  if (!BILLABLE_ORDER_STATUSES.includes(order.status)) {
+    throw validationError('Only fired kitchen rounds can be comped');
+  }
+
+  const item = order.items.find((i) => i.id === itemId);
+  if (!item) throw validationError('Item not found on order');
+  if (item.isComped) throw validationError('Item is already comped');
+  if (!reason?.trim()) throw validationError('Comp reason is required');
+
+  const approver = await verifyManagerPin(venueId, managerPin);
+
+  await prisma.$transaction([
+    prisma.orderItemCompAudit.create({
+      data: {
+        orderItemId: itemId,
+        chequeId,
+        cashierId: cheque.cashierId,
+        approverId: approver.id,
+        reason: reason.trim(),
+      },
+    }),
+    prisma.orderItem.update({
+      where: { id: itemId },
+      data: { isComped: true },
+    }),
+  ]);
+
+  return getCheque(chequeId, venueId);
 }
