@@ -211,12 +211,22 @@ test('order lifecycle: create, add with modifier, qty, send, receipt', async () 
   assert.equal(qtyRes.statusCode, 200);
   assert.equal(qtyRes.json().items[0].quantity, 2);
 
+  const tableRes = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/orders/${orderId}`,
+    headers: terminalHeaders,
+    payload: { tableLabel: 'T12' },
+  });
+  assert.equal(tableRes.statusCode, 200);
+  assert.equal(tableRes.json().tableLabel, 'T12');
+
   const sendRes = await app.inject({
     method: 'POST',
     url: `/api/v1/orders/${orderId}/send`,
     headers: terminalHeaders,
   });
   assert.equal(sendRes.statusCode, 200);
+  assert.equal(sendRes.json().tableLabel, 'T12');
   assert.equal(sendRes.json().status, 'sent');
   assert.ok(sendRes.json().sentAt);
 

@@ -68,6 +68,15 @@ export function updateLocalOrderItemQty(db, orderId, itemId, quantity) {
   return getLocalOrder(db, orderId);
 }
 
+export function updateLocalOrderTableLabel(db, orderId, tableLabel) {
+  const order = db.prepare('SELECT id, status FROM orders WHERE id = ?').get(orderId);
+  if (!order) throw new Error('Order not found');
+  if (order.status !== 'draft') throw new Error('Order is not editable');
+
+  db.prepare('UPDATE orders SET table_label = ? WHERE id = ?').run(tableLabel ?? null, orderId);
+  return getLocalOrder(db, orderId);
+}
+
 export function sendLocalOrder(db, orderId) {
   const order = getLocalOrder(db, orderId);
   if (!order) throw new Error('Order not found');

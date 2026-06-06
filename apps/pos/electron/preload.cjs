@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld('venuePos', {
   syncMenu: () => agentFetch('/v1/menu/sync', { method: 'POST' }),
   createOrder: (body) =>
     agentFetch('/v1/orders', { method: 'POST', body: JSON.stringify(body) }),
+  updateOrder: (orderId, body) =>
+    agentFetch(`/v1/orders/${orderId}`, { method: 'PATCH', body: JSON.stringify(body) }),
   addOrderItem: (orderId, body) =>
     agentFetch(`/v1/orders/${orderId}/items`, {
       method: 'POST',

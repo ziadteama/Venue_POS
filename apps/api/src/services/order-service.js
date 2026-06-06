@@ -155,6 +155,20 @@ export async function removeOrderItem(orderId, itemId) {
   return updateOrderItemQuantity(orderId, itemId, 0);
 }
 
+export async function updateOrderTableLabel(orderId, tableLabel, venueId) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  if (!order) throw notFound('Order not found');
+  if (order.venueId !== venueId) throw validationError('Order not found for this terminal');
+  if (order.status !== 'draft') throw validationError('Only draft orders can be updated');
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { tableLabel: tableLabel ?? null },
+    include: orderInclude,
+  });
+  return serializeOrder(updated);
+}
+
 export async function sendOrderToKitchen(orderId) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },

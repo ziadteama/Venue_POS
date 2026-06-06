@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { io } from 'socket.io-client';
 import { LanguageToggle } from './components/LanguageToggle.jsx';
@@ -46,6 +46,9 @@ async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/orders\/[^/]+\/items\/[^/]+$/) && method === 'PATCH') {
       const [, , , orderId, , itemId] = path.split('/');
       return window.venuePos.updateOrderItem(orderId, itemId, body.quantity);
+    }
+    if (path.match(/^\/v1\/orders\/[^/]+$/) && method === 'PATCH') {
+      return window.venuePos.updateOrder(path.split('/')[3], body);
     }
     if (path.match(/^\/v1\/orders\/[^/]+\/send$/)) {
       return window.venuePos.sendOrder(path.split('/')[3]);
@@ -185,6 +188,8 @@ export default function App() {
   const [activeCategoryId, setActiveCategoryId] = useState('all');
   const [order, setOrder] = useState(null);
   const [tableLabel, setTableLabel] = useState('T4');
+  const tableLabelRef = useRef(tableLabel);
+  tableLabelRef.current = tableLabel;
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -226,18 +231,34 @@ export default function App() {
     }
   }, [t]);
 
-  const startOrder = useCallback(async () => {
+  const syncTableLabel = useCallback(
+    async (label) => {
+      if (!order || order.status !== 'draft') return order;
+      const trimmed = (label ?? tableLabelRef.current).trim();
+      if ((order.tableLabel ?? '') === trimmed) return order;
+      const updated = await callAgent(`/v1/orders/${order.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tableLabel: trimmed || null }),
+      });
+      setOrder(updated);
+      return updated;
+    },
+    [order],
+  );
+
+  const startOrder = useCallback(async (label) => {
     setError('');
+    const table = (label ?? tableLabelRef.current).trim();
     try {
       const created = await callAgent('/v1/orders', {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel }),
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel: table || null }),
       });
       setOrder(created);
     } catch {
       setError(t('pos.orderCreateFailed'));
     }
-  }, [tableLabel, t]);
+  }, [t]);
 
   useEffect(() => {
     loadMenu();
@@ -351,9 +372,10 @@ export default function App() {
     setSending(true);
     setError('');
     try {
+      await syncTableLabel(tableLabelRef.current);
       const sent = await callAgent(`/v1/orders/${order.id}/send`, { method: 'POST' });
       setKitchenWatch(sent);
-      await startOrder();
+      await startOrder(tableLabelRef.current);
     } catch {
       setError(t('pos.sendFailed'));
     } finally {
@@ -363,7 +385,11 @@ export default function App() {
 
   async function handleClear() {
     setError('');
-    await startOrder();
+    await startOrder(tableLabelRef.current);
+  }
+
+  function handleTableBlur() {
+    syncTableLabel(tableLabelRef.current).catch(() => {});
   }
 
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
@@ -410,6 +436,7 @@ export default function App() {
             <input
               value={tableLabel}
               onChange={(e) => setTableLabel(e.target.value)}
+              onBlur={handleTableBlur}
               className="w-16 rounded border border-white/30 bg-white/15 px-2 py-1 text-center text-sm"
             />
           </label>
