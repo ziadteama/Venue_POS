@@ -686,6 +686,108 @@ test('manager can void entire open cheque', async () => {
   );
 });
 
+test('cheque split by item: pay sub-cheques closes parent', async () => {
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+  const modifier = {
+    groupId: group.id,
+    optionId: option.id,
+    nameEn: option.nameEn,
+    nameAr: option.nameAr,
+    priceDelta: option.priceDelta,
+  };
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'SP1' },
+  });
+  const parentId = openRes.json().id;
+  let draftId = openRes.json().draftOrder.id;
+
+  const fireRound = async () => {
+    await app.inject({
+      method: 'POST',
+      url: `/api/v1/orders/${draftId}/items`,
+      headers: terminalHeaders,
+      payload: { menuItemId, quantity: 1, modifiers: [modifier] },
+    });
+    const fireRes = await app.inject({
+      method: 'POST',
+      url: `/api/v1/cheques/${parentId}/fire`,
+      headers: terminalHeaders,
+    });
+    draftId = fireRes.json().cheque.draftOrder.id;
+    return fireRes.json().cheque;
+  };
+
+  const afterFirst = await fireRound();
+  const afterSecond = await fireRound();
+  const itemA = afterFirst.orders.find((o) => o.status === 'sent').items[0].id;
+  const itemB = afterSecond.orders.filter((o) => o.status === 'sent').at(-1).items[0].id;
+
+  const splitRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${parentId}/split`,
+    headers: terminalHeaders,
+    payload: {
+      splits: [
+        { label: 'Guest 1', itemIds: [itemA] },
+        { label: 'Guest 2', itemIds: [itemB] },
+      ],
+    },
+  });
+  assert.equal(splitRes.statusCode, 200);
+  assert.equal(splitRes.json().childCheques.length, 2);
+  assert.equal(splitRes.json().total, 0);
+
+  const childA = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest 1');
+  const childB = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest 2');
+  assert.ok(childA.total > 0);
+  assert.ok(childB.total > 0);
+
+  const payA = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${childA.id}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  assert.equal(payA.statusCode, 200);
+  assert.equal(payA.json().cheque.status, 'paid');
+
+  const parentMid = await app.inject({
+    method: 'GET',
+    url: `/api/v1/cheques/${parentId}`,
+    headers: terminalHeaders,
+  });
+  assert.equal(parentMid.json().status, 'open');
+
+  const payB = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${childB.id}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+  assert.equal(payB.statusCode, 200);
+
+  const parentFinal = await app.inject({
+    method: 'GET',
+    url: `/api/v1/cheques/${parentId}`,
+    headers: terminalHeaders,
+  });
+  assert.equal(parentFinal.json().status, 'paid');
+  assert.equal(
+    parentFinal.json().orders.filter((o) => o.status === 'closed').length,
+    2,
+  );
+});
+
 test('manager can 86 an item', async () => {
   const res = await app.inject({
     method: 'PATCH',

@@ -582,6 +582,30 @@ npm run lint:i18n
 
 **Still deferred:** Bill split (US-3.6), line transfer, shifts (US-13.1), refunds (US-5.6), cross-venue (Epic 4), receipt PDF.
 
+### 2026-06-09 — Bill split by item (US-3.6 slice 5)
+
+**What:** Split open cheque into sub-cheques by assigning fired line items; each sub-cheque paid independently; parent auto-closes when all splits (and remainder) are paid.
+
+**Schema:** `Cheque.parentChequeId`, `Cheque.splitLabel`, `OrderItem.billingChequeId`, `OrderItem.paidAt`. Migration `20260609120000_phase3_cheque_split`.
+
+**API:**
+- `POST /api/v1/cheques/:id/split` — `{ splits: [{ label, itemIds }] }` (1–8 splits)
+- Pay on child marks items `paidAt`; parent finalizes when all children + remainder settled
+- `serializeCheque` includes `childCheques`, `parentCheque`, filtered item totals
+
+**POS:** Split bill modal (Guest 1 / Guest 2 item checkboxes); sub-cheques in open-tab chips.
+
+**Dashboard:** Sub-cheques list on parent detail; split label in open/paid lists.
+
+**Verify:**
+```bash
+npm run migrate
+npm run test
+# POS: fire 2 rounds → Split bill → pay each guest chip
+```
+
+**Still deferred:** Split by seat, split by custom amount, line transfer, shifts, refunds, cross-venue, receipt PDF.
+
 ---
 
 ## Quick reference — Phase 0 deliverables

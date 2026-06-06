@@ -373,6 +373,18 @@ export async function buildAgentServer({ db, config }) {
     ),
   );
 
+  app.post('/v1/cheques/:id/split', async (request, reply) => {
+    const { splits } = request.body ?? {};
+    if (!splits?.length) return reply.status(400).send({ error: 'splits required' });
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/split`,
+      { method: 'POST', body: JSON.stringify({ splits }) },
+    );
+  });
+
   app.post('/v1/cheques/:id/pay', async (request, reply) => {
     const { cashierId, payments, method, amount, tendered } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });

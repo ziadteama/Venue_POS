@@ -61,6 +61,9 @@ async function callAgent(path, options = {}) {
     }
     if (path === '/v1/cheques/open' && method === 'GET') return window.venuePos.listOpenCheques();
     if (path === '/v1/cheques/open' && method === 'POST') return window.venuePos.openCheque(body);
+    if (path.match(/^\/v1\/cheques\/[^/]+$/) && method === 'GET') {
+      return window.venuePos.getCheque(path.split('/')[3]);
+    }
     if (path.match(/^\/v1\/cheques\/[^/]+\/fire$/) && method === 'POST') {
       return window.venuePos.fireCheque(path.split('/')[3]);
     }
@@ -69,6 +72,9 @@ async function callAgent(path, options = {}) {
     }
     if (path.match(/^\/v1\/cheques\/[^/]+\/pay$/) && method === 'POST') {
       return window.venuePos.payCheque(path.split('/')[3], body);
+    }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/split$/) && method === 'POST') {
+      return window.venuePos.splitCheque(path.split('/')[3], body);
     }
   }
 
@@ -193,6 +199,108 @@ function ClearIcon() {
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
     </svg>
+  );
+}
+
+function splittableItems(cheque) {
+  if (!cheque || cheque.parentChequeId) return [];
+  return (cheque.orders ?? [])
+    .filter((o) => ['sent', 'partially_ready', 'ready', 'served'].includes(o.status))
+    .flatMap((o) => o.items)
+    .filter((i) => !i.billingChequeId && !i.paidAt && !i.isComped);
+}
+
+function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
+  const items = splittableItems(cheque);
+  const [guests, setGuests] = useState(() => [
+    { label: t('pos.splitGuest', { n: 1 }), itemIds: [] },
+    { label: t('pos.splitGuest', { n: 2 }), itemIds: [] },
+  ]);
+
+  function toggleItem(guestIdx, itemId) {
+    setGuests((prev) =>
+      prev.map((g, i) => {
+        if (i === guestIdx) {
+          const has = g.itemIds.includes(itemId);
+          return {
+            ...g,
+            itemIds: has ? g.itemIds.filter((id) => id !== itemId) : [...g.itemIds, itemId],
+          };
+        }
+        return { ...g, itemIds: g.itemIds.filter((id) => id !== itemId) };
+      }),
+    );
+  }
+
+  const assigned = new Set(guests.flatMap((g) => g.itemIds));
+  const splits = guests.filter((g) => g.itemIds.length > 0);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!splits.length) return;
+          onConfirm({
+            splits: splits.map((g) => ({ label: g.label, itemIds: g.itemIds })),
+          });
+        }}
+        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
+      >
+        <h3 className="mb-1 text-xl font-bold text-slate-900">{t('pos.splitTitle')}</h3>
+        <p className="mb-4 text-sm text-secondary">{t('pos.splitSelectItems')}</p>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          {guests.map((guest, guestIdx) => (
+            <div key={guest.label} className="rounded-lg border border-slate-200 p-3">
+              <p className="mb-2 font-medium text-slate-900">{guest.label}</p>
+              <ul className="space-y-1">
+                {items.map((item) => {
+                  const checked = guest.itemIds.includes(item.id);
+                  const takenElsewhere = assigned.has(item.id) && !checked;
+                  return (
+                    <li key={item.id}>
+                      <label
+                        className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm ${
+                          takenElsewhere ? 'opacity-40' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          disabled={takenElsewhere}
+                          onChange={() => toggleItem(guestIdx, item.id)}
+                        />
+                        <span>
+                          {item.quantity}x {language === 'ar' ? item.nameAr : item.nameEn}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex gap-3">
+          <button
+            type="submit"
+            disabled={!splits.length}
+            className="flex-1 rounded-lg bg-primary-gradient py-3 font-semibold text-white disabled:opacity-50"
+          >
+            {t('pos.splitConfirm')}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-slate-300 px-4 py-3 text-secondary hover:bg-slate-50"
+          >
+            {t('common.cancel')}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -361,6 +469,7 @@ export default function App() {
   const [sending, setSending] = useState(false);
   const [paying, setPaying] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
   const [kitchenWatch, setKitchenWatch] = useState(null);
   const [openCheques, setOpenCheques] = useState([]);
   const [clock, setClock] = useState(() => new Date());
@@ -451,7 +560,12 @@ export default function App() {
     async (tab) => {
       setTableLabel(tab.tableLabel);
       tableLabelRef.current = tab.tableLabel;
-      await openCheque(tab.tableLabel);
+      if (tab.splitLabel || tab.parentChequeId) {
+        const loaded = await callAgent(`/v1/cheques/${tab.id}`);
+        setCheque(loaded);
+      } else {
+        await openCheque(tab.tableLabel);
+      }
     },
     [openCheque],
   );
@@ -601,6 +715,22 @@ export default function App() {
     }
   }
 
+  async function confirmSplit(splitBody) {
+    if (!cheque) return;
+    setError('');
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/split`, {
+        method: 'POST',
+        body: JSON.stringify(splitBody),
+      });
+      setShowSplitModal(false);
+      setCheque(updated);
+      await refreshOpenCheques();
+    } catch {
+      setError(t('pos.splitFailed'));
+    }
+  }
+
   async function confirmPay(paymentBody) {
     if (!cheque || paying) return;
     setPaying(true);
@@ -631,6 +761,16 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
+      {showSplitModal && cheque && (
+        <SplitBillModal
+          cheque={cheque}
+          language={i18n.language}
+          t={t}
+          onCancel={() => setShowSplitModal(false)}
+          onConfirm={confirmSplit}
+        />
+      )}
+
       {showPayModal && cheque && (
         <PayModal
           cheque={cheque}
@@ -712,7 +852,7 @@ export default function App() {
                         : 'bg-slate-100 text-secondary hover:bg-slate-200'
                     }`}
                   >
-                    {tab.tableLabel} · {tab.total.toFixed(0)}
+                    {tab.splitLabel || tab.tableLabel} · {tab.total.toFixed(0)}
                   </button>
                 ))}
               </div>
@@ -830,6 +970,17 @@ export default function App() {
                   </button>
                 )}
               </div>
+              {!cheque?.parentChequeId &&
+                splittableItems(cheque).length >= 2 &&
+                !order?.items?.length && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSplitModal(true)}
+                    className="w-full rounded-lg border border-primary-to py-3 text-sm font-semibold text-primary-to hover:bg-slate-50"
+                  >
+                    {t('pos.splitBill')}
+                  </button>
+                )}
               {cheque && cheque.total > 0 && !order?.items?.length && (
                 <button
                   type="button"
