@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
 import { serializeOrder } from '../utils/serialize.js';
+import { verifyManagerPin } from './auth-service.js';
 import { createOrder, sendOrderToKitchen } from './order-service.js';
 
 const chequeOrderInclude = {
@@ -17,6 +18,7 @@ const chequeInclude = {
 };
 
 const BILLABLE_ORDER_STATUSES = ['sent', 'partially_ready', 'ready', 'served'];
+const VOIDABLE_ROUND_STATUSES = ['draft', 'sent', 'partially_ready', 'ready', 'served'];
 
 function ordersFromCheque(cheque) {
   return cheque.orders.map((link) => link.order);
@@ -251,4 +253,83 @@ export async function payCheque(chequeId, { cashierId, method = 'cash', amount }
   });
 
   return getCheque(chequeId, venueId);
+}
+
+export async function voidChequeRound(chequeId, orderId, { managerPin, reason }, venueId) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  if (cheque.status !== 'open') throw validationError('Only open cheques can have rounds voided');
+
+  const order = ordersFromCheque(cheque).find((o) => o.id === orderId);
+  if (!order) throw validationError('Order not on this cheque');
+  if (!VOIDABLE_ROUND_STATUSES.includes(order.status)) {
+    throw validationError('Order cannot be voided');
+  }
+  if (!reason?.trim()) throw validationError('Void reason is required');
+
+  const approver = await verifyManagerPin(venueId, managerPin);
+
+  if (order.status === 'draft' && !order.items.length) {
+    await prisma.order.delete({ where: { id: orderId } });
+    return { cheque: await getCheque(chequeId, venueId), voidedOrderId: orderId };
+  }
+
+  await prisma.$transaction([
+    prisma.orderVoidAudit.create({
+      data: {
+        orderId,
+        cashierId: cheque.cashierId,
+        approverId: approver.id,
+        reason: reason.trim(),
+      },
+    }),
+    prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'voided', closedAt: new Date() },
+    }),
+  ]);
+
+  return { cheque: await getCheque(chequeId, venueId), voidedOrderId: orderId };
+}
+
+export async function voidOpenCheque(chequeId, { managerPin, reason }, venueId) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  if (cheque.status !== 'open') throw validationError('Only open cheques can be voided');
+  if (!reason?.trim()) throw validationError('Void reason is required');
+
+  const approver = await verifyManagerPin(venueId, managerPin);
+  const ordersToVoid = ordersFromCheque(cheque).filter((o) =>
+    VOIDABLE_ROUND_STATUSES.includes(o.status),
+  );
+
+  const voidedOrderIds = [];
+
+  await prisma.$transaction(async (tx) => {
+    for (const order of ordersToVoid) {
+      if (order.status === 'draft' && !order.items.length) {
+        await tx.order.delete({ where: { id: order.id } });
+        continue;
+      }
+      voidedOrderIds.push(order.id);
+      await tx.orderVoidAudit.create({
+        data: {
+          orderId: order.id,
+          cashierId: cheque.cashierId,
+          approverId: approver.id,
+          reason: reason.trim(),
+        },
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: 'voided', closedAt: new Date() },
+      });
+    }
+    await tx.cheque.update({
+      where: { id: chequeId },
+      data: { status: 'voided', closedAt: new Date() },
+    });
+  });
+
+  return { cheque: await getCheque(chequeId, venueId), voidedOrderIds };
 }

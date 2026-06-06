@@ -516,7 +516,26 @@ npm run test
 # POS: add items → Fire twice → Pay cash → new cheque for same table
 ```
 
-**Still deferred:** Dashboard open-cheque list, manager void/comp on running cheques.
+**Still deferred:** Line-item comp, split pay, card terminal.
+
+### 2026-06-07 — Dashboard open cheques + manager void (slice 2)
+
+**What:** Managers view open tabs and void kitchen rounds or entire cheques from the web dashboard (manager PIN + audit).
+
+**API** (`routes/manager-cheques.js`, `cheque-service.js`):
+- `GET /api/v1/manager/cheques/open` — JWT; hub manager optional `?venueId=`
+- `GET /api/v1/manager/cheques/:id`
+- `POST /api/v1/manager/cheques/:id/orders/:orderId/void` — void one round (`sent`…`served`)
+- `POST /api/v1/manager/cheques/:id/void` — void entire open cheque → `ChequeStatus.voided`
+- Emits `order:voided` to KDS/POS when applicable
+
+**Dashboard:** `/cheques` — open list, running total, per-round void, void entire cheque modal (PIN + reason).
+
+**Verify:**
+```bash
+npm run test
+# Dashboard: admin / admin123 → Open cheques → void round (manager PIN 9999)
+```
 
 ### 2026-06-06 — KDS feature-flag hardening (PR #2 review)
 

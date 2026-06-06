@@ -405,6 +405,98 @@ test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
   assert.equal(resumeRes.json().status, 'open');
 });
 
+test('manager can void a kitchen round on open cheque', async () => {
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'M1' },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  const menuRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const sentOrderId = fireRes.json().sentOrder.id;
+
+  const voidRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/cheques/${chequeId}/orders/${sentOrderId}/void`,
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: { managerPin: '8888', reason: 'Wrong table' },
+  });
+  assert.equal(voidRes.statusCode, 200);
+  const voided = voidRes.json().orders.find((o) => o.id === sentOrderId);
+  assert.equal(voided.status, 'voided');
+  assert.equal(voidRes.json().total, 0);
+
+  const listRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/manager/cheques/open',
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.ok(listRes.json().some((c) => c.id === chequeId));
+});
+
+test('manager can void entire open cheque', async () => {
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'M2' },
+  });
+  const chequeId = openRes.json().id;
+
+  const voidRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/cheques/${chequeId}/void`,
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: { managerPin: '8888', reason: 'Guest left' },
+  });
+  assert.equal(voidRes.statusCode, 200);
+  assert.equal(voidRes.json().status, 'voided');
+
+  const listRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/manager/cheques/open',
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(
+    listRes.json().some((c) => c.id === chequeId),
+    false,
+  );
+});
+
 test('manager can 86 an item', async () => {
   const res = await app.inject({
     method: 'PATCH',
