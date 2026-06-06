@@ -5,6 +5,9 @@ const DEFAULT_FEATURES = {
   manualCardPayment: false,
   manualCardApprovalThreshold: 500,
   lineTransfer: false,
+  discounts: true,
+  refunds: true,
+  autoReceiptPrint: true,
 };
 
 export function useFeatures() {
@@ -21,6 +24,9 @@ export function useFeatures() {
             manualCardPayment: Boolean(data?.manualCardPayment),
             manualCardApprovalThreshold: Number(data?.manualCardApprovalThreshold) || 500,
             lineTransfer: Boolean(data?.lineTransfer),
+            discounts: data?.discounts !== false,
+            refunds: data?.refunds !== false,
+            autoReceiptPrint: data?.autoReceiptPrint !== false,
           });
         }
       } catch {

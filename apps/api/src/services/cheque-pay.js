@@ -10,6 +10,7 @@ import {
   findDraftOrder,
   itemBelongsToCheque,
   itemLineTotal,
+  computeChequeTotal,
   loadCheque,
   ordersFromCheque,
   serializeCheque,
@@ -128,12 +129,13 @@ export async function payCheque(
 
   if (isAmountSplitChild) {
     total = Number(cheque.splitAmount);
+    itemsToPay = [];
   } else {
     itemsToPay = billingOrdersFromCheque(cheque)
       .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
       .flatMap((o) => o.items)
       .filter((item) => itemBelongsToCheque(item, cheque.id, isParent));
-    total = itemsToPay.reduce((sum, item) => sum + itemLineTotal(item), 0);
+    total = computeChequeTotal(cheque);
   }
 
   if (total <= 0) throw validationError('Nothing to pay on this cheque');

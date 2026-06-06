@@ -7,5 +7,8 @@ export async function featureRoutes(app) {
     manualCardApprovalThreshold: config.manualCardApprovalThreshold,
     kdsEnabled: config.featureKdsEnabled,
     lineTransfer: config.featureLineTransferEnabled,
+    discounts: config.featureDiscountsEnabled,
+    refunds: config.featureRefundsEnabled,
+    autoReceiptPrint: config.featureAutoReceiptPrint,
   }));
 }

@@ -9,6 +9,9 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 | Manual card (US-5.3) | `FEATURE_MANUAL_CARD_PAYMENT` | OFF | ✅ Shipped |
 | Line transfer | `FEATURE_LINE_TRANSFER` | OFF | ✅ Shipped |
 | KDS | `FEATURE_KDS_ENABLED` | ON | ✅ Shipped |
+| Discounts | `FEATURE_DISCOUNTS_ENABLED` | ON | ✅ Shipped |
+| Refunds (US-5.6) | `FEATURE_REFUNDS_ENABLED` | ON | ✅ Shipped |
+| Auto receipt print | `FEATURE_AUTO_RECEIPT_PRINT` | ON | ✅ Shipped |
 | Integrated PDQ (US-5.2) | `FEATURE_INTEGRATED_CARD_PAYMENT` | OFF | **Future** |
 
 ## Deferred features
@@ -22,10 +25,9 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 - ✅ Shipped — `POST /cheques/:id/split-amount`, child `splitAmount`.
 
 ### Post-payment corrections (refunds & cheque edits)
-- **Restaurant manager** (`venue_manager`) performs; **general manager** (`hub_manager`) approves.
-- All actions audit-logged; GM dashboard view of approvals.
-- Applies to: refunds (US-5.6), void/comp on **paid** cheques, payment reversals.
-- **Future** — after core refund schema.
+- ✅ **Refunds (US-5.6)** — `venue_manager` initiates + `hub_manager` approves; audit at `GET /manager/refunds`.
+- ✅ **Cheque discounts** — before pay; dual PIN; `ChequeDiscountAudit`.
+- Still **future**: void/comp on **paid** cheques, payment reversals beyond partial refund.
 
 ### Integrated card terminal (US-5.2)
 - Ingenico/PAX SDK, transaction ID storage, PCI-safe.

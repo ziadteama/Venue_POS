@@ -88,6 +88,34 @@ export async function verifyManagerPin(venueId, pin) {
   throw unauthorized('Invalid manager PIN');
 }
 
+export async function verifyManagerPinByRole(venueId, pin, role) {
+  const managers = await prisma.user.findMany({
+    where: { venueId, role, isActive: true, pinHash: { not: null } },
+  });
+
+  for (const user of managers) {
+    if (await bcrypt.compare(pin, user.pinHash)) return user;
+  }
+  throw unauthorized(`Invalid ${role.replace('_', ' ')} PIN`);
+}
+
+/** Restaurant manager initiates; general manager (hub) approves. */
+export async function verifyDualManagerApproval(
+  venueId,
+  { restaurantManagerPin, generalManagerPin },
+) {
+  const initiator = await verifyManagerPinByRole(
+    venueId,
+    restaurantManagerPin,
+    'venue_manager',
+  );
+  const approver = await verifyManagerPinByRole(venueId, generalManagerPin, 'hub_manager');
+  if (initiator.id === approver.id) {
+    throw unauthorized('Initiator and approver must be different managers');
+  }
+  return { initiator, approver };
+}
+
 async function validateTerminal(terminalId, terminalSecret) {
   if (!terminalId || !terminalSecret) {
     throw unauthorized('Terminal credentials required');

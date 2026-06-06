@@ -173,6 +173,11 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
     lines.push(`  Round subtotal: ${order.subtotal.toFixed(2)}`);
   }
 
+  const subtotal = cheque.subtotalBeforeDiscount ?? cheque.total;
+  if (cheque.discountAmount > 0) {
+    lines.push(`Subtotal: ${subtotal.toFixed(2)}`);
+    lines.push(`Discount: -${cheque.discountAmount.toFixed(2)}`);
+  }
   lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`);
 
   if (cheque.payments?.length) {
@@ -189,5 +194,22 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
   }
 
   lines.push('---', 'Thank you!');
+  return lines.join('\n');
+}
+
+export function buildRefundReceiptText(cheque, venue, refund) {
+  const lines = [
+    venue?.nameEn ?? 'Venue POS',
+    '*** REFUND ***',
+    `Cheque #${cheque.chequeNumber}`,
+    `Table: ${cheque.tableLabel ?? '—'}`,
+    '---',
+    `Refund amount: ${Number(refund.amount).toFixed(2)}`,
+    `Method: ${refund.method}`,
+    `Reason: ${refund.reason}`,
+    `Processed: ${refund.processedAt}`,
+    '---',
+    'Retain this receipt for your records.',
+  ];
   return lines.join('\n');
 }

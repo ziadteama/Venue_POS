@@ -11,3 +11,5 @@ export { payCheque, getChequeReceipt } from './cheque-pay.js';
 export { splitChequeByItems, splitChequeByAmount } from './cheque-split.js';
 export { transferChequeItems, listTransferAudits } from './cheque-transfer.js';
 export { voidChequeRound, voidOpenCheque, compChequeItem } from './cheque-manager.js';
+export { applyChequeDiscount, listDiscountAudits } from './cheque-discount.js';
+export { processRefund, listRefundAudits } from './cheque-refund.js';
