@@ -22,9 +22,9 @@ export default function App() {
   const [clock, setClock] = useState(() => new Date());
 
   const orderLookup = useOrderLookup();
-  const { features, loading: featuresLoading } = useFeatures();
   const printerOk = usePrinterHealth();
-  const { kitchenWatch, setKitchenWatch } = useKitchenSocket();
+  const { features, loading: featuresLoading } = useFeatures();
+  const { kitchenWatch, setKitchenWatch } = useKitchenSocket(features.kdsEnabled);
   const { menu, loading, activeCategoryId, setActiveCategoryId, search, setSearch, displayItems } =
     usePosMenu();
 
@@ -127,7 +127,7 @@ export default function App() {
 
   async function onSend() {
     const sent = await handleSend();
-    if (sent) setKitchenWatch(sent);
+    if (sent && features.kdsEnabled) setKitchenWatch(sent);
   }
 
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
@@ -243,7 +243,9 @@ export default function App() {
         </div>
       </div>
 
-      <KitchenProgress kitchenWatch={kitchenWatch} language={i18n.language} t={t} />
+      {features.kdsEnabled ? (
+        <KitchenProgress kitchenWatch={kitchenWatch} language={i18n.language} t={t} />
+      ) : null}
 
       <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-5 py-2 text-xs text-secondary">
         <span className="flex items-center gap-2">
