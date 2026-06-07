@@ -947,15 +947,13 @@ npm run dev:dashboard
 | US-8.4 Menu manager | ✅ (core) | Auto-translate API deferred |
 | US-8.5 Venue configuration | ✅ | Tax, printers, WS sync, audit |
 | US-8.6 Billing rules | ⬜ | Phase 4 / cross-venue |
-| US-8.7 User management | ⬜ | Staff CRUD, PIN/RFID |
-| US-8.8 Inventory | ⬜ | P2 |
-| US-8.9 Shift management (dashboard) | ✅ (slice 1) | List, detail, over/short, force-close, CSV; EOD view next |
-| US-8.10 System health | ⬜ | Terminals, sync queue |
-| US-8.11 Audit log (full) | ⬜ | Extend Activity → immutable audit |
+| US-8.7 User management | ✅ | Venue manager staff CRUD, PIN/RFID, CSV |
+| US-8.8 Inventory | ❌ | Out of scope — not planned |
+| US-8.9 Shift management (dashboard) | ✅ | List, detail, EOD reconciliation, force-close, CSV |
+| US-8.10 System health | ✅ | Terminals, sync queue, server memory, WS |
+| US-8.11 Audit log (full) | ✅ | Unified feed, filters, CSV export |
 
-**Recommended next slice:** **US-8.9 slice 2** — end-of-day reconciliation view, or **US-8.7** user management.
-
-**Then:** US-8.7 users → US-8.10 health → US-8.11 full audit.
+**Recommended next:** Phase 4 cross-venue (US-8.6) or Phase 6 offline sync.
 
 ---
 
@@ -989,20 +987,42 @@ npm run dev:dashboard
 
 ---
 
+### 2026-06-07 — US-8.7 / 8.9 slice 2 / 8.10 / 8.11 (admin ops slice)
+
+**Stories:** US-8.7, US-8.9 slice 2, US-8.10, US-8.11  
+**What:** Venue-manager staff CRUD (cashier/kitchen), EOD reconciliation on Shifts page, system health panel, full audit log with filters + CSV. Inventory (US-8.8) **out of scope** — not planned.
+
+**API:**
+- `GET/POST/PATCH /api/v1/manager/users` — venue_manager only (staff CRUD, PIN reset, deactivate, CSV import/export)
+- `GET /api/v1/manager/shifts/eod` — daily rollup (hub all venues, venue_manager own venue)
+- `GET /api/v1/manager/health` — terminals, sync queue, server memory, WS counts
+- `GET /api/v1/manager/audit` — hub_manager unified audit (manager actions + config + shifts + auth/menu/user logs)
+- `POST /api/v1/terminals/heartbeat` — updates `last_seen_at` + `sync_queue_depth`
+- Migration `20260616120000_phase5_users_audit_health` — `audit_logs` table
+
+**Dashboard:** `/users` (venue_manager), `/health`, enhanced `/activity` audit, EOD panel on `/shifts`, nav/layout guards fixed (hub → activity/settings/shifts; venue → users).
+
+**Verify:**
+```bash
+npm run migrate
+npm run test -w @venue-pos/api
+npm run lint && npm run lint:i18n
+# venue_mgr → Staff → add cashier
+# admin → Activity → export CSV; Shifts → EOD date; Health → terminal status
+```
+
+---
+
 ## Phase 5 — Path forward
 
-**Shipped on this branch:** US-8.1–8.5 (core), US-8.9 slice 1, refund approval workflow, POS table-switch UX, dashboard nav/auth polish. PRD updated to match shipped behaviour.
+**Shipped on this branch:** US-8.1–8.5 (core), US-8.7, US-8.9 (slices 1–2), US-8.10, US-8.11, refund approval workflow, POS table-switch UX, dashboard nav/auth polish.
 
-**Open Epic 8 work (priority order):**
+**Open Epic 8 work:**
 
 | Priority | Story | Scope |
 |----------|-------|-------|
-| 1 | **US-8.9 slice 2** | End-of-day reconciliation view — shift totals vs payments/refunds, venue-day rollup for hub |
-| 2 | **US-8.7** | User management — staff CRUD, PIN/RFID assign, role + venue scope, deactivate |
-| 3 | **US-8.10** | System health — terminal last-seen, local-agent sync queue depth, API uptime panel |
-| 4 | **US-8.11** | Full audit log — immutable export, filter by actor/action/venue, extend Activity feed |
 | — | US-8.6 | Billing rules — **Phase 4** cross-venue |
-| — | US-8.8 | Inventory — **P2** |
+| — | US-8.8 | Inventory — **cancelled / out of scope** |
 
 **Suggested branch names:** `feature/US-8.9-eod-reconciliation` or `feature/US-8.7-user-management`
 

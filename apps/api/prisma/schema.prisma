@@ -110,6 +110,7 @@ model Venue {
   shifts       Shift[]
   approvalRequests ManagerApprovalRequest[]
   configAudits VenueConfigAudit[]
+  auditLogs    AuditLog[]
 
   @@map("venues")
 }
@@ -148,6 +149,7 @@ model User {
   shifts        Shift[]
   shiftEvents   ShiftEvent[]
   venueConfigAudits VenueConfigAudit[]
+  auditLogs         AuditLog[]
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -160,8 +162,9 @@ model Terminal {
   name       String?   @db.VarChar(100)
   secretHash String    @map("secret_hash") @db.VarChar(255)
   isActive   Boolean   @default(true) @map("is_active")
-  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
-  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  syncQueueDepth Int       @default(0) @map("sync_queue_depth")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   venue  Venue   @relation(fields: [venueId], references: [id])
@@ -597,4 +600,24 @@ model ShiftEvent {
 
   @@index([shiftId], map: "idx_shift_events_shift")
   @@map("shift_events")
+}
+
+model AuditLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId       String?  @map("venue_id") @db.Uuid
+  actorId       String?  @map("actor_id") @db.Uuid
+  actorUsername String?  @map("actor_username") @db.VarChar(100)
+  action        String   @db.VarChar(64)
+  entityType    String?  @map("entity_type") @db.VarChar(64)
+  entityId      String?  @map("entity_id") @db.VarChar(64)
+  summary       String   @db.VarChar(500)
+  details       Json?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  venue Venue? @relation(fields: [venueId], references: [id])
+  actor User?  @relation(fields: [actorId], references: [id])
+
+  @@index([venueId, createdAt], map: "idx_audit_logs_venue_at")
+  @@index([action, createdAt], map: "idx_audit_logs_action_at")
+  @@map("audit_logs")
 }

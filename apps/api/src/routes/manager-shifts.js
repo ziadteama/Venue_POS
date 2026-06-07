@@ -6,6 +6,8 @@ import {
   getManagerShiftDetail,
   managerForceCloseShift,
   shiftsListToCsv,
+  getEodReconciliation,
+  eodReconciliationToCsv,
 } from '../services/manager-shift-service.js';
 
 const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
@@ -46,6 +48,29 @@ export async function managerShiftsRoutes(app) {
         return shiftsListToCsv(result);
       }
 
+      return result;
+    },
+  );
+
+  app.get(
+    '/api/v1/manager/shifts/eod',
+    { preHandler: managerPreHandler },
+    async (request, reply) => {
+      const venueId = resolveVenueFilter(request);
+      if (request.user.role === ROLES.VENUE_MANAGER && !venueId) {
+        throw validationError('Venue is required');
+      }
+
+      const result = await getEodReconciliation({
+        venueId,
+        date: request.query?.date,
+      });
+
+      if (request.query?.format === 'csv') {
+        reply.header('Content-Type', 'text/csv; charset=utf-8');
+        reply.header('Content-Disposition', 'attachment; filename="eod-reconciliation.csv"');
+        return eodReconciliationToCsv(result);
+      }
       return result;
     },
   );

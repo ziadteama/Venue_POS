@@ -9,6 +9,8 @@ import { AnalyticsPage } from './pages/AnalyticsPage.jsx';
 import { OrdersPage } from './pages/OrdersPage.jsx';
 import { ShiftsPage } from './pages/ShiftsPage.jsx';
 import { VenueSettingsPage } from './pages/VenueSettingsPage.jsx';
+import { UsersPage } from './pages/UsersPage.jsx';
+import { HealthPage } from './pages/HealthPage.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 function ProtectedRoute({ children }) {
@@ -35,7 +37,9 @@ export default function App() {
         <Route path="menus" element={<MenuManagerPage />} />
         <Route path="cheques" element={<ChequesPage />} />
         <Route path="shifts" element={<ShiftsPage />} />
+        <Route path="users" element={<UsersPage />} />
         <Route path="activity" element={<ActivityPage />} />
+        <Route path="health" element={<HealthPage />} />
         <Route path="settings" element={<VenueSettingsPage />} />
       </Route>
     </Routes>

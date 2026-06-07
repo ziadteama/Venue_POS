@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { ROLES } from '@venue-pos/shared';
+import { prisma } from '../db/prisma.js';
 import { requireRoles } from '../middleware/auth.js';
+import { appendAuditLog } from '../services/audit-log-service.js';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError } from '../utils/errors.js';
 import { emitMenuUpdated } from '../plugins/socket.js';
@@ -129,6 +131,24 @@ export async function menuRoutes(app) {
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
       const result = await publishMenuTemplate(request.params.id);
+      const actor = await prisma.user.findUnique({
+        where: { id: request.user.sub },
+        select: { id: true, username: true, venueId: true },
+      });
+      appendAuditLog({
+        venueId: actor?.venueId ?? result.venueIds?.[0] ?? null,
+        actorId: actor?.id ?? request.user.sub,
+        actorUsername: actor?.username,
+        action: 'menu.published',
+        entityType: 'menu_template',
+        entityId: result.id,
+        summary: `Menu published: ${result.nameEn ?? result.id}`,
+        details: {
+          templateId: result.id,
+          venueIds: result.venueIds,
+          versionHash: result.versionHash,
+        },
+      }).catch(() => {});
       if (request.server.io) {
         emitMenuUpdated(request.server.io, {
           templateId: result.id,

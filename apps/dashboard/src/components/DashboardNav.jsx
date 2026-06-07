@@ -7,8 +7,12 @@ const NAV_ITEMS = [
   { to: '/analytics', labelKey: 'nav.analytics', roles: ['hub_manager', 'venue_manager'] },
   { to: '/orders', labelKey: 'nav.orders', roles: ['venue_manager'] },
   { to: '/cheques', labelKey: 'nav.cheques', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/shifts', labelKey: 'nav.shifts', roles: ['venue_manager'] },
+  { to: '/shifts', labelKey: 'nav.shifts', roles: ['hub_manager', 'venue_manager'] },
+  { to: '/users', labelKey: 'nav.users', roles: ['venue_manager'] },
   { to: '/menus', labelKey: 'nav.menus', roles: ['venue_manager'] },
+  { to: '/activity', labelKey: 'nav.activity', roles: ['hub_manager'] },
+  { to: '/health', labelKey: 'nav.health', roles: ['hub_manager', 'venue_manager'] },
+  { to: '/settings', labelKey: 'nav.settings', roles: ['hub_manager'] },
 ];
 
 function linkClass({ isActive }) {

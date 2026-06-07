@@ -1,9 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../api/client.js';
+import { apiFetch, getToken } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
-const TYPE_FILTERS = ['all', 'discount', 'refund', 'void', 'comp', 'transfer'];
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+
+const TYPE_FILTERS = [
+  'all',
+  'discount',
+  'refund',
+  'void',
+  'comp',
+  'transfer',
+  'config',
+  'auth',
+  'menu',
+  'user',
+  'shift_open',
+  'shift_close',
+];
 
 const TYPE_BADGE = {
   discount: 'bg-blue-100 text-blue-800 ring-blue-200',
@@ -11,17 +26,18 @@ const TYPE_BADGE = {
   void: 'bg-red-100 text-red-800 ring-red-200',
   comp: 'bg-violet-100 text-violet-800 ring-violet-200',
   transfer: 'bg-teal-100 text-teal-800 ring-teal-200',
+  config: 'bg-slate-100 text-slate-800 ring-slate-200',
+  auth: 'bg-indigo-100 text-indigo-800 ring-indigo-200',
+  menu: 'bg-green-100 text-green-800 ring-green-200',
+  user: 'bg-pink-100 text-pink-800 ring-pink-200',
+  shift_open: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
+  shift_close: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
 };
 
 function typeLabel(type, t) {
-  const map = {
-    discount: t('activity.typeDiscount'),
-    refund: t('activity.typeRefund'),
-    comp: t('activity.typeComp'),
-    void: t('activity.typeVoid'),
-    transfer: t('activity.typeTransfer'),
-  };
-  return map[type] ?? type;
+  const key = `activity.type.${type}`;
+  const label = t(key);
+  return label === key ? type : label;
 }
 
 function formatWhen(iso, locale) {
@@ -55,6 +71,7 @@ function groupByDay(events, locale) {
 
 function ActivityRow({ ev, t, locale, currencyLabel }) {
   const badge = TYPE_BADGE[ev.type] ?? 'bg-slate-100 text-slate-800 ring-slate-200';
+  const actor = ev.actor ?? ev.manager;
 
   return (
     <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -66,45 +83,31 @@ function ActivityRow({ ev, t, locale, currencyLabel }) {
             {typeLabel(ev.type, t)}
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-medium text-slate-900">{t(`activity.summary.${ev.type}`, ev)}</p>
-            <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-              {ev.chequeNumber != null ? (
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('activity.cheque')}</dt>
-                  <dd className="text-slate-800">#{ev.chequeNumber}</dd>
-                </div>
-              ) : null}
-              {ev.tableLabel ? (
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('activity.table')}</dt>
-                  <dd className="text-slate-800">{ev.tableLabel}</dd>
-                </div>
-              ) : null}
-              {ev.detail ? (
-                <div className="sm:col-span-2">
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('activity.detail')}</dt>
-                  <dd className="text-slate-800">{ev.detail}</dd>
-                </div>
-              ) : null}
-              <div className="sm:col-span-2">
-                <dt className="text-xs uppercase tracking-wide text-secondary">{t('activity.reason')}</dt>
-                <dd className="text-slate-700">{ev.reason}</dd>
-              </div>
-            </dl>
+            <p className="font-medium text-slate-900">{ev.summary ?? ev.detail}</p>
+            {ev.chequeNumber != null ? (
+              <p className="mt-1 text-sm text-secondary">
+                {t('activity.cheque')} #{ev.chequeNumber}
+              </p>
+            ) : null}
+            {ev.reason ? (
+              <p className="mt-1 text-sm text-secondary">
+                {t('activity.reason')}: {ev.reason}
+              </p>
+            ) : null}
           </div>
         </div>
-        <div className="shrink-0 sm:border-s sm:border-slate-100 sm:ps-4 sm:text-end">
+        <div className="shrink-0 sm:text-end">
           {ev.amount != null ? (
             <p className="text-lg font-bold text-primary-to">
               {Number(ev.amount).toFixed(2)} {currencyLabel}
             </p>
-          ) : (
-            <p className="text-sm text-secondary">{t('activity.noAmount')}</p>
-          )}
+          ) : null}
           <p className="mt-1 text-xs text-secondary">{formatWhen(ev.at, locale)}</p>
-          <p className="mt-1 text-xs font-medium text-slate-600">
-            {t('activity.byManager', { name: ev.manager })}
-          </p>
+          {actor ? (
+            <p className="mt-1 text-xs font-medium text-slate-600">
+              {t('activity.byManager', { name: actor })}
+            </p>
+          ) : null}
         </div>
       </div>
     </article>
@@ -115,9 +118,13 @@ export function ActivityPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState(user?.venueId ?? '');
+  const [venueId, setVenueId] = useState('');
   const [events, setEvents] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
+  const [userFilter, setUserFilter] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [keyword, setKeyword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -129,48 +136,63 @@ export function ActivityPage() {
     setLoading(true);
     setError('');
     try {
-      const [list, venueList] = await Promise.all([
-        apiFetch(`/api/v1/manager/activity?venueId=${venueId}&limit=100`),
+      const params = new URLSearchParams({ venueId, limit: '100' });
+      if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (userFilter.trim()) params.set('user', userFilter.trim());
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+      if (keyword.trim()) params.set('q', keyword.trim());
+
+      const [data, venueList] = await Promise.all([
+        apiFetch(`/api/v1/manager/audit?${params}`),
         apiFetch('/api/v1/venues'),
       ]);
-      setEvents(list);
+      setEvents(data.events ?? []);
       setVenues(venueList);
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [venueId]);
+  }, [venueId, typeFilter, userFilter, from, to, keyword]);
 
   useEffect(() => {
     if (user?.role !== 'hub_manager') return;
-    if (!venueId && user?.venueId) setVenueId(user.venueId);
-  }, [user?.role, user?.venueId, venueId]);
+    apiFetch('/api/v1/venues')
+      .then((list) => {
+        setVenues(list);
+        if (!venueId && list[0]?.id) setVenueId(list[0].id);
+      })
+      .catch((e) => setError(e.message));
+  }, [user?.role, venueId]);
 
   useEffect(() => {
     if (user?.role !== 'hub_manager' || !venueId) return;
     load();
   }, [load, user?.role, venueId]);
 
-  useEffect(() => {
-    if (venues.length && !venueId) setVenueId(venues[0].id);
-  }, [venues, venueId]);
+  const grouped = useMemo(() => groupByDay(events, locale), [events, locale]);
 
-  const filtered = useMemo(() => {
-    if (typeFilter === 'all') return events;
-    return events.filter((ev) => ev.type === typeFilter);
-  }, [events, typeFilter]);
-
-  const typeCounts = useMemo(() => {
-    const counts = { all: events.length };
-    for (const type of TYPE_FILTERS) {
-      if (type === 'all') continue;
-      counts[type] = events.filter((ev) => ev.type === type).length;
-    }
-    return counts;
-  }, [events]);
-
-  const grouped = useMemo(() => groupByDay(filtered, locale), [filtered, locale]);
+  async function exportCsv() {
+    const token = getToken();
+    const params = new URLSearchParams({ venueId, format: 'csv' });
+    if (typeFilter !== 'all') params.set('type', typeFilter);
+    if (userFilter.trim()) params.set('user', userFilter.trim());
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    if (keyword.trim()) params.set('q', keyword.trim());
+    const res = await fetch(`${API_URL}/api/v1/manager/audit?${params}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(t('activity.exportFailed'));
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'audit-log.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   if (user?.role !== 'hub_manager') {
     return (
@@ -185,15 +207,25 @@ export function ActivityPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">{t('activity.title')}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-secondary">{t('activity.subtitle')}</p>
+          <p className="mt-1 max-w-2xl text-sm text-secondary">{t('activity.subtitleFull')}</p>
         </div>
-        {venues.length > 0 && (
+        <button
+          type="button"
+          onClick={() => exportCsv().catch((e) => setError(e.message))}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+        >
+          {t('activity.exportCsv')}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        {venues.length > 0 ? (
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs font-medium uppercase tracking-wide text-secondary">
               {t('activity.venue')}
             </span>
             <select
-              className="min-w-[12rem] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
+              className="min-w-[12rem] rounded-lg border border-slate-200 px-3 py-2"
               value={venueId}
               onChange={(e) => setVenueId(e.target.value)}
             >
@@ -204,7 +236,33 @@ export function ActivityPage() {
               ))}
             </select>
           </label>
-        )}
+        ) : null}
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.userFilter')}</span>
+          <input
+            className="rounded-lg border border-slate-200 px-3 py-2"
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            placeholder={t('activity.userPlaceholder')}
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.from')}</span>
+          <input type="date" className="rounded-lg border px-3 py-2" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.to')}</span>
+          <input type="date" className="rounded-lg border px-3 py-2" value={to} onChange={(e) => setTo(e.target.value)} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm sm:min-w-[12rem]">
+          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.search')}</span>
+          <input
+            className="rounded-lg border border-slate-200 px-3 py-2"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder={t('activity.searchPlaceholder')}
+          />
+        </label>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -220,7 +278,6 @@ export function ActivityPage() {
             }`}
           >
             {type === 'all' ? t('activity.filterAll') : typeLabel(type, t)}
-            <span className="ms-1.5 opacity-80">({typeCounts[type] ?? 0})</span>
           </button>
         ))}
       </div>
@@ -231,22 +288,19 @@ export function ActivityPage() {
 
       {loading ? (
         <p className="text-secondary">{t('common.loading')}</p>
-      ) : filtered.length === 0 ? (
+      ) : events.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
           <p className="font-medium text-slate-900">{t('activity.empty')}</p>
-          <p className="mt-1 text-sm text-secondary">{t('activity.emptyHint')}</p>
         </div>
       ) : (
         <div className="space-y-8">
           {grouped.map((group) => (
             <section key={group.key}>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-secondary">
-                {group.label}
-              </h3>
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-secondary">{group.label}</h3>
               <div className="space-y-3">
                 {group.events.map((ev) => (
                   <ActivityRow
-                    key={`${ev.type}-${ev.id}`}
+                    key={ev.id}
                     ev={ev}
                     t={t}
                     locale={locale}

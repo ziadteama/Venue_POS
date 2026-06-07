@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { signAccessToken } from '../utils/jwt.js';
 import { unauthorized } from '../utils/errors.js';
+import { appendAuditLog } from './audit-log-service.js';
 
 export async function loginManager(username, password) {
   const user = await prisma.user.findFirst({
@@ -18,6 +19,17 @@ export async function loginManager(username, password) {
     role: user.role,
     venue_id: user.venueId,
   });
+
+  appendAuditLog({
+    venueId: user.venueId,
+    actorId: user.id,
+    actorUsername: user.username,
+    action: 'auth.login',
+    entityType: 'user',
+    entityId: user.id,
+    summary: `Dashboard login: ${user.username}`,
+    details: { role: user.role },
+  }).catch(() => {});
 
   return {
     accessToken: token,
@@ -57,6 +69,17 @@ export async function loginCashier(pin, terminalId, terminalSecret) {
     venue_id: matched.venueId,
     terminal_id: terminalId,
   });
+
+  appendAuditLog({
+    venueId: matched.venueId,
+    actorId: matched.id,
+    actorUsername: matched.username,
+    action: 'auth.pin_login',
+    entityType: 'user',
+    entityId: matched.id,
+    summary: `POS PIN login: ${matched.username ?? matched.id}`,
+    details: { role: matched.role, terminalId },
+  }).catch(() => {});
 
   return {
     accessToken: token,
