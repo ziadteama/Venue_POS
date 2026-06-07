@@ -135,7 +135,7 @@ export async function approveRefundRequest(
   let approver;
   if (approverId) {
     approver = await prisma.user.findUnique({ where: { id: approverId } });
-    if (!approver?.isActive || approver.role !== 'hub_manager') {
+    if (!approver?.isActive || !['hub_owner', 'hub_manager'].includes(approver.role)) {
       throw forbidden('Only the hub manager can approve refunds');
     }
   } else if (managerPin) {
@@ -185,7 +185,7 @@ export async function rejectRefundRequest(
   let approver;
   if (approverId) {
     approver = await prisma.user.findUnique({ where: { id: approverId } });
-    if (!approver?.isActive || approver.role !== 'hub_manager') {
+    if (!approver?.isActive || !['hub_owner', 'hub_manager'].includes(approver.role)) {
       throw forbidden('Only the hub manager can reject refunds');
     }
   } else if (managerPin) {
@@ -224,13 +224,13 @@ export async function forceHubRefund(
   let approver;
   if (approverId) {
     approver = await prisma.user.findUnique({ where: { id: approverId } });
-    if (!approver?.isActive || approver.role !== 'hub_manager') {
+    if (!approver?.isActive || !['hub_owner', 'hub_manager'].includes(approver.role)) {
       throw forbidden('Only the hub manager can force a refund');
     }
   } else if (managerPin) {
     approver = await verifyManagerPin(cheque.venueId, managerPin);
-    if (approver.role !== 'hub_manager') {
-      throw forbidden('Only the hub manager can force a refund');
+    if (!['hub_owner', 'hub_manager'].includes(approver.role)) {
+      throw forbidden('Only hub staff can force a refund');
     }
   } else {
     throw validationError('Hub manager authorization is required');

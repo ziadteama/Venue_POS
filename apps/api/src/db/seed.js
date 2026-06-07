@@ -36,6 +36,23 @@ async function seed() {
     },
   });
 
+  const ownerPasswordHash = await bcrypt.hash('owner123', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'owner' },
+    update: {
+      passwordHash: ownerPasswordHash,
+      role: 'hub_owner',
+      venueId: venue.id,
+      isActive: true,
+    },
+    create: {
+      username: 'owner',
+      passwordHash: ownerPasswordHash,
+      role: 'hub_owner',
+      venueId: venue.id,
+    },
+  });
+
   const venueManagerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'venue_mgr' },

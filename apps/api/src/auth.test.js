@@ -35,6 +35,18 @@ before(async () => {
       venueId: venue.id,
     },
   });
+
+  const ownerHash = await bcrypt.hash('ownerpass', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'testowner' },
+    update: { passwordHash: ownerHash, role: 'hub_owner', venueId: venue.id },
+    create: {
+      username: 'testowner',
+      passwordHash: ownerHash,
+      role: 'hub_owner',
+      venueId: venue.id,
+    },
+  });
 });
 
 after(async () => {
@@ -108,7 +120,7 @@ test('POST /api/v1/auth/login rejects venue_manager (POS only)', async () => {
   assert.equal(res.statusCode, 401);
 });
 
-test('POST /api/v1/auth/login accepts valid manager', async () => {
+test('POST /api/v1/auth/login accepts valid hub manager', async () => {
   const res = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
@@ -118,6 +130,20 @@ test('POST /api/v1/auth/login accepts valid manager', async () => {
   const body = res.json();
   assert.ok(body.accessToken);
   assert.equal(body.user.username, 'testadmin');
+  assert.equal(body.user.role, 'hub_manager');
+});
+
+test('POST /api/v1/auth/login accepts valid hub owner', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'testowner', password: 'ownerpass' },
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.ok(body.accessToken);
+  assert.equal(body.user.username, 'testowner');
+  assert.equal(body.user.role, 'hub_owner');
 });
 
 test('JWT access token verifies', () => {

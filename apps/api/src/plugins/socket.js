@@ -56,13 +56,17 @@ export function registerSocket(app) {
       }
     } else if (socket.data.user?.venue_id) {
       const skipVenueRoom =
-        socket.data.clientType === 'dashboard' && socket.data.role === 'hub_manager';
+        socket.data.clientType === 'dashboard' &&
+        ['hub_owner', 'hub_manager'].includes(socket.data.role);
       if (!skipVenueRoom) {
         socket.join(`venue:${socket.data.user.venue_id}`);
       }
     }
-    if (socket.data.role === 'hub_manager' && socket.data.clientType === 'dashboard') {
-      socket.join('dashboard:hub_manager');
+    if (
+      ['hub_owner', 'hub_manager'].includes(socket.data.role) &&
+      socket.data.clientType === 'dashboard'
+    ) {
+      socket.join('dashboard:hub');
     }
   });
 
@@ -112,7 +116,7 @@ export function emitOrderVoided(io, { orderId, venueId, reason, voidedBy }) {
 
 export function emitManagerAction(io, { venueId, terminalId, type, chequeId, result }) {
   const payload = { type, chequeId, result, at: new Date().toISOString() };
-  io.to('dashboard:hub_manager').emit('manager:action', {
+  io.to('dashboard:hub').emit('manager:action', {
     event: 'manager:action',
     payload,
   });
@@ -143,7 +147,7 @@ export function emitVenueConfigUpdated(io, { venueId, changes, config }) {
     event: 'venue:config_updated',
     payload,
   });
-  io.to('dashboard:hub_manager').emit('venue:config_updated', {
+  io.to('dashboard:hub').emit('venue:config_updated', {
     event: 'venue:config_updated',
     payload,
   });

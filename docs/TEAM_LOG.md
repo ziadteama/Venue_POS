@@ -1062,6 +1062,35 @@ npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
 
 ---
 
+## Hub owner vs hub manager RBAC (2026-06-17)
+
+**What:** Split web dashboard into two roles — business (`hub_owner`) vs operations (`hub_manager`). Venue floor managers remain POS-only.
+
+**Schema:** `UserRole` enum + migration `20260617120000_hub_owner_role`.
+
+**Shared:** `packages/shared/src/hub-access.js` — path sets, `canAccessDashboardPath`, `defaultDashboardPath`, `resolveHubVenueId`.
+
+**API (owner-only):** metrics, analytics, orders explorer, shifts/EOD, cheques (GET), approvals list.
+
+**API (manager-only):** menus, staff CRUD, venue config.
+
+**API (both):** audit log, health, venues list. Cheque void/comp POST stays `venue_manager` (POS).
+
+**Dashboard:** Role-filtered nav, `GuardedOutlet` path guards, login redirect, `/approvals` route.
+
+**Seed:** `owner` / `owner123` (`hub_owner`); `admin` remains `hub_manager`.
+
+**Verify:**
+```bash
+npm run migrate
+npm run seed
+npm run test -w @venue-pos/api
+# owner → overview, analytics, cheques; no menus/users/settings
+# admin → menus, users, settings; no overview/orders/shifts
+```
+
+---
+
 ## Phase 5 — Path forward
 
 **Shipped on this branch:** US-8.1–8.5 (core), US-8.7, US-8.9 (slices 1–2), US-8.10, US-8.11, refund approval workflow, POS table-switch UX, dashboard nav/auth polish.

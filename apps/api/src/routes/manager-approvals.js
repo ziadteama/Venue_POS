@@ -10,7 +10,7 @@ import {
 } from '../services/approval-request-service.js';
 import { forceChequeRefund } from '../services/manager-action-service.js';
 
-const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
 
 const rejectSchema = z.object({
   rejectReason: z.string().min(1).max(500),
@@ -33,7 +33,7 @@ function resolveVenueFilter(request) {
 export async function managerApprovalsRoutes(app) {
   app.get(
     '/api/v1/manager/approvals',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
       const status = request.query?.status ?? 'pending';
@@ -49,7 +49,7 @@ export async function managerApprovalsRoutes(app) {
 
   app.post(
     '/api/v1/manager/approvals/:id/approve',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
       const result = await approveRefundRequest(request.params.id, request.user.sub, {
@@ -71,7 +71,7 @@ export async function managerApprovalsRoutes(app) {
 
   app.post(
     '/api/v1/manager/approvals/:id/reject',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const parsed = rejectSchema.safeParse(request.body ?? {});
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
@@ -96,7 +96,7 @@ export async function managerApprovalsRoutes(app) {
 
   app.post(
     '/api/v1/manager/cheques/:id/refund/force',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const parsed = forceRefundSchema.safeParse(request.body ?? {});
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());

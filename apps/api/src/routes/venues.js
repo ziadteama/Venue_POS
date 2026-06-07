@@ -5,7 +5,7 @@ import { listVenues } from '../services/menu-service.js';
 export async function venueRoutes(app) {
   app.get(
     '/api/v1/venues',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER) },
+    { preHandler: requireRoles(ROLES.HUB_OWNER, ROLES.HUB_MANAGER) },
     async () => listVenues(),
   );
 }

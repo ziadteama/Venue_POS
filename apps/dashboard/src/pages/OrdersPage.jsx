@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ORDER_STATUSES } from '@venue-pos/shared';
+import { ORDER_STATUSES, isHubStaff } from '@venue-pos/shared';
 import { apiFetch, getToken } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -107,7 +107,7 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
-  const isHub = user?.role === 'hub_manager';
+  const canPickVenue = canPickVenueStaff(user?.role);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -115,7 +115,7 @@ export function OrdersPage() {
       limit: String(PAGE_SIZE),
       groupBy: 'shift',
     });
-    const scopedVenue = isHub ? venueId : user?.venueId;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
     if (scopedVenue) params.set('venueId', scopedVenue);
     if (filters.q.trim()) params.set('q', filters.q.trim());
     if (filters.orderNumber.trim()) params.set('orderNumber', filters.orderNumber.trim());
@@ -129,7 +129,7 @@ export function OrdersPage() {
     if (filters.minAmount.trim()) params.set('minAmount', filters.minAmount.trim());
     if (filters.maxAmount.trim()) params.set('maxAmount', filters.maxAmount.trim());
     return params.toString();
-  }, [page, filters, venueId, isHub, user?.venueId]);
+  }, [page, filters, venueId, canPickVenue, user?.venueId]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -137,16 +137,16 @@ export function OrdersPage() {
     try {
       const [data, venueList] = await Promise.all([
         apiFetch(`/api/v1/manager/orders?${query}`),
-        isHub ? apiFetch('/api/v1/venues') : Promise.resolve([]),
+        canPickVenue ? apiFetch('/api/v1/venues') : Promise.resolve([]),
       ]);
       setResult(data);
-      if (isHub) setVenues(venueList);
+      if (canPickVenue) setVenues(venueList);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [query, isHub]);
+  }, [query, canPickVenue]);
 
   useEffect(() => {
     loadList();
@@ -159,7 +159,7 @@ export function OrdersPage() {
       return;
     }
 
-    const scopedVenue = isHub ? venueId : user?.venueId;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
     const venueQuery = scopedVenue ? `?venueId=${scopedVenue}` : '';
 
     if (selectedKey.startsWith('orphan:')) {
@@ -173,7 +173,7 @@ export function OrdersPage() {
     apiFetch(`/api/v1/manager/orders/by-cheque/${selectedKey}${venueQuery}`)
       .then(setDetail)
       .catch((err) => setError(err.message));
-  }, [selectedKey, venueId, isHub, user?.venueId]);
+  }, [selectedKey, venueId, canPickVenue, user?.venueId]);
 
   function updateFilter(key, value) {
     setPage(1);
@@ -209,7 +209,7 @@ export function OrdersPage() {
 
   async function reprintOrder(orderId) {
     if (!orderId) return;
-    const scopedVenue = isHub ? venueId : user?.venueId;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
     const venueQuery = scopedVenue ? `?venueId=${scopedVenue}` : '';
     const data = await apiFetch(`/api/v1/manager/orders/${orderId}/receipt${venueQuery}`);
     setReceipt(data.text);
@@ -217,7 +217,7 @@ export function OrdersPage() {
 
   async function reprintCheque() {
     if (!detail?.cheque?.id) return;
-    const scopedVenue = isHub ? venueId : user?.venueId;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
     if (!scopedVenue) return;
     const data = await apiFetch(
       `/api/v1/manager/cheques/${detail.cheque.id}/receipt?venueId=${scopedVenue}`,
@@ -352,7 +352,7 @@ export function OrdersPage() {
             onChange={(e) => updateFilter('maxAmount', e.target.value)}
           />
         </label>
-        {isHub && (
+        {canPickVenue && (
           <label className="text-sm">
             <span className="mb-1 block text-secondary">{t('orders.venue')}</span>
             <select

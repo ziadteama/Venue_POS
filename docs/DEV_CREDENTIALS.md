@@ -15,35 +15,45 @@ npm run seed
 
 | Role | Username | Password | PIN | Where to use |
 |------|----------|----------|-----|--------------|
-| Hub manager / hub owner (GM) | `admin` | `admin123` | `9999` | **Web dashboard only** (all venues) |
+| Hub owner (business / revenue) | `owner` | `owner123` | — | **Web dashboard** — overview, analytics, cheques, orders, shifts, approvals |
+| Hub manager (ops) | `admin` | `admin123` | `9999` | **Web dashboard** — menus, staff, settings, activity, health |
 | Venue floor manager | `venue_mgr` | — | `7777` | **POS only** — manager PIN (no web login) |
 | Cashier | `cashier1` | — | `1234` | **POS only** |
 | Kitchen | (hub adds in Staff) | — | (set in Staff) | **KDS only** |
 
-**Web = hub GM / hub owner.** Floor venue manager (`venue_mgr`) works on the **POS** with cashiers — PIN `7777`, not the dashboard.
+**Web = `hub_owner` + `hub_manager` only.** Floor venue manager (`venue_mgr`) works on the **POS** with cashiers — PIN `7777`, not the dashboard.
 
 ---
 
 ## Dashboard (`http://localhost:5173`)
 
-**Who:** `admin` / hub owner accounts only. `venue_mgr` **cannot** sign in here.
+**Who:** `owner` or `admin`. `venue_mgr` **cannot** sign in here.
 
-Login: **username + password** → `POST /api/v1/auth/login`
+Login: **username + password** → `POST /api/v1/auth/login`  
+After login: **owner** lands on `/` (overview); **admin** lands on `/menus`.
 
-### Hub manager — `admin` / `admin123`
+### Hub owner — `owner` / `owner123`
 
 | Page | Path | Notes |
 |------|------|-------|
 | Overview (live KPIs) | `/` | Revenue today, open tables, orders/min |
 | Analytics | `/analytics` | Charts, presets, CSV export |
-| Cheques | `/cheques` | Open + paid — investigation (actions on POS) |
+| Cheques | `/cheques` | Open + paid — read-only investigation |
 | Orders | `/orders` | Order explorer — all venues, CSV |
 | Shifts | `/shifts` | All venues, EOD reconciliation |
-| Staff | `/users` | Cashiers/kitchen per venue — PINs, RFID |
-| Activity (audit log) | `/activity` | Full audit — filters + CSV |
-| Menus | `/menus` | Templates, publish, translations |
+| Approvals | `/approvals` | Pending refund requests |
+| Activity (audit log) | `/activity` | Read-only audit — filters + CSV |
 | System health | `/health` | Terminals, sync queue |
+
+### Hub manager — `admin` / `admin123`
+
+| Page | Path | Notes |
+|------|------|-------|
+| Menus | `/menus` | Templates, publish, translations |
+| Staff | `/users` | Cashiers/kitchen per venue — PINs, RFID |
 | Venue settings | `/settings` | Tax, service charge, printers |
+| Activity (audit log) | `/activity` | Full audit — filters + CSV |
+| System health | `/health` | Terminals, sync queue |
 
 ---
 

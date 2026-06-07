@@ -19,6 +19,7 @@ enum ReceiptTemplate {
 }
 
 enum UserRole {
+  hub_owner
   hub_manager
   venue_manager
   cashier

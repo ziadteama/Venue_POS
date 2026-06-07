@@ -10,8 +10,8 @@ import {
   ordersExplorerToCsv,
 } from '../services/order-explorer-service.js';
 
-/** Hub GM only — venue staff use POS order lookup (terminal API). */
-const managerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+/** Hub owner — venue floor staff use POS order lookup (terminal API). */
+const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
 
 function resolveVenueFilter(request) {
   return request.query?.venueId || undefined;
@@ -41,7 +41,7 @@ function parseListQuery(request) {
 export async function managerOrderRoutes(app) {
   app.get(
     '/api/v1/manager/orders/by-cheque/:chequeId',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request) || undefined;
       return getChequeExplorerDetail(request.params.chequeId, venueId);
@@ -50,7 +50,7 @@ export async function managerOrderRoutes(app) {
 
   app.get(
     '/api/v1/manager/orders',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request, reply) => {
       const filters = parseListQuery(request);
       const result = await searchOrders(filters);
@@ -73,7 +73,7 @@ export async function managerOrderRoutes(app) {
 
   app.get(
     '/api/v1/manager/orders/:id',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request) || undefined;
       return getOrderExplorerDetail(request.params.id, venueId);
@@ -82,7 +82,7 @@ export async function managerOrderRoutes(app) {
 
   app.get(
     '/api/v1/manager/orders/:id/receipt',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request) || undefined;
       return getManagerOrderReceipt(request.params.id, venueId);
@@ -91,7 +91,7 @@ export async function managerOrderRoutes(app) {
 
   app.get(
     '/api/v1/manager/cheques/:id/receipt',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
       if (!venueId) throw validationError('Venue is required');

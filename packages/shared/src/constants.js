@@ -1,4 +1,5 @@
 export const ROLES = {
+  HUB_OWNER: 'hub_owner',
   HUB_MANAGER: 'hub_manager',
   VENUE_MANAGER: 'venue_manager',
   CASHIER: 'cashier',
@@ -6,8 +7,8 @@ export const ROLES = {
   SYSTEM_ADMIN: 'system_admin',
 };
 
-/** Roles allowed to sign in to the web dashboard (hub GM / hub owner). Floor venue managers use POS only. */
-export const DASHBOARD_ROLES = [ROLES.HUB_MANAGER];
+/** Web dashboard logins. Floor venue managers use POS only. */
+export const DASHBOARD_ROLES = [ROLES.HUB_OWNER, ROLES.HUB_MANAGER];
 
 export const VENUE_TYPES = {
   STANDARD: 'standard',

@@ -13,6 +13,7 @@ const TERMINAL_SECRET = 'phase5-test-secret';
 
 let app;
 let hubToken;
+let ownerToken;
 let venueManagerToken;
 
 const terminalHeaders = {
@@ -43,6 +44,18 @@ before(async () => {
       username: 'phase5hub',
       passwordHash: hubHash,
       role: 'hub_manager',
+      venueId: VENUE_ID,
+    },
+  });
+
+  const ownerHash = await bcrypt.hash('phase5owner', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'phase5owner' },
+    update: { passwordHash: ownerHash, role: 'hub_owner', venueId: VENUE_ID, isActive: true },
+    create: {
+      username: 'phase5owner',
+      passwordHash: ownerHash,
+      role: 'hub_owner',
       venueId: VENUE_ID,
     },
   });
@@ -81,6 +94,14 @@ before(async () => {
       method: 'POST',
       url: '/api/v1/auth/login',
       payload: { username: 'phase5hub', password: 'phase5hub' },
+    })
+  ).json().accessToken;
+
+  ownerToken = (
+    await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { username: 'phase5owner', password: 'phase5owner' },
     })
   ).json().accessToken;
 
@@ -133,15 +154,24 @@ test('venue manager cannot use web staff API', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-test('EOD reconciliation returns daily rollup', async () => {
+test('EOD reconciliation returns daily rollup for hub owner', async () => {
+  const res = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/shifts/eod?venueId=${VENUE_ID}&date=2026-06-07`,
+    headers: { authorization: `Bearer ${ownerToken}` },
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().date, '2026-06-07');
+  assert.ok(Array.isArray(res.json().shifts));
+});
+
+test('hub manager cannot access EOD reconciliation', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts/eod?venueId=${VENUE_ID}&date=2026-06-07`,
     headers: { authorization: `Bearer ${hubToken}` },
   });
-  assert.equal(res.statusCode, 200);
-  assert.equal(res.json().date, '2026-06-07');
-  assert.ok(Array.isArray(res.json().shifts));
+  assert.equal(res.statusCode, 403);
 });
 
 test('system health lists terminals', async () => {
@@ -168,14 +198,22 @@ test('terminal heartbeat updates last seen', async () => {
   assert.equal(terminal.syncQueueDepth, 3);
 });
 
-test('full audit log is hub manager only', async () => {
-  const hub = await app.inject({
+test('full audit log is hub staff only', async () => {
+  const manager = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/audit?venueId=${VENUE_ID}`,
     headers: { authorization: `Bearer ${hubToken}` },
   });
-  assert.equal(hub.statusCode, 200);
-  assert.ok(Array.isArray(hub.json().events));
+  assert.equal(manager.statusCode, 200);
+  assert.ok(Array.isArray(manager.json().events));
+
+  const owner = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/audit?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${ownerToken}` },
+  });
+  assert.equal(owner.statusCode, 200);
+  assert.ok(Array.isArray(owner.json().events));
 
   const venue = await app.inject({
     method: 'GET',

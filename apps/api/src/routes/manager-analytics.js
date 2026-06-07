@@ -7,7 +7,7 @@ import {
   revenueAnalyticsToCsv,
 } from '../services/analytics-service.js';
 
-const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
+const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
 
 const presetSchema = z.enum([
   'today',
@@ -20,16 +20,13 @@ const presetSchema = z.enum([
 ]);
 
 function resolveVenueFilter(request) {
-  const queryVenue = request.query?.venueId;
-  if (queryVenue && request.user.role === ROLES.HUB_MANAGER) return queryVenue;
-  if (request.user.role === ROLES.VENUE_MANAGER) return request.user.venue_id;
-  return queryVenue;
+  return request.query?.venueId || undefined;
 }
 
 export async function managerAnalyticsRoutes(app) {
   app.get(
     '/api/v1/manager/analytics/revenue',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request, reply) => {
       const preset = request.query?.preset ?? 'today';
       if (!presetSchema.safeParse(preset).success) {
@@ -37,9 +34,6 @@ export async function managerAnalyticsRoutes(app) {
       }
 
       const venueId = resolveVenueFilter(request);
-      if (request.user.role === ROLES.VENUE_MANAGER && !venueId) {
-        throw validationError('Venue is required');
-      }
 
       const report = await buildRevenueAnalytics({
         venueId,

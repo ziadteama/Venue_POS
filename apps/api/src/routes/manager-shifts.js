@@ -10,25 +10,18 @@ import {
   eodReconciliationToCsv,
 } from '../services/manager-shift-service.js';
 
-const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
+const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
 
 function resolveVenueFilter(request) {
-  const queryVenue = request.query?.venueId;
-  if (queryVenue && request.user.role === ROLES.HUB_MANAGER) return queryVenue;
-  if (request.user.role === ROLES.VENUE_MANAGER) return request.user.venue_id;
-  return undefined;
+  return request.query?.venueId || undefined;
 }
 
 export async function managerShiftsRoutes(app) {
   app.get(
     '/api/v1/manager/shifts',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request, reply) => {
       const venueId = resolveVenueFilter(request);
-      if (request.user.role === ROLES.VENUE_MANAGER && !venueId) {
-        throw validationError('Venue is required');
-      }
-
       const result = await listManagerShifts({
         venueId,
         status: request.query?.status,
@@ -54,13 +47,9 @@ export async function managerShiftsRoutes(app) {
 
   app.get(
     '/api/v1/manager/shifts/eod',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request, reply) => {
       const venueId = resolveVenueFilter(request);
-      if (request.user.role === ROLES.VENUE_MANAGER && !venueId) {
-        throw validationError('Venue is required');
-      }
-
       const result = await getEodReconciliation({
         venueId,
         date: request.query?.date,
@@ -77,24 +66,18 @@ export async function managerShiftsRoutes(app) {
 
   app.get(
     '/api/v1/manager/shifts/:id',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
-      if (request.user.role === ROLES.VENUE_MANAGER && !venueId) {
-        throw validationError('Venue is required');
-      }
       return getManagerShiftDetail(request.params.id, venueId);
     },
   );
 
   app.post(
     '/api/v1/manager/shifts/:id/force-close',
-    { preHandler: managerPreHandler },
+    { preHandler: hubOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
-      if (request.user.role === ROLES.VENUE_MANAGER && !venueId) {
-        throw validationError('Venue is required');
-      }
       return managerForceCloseShift(request.params.id, request.body ?? {}, venueId);
     },
   );

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { useMetricsSocket } from '../hooks/useMetricsSocket.js';
@@ -98,7 +99,7 @@ export function DashboardHome() {
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const currencyLabel = t('pos.currency');
-  const isHub = user?.role === 'hub_manager';
+  const canPickVenue = isHubStaff(user?.role);
 
   const totals = useMemo(() => {
     const venues = metrics?.venues ?? [];
@@ -114,7 +115,7 @@ export function DashboardHome() {
   }, [metrics?.venues]);
 
   const venues = metrics?.venues ?? [];
-  const showVenuePicker = isHub && totals.venueCount > 1;
+  const showVenuePicker = canPickVenue && totals.venueCount > 1;
 
   return (
     <div className="space-y-6">
@@ -151,7 +152,7 @@ export function DashboardHome() {
         <p className="text-secondary">{t('common.loading')}</p>
       ) : metrics ? (
         <>
-          {isHub && totals.venueCount > 1 ? (
+          {canPickVenue && totals.venueCount > 1 ? (
             <p className="text-sm text-secondary">{t('metrics.hubScope', { count: totals.venueCount })}</p>
           ) : null}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

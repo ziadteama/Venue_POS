@@ -12,6 +12,7 @@ import { ShiftsPage } from './pages/ShiftsPage.jsx';
 import { VenueSettingsPage } from './pages/VenueSettingsPage.jsx';
 import { UsersPage } from './pages/UsersPage.jsx';
 import { HealthPage } from './pages/HealthPage.jsx';
+import { ApprovalsPage } from './pages/ApprovalsPage.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 function ProtectedRoute({ children }) {
@@ -39,6 +40,7 @@ export default function App() {
         <Route index element={<DashboardHome />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="orders" element={<OrdersPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="menus" element={<MenuManagerPage />} />
         <Route path="cheques" element={<ChequesPage />} />
         <Route path="shifts" element={<ShiftsPage />} />
