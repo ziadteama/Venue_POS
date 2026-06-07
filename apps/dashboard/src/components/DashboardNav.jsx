@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { to: '/cheques', labelKey: 'nav.cheques', roles: ['hub_manager', 'venue_manager'] },
   { to: '/shifts', labelKey: 'nav.shifts', roles: ['hub_manager', 'venue_manager'] },
   { to: '/users', labelKey: 'nav.users', roles: ['venue_manager'] },
-  { to: '/menus', labelKey: 'nav.menus', roles: ['venue_manager'] },
+  { to: '/menus', labelKey: 'nav.menus', roles: ['hub_manager'] },
   { to: '/activity', labelKey: 'nav.activity', roles: ['hub_manager'] },
   { to: '/health', labelKey: 'nav.health', roles: ['hub_manager', 'venue_manager'] },
   { to: '/settings', labelKey: 'nav.settings', roles: ['hub_manager'] },

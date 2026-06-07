@@ -1013,6 +1013,23 @@ npm run lint && npm run lint:i18n
 
 ---
 
+### 2026-06-06 — Menu RBAC: hub manager only
+
+**What:** Menu configuration is hub-manager only across all venues. Venue managers cannot access `/menus`, list templates, or edit/publish menus. POS menu remains read-only via terminal API.
+
+**API:** `GET /api/v1/menu-templates` and `GET /api/v1/menu-templates/:id` → `hub_manager` only (write routes were already hub-only).
+
+**Dashboard:** `/menus` nav + route guard → hub only; `MenuManagerPage` blocks non-hub users.
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
+# venue_mgr → no Menus in nav; direct /menus redirects home
+# admin → Menus → manage templates for any venue, publish
+```
+
+---
+
 ## Phase 5 — Path forward
 
 **Shipped on this branch:** US-8.1–8.5 (core), US-8.7, US-8.9 (slices 1–2), US-8.10, US-8.11, refund approval workflow, POS table-switch UX, dashboard nav/auth polish.

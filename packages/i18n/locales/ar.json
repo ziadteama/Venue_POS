@@ -309,7 +309,7 @@
   "menu.applySuggestions": "تطبيق الترجمات",
   "menu.statusDraft": "مسودة",
   "menu.statusPublished": "منشور",
-  "menu.hubManagerOnly": "مديرو المركز فقط يمكنهم تعديل القوائم. يمكنك معاينة القالب الحالي.",
+  "menu.hubManagerOnly": "مدير المركز فقط يدير القوائم. مدير المكان لا يمكنه تعديل القائمة.",
   "menu.noCategories": "لا توجد فئات بعد. أضف فئة لبدء بناء القائمة.",
   "cheque.title": "الشيكات",
   "cheque.tabOpen": "مفتوحة",

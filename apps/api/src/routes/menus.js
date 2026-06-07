@@ -65,7 +65,7 @@ const modifierGroupSchema = bilingualName.extend({
 export async function menuRoutes(app) {
   app.get(
     '/api/v1/menu-templates',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER) },
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async () => listMenuTemplates(),
   );
 
@@ -81,7 +81,7 @@ export async function menuRoutes(app) {
 
   app.get(
     '/api/v1/menu-templates/:id',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER) },
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => getMenuTemplate(request.params.id),
   );
 
