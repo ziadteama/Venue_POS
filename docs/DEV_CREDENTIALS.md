@@ -34,10 +34,11 @@ Login: **username + password** → `POST /api/v1/auth/login`
 | Cheques | `/cheques` | Open + paid tabs, GM actions |
 | Shifts | `/shifts` | All venues (venue filter), EOD reconciliation |
 | Activity (audit log) | `/activity` | Full audit — filters + CSV |
+| Menus | `/menus` | **All venues** — templates, publish, translations |
 | System health | `/health` | Terminals, sync queue, server memory |
 | Venue settings | `/settings` | Tax, service charge, printers |
 
-**Cannot access:** Orders, Menus, Staff (venue-manager only).
+**Cannot access:** Orders, Staff (venue-manager only).
 
 ### Venue manager — `venue_mgr` / `venue123`
 
@@ -48,11 +49,10 @@ Login: **username + password** → `POST /api/v1/auth/login`
 | Orders | `/orders` | Shift → cheque → order rounds |
 | Cheques | `/cheques` | Discount / refund on open & paid |
 | Shifts | `/shifts` | Own venue shifts + EOD |
-| Menus | `/menus` | Edit template, publish, translations |
 | Staff | `/users` | Add cashiers/kitchen, reset PIN, deactivate |
 | System health | `/health` | Own venue terminals |
 
-**Cannot access:** Activity, Venue settings (hub only).
+**Cannot access:** Menus, Activity, Venue settings (hub only). POS menu is read-only for all staff.
 
 ---
 

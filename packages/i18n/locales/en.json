@@ -309,7 +309,7 @@
   "menu.applySuggestions": "Apply translations",
   "menu.statusDraft": "draft",
   "menu.statusPublished": "published",
-  "menu.hubManagerOnly": "Only hub managers can edit menus. You can preview the current template.",
+  "menu.hubManagerOnly": "Only the hub manager can manage menus. Venue managers cannot edit menus.",
   "menu.noCategories": "No categories yet. Add a category to start building this menu.",
   "cheque.title": "Cheques",
   "cheque.tabOpen": "Open",

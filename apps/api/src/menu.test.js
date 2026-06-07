@@ -14,6 +14,7 @@ const CASHIER_ID = '00000000-0000-4000-8000-000000000097';
 
 let app;
 let managerToken;
+let venueManagerToken;
 let categoryId;
 let menuItemId;
 
@@ -70,17 +71,57 @@ before(async () => {
     },
   });
 
+  const venuePasswordHash = await bcrypt.hash('venue123', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'menutestvenue' },
+    update: {
+      passwordHash: venuePasswordHash,
+      role: 'venue_manager',
+      venueId: VENUE_ID,
+      isActive: true,
+    },
+    create: {
+      username: 'menutestvenue',
+      passwordHash: venuePasswordHash,
+      role: 'venue_manager',
+      venueId: VENUE_ID,
+    },
+  });
+
   const login = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
     payload: { username: 'menutestadmin', password: 'menutest' },
   });
   managerToken = login.json().accessToken;
+
+  const venueLogin = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'menutestvenue', password: 'venue123' },
+  });
+  venueManagerToken = venueLogin.json().accessToken;
 });
 
 after(async () => {
   await app.close();
   await prisma.$disconnect();
+});
+
+test('venue manager cannot list or read menu templates', async () => {
+  const listRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/menu-templates',
+    headers: { authorization: `Bearer ${venueManagerToken}` },
+  });
+  assert.equal(listRes.statusCode, 403);
+
+  const detailRes = await app.inject({
+    method: 'GET',
+    url: '/api/v1/menu-templates/00000000-0000-4000-8000-000000000001',
+    headers: { authorization: `Bearer ${venueManagerToken}` },
+  });
+  assert.equal(detailRes.statusCode, 403);
 });
 
 test('manager can create and publish a menu template', async () => {

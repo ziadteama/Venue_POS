@@ -12,8 +12,8 @@ import { menuLabel } from '../utils/menuLabel.js';
 export function MenuManagerPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
-  const canEdit = user?.role === 'hub_manager';
-  const manager = useMenuManager({ canEdit });
+  const isHub = user?.role === 'hub_manager';
+  const manager = useMenuManager({ canEdit: isHub, enabled: isHub });
   const fileInputRef = useRef(null);
   const dragFrom = useRef(null);
   const [localError, setLocalError] = useState('');
@@ -65,6 +65,14 @@ export function MenuManagerPage() {
     }
   }
 
+  if (!isHub) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
+        {t('menu.hubManagerOnly')}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -79,19 +87,13 @@ export function MenuManagerPage() {
         ) : null}
       </div>
 
-      {!canEdit ? (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-secondary">
-          {t('menu.hubManagerOnly')}
-        </div>
-      ) : null}
-
       {manager.error || localError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
           {manager.error || localError}
         </div>
       ) : null}
 
-      {canEdit ? (
+      {isHub ? (
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <h3 className="mb-3 font-medium">{t('menu.createTemplate')}</h3>
           <BilingualField
@@ -167,7 +169,7 @@ export function MenuManagerPage() {
 
         {manager.detail && templateForm ? (
           <div className="space-y-4">
-            {canEdit ? (
+            {isHub ? (
               <section className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="mb-3 font-medium">{t('menu.templateSettings')}</h3>
                 <BilingualField
@@ -210,7 +212,7 @@ export function MenuManagerPage() {
             ) : null}
 
             <div className="flex flex-wrap gap-2">
-              {canEdit ? (
+              {isHub ? (
                 <>
                   <button
                     type="button"
@@ -266,7 +268,7 @@ export function MenuManagerPage() {
               </button>
             </div>
 
-            {canEdit ? (
+            {isHub ? (
               <section className="rounded-xl border border-slate-200 bg-white p-4">
                 <h3 className="mb-3 font-medium">{t('menu.addCategory')}</h3>
                 <BilingualField
@@ -298,7 +300,7 @@ export function MenuManagerPage() {
                   t={t}
                   language={i18n.language}
                   category={category}
-                  canEdit={canEdit}
+                  isHub={isHub}
                   busy={manager.busy}
                   dragIndex={index}
                   onDragStart={handleDragStart}
@@ -355,7 +357,7 @@ export function MenuManagerPage() {
         />
       ) : null}
 
-      {(manager.editingItem || addingItemCategoryId) && canEdit ? (
+      {(manager.editingItem || addingItemCategoryId) && isHub ? (
         <ItemEditorModal
           t={t}
           item={manager.editingItem}

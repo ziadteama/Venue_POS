@@ -4,7 +4,7 @@ import { countMissingTranslations } from '../utils/menuTranslations.js';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
-export function useMenuManager({ canEdit }) {
+export function useMenuManager({ canEdit, enabled = true }) {
   const [templates, setTemplates] = useState([]);
   const [venues, setVenues] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -39,12 +39,14 @@ export function useMenuManager({ canEdit }) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     load().catch((e) => setError(e.message));
-  }, [load]);
+  }, [load, enabled]);
 
   useEffect(() => {
-    if (selectedId) loadDetail(selectedId).catch((e) => setError(e.message));
-  }, [selectedId, loadDetail]);
+    if (!enabled || !selectedId) return;
+    loadDetail(selectedId).catch((e) => setError(e.message));
+  }, [selectedId, loadDetail, enabled]);
 
   const run = useCallback(
     async (action) => {
