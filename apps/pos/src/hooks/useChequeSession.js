@@ -237,8 +237,15 @@ export function useChequeSession({ menu, loading, shiftReady }) {
       setCheque(updated);
       await refreshOpenCheques();
       return true;
-    } catch {
-      setError(t('pos.discountFailed'));
+    } catch (err) {
+      const msg = err?.message ?? '';
+      if (msg.toLowerCase().includes('pin')) {
+        setError(t('pos.discountInvalidPin'));
+      } else if (msg.toLowerCase().includes('send or clear')) {
+        setError(t('pos.discountClearDraftFirst'));
+      } else {
+        setError(msg || t('pos.discountFailed'));
+      }
       return false;
     }
   }

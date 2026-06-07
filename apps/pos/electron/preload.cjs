@@ -89,6 +89,16 @@ contextBridge.exposeInMainWorld('venuePos', {
     agentFetch('/v1/shifts/open', { method: 'POST', body: JSON.stringify(body) }),
   closeShift: (body) =>
     agentFetch('/v1/shifts/close', { method: 'POST', body: JSON.stringify(body) }),
+  discountCheque: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/discount`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  refundCheque: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/refund`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   loginPin: async (pin) => {
     const res = await fetch(`${apiUrl}/api/v1/auth/pin`, {
       method: 'POST',

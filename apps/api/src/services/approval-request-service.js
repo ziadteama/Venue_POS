@@ -62,7 +62,7 @@ export async function createRefundRequest(
     }
   } else {
     if (!restaurantManagerPin) throw validationError('Venue manager PIN is required');
-    initiator = await verifyManagerPinByRole(venueId, restaurantManagerPin, 'venue_manager');
+    initiator = await verifyManagerPin(venueId, restaurantManagerPin);
   }
 
   const request = await prisma.managerApprovalRequest.create({

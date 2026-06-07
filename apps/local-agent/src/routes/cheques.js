@@ -146,34 +146,42 @@ export function registerChequeRoutes(
   app.post('/v1/cheques/:id/discount', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    return apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/discount`,
-      { method: 'POST', body: JSON.stringify(body) },
-    );
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/discount`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
   });
 
   app.post('/v1/cheques/:id/refund', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    const result = await apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/refund`,
-      { method: 'POST', body: JSON.stringify(body) },
-    );
-    if (result.receipt) {
-      const printers = getPrinterConfig();
-      maybePrintReceipt(result.receipt, {
-        autoReceiptPrint,
-        receiptPrinterHost: printers.receiptPrinterHost,
-        receiptPrinterPort: printers.receiptPrinterPort,
-        log: app.log,
-      });
+    try {
+      const result = await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/refund`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+      if (result.receipt) {
+        const printers = getPrinterConfig();
+        maybePrintReceipt(result.receipt, {
+          autoReceiptPrint,
+          receiptPrinterHost: printers.receiptPrinterHost,
+          receiptPrinterPort: printers.receiptPrinterPort,
+          log: app.log,
+        });
+      }
+      return result;
+    } catch (err) {
+      return sendApiError(reply, err);
     }
-    return result;
   });
 }

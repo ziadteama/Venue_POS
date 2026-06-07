@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { forbidden, validationError } from '../utils/errors.js';
-import { verifyManagerPinByRole } from './auth-service.js';
+import { verifyManagerPin, verifyManagerPinByRole } from './auth-service.js';
 import {
   assertDiscountAllowed,
   executeChequeDiscount,
@@ -22,7 +22,7 @@ async function resolveVenueManager(venueId, { initiatorId, restaurantManagerPin 
   if (!restaurantManagerPin) {
     throw validationError('Venue manager PIN is required');
   }
-  return verifyManagerPinByRole(venueId, restaurantManagerPin, 'venue_manager');
+  return verifyManagerPin(venueId, restaurantManagerPin);
 }
 
 export async function applyChequeDiscount(

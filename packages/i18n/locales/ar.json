@@ -284,6 +284,8 @@
   "pos.discountPreview": "الخصم: {{amount}} جنيه",
   "pos.discountConfirm": "تطبيق الخصم",
   "pos.discountFailed": "تعذّر تطبيق الخصم",
+  "pos.discountInvalidPin": "رمز المدير غير صحيح — استخدم مدير المركز (9999) أو مدير الوردية (7777)",
+  "pos.discountClearDraftFirst": "أرسل أو امسح الجولة الحالية قبل تطبيق الخصم",
   "pos.discountApplied": "خصم",
   "pos.serviceCharge": "خدمة",
   "pos.tax": "ضريبة",

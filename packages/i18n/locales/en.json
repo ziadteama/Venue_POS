@@ -284,6 +284,8 @@
   "pos.discountPreview": "Discount: {{amount}} EGP",
   "pos.discountConfirm": "Apply discount",
   "pos.discountFailed": "Could not apply discount",
+  "pos.discountInvalidPin": "Invalid manager PIN — use hub manager (9999) or shift manager (7777)",
+  "pos.discountClearDraftFirst": "Send or clear the current round before applying a discount",
   "pos.discountApplied": "Discount",
   "pos.serviceCharge": "Service",
   "pos.tax": "Tax",
