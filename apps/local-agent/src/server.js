@@ -7,6 +7,7 @@ import { registerOrderRoutes } from './routes/orders.js';
 import { registerChequeRoutes } from './routes/cheques.js';
 import { registerShiftRoutes } from './routes/shifts.js';
 import { registerFeatureRoutes } from './routes/features.js';
+import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
 
 export async function buildAgentServer({ db, config }) {
   const app = Fastify({ logger: { level: 'info' } });
@@ -45,6 +46,7 @@ export async function buildAgentServer({ db, config }) {
   registerChequeRoutes(app, routeCtx);
   registerShiftRoutes(app, routeCtx);
   registerFeatureRoutes(app, routeCtx);
+  registerOrderExplorerRoutes(app, routeCtx);
 
   await app.listen({ port, host });
   return app;

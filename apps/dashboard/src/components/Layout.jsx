@@ -4,8 +4,8 @@ import { DashboardNav } from './DashboardNav.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 
-const HUB_ONLY_ROUTES = new Set(['/activity', '/settings', '/menus']);
-const VENUE_ONLY_ROUTES = new Set(['/orders', '/users']);
+const HUB_ONLY_ROUTES = new Set(['/activity', '/settings', '/menus', '/orders']);
+const VENUE_ONLY_ROUTES = new Set(['/users']);
 
 function GuardedOutlet() {
   const { user } = useAuth();

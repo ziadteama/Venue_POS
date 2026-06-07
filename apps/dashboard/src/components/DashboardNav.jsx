@@ -5,10 +5,10 @@ import { useAuth } from '../hooks/useAuth.js';
 const NAV_ITEMS = [
   { to: '/', end: true, labelKey: 'nav.overview', roles: ['hub_manager', 'venue_manager'] },
   { to: '/analytics', labelKey: 'nav.analytics', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/orders', labelKey: 'nav.orders', roles: ['venue_manager'] },
   { to: '/cheques', labelKey: 'nav.cheques', roles: ['hub_manager', 'venue_manager'] },
   { to: '/shifts', labelKey: 'nav.shifts', roles: ['hub_manager', 'venue_manager'] },
   { to: '/users', labelKey: 'nav.users', roles: ['venue_manager'] },
+  { to: '/orders', labelKey: 'nav.orders', roles: ['hub_manager'] },
   { to: '/menus', labelKey: 'nav.menus', roles: ['hub_manager'] },
   { to: '/activity', labelKey: 'nav.activity', roles: ['hub_manager'] },
   { to: '/health', labelKey: 'nav.health', roles: ['hub_manager', 'venue_manager'] },

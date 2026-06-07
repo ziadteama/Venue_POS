@@ -27,11 +27,22 @@ apps/     api, dashboard, pos, kds, local-agent
 packages/ shared, i18n
 ```
 
+## Roles & surfaces (locked)
+
+| Role | Dashboard (web) | POS (Electron) |
+|------|-----------------|----------------|
+| **hub_manager** | All venues — menus, settings, audit, analytics, **orders explorer**, approvals | Policy PIN only where API accepts hub |
+| **venue_manager** | Own venue — staff, shifts/EOD, cheques, analytics, health | Manager PIN + **order lookup** on POS (not web Orders page) |
+| **cashier** | No access | Orders + payments (PIN login when shipped) |
+| **kitchen_staff** | No access | KDS only |
+
+**No separate floor-manager role.** One `venue_manager` covers floor authority (POS PIN) and venue back office (web). Hub/GM workflow stays on the **web dashboard**; POS stays a thin service terminal.
+
 ## Hard rules
 
 - POS renderer → local-agent IPC only (no direct DB)
 - Offline-first: SQLite → sync queue → idempotent sync
-- Menu read-only on POS; managers publish from dashboard
+- Menu read-only on POS; **hub_manager** publishes from dashboard only
 - Bilingual UI via `@venue-pos/i18n`; DB uses `nameEn`/`nameAr` with `@map`
 - Prisma for all server DB access
 - **KDS is optional** — `kds_enabled` / `FEATURE_KDS_ENABLED` set at provider onboarding; printer-only venues skip `apps/kds`. Still implement KDS behind the flag in Phase 2.
@@ -64,6 +75,22 @@ npm run lint && npm run lint:i18n
 ## Status
 
 **Phase 5 in progress** (`Phase-5` branch) — analytics, venue config, shifts + EOD, staff management (venue_manager), system health, full audit log. Inventory out of scope. See `docs/TEAM_LOG.md`.
+
+## POS app layout (`apps/pos`)
+
+Keep Electron thin — no business logic spaghetti in `App.jsx`.
+
+```
+electron/          main.cjs + preload.cjs only
+src/
+  api/             local-agent HTTP client
+  hooks/           session state (cheque, shift, menu, modals, sockets)
+  components/      dumb UI — one concern per modal; PosModals.jsx renders all overlays
+  utils/           pure helpers
+  App.jsx          wiring only — hooks + layout, no new modals inline
+```
+
+**When adding POS features:** new hook or extend existing hook → new/updated component → wire in `PosModals.jsx` or layout — do not grow `App.jsx` with inline modal JSX.
 
 ## Manager workflows (quick reference)
 

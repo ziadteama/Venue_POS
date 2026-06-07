@@ -22,6 +22,7 @@ import { managerUsersRoutes } from './routes/manager-users.js';
 import { managerAuditRoutes } from './routes/manager-audit.js';
 import { managerHealthRoutes } from './routes/manager-health.js';
 import { terminalRoutes } from './routes/terminals.js';
+import { terminalOrderExplorerRoutes } from './routes/terminal-order-explorer.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -58,6 +59,7 @@ export async function buildApp() {
   await app.register(managerAuditRoutes);
   await app.register(managerHealthRoutes);
   await app.register(terminalRoutes);
+  await app.register(terminalOrderExplorerRoutes);
 
   return app;
 }
