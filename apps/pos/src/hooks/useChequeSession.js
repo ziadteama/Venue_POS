@@ -4,7 +4,7 @@ import { callAgent } from '../api/agent.js';
 import { DEMO_CASHIER_ID } from '../constants.js';
 import { normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
-export function useChequeSession({ menu, loading, shiftReady }) {
+export function useChequeSession({ menu, loading }) {
   const { t } = useTranslation();
   const [cheque, setCheque] = useState(null);
   const order = cheque?.draftOrder ?? null;
@@ -53,13 +53,6 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     [t, refreshOpenCheques],
   );
 
-  const openCheque = resumeCheque;
-
-  const switchToCheque = useCallback(
-    async (tab) => resumeCheque(tab.tableLabel),
-    [resumeCheque],
-  );
-
   const navigateToTable = useCallback(
     async (targetTable) => {
       const target = normalizeTableLabel(targetTable);
@@ -96,7 +89,7 @@ export function useChequeSession({ menu, loading, shiftReady }) {
         return { ok: false };
       }
     },
-    [cheque?.id, switchToCheque, openCheque, t],
+    [cheque?.id, t],
   );
 
   useEffect(() => {

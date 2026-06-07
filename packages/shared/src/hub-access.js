@@ -1,4 +1,3 @@
-import { ROLES } from './constants.js';
 import { isCeo, isHubManager } from './roles.js';
 
 /** CEO — read-only monitoring: live KPIs + revenue analytics only. No operational pages. */

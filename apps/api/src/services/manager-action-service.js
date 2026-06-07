@@ -1,7 +1,7 @@
 import { ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { forbidden, validationError } from '../utils/errors.js';
-import { verifyManagerPin, verifyManagerPinByRole } from './auth-service.js';
+import { verifyManagerPin } from './auth-service.js';
 export { forceHubRefund as forceChequeRefund } from './approval-request-service.js';
 import {
   assertDiscountAllowed,

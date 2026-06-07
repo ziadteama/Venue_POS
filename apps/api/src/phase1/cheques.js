@@ -4,13 +4,9 @@ import './fixture.js';
 import {
   fx,
   VENUE_ID,
-  TERMINAL_ID,
-  TERMINAL_SECRET,
   CASHIER_ID,
   terminalHeaders,
-  prisma,
   ensureOpenShift,
-  clearOpenCheques,
 } from './fixture.js';
 
 test('cheque lifecycle: open, fire two rounds, pay cash', async () => {

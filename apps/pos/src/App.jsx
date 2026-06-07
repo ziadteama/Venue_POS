@@ -33,12 +33,7 @@ export default function App() {
     shift,
     shiftReady,
     needsOpen,
-    opening,
-    closing,
-    showCloseModal,
     setShowCloseModal,
-    openShift,
-    closeShift,
     refreshShift,
     error: shiftError,
     setError: setShiftError,
@@ -46,7 +41,7 @@ export default function App() {
     promptOpenModal,
   } = shiftSession;
 
-  const session = useChequeSession({ menu, loading, shiftReady });
+  const session = useChequeSession({ menu, loading });
   const {
     cheque,
     order,
