@@ -1105,10 +1105,82 @@ npm run migrate && npm run seed
 **Suggested branch names:** `feature/US-8.9-eod-reconciliation` or `feature/US-8.7-user-management`
 
 **Before merge checklist:**
-- [ ] Include migration `apps/api/prisma/migrations/20260615120000_venue_config/`
 - [ ] `npm run migrate` on clean DB
-- [ ] `npm run test -w @venue-pos/api` + `npm run lint:i18n`
-- [ ] Smoke: CEO (`owner` — analytics, cheques, shifts) + hub manager (`admin` — menus, staff, settings) + cashier on POS
+- [ ] `npm run test -w @venue-pos/api` + `npm run lint` + `npm run lint:i18n`
+- [ ] Smoke: CEO (`owner` — `/`, `/analytics` only) + hub manager (`admin` — all ops tabs) + cashier on POS
+
+---
+
+## Phase 5 close + pre–Phase 4 polish (2026-06)
+
+**Shipped (not logged above):**
+- Hub manager cheque actions (discount apply/change/remove, void, comp, refund) + Activity audit types
+- POS UX: `ChequeActionsSheet`, cleaner pay footer, manager-assigned table floor (`venues.tables`)
+- KDS hidden on POS when `FEATURE_KDS_ENABLED=false`
+- Shifts/EOD: group by **shift open day** (not close day)
+- Dashboard crash fixes (`isHubStaff`, ErrorBoundary on Orders/Shifts/Health/Analytics)
+- ESLint cleanup across API tests + POS hooks
+
+**Phase 5 status:** ✅ Complete. Only US-8.6 (billing rules) moves to Phase 4.
+
+**Next:** Phase 4 — cross-venue billing (see proposal below in team discussion / PRD Epic 4).
+
+---
+
+## Phase 4 — Cross-venue billing (planned)
+
+**PRD:** Epic 4 (US-4.1–4.3) + US-8.6 billing rules matrix on dashboard.  
+**Schema gap:** `venue_billing_config` table not in Prisma yet; `cheque_orders` exists for single-venue links only.  
+**Seed gap:** single demo venue — add Restaurant B + terminal for cross-venue dev tests.
+
+### Suggested slices (branch order)
+
+| Slice | Stories | Deliverable |
+|-------|---------|-------------|
+| **4.1** | US-4.1, US-8.6 | `venue_billing_config` migration; hub **Settings** billing matrix (anchor × target toggles); audit + `venue:config_updated` with `billing_config` |
+| **4.2** | US-4.2 (API) | List billable orders across permitted venues; create cross-venue cheque; server-side order locks (`cheque:lock_acquired`, 30s TTL); **online-only** guard |
+| **4.3** | US-4.2 (POS) | Anchor terminal: New cheque → Cross-venue → pick venues → pick orders → assemble cheque |
+| **4.4** | US-4.3 | Pay cross-venue cheque at anchor; revenue attribution per venue; `cheque:cross_billed` to linked venues; receipt shows venue breakdown |
+| **4.5** | US-8.3 ext | Dashboard Orders/Cheques show cross-venue linkage; analytics attributes revenue by originating venue |
+
+### End-to-end flow
+
+```mermaid
+sequenceDiagram
+  participant HM as Hub manager
+  participant CFG as Billing config API
+  participant POS as Anchor POS
+  participant API as API + locks
+  participant T2 as Target venue terminal
+
+  HM->>CFG: Enable anchor Cafe → Restaurant B
+  CFG-->>POS: venue:config_updated
+  POS->>API: GET permitted target venues
+  POS->>API: GET open unbilled orders (B)
+  POS->>API: POST cross-venue cheque + link orders
+  API-->>T2: cheque:lock_acquired
+  POS->>API: POST pay (anchor shift)
+  API-->>T2: cheque:cross_billed
+  Note over API: Each venue credited in analytics/EOD
+```
+
+### Dependencies / constraints
+
+- **Online required** for cross-venue (defer offline to Phase 6).
+- **Anchor-only initiation** — standard venues cannot start cross-venue cheques.
+- **Feature flag:** `FEATURE_CROSS_VENUE_BILLING` (default OFF until UAT).
+- **Existing pieces to reuse:** `Venue.type` anchor/standard, `Cheque` + `ChequeOrder`, `venue:config_updated`, Activity audit pattern.
+
+### Verify (Phase 4 done)
+
+```bash
+npm run migrate && npm run seed
+npm run test -w @venue-pos/api
+# Hub: Settings → billing matrix → enable Cafe→Restaurant B
+# Restaurant B: open order on separate terminal
+# Cafe anchor POS: cross-venue cheque → include B order → pay
+# Hub: Orders shows linkage; Activity + analytics attribute per venue
+```
 
 ---
 

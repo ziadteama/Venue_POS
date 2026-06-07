@@ -108,7 +108,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 5 in progress** — CEO monitoring split vs hub manager full ops. See `docs/TEAM_LOG.md`.
+**Phase 5 complete** (Epic 8 admin dashboard). **Next: Phase 4** — cross-venue billing (US-4.x, US-8.6). See `docs/TEAM_LOG.md`.
 
 ## POS app layout (`apps/pos`)
 

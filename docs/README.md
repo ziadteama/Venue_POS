@@ -33,6 +33,11 @@
 
 ## Current status
 
-**Phase 0** — monorepo, Prisma API, auth, app shells, CI.  
-**Phase 1** — menu manager, POS order flow, modifiers, send to kitchen, receipt.  
-**Phase 2** — kitchen display + printer + order status. **KDS is optional** per client (`kds_enabled` at provider onboarding); many sites use kitchen printer only. See [DEVELOPMENT.md § Optional features](DEVELOPMENT.md#optional-features-provider-onboarding) and [TEAM_LOG.md](TEAM_LOG.md).
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 0–3 | ✅ Done | Monorepo, POS, kitchen, cheques, payments, shifts |
+| 5 (Epic 8) | ✅ Done | Hub manager dashboard — menus, analytics, orders, cheques, shifts/EOD, staff, settings, audit, health |
+| **4** | **Next** | Cross-venue billing — `venue_billing_config`, anchor POS workflow |
+| 6 | Deferred | Offline SQLite sync |
+
+**KDS is optional** (`FEATURE_KDS_ENABLED`). Full chronology: [TEAM_LOG.md](TEAM_LOG.md).

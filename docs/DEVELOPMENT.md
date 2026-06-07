@@ -150,7 +150,7 @@ See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US fe
 
 **POS manager PIN** (discount, refund, void, comp, line transfer): staff with manager permissions — hub manager creates them in **Staff**. Dev seed uses `venue_mgr` / PIN `7777` for testing.
 
-**CEO** reviews revenue on `/analytics`, `/shifts`, and refund **Approvals**. **Hub manager** runs menus, staff, and venue settings.
+**CEO** reviews revenue on `/` and `/analytics` only (read-only). **Hub manager** runs menus, staff, venue settings, shifts, approvals, and audit.
 
 Full matrix: `AGENTS.md` § Manager workflows.
 
@@ -274,5 +274,6 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 1 Core POS | ✅ Done | Menu, modifiers, POS order flow, send to kitchen |
 | 2 Kitchen | ✅ Done (optional KDS) | Printer, item status, void — [TEAM_LOG.md](TEAM_LOG.md) |
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
-| 4 Cross-venue billing | Deferred | Client-driven — [PHASE3_SCALABLE_PLAN.md](PHASE3_SCALABLE_PLAN.md) |
-| 5 Dashboard analytics | In progress | US-8.1–8.4 done; next US-8.9 shifts dashboard — [TEAM_LOG.md](TEAM_LOG.md) |
+| 4 Cross-venue billing | **Next** | US-4.1–4.3, US-8.6 — [PRD.md Epic 4](PRD.md) |
+| 5 Dashboard (Epic 8) | ✅ Done | All stories except US-8.6 (moved to Phase 4) — [TEAM_LOG.md](TEAM_LOG.md) |
+| 6 Offline sync | Deferred | SQLite replay — [PHASE3_SCALABLE_PLAN.md](PHASE3_SCALABLE_PLAN.md) |
