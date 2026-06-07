@@ -57,6 +57,12 @@ enum ChequeStatus {
   voided
 }
 
+enum ChequeDiscountAction {
+  apply
+  change
+  remove
+}
+
 enum PaymentMethod {
   cash
   card
@@ -476,15 +482,17 @@ model Payment {
 }
 
 model ChequeDiscountAudit {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  chequeId    String   @map("cheque_id") @db.Uuid
-  cashierId   String   @map("cashier_id") @db.Uuid
-  initiatorId String   @map("initiator_id") @db.Uuid
-  approverId  String   @map("approver_id") @db.Uuid
-  amount      Decimal  @db.Decimal(10, 2)
-  percent     Decimal? @db.Decimal(5, 2)
-  reason      String   @db.Text
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  chequeId       String               @map("cheque_id") @db.Uuid
+  cashierId      String               @map("cashier_id") @db.Uuid
+  initiatorId    String               @map("initiator_id") @db.Uuid
+  approverId     String               @map("approver_id") @db.Uuid
+  action         ChequeDiscountAction @default(apply)
+  amount         Decimal              @db.Decimal(10, 2)
+  previousAmount Decimal?             @map("previous_amount") @db.Decimal(10, 2)
+  percent        Decimal?             @db.Decimal(5, 2)
+  reason         String               @db.Text
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
   cheque    Cheque @relation(fields: [chequeId], references: [id], onDelete: Cascade)
   cashier   User   @relation("DiscountCashier", fields: [cashierId], references: [id])

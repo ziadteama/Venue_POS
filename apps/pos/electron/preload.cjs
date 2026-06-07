@@ -94,6 +94,16 @@ contextBridge.exposeInMainWorld('venuePos', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  changeChequeDiscount: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/discount`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  removeChequeDiscount: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/discount/remove`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   refundCheque: (chequeId, body) =>
     agentFetch(`/v1/cheques/${chequeId}/refund`, {
       method: 'POST',

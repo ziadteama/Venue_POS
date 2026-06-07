@@ -86,6 +86,12 @@ export async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/cheques\/[^/]+\/discount$/) && method === 'POST') {
       return window.venuePos.discountCheque(path.split('/')[3], body);
     }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/discount$/) && method === 'PATCH') {
+      return window.venuePos.changeChequeDiscount(path.split('/')[3], body);
+    }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/discount\/remove$/) && method === 'POST') {
+      return window.venuePos.removeChequeDiscount(path.split('/')[3], body);
+    }
     if (path.match(/^\/v1\/cheques\/[^/]+\/refund$/) && method === 'POST') {
       return window.venuePos.refundCheque(path.split('/')[3], body);
     }

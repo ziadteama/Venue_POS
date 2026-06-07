@@ -64,6 +64,8 @@ export default function App() {
     confirmSplitAmount,
     confirmTransfer,
     confirmDiscount,
+    confirmChangeDiscount,
+    confirmRemoveDiscount,
     confirmRefund,
     loadPaidCheques,
     refreshCheque,
@@ -80,6 +82,8 @@ export default function App() {
     confirmSplitAmount,
     confirmTransfer,
     confirmDiscount,
+    confirmChangeDiscount,
+    confirmRemoveDiscount,
     confirmRefund,
     confirmPay,
     loadPaidCheques,
@@ -195,7 +199,9 @@ export default function App() {
           lineTransferEnabled={features.lineTransfer}
           discountsEnabled={features.discounts}
           refundsEnabled={features.refunds}
-          onDiscount={() => modals.setShowDiscountModal(true)}
+          onDiscount={() => modals.openDiscountModal('apply')}
+          onEditDiscount={() => modals.openDiscountModal('edit')}
+          onRemoveDiscount={() => modals.openDiscountModal('remove')}
           onRefund={modals.openRefundFlow}
           onPay={() => {
             if (!shiftReady) {

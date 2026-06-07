@@ -16,7 +16,12 @@ import {
   listChequesForVenue,
   closeEmptyCheque,
 } from '../services/cheque-service.js';
-import { applyChequeDiscount, applyChequeRefund } from '../services/manager-action-service.js';
+import {
+  applyChequeDiscount,
+  applyChequeRefund,
+  changeChequeDiscount,
+  removeAppliedChequeDiscount,
+} from '../services/manager-action-service.js';
 import { emitManagerAction } from '../plugins/socket.js';
 
 const splitAmountSchema = z.object({
@@ -81,6 +86,12 @@ const discountSchema = z.object({
   reason: z.string().min(1).max(500),
   amount: z.number().positive().optional(),
   percent: z.number().positive().max(100).optional(),
+});
+
+const removeDiscountSchema = z.object({
+  cashierId: z.string().uuid(),
+  restaurantManagerPin: z.string().min(4).max(6),
+  reason: z.string().min(1).max(500),
 });
 
 const refundSchema = z.object({
@@ -234,6 +245,53 @@ export async function chequeRoutes(app) {
           venueId,
           terminalId: request.terminal.id,
           type: 'discount',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.patch(
+    '/api/v1/cheques/:id/discount',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = discountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      if (!parsed.data.amount && !parsed.data.percent) {
+        throw validationError('amount or percent required');
+      }
+
+      const venueId = request.terminal.venueId;
+      const cheque = await changeChequeDiscount(request.params.id, parsed.data, venueId);
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          type: 'discount_change',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/discount/remove',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = removeDiscountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = request.terminal.venueId;
+      const cheque = await removeAppliedChequeDiscount(request.params.id, parsed.data, venueId);
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          type: 'discount_remove',
           chequeId: request.params.id,
           result: cheque,
         });

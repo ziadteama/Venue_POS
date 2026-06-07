@@ -159,6 +159,38 @@ export function registerChequeRoutes(
     }
   });
 
+  app.patch('/v1/cheques/:id/discount', async (request, reply) => {
+    const body = request.body ?? {};
+    if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/discount`,
+        { method: 'PATCH', body: JSON.stringify(body) },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
+  app.post('/v1/cheques/:id/discount/remove', async (request, reply) => {
+    const body = request.body ?? {};
+    if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/discount/remove`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
   app.post('/v1/cheques/:id/refund', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });

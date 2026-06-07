@@ -12,6 +12,8 @@ export function usePosModals({
   confirmSplitAmount,
   confirmTransfer,
   confirmDiscount,
+  confirmChangeDiscount,
+  confirmRemoveDiscount,
   confirmRefund,
   confirmPay,
   loadPaidCheques,
@@ -25,6 +27,7 @@ export function usePosModals({
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
+  const [discountModalMode, setDiscountModalMode] = useState('apply');
   const [showRefundPicker, setShowRefundPicker] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
@@ -47,8 +50,18 @@ export function usePosModals({
     if (ok) setShowTransferModal(false);
   }
 
+  function openDiscountModal(mode = 'apply') {
+    setDiscountModalMode(mode);
+    setShowDiscountModal(true);
+  }
+
   async function onConfirmDiscount(body) {
-    const ok = await confirmDiscount(body);
+    const handlers = {
+      apply: confirmDiscount,
+      edit: confirmChangeDiscount,
+      remove: confirmRemoveDiscount,
+    };
+    const ok = await handlers[discountModalMode]?.(body);
     if (ok) setShowDiscountModal(false);
   }
 
@@ -106,6 +119,8 @@ export function usePosModals({
     setShowTableModal,
     showDiscountModal,
     setShowDiscountModal,
+    discountModalMode,
+    openDiscountModal,
     showRefundPicker,
     showRefundModal,
     setShowRefundModal,

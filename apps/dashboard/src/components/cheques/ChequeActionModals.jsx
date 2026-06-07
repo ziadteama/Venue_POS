@@ -37,7 +37,8 @@ export function ChequeActionModals({
 }) {
   if (!actionTarget) return null;
 
-  if (actionTarget.type === 'discount') {
+  if (actionTarget.type === 'discount' || actionTarget.type === 'discount_change') {
+    const isChange = actionTarget.type === 'discount_change';
     return (
       <DiscountRequestModal
         chequeNumber={actionTarget.chequeNumber}
@@ -50,6 +51,32 @@ export function ChequeActionModals({
         onConfirm={onSubmit}
         onCancel={onClose}
         t={t}
+        titleKey={isChange ? 'cheque.discountChangeTitle' : 'cheque.discountTitle'}
+        confirmLabelKey={isChange ? 'cheque.confirmDiscountChange' : 'cheque.applyDiscount'}
+        subtitle={
+          isChange
+            ? t('cheque.discountChangeHint', {
+                amount: Number(actionTarget.currentDiscount ?? 0).toFixed(2),
+              })
+            : undefined
+        }
+      />
+    );
+  }
+
+  if (actionTarget.type === 'discount_remove') {
+    return (
+      <ManagerActionModal
+        title={t('cheque.discountRemoveTitle', { number: actionTarget.chequeNumber })}
+        reasonLabel={t('cheque.discountReason')}
+        confirmLabel={t('cheque.confirmDiscountRemove')}
+        confirmClass="bg-red-600 hover:bg-red-700"
+        subtitle={t('cheque.discountRemoveHint', {
+          amount: Number(actionTarget.currentDiscount ?? 0).toFixed(2),
+        })}
+        t={t}
+        onCancel={onClose}
+        onConfirm={onSubmit}
       />
     );
   }

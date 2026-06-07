@@ -42,6 +42,7 @@ export function PosModals({
     setShowTableModal,
     showDiscountModal,
     setShowDiscountModal,
+    discountModalMode,
     showRefundPicker,
     showRefundModal,
     showPayModal,
@@ -122,6 +123,7 @@ export function PosModals({
       {showDiscountModal && cheque && (
         <DiscountModal
           cheque={cheque}
+          mode={discountModalMode}
           t={t}
           onCancel={() => setShowDiscountModal(false)}
           onConfirm={onConfirmDiscount}

@@ -3,7 +3,15 @@ import { validationError } from '../utils/errors.js';
 import { listManagerActivity } from './manager-action-service.js';
 
 const PAGE_SIZE = 100;
-const DOMAIN_TYPES = new Set(['discount', 'refund', 'void', 'comp', 'transfer']);
+const DOMAIN_TYPES = new Set([
+  'discount',
+  'discount_change',
+  'discount_remove',
+  'refund',
+  'void',
+  'comp',
+  'transfer',
+]);
 
 export async function appendAuditLog({
   venueId = null,
@@ -100,7 +108,11 @@ async function fetchDomainActivity(venueId, filters) {
   const events = await listManagerActivity(venueId, { limit: 200 });
   let filtered = events;
   if (filters.type && filters.type !== 'all') {
-    filtered = filtered.filter((ev) => ev.type === filters.type);
+    filtered = filtered.filter((ev) =>
+      filters.type === 'discount'
+        ? ev.type === 'discount' || ev.type === 'discount_change' || ev.type === 'discount_remove'
+        : ev.type === filters.type,
+    );
   }
   if (filters.user?.trim()) {
     const q = filters.user.trim().toLowerCase();

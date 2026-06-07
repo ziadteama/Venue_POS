@@ -7,6 +7,10 @@ export function managerActionPath(target) {
       return `/api/v1/manager/cheques/${target.chequeId}/void`;
     case 'discount':
       return `/api/v1/manager/cheques/${target.chequeId}/discount`;
+    case 'discount_change':
+      return `/api/v1/manager/cheques/${target.chequeId}/discount`;
+    case 'discount_remove':
+      return `/api/v1/manager/cheques/${target.chequeId}/discount/remove`;
     case 'refund':
       return `/api/v1/manager/cheques/${target.chequeId}/refund`;
     case 'comp':
@@ -14,6 +18,12 @@ export function managerActionPath(target) {
     default:
       return null;
   }
+}
+
+export function managerActionMethod(target) {
+  if (!target) return 'POST';
+  if (target.type === 'discount_change') return 'PATCH';
+  return 'POST';
 }
 
 export function billableOrders(detail) {

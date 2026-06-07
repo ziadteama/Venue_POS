@@ -23,6 +23,8 @@ const TYPE_FILTERS = [
 
 const TYPE_BADGE = {
   discount: 'bg-blue-100 text-blue-800 ring-blue-200',
+  discount_change: 'bg-sky-100 text-sky-800 ring-sky-200',
+  discount_remove: 'bg-slate-100 text-slate-800 ring-slate-200',
   refund: 'bg-amber-100 text-amber-900 ring-amber-200',
   void: 'bg-red-100 text-red-800 ring-red-200',
   comp: 'bg-violet-100 text-violet-800 ring-violet-200',

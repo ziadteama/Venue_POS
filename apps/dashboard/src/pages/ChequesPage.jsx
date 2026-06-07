@@ -54,8 +54,14 @@ export function ChequesPage() {
             statusTab={manager.statusTab}
             busy={manager.busy}
             language={i18n.language}
+            userRole={user?.role}
             t={t}
             onAction={manager.setActionTarget}
+            onDiscountAction={(type) => {
+              if (!manager.detail) return;
+              if (type === 'discount_remove') manager.openDiscountRemove(manager.detail);
+              else manager.openDiscountRequest(manager.detail, type);
+            }}
           />
         </section>
       </div>

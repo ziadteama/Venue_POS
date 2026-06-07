@@ -5,7 +5,9 @@ import {
   assertDiscountAllowed,
   executeChequeDiscount,
   listDiscountAudits,
+  removeChequeDiscount,
   resolveDiscountAmount,
+  updateChequeDiscount,
 } from './cheque-discount.js';
 import { assertRefundAllowed, executeRefund, listRefundAudits } from './cheque-refund.js';
 import { listTransferAudits } from './cheque-transfer.js';
@@ -14,8 +16,11 @@ import { loadCheque } from './cheque-shared.js';
 async function resolveVenueManager(venueId, { initiatorId, restaurantManagerPin }) {
   if (initiatorId) {
     const user = await prisma.user.findUnique({ where: { id: initiatorId } });
-    if (!user?.isActive || user.role !== 'venue_manager' || user.venueId !== venueId) {
-      throw forbidden('Only the venue manager can perform this action');
+    if (!user?.isActive || user.venueId !== venueId) {
+      throw forbidden('Manager not authorized for this venue');
+    }
+    if (!['venue_manager', 'hub_manager'].includes(user.role)) {
+      throw forbidden('Only managers can perform this action');
     }
     return user;
   }
@@ -43,6 +48,57 @@ export async function applyChequeDiscount(
     {
       amount,
       percent,
+      reason,
+      initiatorId: manager.id,
+      approverId: manager.id,
+      cashierId: cashierId ?? cheque.cashierId,
+    },
+    venueId,
+  );
+}
+
+export async function changeChequeDiscount(
+  chequeId,
+  { amount, percent, reason, restaurantManagerPin, cashierId, initiatorId },
+  venueId,
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  assertDiscountAllowed(cheque);
+  if (!reason?.trim()) throw validationError('Discount reason is required');
+
+  resolveDiscountAmount(cheque, { amount, percent });
+  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+
+  return updateChequeDiscount(
+    chequeId,
+    {
+      amount,
+      percent,
+      reason,
+      initiatorId: manager.id,
+      approverId: manager.id,
+      cashierId: cashierId ?? cheque.cashierId,
+    },
+    venueId,
+  );
+}
+
+export async function removeAppliedChequeDiscount(
+  chequeId,
+  { reason, restaurantManagerPin, cashierId, initiatorId },
+  venueId,
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  assertDiscountAllowed(cheque);
+  if (!reason?.trim()) throw validationError('Discount reason is required');
+
+  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+
+  return removeChequeDiscount(
+    chequeId,
+    {
       reason,
       initiatorId: manager.id,
       approverId: manager.id,
@@ -141,12 +197,12 @@ export async function listManagerActivity(venueId, { limit = 100 } = {}) {
   const events = [
     ...discounts.map((row) => ({
       id: row.id,
-      type: 'discount',
+      type: row.activityType,
       at: row.createdAt,
       chequeNumber: row.chequeNumber,
       tableLabel: row.tableLabel,
       amount: row.amount,
-      detail: row.percent ? `${row.percent}%` : null,
+      detail: row.detail,
       reason: row.reason,
       manager: row.approver,
     })),

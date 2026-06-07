@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api/client.js';
-import { managerActionPath } from '../utils/chequeActions.js';
+import { managerActionMethod, managerActionPath } from '../utils/chequeActions.js';
 
 export function useChequeManager({ user }) {
   const [venues, setVenues] = useState([]);
@@ -67,7 +67,7 @@ export function useChequeManager({ user }) {
       setError('');
       try {
         await apiFetch(`${path}${venueQuery}`, {
-          method: 'POST',
+          method: managerActionMethod(actionTarget),
           body: JSON.stringify(body),
         });
         setActionTarget(null);
@@ -82,14 +82,28 @@ export function useChequeManager({ user }) {
     [actionTarget, venueQuery, load, loadDetail, selectedId],
   );
 
-  const openDiscountRequest = useCallback((cheque) => {
+  const openDiscountRequest = useCallback((cheque, actionType = 'discount') => {
     setDiscountMode('amount');
-    setDiscountAmount('');
+    setDiscountAmount(
+      actionType === 'discount_change' && cheque.discountAmount > 0
+        ? String(cheque.discountAmount)
+        : '',
+    );
     setDiscountPercent('');
     setActionTarget({
-      type: 'discount',
+      type: actionType,
       chequeId: cheque.id,
       chequeNumber: cheque.chequeNumber,
+      currentDiscount: cheque.discountAmount ?? 0,
+    });
+  }, []);
+
+  const openDiscountRemove = useCallback((cheque) => {
+    setActionTarget({
+      type: 'discount_remove',
+      chequeId: cheque.id,
+      chequeNumber: cheque.chequeNumber,
+      currentDiscount: cheque.discountAmount ?? 0,
     });
   }, []);
 
@@ -130,6 +144,7 @@ export function useChequeManager({ user }) {
     closeAction,
     runAction,
     openDiscountRequest,
+    openDiscountRemove,
     openRefundRequest,
     changeTab,
     changeVenue,
