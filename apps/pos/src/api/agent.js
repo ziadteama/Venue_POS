@@ -83,6 +83,12 @@ export async function callAgent(path, options = {}) {
     if (path === '/v1/shifts/close' && method === 'POST') {
       return window.venuePos.closeShift(body);
     }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/discount$/) && method === 'POST') {
+      return window.venuePos.discountCheque(path.split('/')[3], body);
+    }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/refund$/) && method === 'POST') {
+      return window.venuePos.refundCheque(path.split('/')[3], body);
+    }
   }
 
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
