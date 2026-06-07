@@ -68,6 +68,7 @@ export function ReceiptPanel({
   onDiscount,
   onRefund,
   onPay,
+  payDisabled = false,
   onChangeQty,
 }) {
   const sentRounds = firedOrders(cheque);
@@ -257,7 +258,7 @@ export function ReceiptPanel({
               <button
                 type="button"
                 onClick={onPay}
-                disabled={paying}
+                disabled={paying || payDisabled}
                 className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
                 {paying ? t('common.loading') : t('pos.pay')}
