@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
-import { DEMO_CASHIER_ID } from '../constants.js';
 
-export function useShiftSession() {
+export function useShiftSession(cashierId) {
   const { t } = useTranslation();
   const [shift, setShift] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15,8 +14,9 @@ export function useShiftSession() {
   const [openChequeCount, setOpenChequeCount] = useState(0);
 
   const refreshOpenContext = useCallback(async () => {
+    if (!cashierId) return false;
     try {
-      const ctx = await callAgent(`/v1/shifts/open-context?cashierId=${DEMO_CASHIER_ID}`);
+      const ctx = await callAgent(`/v1/shifts/open-context?cashierId=${cashierId}`);
       setOpenChequeCount(Number(ctx?.openChequeCount ?? 0));
       if (ctx?.hasActiveShift && ctx.activeShift?.id) {
         setShift(ctx.activeShift);
@@ -28,11 +28,12 @@ export function useShiftSession() {
       setOpenChequeCount(0);
       return false;
     }
-  }, []);
+  }, [cashierId]);
 
   const refreshShift = useCallback(async () => {
+    if (!cashierId) return false;
     try {
-      const data = await callAgent(`/v1/shifts/active?cashierId=${DEMO_CASHIER_ID}`);
+      const data = await callAgent(`/v1/shifts/active?cashierId=${cashierId}`);
       if (data?.active === false || !data?.id) {
         setShift(null);
         return false;
@@ -44,9 +45,14 @@ export function useShiftSession() {
       setShift(null);
       return false;
     }
-  }, []);
+  }, [cashierId]);
 
   useEffect(() => {
+    if (!cashierId) {
+      setShift(null);
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -59,16 +65,17 @@ export function useShiftSession() {
     return () => {
       cancelled = true;
     };
-  }, [refreshShift, refreshOpenContext]);
+  }, [cashierId, refreshShift, refreshOpenContext]);
 
   const openShift = useCallback(
     async (openFloat) => {
+      if (!cashierId) return false;
       setOpening(true);
       setError('');
       try {
         const created = await callAgent('/v1/shifts/open', {
           method: 'POST',
-          body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, openFloat: Number(openFloat) }),
+          body: JSON.stringify({ cashierId, openFloat: Number(openFloat) }),
         });
         setShift(created);
         setOpenChequeCount(Number(created.openChequeCount ?? 0));
@@ -81,18 +88,19 @@ export function useShiftSession() {
         setOpening(false);
       }
     },
-    [t],
+    [cashierId, t],
   );
 
   const closeShift = useCallback(
     async ({ closeFloat, managerPin }) => {
+      if (!cashierId) return null;
       setClosing(true);
       setError('');
       try {
         const result = await callAgent('/v1/shifts/close', {
           method: 'POST',
           body: JSON.stringify({
-            cashierId: DEMO_CASHIER_ID,
+            cashierId,
             closeFloat: Number(closeFloat),
             managerPin: managerPin || undefined,
           }),
@@ -112,7 +120,7 @@ export function useShiftSession() {
         setClosing(false);
       }
     },
-    [t, refreshOpenContext],
+    [cashierId, t, refreshOpenContext],
   );
 
   const dismissOpenModal = useCallback(() => {

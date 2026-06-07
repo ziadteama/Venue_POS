@@ -12,6 +12,8 @@ export function PosHeader({
   onCloseShift,
   onOrderLookup,
   onCrossVenue,
+  cashierUsername,
+  onLogout,
 }) {
   const openCount = parentOpenCheques(openCheques).length;
 
@@ -86,7 +88,25 @@ export function PosHeader({
             {t('pos.shiftActive', { float: Number(shift.openFloat).toFixed(0) })}
           </button>
         )}
-        <span className="hidden rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 md:inline">
+        {cashierUsername ? (
+          <span
+            className="hidden max-w-[8rem] truncate rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 sm:inline"
+            title={cashierUsername}
+          >
+            {cashierUsername}
+          </span>
+        ) : null}
+        {onLogout ? (
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 hover:bg-white/25"
+            title={t('pos.logout')}
+          >
+            {t('pos.logout')}
+          </button>
+        ) : null}
+        <span className="hidden rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 lg:inline">
           {t('pos.dineIn')}
         </span>
         <LanguageToggle onDark />

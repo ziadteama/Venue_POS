@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react';
 import { callAgent } from '../api/agent.js';
-import { DEMO_CASHIER_ID } from '../constants.js';
 
 const EMPTY = { venues: [] };
 
@@ -9,7 +8,7 @@ const EMPTY = { venues: [] };
  * to the central hub through the local agent. Flow: select open cheques from
  * linked venues -> lock them into a settlement group -> pay once.
  */
-export function useCrossVenue() {
+export function useCrossVenue(cashierId) {
   const [open, setOpen] = useState(false);
   const [billable, setBillable] = useState(EMPTY);
   const [selected, setSelected] = useState(() => new Set());
@@ -66,7 +65,7 @@ export function useCrossVenue() {
     try {
       const created = await callAgent('/v1/cross-venue/groups', {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, chequeIds: [...selected] }),
+        body: JSON.stringify({ cashierId, chequeIds: [...selected] }),
       });
       setGroup(created);
       setStep('pay');
@@ -77,7 +76,7 @@ export function useCrossVenue() {
     } finally {
       setBusy(false);
     }
-  }, [selected, loadBillable]);
+  }, [cashierId, selected, loadBillable]);
 
   const cancelGroup = useCallback(async () => {
     if (!group) {
@@ -88,7 +87,7 @@ export function useCrossVenue() {
     try {
       await callAgent(`/v1/cross-venue/groups/${group.groupId}/cancel`, {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID }),
+        body: JSON.stringify({ cashierId }),
       });
     } catch {
       // best-effort release
@@ -99,7 +98,7 @@ export function useCrossVenue() {
       setBusy(false);
       loadBillable();
     }
-  }, [group, loadBillable]);
+  }, [cashierId, group, loadBillable]);
 
   const payGroup = useCallback(
     async ({ method = 'cash', cardLast4, tendered, managerPin } = {}) => {
@@ -110,7 +109,7 @@ export function useCrossVenue() {
         const result = await callAgent(`/v1/cross-venue/groups/${group.groupId}/pay`, {
           method: 'POST',
           body: JSON.stringify({
-            cashierId: DEMO_CASHIER_ID,
+            cashierId,
             method,
             cardLast4,
             tendered,
@@ -127,7 +126,7 @@ export function useCrossVenue() {
         setBusy(false);
       }
     },
-    [group],
+    [cashierId, group],
   );
 
   return {

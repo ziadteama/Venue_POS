@@ -1219,6 +1219,13 @@ npm run test -w @venue-pos/api
 # Hub: Orders shows linkage; Activity + analytics attribute per venue
 ```
 
+### 2026-06-08 — POS cashier logout + shift discount stats
+**Phase:** 4 · **Story:** POS ops / US-8.x shifts
+**What:** Cashiers sign in with PIN (session persists per tab); logout blocked while shift is open; hub Shifts board shows discount count and total per shift and EOD.
+**Files:** `apps/pos/src/App.jsx`, `PinLoginScreen.jsx`, `LogoutConfirmModal.jsx`, `useCashierSession.js`, `useShiftSession.js`, `useChequeSession.js`, `useCrossVenue.js`, `apps/api/src/services/shift-service.js`, `manager-shift-service.js`, `apps/dashboard/src/pages/ShiftsPage.jsx`, `packages/i18n/locales/{en,ar}.json`
+**Verify:** POS PIN `1234` (Cafe) / `2345` (Restaurant) → header shows cashier + Logout; logout with open shift prompts close first. Dashboard `/shifts` → shift detail + EOD show discount totals.
+**Notes:** Replaces hardcoded `DEMO_CASHIER_ID` at runtime; `sessionStorage` key `venue_pos_cashier`.
+
 ---
 
 ## Quick reference — Phase 0 deliverables

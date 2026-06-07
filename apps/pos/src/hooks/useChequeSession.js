@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
-import { DEMO_CASHIER_ID } from '../constants.js';
 import { normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
-export function useChequeSession({ menu, loading }) {
+export function useChequeSession({ menu, loading, cashierId }) {
   const { t } = useTranslation();
   const [cheque, setCheque] = useState(null);
   const order = cheque?.draftOrder ?? null;
@@ -40,7 +39,7 @@ export function useChequeSession({ menu, loading }) {
       try {
         const loaded = await callAgent('/v1/cheques/open', {
           method: 'POST',
-          body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel: table }),
+          body: JSON.stringify({ cashierId, tableLabel: table }),
         });
         setCheque(loaded);
         await refreshOpenCheques();
@@ -50,7 +49,7 @@ export function useChequeSession({ menu, loading }) {
         return { ok: false };
       }
     },
-    [t, refreshOpenCheques],
+    [cashierId, t, refreshOpenCheques],
   );
 
   const navigateToTable = useCallback(
@@ -93,8 +92,13 @@ export function useChequeSession({ menu, loading }) {
   );
 
   useEffect(() => {
-    if (!loading && menu) refreshOpenCheques();
-  }, [loading, menu, refreshOpenCheques]);
+    setCheque(null);
+    setError('');
+  }, [cashierId]);
+
+  useEffect(() => {
+    if (!loading && menu && cashierId) refreshOpenCheques();
+  }, [loading, menu, cashierId, refreshOpenCheques]);
 
   async function addItemToOrder(item, modifiers = []) {
     const updated = await callAgent(`/v1/orders/${order.id}/items`, {
@@ -188,7 +192,7 @@ export function useChequeSession({ menu, loading }) {
     try {
       const result = await callAgent(`/v1/cheques/${cheque.id}/transfer`, {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...transferBody }),
+        body: JSON.stringify({ cashierId, ...transferBody }),
       });
       setCheque(result.source);
       await refreshOpenCheques();
@@ -231,7 +235,7 @@ export function useChequeSession({ menu, loading }) {
     try {
       const updated = await callAgent(`/v1/cheques/${cheque.id}/discount`, {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
+        body: JSON.stringify({ cashierId, ...discountBody }),
       });
       setCheque(updated);
       await refreshOpenCheques();
@@ -248,7 +252,7 @@ export function useChequeSession({ menu, loading }) {
     try {
       const updated = await callAgent(`/v1/cheques/${cheque.id}/discount`, {
         method: 'PATCH',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
+        body: JSON.stringify({ cashierId, ...discountBody }),
       });
       setCheque(updated);
       await refreshOpenCheques();
@@ -265,7 +269,7 @@ export function useChequeSession({ menu, loading }) {
     try {
       const updated = await callAgent(`/v1/cheques/${cheque.id}/discount/remove`, {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
+        body: JSON.stringify({ cashierId, ...discountBody }),
       });
       setCheque(updated);
       await refreshOpenCheques();
@@ -290,7 +294,7 @@ export function useChequeSession({ menu, loading }) {
     try {
       await callAgent(`/v1/cheques/${chequeId}/refund`, {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...refundBody }),
+        body: JSON.stringify({ cashierId, ...refundBody }),
       });
       return true;
     } catch (err) {
@@ -311,7 +315,7 @@ export function useChequeSession({ menu, loading }) {
     try {
       await callAgent(`/v1/cheques/${cheque.id}/pay`, {
         method: 'POST',
-        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...paymentBody }),
+        body: JSON.stringify({ cashierId, ...paymentBody }),
       });
       setCheque(null);
       await refreshOpenCheques();

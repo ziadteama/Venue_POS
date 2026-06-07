@@ -319,6 +319,12 @@ export function ShiftsPage() {
               </dd>
             </div>
             <div>
+              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.discountCount')}</dt>
+              <dd className="text-lg font-semibold">
+                {formatMoney(eod.discountTotal, locale)} ({eod.discountCount})
+              </dd>
+            </div>
+            <div>
               <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.pageOverShort')}</dt>
               <dd className={`text-lg font-semibold ${overShortClass(eod.totalOverShort)}`}>
                 {formatMoney(eod.totalOverShort, locale)}
@@ -628,6 +634,12 @@ export function ShiftsPage() {
                 <div>
                   <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.refundCount')}</dt>
                   <dd>{detail.refundCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.discountCount')}</dt>
+                  <dd>
+                    {formatMoney(detail.discountTotal, locale)} ({detail.discountCount})
+                  </dd>
                 </div>
               </dl>
 
