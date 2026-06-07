@@ -244,6 +244,8 @@
   "pos.shiftOpenConfirm": "بدء الوردية",
   "pos.shiftOpening": "جاري الفتح…",
   "pos.shiftOpenFailed": "تعذر فتح الوردية",
+  "pos.shiftOpenOpenCheques": "يوجد {{count}} طاولة مفتوحة من جلسة سابقة — يمكنك بدء الوردية.",
+  "pos.shiftRequiredBanner": "افتح وردية لاستلام المدفوعات.",
   "pos.shiftActive": "وردية · {{float}} ج.م",
   "pos.shiftCloseTitle": "إغلاق الوردية",
   "pos.shiftCloseHint": "عد النقد في الدرج وأدخل الإجمالي.",

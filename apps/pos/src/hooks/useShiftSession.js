@@ -11,17 +11,38 @@ export function useShiftSession() {
   const [opening, setOpening] = useState(false);
   const [closing, setClosing] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showOpenModal, setShowOpenModal] = useState(false);
+  const [openChequeCount, setOpenChequeCount] = useState(0);
+
+  const refreshOpenContext = useCallback(async () => {
+    try {
+      const ctx = await callAgent(`/v1/shifts/open-context?cashierId=${DEMO_CASHIER_ID}`);
+      setOpenChequeCount(Number(ctx?.openChequeCount ?? 0));
+      if (ctx?.hasActiveShift && ctx.activeShift?.id) {
+        setShift(ctx.activeShift);
+        setShowOpenModal(false);
+        return true;
+      }
+      return false;
+    } catch {
+      setOpenChequeCount(0);
+      return false;
+    }
+  }, []);
 
   const refreshShift = useCallback(async () => {
     try {
       const data = await callAgent(`/v1/shifts/active?cashierId=${DEMO_CASHIER_ID}`);
       if (data?.active === false || !data?.id) {
         setShift(null);
-      } else {
-        setShift(data);
+        return false;
       }
+      setShift(data);
+      setShowOpenModal(false);
+      return true;
     } catch {
       setShift(null);
+      return false;
     }
   }, []);
 
@@ -29,13 +50,16 @@ export function useShiftSession() {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      await refreshShift();
-      if (!cancelled) setLoading(false);
+      const hasShift = (await refreshShift()) || (await refreshOpenContext());
+      if (!cancelled) {
+        if (!hasShift) setShowOpenModal(true);
+        setLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [refreshShift]);
+  }, [refreshShift, refreshOpenContext]);
 
   const openShift = useCallback(
     async (openFloat) => {
@@ -46,10 +70,12 @@ export function useShiftSession() {
           method: 'POST',
           body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, openFloat: Number(openFloat) }),
         });
-        setShift({ ...created, report: { expectedCash: Number(openFloat) } });
+        setShift(created);
+        setOpenChequeCount(Number(created.openChequeCount ?? 0));
+        setShowOpenModal(false);
         return true;
-      } catch {
-        setError(t('pos.shiftOpenFailed'));
+      } catch (err) {
+        setError(err?.message || t('pos.shiftOpenFailed'));
         return false;
       } finally {
         setOpening(false);
@@ -73,19 +99,32 @@ export function useShiftSession() {
         });
         setShift(null);
         setShowCloseModal(false);
+        setShowOpenModal(true);
+        await refreshOpenContext();
         return result;
       } catch (err) {
         const msg = err?.message?.includes('Manager')
           ? t('pos.shiftManagerRequired')
-          : t('pos.shiftCloseFailed');
+          : err?.message || t('pos.shiftCloseFailed');
         setError(msg);
         return null;
       } finally {
         setClosing(false);
       }
     },
-    [t],
+    [t, refreshOpenContext],
   );
+
+  const dismissOpenModal = useCallback(() => {
+    setShowOpenModal(false);
+    setError('');
+  }, []);
+
+  const promptOpenModal = useCallback(async () => {
+    setError('');
+    await refreshOpenContext();
+    setShowOpenModal(true);
+  }, [refreshOpenContext]);
 
   const shiftReady = Boolean(shift?.id);
   const needsOpen = !loading && !shiftReady;
@@ -94,6 +133,8 @@ export function useShiftSession() {
     shift,
     shiftReady,
     needsOpen,
+    showOpenModal,
+    openChequeCount,
     loading,
     error,
     setError,
@@ -104,5 +145,7 @@ export function useShiftSession() {
     openShift,
     closeShift,
     refreshShift,
+    dismissOpenModal,
+    promptOpenModal,
   };
 }

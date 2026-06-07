@@ -1,6 +1,13 @@
 import { useState } from 'react';
 
-export function ShiftOpenModal({ t, opening, onConfirm }) {
+export function ShiftOpenModal({
+  t,
+  opening,
+  openChequeCount = 0,
+  error,
+  onCancel,
+  onConfirm,
+}) {
   const [openFloat, setOpenFloat] = useState('0');
 
   function handleSubmit(e) {
@@ -8,6 +15,11 @@ export function ShiftOpenModal({ t, opening, onConfirm }) {
     const value = Number(openFloat);
     if (!Number.isFinite(value) || value < 0) return;
     onConfirm(value);
+  }
+
+  function handleCancel() {
+    setOpenFloat('0');
+    onCancel();
   }
 
   return (
@@ -18,6 +30,19 @@ export function ShiftOpenModal({ t, opening, onConfirm }) {
       >
         <h3 className="mb-1 text-xl font-bold text-slate-900">{t('pos.shiftOpenTitle')}</h3>
         <p className="mb-4 text-sm text-secondary">{t('pos.shiftOpenHint')}</p>
+
+        {openChequeCount > 0 ? (
+          <p className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {t('pos.shiftOpenOpenCheques', { count: openChequeCount })}
+          </p>
+        ) : null}
+
+        {error ? (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            {error}
+          </p>
+        ) : null}
+
         <label className="mb-4 block text-sm font-medium text-slate-700">
           {t('pos.shiftOpenFloat')}
           <input
@@ -30,13 +55,24 @@ export function ShiftOpenModal({ t, opening, onConfirm }) {
             autoFocus
           />
         </label>
-        <button
-          type="submit"
-          disabled={opening}
-          className="w-full rounded-lg bg-primary-to px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-        >
-          {opening ? t('pos.shiftOpening') : t('pos.shiftOpenConfirm')}
-        </button>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={opening}
+            className="flex-1 rounded-lg border border-slate-300 px-4 py-3 text-sm font-medium text-slate-700 disabled:opacity-60"
+          >
+            {t('pos.shiftCancel')}
+          </button>
+          <button
+            type="submit"
+            disabled={opening}
+            className="flex-1 rounded-lg bg-primary-to px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {opening ? t('pos.shiftOpening') : t('pos.shiftOpenConfirm')}
+          </button>
+        </div>
       </form>
     </div>
   );

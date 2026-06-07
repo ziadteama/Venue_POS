@@ -244,6 +244,8 @@
   "pos.shiftOpenConfirm": "Start shift",
   "pos.shiftOpening": "Opening…",
   "pos.shiftOpenFailed": "Could not open shift",
+  "pos.shiftOpenOpenCheques": "{{count}} open table(s) from a previous session — you can still start the shift.",
+  "pos.shiftRequiredBanner": "Open a shift to take payments.",
   "pos.shiftActive": "Shift · {{float}} EGP",
   "pos.shiftCloseTitle": "Close shift",
   "pos.shiftCloseHint": "Count cash in the drawer and enter the total.",

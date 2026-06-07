@@ -59,13 +59,17 @@ export function PosModals({
 
   const {
     needsOpen,
+    showOpenModal,
+    openChequeCount,
     opening,
     showCloseModal,
     setShowCloseModal,
     closing,
     openShift,
+    error: shiftModalError,
     setError: setShiftError,
     closeShift,
+    dismissOpenModal,
   } = shiftSession;
 
   const { navigateToTable, selectOpenCheque, deleteTable } = tableSession;
@@ -154,10 +158,13 @@ export function PosModals({
         />
       )}
 
-      {needsOpen && (
+      {needsOpen && showOpenModal && (
         <ShiftOpenModal
           t={t}
           opening={opening}
+          openChequeCount={openChequeCount}
+          error={shiftModalError}
+          onCancel={dismissOpenModal}
           onConfirm={(float) => {
             setShiftError('');
             openShift(float);
