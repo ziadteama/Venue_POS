@@ -10,7 +10,7 @@ import {
   eodReconciliationToCsv,
 } from '../services/manager-shift-service.js';
 
-const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
+const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
 function resolveVenueFilter(request) {
   return request.query?.venueId || undefined;
@@ -19,7 +19,7 @@ function resolveVenueFilter(request) {
 export async function managerShiftsRoutes(app) {
   app.get(
     '/api/v1/manager/shifts',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request, reply) => {
       const venueId = resolveVenueFilter(request);
       const result = await listManagerShifts({
@@ -47,7 +47,7 @@ export async function managerShiftsRoutes(app) {
 
   app.get(
     '/api/v1/manager/shifts/eod',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request, reply) => {
       const venueId = resolveVenueFilter(request);
       const result = await getEodReconciliation({
@@ -66,7 +66,7 @@ export async function managerShiftsRoutes(app) {
 
   app.get(
     '/api/v1/manager/shifts/:id',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
       return getManagerShiftDetail(request.params.id, venueId);
@@ -75,7 +75,7 @@ export async function managerShiftsRoutes(app) {
 
   app.post(
     '/api/v1/manager/shifts/:id/force-close',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
       return managerForceCloseShift(request.params.id, request.body ?? {}, venueId);

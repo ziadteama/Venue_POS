@@ -15,7 +15,7 @@ import {
   listRefundAudits,
 } from '../services/cheque-service.js';
 
-const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
+const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 const venueManagerPreHandler = requireRoles(ROLES.VENUE_MANAGER);
 
 const managerActionSchema = z.object({
@@ -30,7 +30,7 @@ function resolveVenueId(request) {
 export async function managerChequeRoutes(app) {
   app.get(
     '/api/v1/manager/cheques/open',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
@@ -40,7 +40,7 @@ export async function managerChequeRoutes(app) {
 
   app.get(
     '/api/v1/manager/cheques',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
@@ -57,7 +57,7 @@ export async function managerChequeRoutes(app) {
 
   app.get(
     '/api/v1/manager/cheques/:id',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
@@ -165,7 +165,7 @@ export async function managerChequeRoutes(app) {
 
   app.get(
     '/api/v1/manager/cheques/transfers',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
@@ -175,7 +175,7 @@ export async function managerChequeRoutes(app) {
 
   app.get(
     '/api/v1/manager/discounts',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
@@ -185,7 +185,7 @@ export async function managerChequeRoutes(app) {
 
   app.get(
     '/api/v1/manager/refunds',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');

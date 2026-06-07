@@ -2,7 +2,7 @@ import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
 import { getSystemHealth, healthSnapshotToCsv } from '../services/manager-health-service.js';
 
-const hubStaffPreHandler = requireRoles(ROLES.HUB_OWNER, ROLES.HUB_MANAGER);
+const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
 function resolveVenueFilter(request) {
   return request.query?.venueId || undefined;
@@ -11,7 +11,7 @@ function resolveVenueFilter(request) {
 export async function managerHealthRoutes(app) {
   app.get(
     '/api/v1/manager/health',
-    { preHandler: hubStaffPreHandler },
+    { preHandler: hubManagerPreHandler },
     async (request, reply) => {
       const venueId = resolveVenueFilter(request);
       const snapshot = await getSystemHealth(venueId, request.server.io);

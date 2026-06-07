@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isCeo } from '@venue-pos/shared';
+import { isHubManager } from '@venue-pos/shared';
 import { apiFetch } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -52,7 +52,7 @@ export function ApprovalsPage() {
   }, [venueId]);
 
   useEffect(() => {
-    if (!isCeo(user?.role)) return;
+    if (!isHubManager(user?.role)) return;
     load();
   }, [load, user?.role]);
 
@@ -94,10 +94,10 @@ export function ApprovalsPage() {
     }
   }
 
-  if (!isCeo(user?.role)) {
+  if (!isHubManager(user?.role)) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
-        {t('approvals.ceoOnly')}
+        {t('approvals.hubManagerOnly')}
       </div>
     );
   }
