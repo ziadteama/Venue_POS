@@ -8,6 +8,7 @@ Read this before writing code.
 |----------|---------|
 | [docs/README.md](docs/README.md) | Team doc index |
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Setup, repo layout, ports, commands |
+| [docs/DEV_CREDENTIALS.md](docs/DEV_CREDENTIALS.md) | Dev logins, PINs, where to use each app |
 | [docs/TEAM_LOG.md](docs/TEAM_LOG.md) | What's built + roadmap — **update every feature** |
 | [docs/PHASE3_SCALABLE_PLAN.md](docs/PHASE3_SCALABLE_PLAN.md) | Deferred features + provider flags (seat split, PDQ, vouchers) |
 | [docs/PRD.md](docs/PRD.md) | User stories & acceptance criteria |

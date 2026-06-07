@@ -156,13 +156,9 @@ Full matrix: `AGENTS.md` § Manager workflows.
 
 ## Dev credentials (after seed)
 
-| Role | Credentials |
-|------|-------------|
-| Hub manager | `admin` / `admin123` (PIN `9999` for terminal-style actions) |
-| Restaurant manager | `venue_mgr` / PIN `7777` (discount/refund requests from POS) |
-| Cashier PIN | `1234` |
-| Terminal ID | `00000000-0000-4000-8000-000000000001` |
-| Terminal secret | `dev-terminal-secret` |
+See **[DEV_CREDENTIALS.md](DEV_CREDENTIALS.md)** for full logins, PINs, terminal headers, dashboard pages per role, and curl examples.
+
+Quick: `admin` / `admin123` · `venue_mgr` / `venue123` · cashier PIN `1234` · manager PINs `7777` / `9999` · terminal secret `dev-terminal-secret`
 
 ## Troubleshooting
 
