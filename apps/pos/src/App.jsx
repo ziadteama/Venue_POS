@@ -22,7 +22,7 @@ export default function App() {
   const [clock, setClock] = useState(() => new Date());
 
   const orderLookup = useOrderLookup();
-  const { features } = useFeatures();
+  const { features, loading: featuresLoading } = useFeatures();
   const printerOk = usePrinterHealth();
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket();
   const { menu, loading, activeCategoryId, setActiveCategoryId, search, setSearch, displayItems } =
@@ -100,8 +100,19 @@ export default function App() {
 
   useManagerSocket(cheque?.id, refreshCheque);
 
+  const { setShowTableModal, openActionsSheet } = modals;
+
+  useEffect(() => {
+    if (!loading && !featuresLoading && shiftReady && !cheque && !shiftSession.showOpenModal) {
+      setShowTableModal(true);
+    }
+  }, [loading, featuresLoading, shiftReady, cheque, shiftSession.showOpenModal, setShowTableModal]);
+
   function handleTapItem(item) {
-    if (!order) return;
+    if (!cheque || !order) {
+      modals.setShowTableModal(true);
+      return;
+    }
     if (order.status !== 'draft') {
       setError(t('pos.orderLocked'));
       return;
@@ -137,6 +148,7 @@ export default function App() {
         t={t}
         language={i18n.language}
         cheque={cheque}
+        order={order}
         refundCheque={refundCheque}
         openCheques={openCheques}
         tableLabel={tableLabel}
@@ -188,21 +200,15 @@ export default function App() {
           loading={loading}
           cheque={cheque}
           order={order}
+          tableLabel={tableLabel}
           printerOk={printerOk}
           sending={sending}
           paying={paying}
           onClear={handleClear}
           onSend={onSend}
-          onSplit={() => modals.setShowSplitModal(true)}
-          onSplitAmount={() => modals.setShowSplitAmountModal(true)}
-          onTransfer={() => modals.setShowTransferModal(true)}
-          lineTransferEnabled={features.lineTransfer}
-          discountsEnabled={features.discounts}
-          refundsEnabled={features.refunds}
-          onDiscount={() => modals.openDiscountModal('apply')}
+          onOpenActions={openActionsSheet}
+          onPickTable={() => setShowTableModal(true)}
           onEditDiscount={() => modals.openDiscountModal('edit')}
-          onRemoveDiscount={() => modals.openDiscountModal('remove')}
-          onRefund={modals.openRefundFlow}
           onPay={() => {
             if (!shiftReady) {
               setShiftError(t('pos.shiftRequiredBanner'));
@@ -215,17 +221,26 @@ export default function App() {
           onChangeQty={changeQty}
         />
 
-        <MenuGrid
-          t={t}
-          language={i18n.language}
-          loading={loading}
-          menu={menu}
-          activeCategoryId={activeCategoryId}
-          onCategoryChange={setActiveCategoryId}
-          displayItems={displayItems}
-          order={order}
-          onTapItem={handleTapItem}
-        />
+        <div className={`relative min-w-0 flex-1 ${!cheque ? 'pointer-events-none opacity-50' : ''}`}>
+          {!cheque ? (
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-100/40 px-6 text-center">
+              <p className="max-w-sm rounded-xl bg-white/95 px-4 py-3 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200">
+                {t('pos.selectTableForMenu')}
+              </p>
+            </div>
+          ) : null}
+          <MenuGrid
+            t={t}
+            language={i18n.language}
+            loading={loading}
+            menu={menu}
+            activeCategoryId={activeCategoryId}
+            onCategoryChange={setActiveCategoryId}
+            displayItems={displayItems}
+            order={order}
+            onTapItem={handleTapItem}
+          />
+        </div>
       </div>
 
       <KitchenProgress kitchenWatch={kitchenWatch} language={i18n.language} t={t} />

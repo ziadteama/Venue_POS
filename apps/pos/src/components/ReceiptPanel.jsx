@@ -1,4 +1,4 @@
-import { canSplitByAmount, firedOrders, splittableItems, transferableItems } from '../utils/cheque.js';
+import { firedOrders } from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
 import { ClearIcon, PrinterIcon } from './icons.jsx';
 
@@ -40,9 +40,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t }) {
             </button>
           </div>
         )}
-        {readOnly && (
-          <p className="mt-1 text-xs text-secondary">× {line.quantity}</p>
-        )}
+        {readOnly && <p className="mt-1 text-xs text-secondary">× {line.quantity}</p>}
       </div>
     </li>
   );
@@ -54,43 +52,65 @@ export function ReceiptPanel({
   loading,
   cheque,
   order,
+  tableLabel,
   printerOk,
   sending,
   paying,
   onClear,
   onSend,
-  onSplit,
-  onSplitAmount,
-  onTransfer,
-  lineTransferEnabled,
-  discountsEnabled,
-  refundsEnabled,
-  onDiscount,
-  onEditDiscount,
-  onRemoveDiscount,
-  onRefund,
+  onOpenActions,
   onPay,
   payDisabled = false,
   onChangeQty,
+  onPickTable,
+  onEditDiscount,
 }) {
   const sentRounds = firedOrders(cheque);
   const draftItems = order?.items ?? [];
   const hasReceiptLines = sentRounds.length > 0 || draftItems.length > 0;
+  const hasDraftItems = draftItems.length > 0;
+  const canPay = cheque && cheque.total > 0 && !hasDraftItems;
+  const discountAmount = Number(cheque?.discountAmount ?? 0);
+
+  if (!cheque) {
+    return (
+      <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200 bg-white">
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <p className="text-lg font-semibold text-slate-900">{t('pos.noTableSelected')}</p>
+          <p className="mt-2 text-sm text-secondary">{t('pos.noTableSelectedHint')}</p>
+          <button
+            type="button"
+            onClick={onPickTable}
+            className="mt-5 rounded-xl bg-primary-gradient px-5 py-3 text-sm font-semibold text-white hover:opacity-90"
+          >
+            {t('pos.chooseTable')}
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="font-semibold text-slate-900">{t('pos.currentOrder')}</h2>
-        <p className="mt-1 text-sm text-secondary">
-          {cheque
-            ? t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })
-            : t('pos.noActiveCheque')}
-        </p>
-        {order && (
-          <p className="text-xs text-secondary">
-            {t('pos.orderNumber', { number: order.orderNumber ?? '—' })}
-          </p>
-        )}
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-slate-900">{t('pos.currentOrder')}</h2>
+            <button
+              type="button"
+              onClick={onPickTable}
+              className="mt-1 text-sm font-medium text-primary-to hover:underline"
+            >
+              {t('pos.tableActive', { table: tableLabel || '—' })}
+            </button>
+          </div>
+          <div className="text-end text-xs text-secondary">
+            <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })}</p>
+            {order ? (
+              <p>{t('pos.orderNumber', { number: order.orderNumber ?? '—' })}</p>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-3 py-2">
@@ -119,7 +139,7 @@ export function ReceiptPanel({
                 </ul>
               </section>
             ))}
-            {draftItems.length > 0 && (
+            {hasDraftItems && (
               <section>
                 {sentRounds.length > 0 ? (
                   <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
@@ -153,13 +173,17 @@ export function ReceiptPanel({
               {order?.subtotal?.toFixed(2) ?? '0.00'} {t('pos.currency')}
             </span>
           </div>
-          {(cheque?.discountAmount ?? 0) > 0 && (
-            <div className="flex justify-between text-amber-700">
+          {discountAmount > 0 && (
+            <button
+              type="button"
+              onClick={onEditDiscount}
+              className="flex w-full justify-between rounded-lg px-1 py-0.5 text-amber-800 hover:bg-amber-50"
+            >
               <span>{t('pos.discountApplied')}</span>
               <span>
-                -{cheque.discountAmount.toFixed(2)} {t('pos.currency')}
+                -{discountAmount.toFixed(2)} {t('pos.currency')}
               </span>
-            </div>
+            </button>
           )}
           {(cheque?.serviceAmount ?? 0) > 0 && (
             <div className="flex justify-between text-secondary">
@@ -177,7 +201,7 @@ export function ReceiptPanel({
               </span>
             </div>
           )}
-          <div className="flex justify-between text-lg font-bold text-slate-900">
+          <div className="flex justify-between border-t border-slate-100 pt-2 text-lg font-bold text-slate-900">
             <span>{t('pos.chequeTotal')}</span>
             <span className="text-primary-to">
               {cheque?.total?.toFixed(2) ?? '0.00'} {t('pos.currency')}
@@ -194,107 +218,53 @@ export function ReceiptPanel({
           <span>{printerOk ? t('pos.printerConnected') : t('pos.printerOffline')}</span>
         </div>
 
-        <div className="flex flex-col gap-2">
+        {hasDraftItems ? (
           <div className="flex gap-2">
             <button
               type="button"
               onClick={onClear}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-secondary/50 py-3 text-sm font-medium text-secondary hover:bg-slate-50"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-secondary/50 py-3 text-sm font-medium text-secondary hover:bg-slate-50"
             >
               <ClearIcon />
               {t('pos.clear')}
             </button>
-            {order?.status === 'draft' && order.items?.length > 0 && (
-              <button
-                type="button"
-                onClick={onSend}
-                disabled={sending}
-                className="flex-[2] rounded-lg bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
-              >
-                {sending ? t('common.loading') : t('pos.sendKitchen')}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={sending}
+              className="flex-[2] rounded-xl bg-primary-gradient py-3 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {sending ? t('common.loading') : t('pos.sendKitchen')}
+            </button>
           </div>
-          {!cheque?.parentChequeId && !order?.items?.length && (
-            <>
-              {splittableItems(cheque).length >= 2 && (
-                <button
-                  type="button"
-                  onClick={onSplit}
-                  className="w-full rounded-lg border border-primary-to py-3 text-sm font-semibold text-primary-to hover:bg-slate-50"
-                >
-                  {t('pos.splitBill')}
-                </button>
-              )}
-              {canSplitByAmount(cheque) && (
-                <button
-                  type="button"
-                  onClick={onSplitAmount}
-                  className="w-full rounded-lg border border-primary-to py-3 text-sm font-semibold text-primary-to hover:bg-slate-50"
-                >
-                  {t('pos.splitByAmount')}
-                </button>
-              )}
-              {lineTransferEnabled && transferableItems(cheque).length > 0 && (
-                <button
-                  type="button"
-                  onClick={onTransfer}
-                  className="w-full rounded-lg border border-slate-400 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  {t('pos.transferLines')}
-                </button>
-              )}
-            </>
-          )}
-          {cheque && cheque.total > 0 && !order?.items?.length && (
-            <>
-              {discountsEnabled && (cheque?.discountAmount ?? 0) <= 0 && (
-                <button
-                  type="button"
-                  onClick={onDiscount}
-                  className="w-full rounded-lg border border-amber-400 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50"
-                >
-                  {t('pos.applyDiscount')}
-                </button>
-              )}
-              {discountsEnabled && (cheque?.discountAmount ?? 0) > 0 && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={onEditDiscount}
-                    className="flex-1 rounded-lg border border-amber-400 py-3 text-sm font-semibold text-amber-800 hover:bg-amber-50"
-                  >
-                    {t('pos.editDiscount')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onRemoveDiscount}
-                    className="flex-1 rounded-lg border border-red-300 py-3 text-sm font-semibold text-red-700 hover:bg-red-50"
-                  >
-                    {t('pos.removeDiscount')}
-                  </button>
-                </div>
-              )}
+        ) : (
+          <div className="flex gap-2">
+            {canPay ? (
               <button
                 type="button"
                 onClick={onPay}
                 disabled={paying || payDisabled}
-                className="w-full rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="min-w-0 flex-1 rounded-xl bg-emerald-600 py-3.5 text-base font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
               >
-                {paying ? t('common.loading') : t('pos.pay')}
+                {paying
+                  ? t('common.loading')
+                  : t('pos.payAmount', { amount: cheque.total.toFixed(2) })}
               </button>
-            </>
-          )}
-          {refundsEnabled && (
+            ) : (
+              <div className="flex-1 rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">
+                {t('pos.addItemsHint')}
+              </div>
+            )}
             <button
               type="button"
-              onClick={onRefund}
-              className="w-full rounded-lg border border-red-300 py-3 text-sm font-semibold text-red-700 hover:bg-red-50"
+              onClick={onOpenActions}
+              className="shrink-0 rounded-xl border border-slate-300 px-4 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              aria-label={t('pos.actionsTitle')}
             >
-              {t('pos.refundPaidCheque')}
+              ···
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </aside>
   );

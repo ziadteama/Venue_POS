@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
-import { DEFAULT_TABLE, DEMO_CASHIER_ID } from '../constants.js';
+import { DEMO_CASHIER_ID } from '../constants.js';
 import { normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
 export function useChequeSession({ menu, loading, shiftReady }) {
@@ -35,7 +35,7 @@ export function useChequeSession({ menu, loading, shiftReady }) {
   const resumeCheque = useCallback(
     async (label) => {
       setError('');
-      const table = normalizeTableLabel(label ?? DEFAULT_TABLE);
+      const table = normalizeTableLabel(label);
       if (!table) return { ok: false };
       try {
         const loaded = await callAgent('/v1/cheques/open', {
@@ -88,12 +88,7 @@ export function useChequeSession({ menu, loading, shiftReady }) {
         setOpenCheques(parents);
 
         if (cheque?.id === tab.id) {
-          if (parents.length) {
-            await switchToCheque(parents[0]);
-          } else {
-            setCheque(null);
-            await openCheque(DEFAULT_TABLE);
-          }
+          setCheque(null);
         }
         return { ok: true };
       } catch (err) {
@@ -103,10 +98,6 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     },
     [cheque?.id, switchToCheque, openCheque, t],
   );
-
-  useEffect(() => {
-    if (!loading && menu && shiftReady && !cheque) openCheque(DEFAULT_TABLE);
-  }, [loading, menu, shiftReady, cheque, openCheque]);
 
   useEffect(() => {
     if (!loading && menu) refreshOpenCheques();
@@ -329,7 +320,8 @@ export function useChequeSession({ menu, loading, shiftReady }) {
         method: 'POST',
         body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...paymentBody }),
       });
-      await openCheque(cheque.tableLabel || DEFAULT_TABLE);
+      setCheque(null);
+      await refreshOpenCheques();
       return true;
     } catch {
       setError(t('pos.payFailed'));

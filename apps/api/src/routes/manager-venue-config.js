@@ -26,6 +26,18 @@ const updateConfigSchema = z.object({
   kitchenPrinterPort: z.number().int().min(1).max(65535).optional(),
   receiptPrinterHost: z.string().max(255).nullable().optional(),
   receiptPrinterPort: z.number().int().min(1).max(65535).optional(),
+  tables: z
+    .array(
+      z.union([
+        z.string().min(1).max(50),
+        z.object({
+          label: z.string().min(1).max(50),
+          section: z.string().max(50).optional(),
+        }),
+      ]),
+    )
+    .max(200)
+    .optional(),
 });
 
 export async function managerVenueConfigRoutes(app) {

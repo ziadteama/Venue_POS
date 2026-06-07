@@ -106,6 +106,7 @@ model Venue {
   kitchenPrinterPort Int          @default(9100) @map("kitchen_printer_port")
   receiptPrinterHost String?      @map("receipt_printer_host") @db.VarChar(255)
   receiptPrinterPort Int          @default(9100) @map("receipt_printer_port")
+  tables            Json          @default("[]") @db.JsonB
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

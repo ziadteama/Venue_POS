@@ -7,7 +7,8 @@ import { ShiftCloseModal } from './ShiftCloseModal.jsx';
 import { ShiftOpenModal } from './ShiftOpenModal.jsx';
 import { SplitAmountModal } from './SplitAmountModal.jsx';
 import { SplitBillModal } from './SplitBillModal.jsx';
-import { TableSwitchModal } from './TableSwitchModal.jsx';
+import { ChequeActionsSheet } from './ChequeActionsSheet.jsx';
+import { TableFloorModal } from './TableFloorModal.jsx';
 import { TransferModal } from './TransferModal.jsx';
 
 /**
@@ -17,6 +18,7 @@ export function PosModals({
   t,
   language,
   cheque,
+  order,
   refundCheque,
   openCheques,
   tableLabel,
@@ -36,13 +38,18 @@ export function PosModals({
     setShowSplitModal,
     showSplitAmountModal,
     setShowSplitAmountModal,
-    showTransferModal,
     setShowTransferModal,
+    showTransferModal,
+    openRefundFlow,
     showTableModal,
     setShowTableModal,
     showDiscountModal,
     setShowDiscountModal,
     discountModalMode,
+    openDiscountModal,
+    showActionsSheet,
+    setShowActionsSheet,
+    runFromActions,
     showRefundPicker,
     showRefundModal,
     showPayModal,
@@ -73,7 +80,11 @@ export function PosModals({
     dismissOpenModal,
   } = shiftSession;
 
-  const { navigateToTable, selectOpenCheque, deleteTable } = tableSession;
+  const { navigateToTable, deleteTable } = tableSession;
+
+  async function handleSelectTable(label) {
+    return navigateToTable(label);
+  }
 
   return (
     <>
@@ -97,15 +108,34 @@ export function PosModals({
       )}
 
       {showTableModal && (
-        <TableSwitchModal
+        <TableFloorModal
+          venueTables={features.tables}
           openCheques={openCheques}
           currentChequeId={cheque?.id}
           currentTable={tableLabel}
           t={t}
           onClose={() => setShowTableModal(false)}
-          onOpenTable={navigateToTable}
-          onSelectCheque={selectOpenCheque}
-          onDeleteTable={deleteTable}
+          onSelectTable={handleSelectTable}
+          onDeleteCheque={deleteTable}
+        />
+      )}
+
+      {showActionsSheet && cheque && (
+        <ChequeActionsSheet
+          cheque={cheque}
+          order={order}
+          t={t}
+          discountsEnabled={features.discounts}
+          refundsEnabled={features.refunds}
+          lineTransferEnabled={features.lineTransfer}
+          onClose={() => setShowActionsSheet(false)}
+          onSplit={() => runFromActions(() => setShowSplitModal(true))}
+          onSplitAmount={() => runFromActions(() => setShowSplitAmountModal(true))}
+          onTransfer={() => runFromActions(() => setShowTransferModal(true))}
+          onDiscount={() => runFromActions(() => openDiscountModal('apply'))}
+          onEditDiscount={() => runFromActions(() => openDiscountModal('edit'))}
+          onRemoveDiscount={() => runFromActions(() => openDiscountModal('remove'))}
+          onRefund={() => runFromActions(openRefundFlow)}
         />
       )}
 

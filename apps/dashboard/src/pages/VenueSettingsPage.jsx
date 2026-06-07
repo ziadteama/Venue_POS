@@ -19,7 +19,30 @@ function emptyForm() {
     kitchenPrinterPort: '9100',
     receiptPrinterHost: '',
     receiptPrinterPort: '9100',
+    tablesText: '',
   };
+}
+
+function tablesToText(tables) {
+  if (!Array.isArray(tables)) return '';
+  return tables
+    .map((entry) => (typeof entry === 'string' ? entry : entry?.label))
+    .filter(Boolean)
+    .join('\n');
+}
+
+function textToTables(text) {
+  const seen = new Set();
+  const out = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    const label = line.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label });
+  }
+  return out;
 }
 
 export function VenueSettingsPage() {
@@ -53,6 +76,7 @@ export function VenueSettingsPage() {
         kitchenPrinterPort: String(config.kitchenPrinterPort ?? 9100),
         receiptPrinterHost: config.receiptPrinterHost ?? '',
         receiptPrinterPort: String(config.receiptPrinterPort ?? 9100),
+        tablesText: tablesToText(config.tables),
       });
       try {
         const auditList = await apiFetch(`/api/v1/manager/venues/${id}/config/audits`);
@@ -104,6 +128,7 @@ export function VenueSettingsPage() {
           kitchenPrinterPort: Number(form.kitchenPrinterPort),
           receiptPrinterHost: form.receiptPrinterHost.trim() || null,
           receiptPrinterPort: Number(form.receiptPrinterPort),
+          tables: textToTables(form.tablesText),
         }),
       });
       setSuccess(t('venueConfig.saved', { count: result.changes?.length ?? 0 }));
@@ -244,6 +269,18 @@ export function VenueSettingsPage() {
                 {t('venueConfig.serviceEnabled')}
               </label>
             </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-2 text-lg font-semibold">{t('venueConfig.tables')}</h3>
+            <p className="mb-4 text-sm text-secondary">{t('venueConfig.tablesHint')}</p>
+            <textarea
+              rows={8}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm"
+              placeholder={t('venueConfig.tablesPlaceholder')}
+              value={form.tablesText}
+              onChange={(e) => setForm((f) => ({ ...f, tablesText: e.target.value }))}
+            />
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
