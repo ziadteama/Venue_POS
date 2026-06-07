@@ -11,6 +11,7 @@ export function PosHeader({
   shift,
   onCloseShift,
   onOrderLookup,
+  onCrossVenue,
 }) {
   const openCount = parentOpenCheques(openCheques).length;
 
@@ -64,6 +65,15 @@ export function PosHeader({
             className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 hover:bg-white/25"
           >
             {t('pos.orderLookup')}
+          </button>
+        )}
+        {onCrossVenue && (
+          <button
+            type="button"
+            onClick={onCrossVenue}
+            className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 hover:bg-white/25"
+          >
+            {t('crossVenue.button')}
           </button>
         )}
         {shift && (

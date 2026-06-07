@@ -10,6 +10,9 @@ const DEFAULT_FEATURES = {
   autoReceiptPrint: true,
   tables: [],
   kdsEnabled: true,
+  crossVenueBilling: false,
+  isAnchor: false,
+  crossVenueTargets: [],
 };
 
 export function useFeatures() {
@@ -31,6 +34,11 @@ export function useFeatures() {
             autoReceiptPrint: data?.autoReceiptPrint !== false,
             tables: Array.isArray(data?.tables) ? data.tables : [],
             kdsEnabled: data?.kdsEnabled !== false,
+            crossVenueBilling: Boolean(data?.crossVenueBilling),
+            isAnchor: Boolean(data?.isAnchor),
+            crossVenueTargets: Array.isArray(data?.crossVenueTargets)
+              ? data.crossVenueTargets
+              : [],
           });
         }
       } catch {

@@ -5,6 +5,7 @@ import { registerMenuRoutes } from './routes/menu.js';
 import { registerSyncRoutes } from './routes/sync.js';
 import { registerOrderRoutes } from './routes/orders.js';
 import { registerChequeRoutes } from './routes/cheques.js';
+import { registerCrossVenueRoutes } from './routes/cross-venue.js';
 import { registerShiftRoutes } from './routes/shifts.js';
 import { registerFeatureRoutes } from './routes/features.js';
 import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
@@ -44,6 +45,7 @@ export async function buildAgentServer({ db, config }) {
   registerSyncRoutes(app, routeCtx);
   registerOrderRoutes(app, routeCtx);
   registerChequeRoutes(app, routeCtx);
+  registerCrossVenueRoutes(app, routeCtx);
   registerShiftRoutes(app, routeCtx);
   registerFeatureRoutes(app, routeCtx);
   registerOrderExplorerRoutes(app, routeCtx);

@@ -14,7 +14,9 @@ import { usePosModals } from './hooks/usePosModals.js';
 import { usePrinterHealth } from './hooks/usePrinterHealth.js';
 import { useOrderLookup } from './hooks/useOrderLookup.js';
 import { useShiftSession } from './hooks/useShiftSession.js';
+import { useCrossVenue } from './hooks/useCrossVenue.js';
 import { OrderLookupModal } from './components/OrderLookupModal.jsx';
+import { CrossVenueModal } from './components/CrossVenueModal.jsx';
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -22,6 +24,7 @@ export default function App() {
   const [clock, setClock] = useState(() => new Date());
 
   const orderLookup = useOrderLookup();
+  const crossVenue = useCrossVenue();
   const printerOk = usePrinterHealth();
   const { features, loading: featuresLoading } = useFeatures();
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket(features.kdsEnabled);
@@ -139,6 +142,10 @@ export default function App() {
         <OrderLookupModal t={t} language={i18n.language} lookup={orderLookup} />
       ) : null}
 
+      {crossVenue.open ? (
+        <CrossVenueModal t={t} language={i18n.language} crossVenue={crossVenue} />
+      ) : null}
+
       <PosModals
         t={t}
         language={i18n.language}
@@ -167,6 +174,7 @@ export default function App() {
         shift={shift}
         onCloseShift={() => setShowCloseModal(true)}
         onOrderLookup={orderLookup.openLookup}
+        onCrossVenue={features.crossVenueBilling ? crossVenue.openModal : null}
       />
 
       {needsOpen && !showOpenModal && (

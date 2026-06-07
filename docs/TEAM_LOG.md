@@ -1127,11 +1127,48 @@ npm run migrate && npm run seed
 
 ---
 
-## Phase 4 — Cross-venue billing (planned)
+## Phase 4 — Cross-venue billing (in progress)
 
-**PRD:** Epic 4 (US-4.1–4.3) + US-8.6 billing rules matrix on dashboard.  
-**Schema gap:** `venue_billing_config` table not in Prisma yet; `cheque_orders` exists for single-venue links only.  
-**Seed gap:** single demo venue — add Restaurant B + terminal for cross-venue dev tests.
+### 2026-06-08 — Cross-venue billing foundation + settlement (slices 4.1–4.5)
+**Phase:** 4 · **Story:** US-4.1, US-4.2, US-4.3, US-8.6  
+**Branch:** `feature/phase4-cross-venue-billing`  
+**What:** An **anchor** terminal can combine and settle open cheques from linked venues in a single tender. Each venue keeps its own cheque, so **revenue and kitchen routing stay attributed to the venue that earned them**.
+
+**Key design decision — settle, don't move.**  Revenue is aggregated by `cheque.venueId` (see `metrics-service`/`analytics-service`). So cross-venue billing **groups existing open cheques** (one per venue) under a shared `crossVenueGroupId` and pays them together — it never moves orders onto an anchor cheque. This means:
+- Each venue's payment lands on its own cheque → analytics/EOD/metrics attribute money correctly with **zero changes** to those queries.
+- Orders are still created and fired by their own venue's terminal → every item prints to its **originating venue's** kitchen. Cross-venue billing never reassigns `order.venueId`.
+- The group id is a **durable lock**: a conditional `updateMany` guarantees a cheque can only be in one settlement (concurrent grab → `409`).
+
+**Files:**
+- Schema: `VenueBillingConfig` model + `Cheque.isCrossVenue` + `Cheque.crossVenueGroupId`; migrations `20260620120000_phase4_cross_venue_billing`, `20260620130000_cross_venue_group`
+- API services: `billing-config-service.js`, `cross-venue-service.js`
+- API routes: `manager-billing.js` (`GET/PUT /api/v1/manager/billing-config`), `cross-venue.js` (`/api/v1/cross-venue/billable|groups|groups/:id|/cancel|/pay`)
+- Features: `routes/features.js` now returns `crossVenueBilling`, `isAnchor`, `crossVenueTargets`
+- Sockets: `venue:config_updated` (billing), `cheque:lock_acquired`, `cheque:cross_billed`
+- Local agent: `routes/cross-venue.js` (online-only proxy)
+- POS: `hooks/useCrossVenue.js`, `components/CrossVenueModal.jsx`, header button (shown when `features.crossVenueBilling`)
+- Dashboard: `components/BillingMatrixSection.jsx` on **Settings** (anchor × target toggles)
+- Seed: **Demo Restaurant** venue + `POS-2` terminal + `cashier2` (PIN 2345) + dinner menu; Cafe→Restaurant pair enabled
+- Tests: `apps/api/src/cross-venue.test.js` (7 tests) — config guards, features exposure, lock + 409 conflict, pay with per-venue attribution, unlinked rejection
+- Flags: `FEATURE_CROSS_VENUE_BILLING` (default OFF), `CROSS_VENUE_LOCK_TTL_MS`
+
+**Verify:**
+```bash
+npm run migrate && npm run seed
+FEATURE_CROSS_VENUE_BILLING=true npm run test -w @venue-pos/api   # 104 pass
+# Hub: Settings (Demo Cafe) → Cross-venue billing → Demo Restaurant ON
+# Demo Restaurant (POS-2): open table, fire an order
+# Demo Cafe anchor POS: "Cross-venue" → select Restaurant cheque → Combine → Pay
+# Revenue lands on Restaurant (analytics/EOD), kitchen ticket fired to Restaurant
+```
+
+**Notes:** Online-only (POS proxies straight to hub; no offline queue). Anchor-only initiation. v1 settlement uses a single payment method for the whole group. Remaining: cross-venue linkage badges in dashboard Orders/Cheques (read-only, US-8.3 ext) can build on `crossVenueGroupId`.
+
+---
+
+### Original plan (for reference)
+
+**PRD:** Epic 4 (US-4.1–4.3) + US-8.6 billing rules matrix on dashboard.
 
 ### Suggested slices (branch order)
 

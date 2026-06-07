@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
+import { BillingMatrixSection } from '../components/BillingMatrixSection.jsx';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
 
@@ -341,6 +342,10 @@ export function VenueSettingsPage() {
           </div>
         </form>
       )}
+
+      {!loading && venueId ? (
+        <BillingMatrixSection anchorVenueId={venueId} anchorType={form.type} />
+      ) : null}
 
       {audits.length > 0 ? (
         <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -91,73 +91,94 @@ enum ApprovalRequestStatus {
 }
 
 model Venue {
-  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nameEn    String    @map("name_en") @db.VarChar(255)
-  nameAr    String    @map("name_ar") @db.VarChar(255)
-  type      VenueType @default(standard)
-  currency  String    @default("EGP") @db.VarChar(3)
-  isActive  Boolean   @default(true) @map("is_active")
-  taxRate         Decimal         @default(0) @map("tax_rate") @db.Decimal(5, 4)
-  taxInclusive    Boolean         @default(false) @map("tax_inclusive")
-  serviceRate     Decimal         @default(0) @map("service_rate") @db.Decimal(5, 4)
-  serviceEnabled  Boolean         @default(false) @map("service_enabled")
-  receiptTemplate ReceiptTemplate @default(standard) @map("receipt_template")
-  kitchenPrinterHost String?      @map("kitchen_printer_host") @db.VarChar(255)
-  kitchenPrinterPort Int          @default(9100) @map("kitchen_printer_port")
-  receiptPrinterHost String?      @map("receipt_printer_host") @db.VarChar(255)
-  receiptPrinterPort Int          @default(9100) @map("receipt_printer_port")
-  tables            Json          @default("[]") @db.JsonB
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nameEn             String          @map("name_en") @db.VarChar(255)
+  nameAr             String          @map("name_ar") @db.VarChar(255)
+  type               VenueType       @default(standard)
+  currency           String          @default("EGP") @db.VarChar(3)
+  isActive           Boolean         @default(true) @map("is_active")
+  taxRate            Decimal         @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxInclusive       Boolean         @default(false) @map("tax_inclusive")
+  serviceRate        Decimal         @default(0) @map("service_rate") @db.Decimal(5, 4)
+  serviceEnabled     Boolean         @default(false) @map("service_enabled")
+  receiptTemplate    ReceiptTemplate @default(standard) @map("receipt_template")
+  kitchenPrinterHost String?         @map("kitchen_printer_host") @db.VarChar(255)
+  kitchenPrinterPort Int             @default(9100) @map("kitchen_printer_port")
+  receiptPrinterHost String?         @map("receipt_printer_host") @db.VarChar(255)
+  receiptPrinterPort Int             @default(9100) @map("receipt_printer_port")
+  tables             Json            @default("[]") @db.JsonB
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users        User[]
-  terminals    Terminal[]
-  menuTemplates MenuTemplateVenue[]
-  orders       Order[]
-  cheques      Cheque[]
-  shifts       Shift[]
+  users            User[]
+  terminals        Terminal[]
+  menuTemplates    MenuTemplateVenue[]
+  orders           Order[]
+  cheques          Cheque[]
+  shifts           Shift[]
   approvalRequests ManagerApprovalRequest[]
-  configAudits VenueConfigAudit[]
-  auditLogs    AuditLog[]
+  configAudits     VenueConfigAudit[]
+  auditLogs        AuditLog[]
+  billingAsAnchor  VenueBillingConfig[]     @relation("BillingAnchor")
+  billingAsTarget  VenueBillingConfig[]     @relation("BillingTarget")
 
   @@map("venues")
 }
 
-model User {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username     String?   @unique @db.VarChar(100)
-  passwordHash String?   @map("password_hash") @db.VarChar(255)
-  pinHash      String?   @map("pin_hash") @db.VarChar(255)
-  cardUid      String?   @map("card_uid") @db.VarChar(100)
-  role         UserRole
-  venueId      String?   @map("venue_id") @db.Uuid
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+/// Cross-venue billing pairs. When an anchor venue is linked to a target venue,
+/// an anchor terminal may settle the target venue's open orders on a single cheque.
+model VenueBillingConfig {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  anchorVenueId String   @map("anchor_venue_id") @db.Uuid
+  targetVenueId String   @map("target_venue_id") @db.Uuid
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue         Venue?           @relation(fields: [venueId], references: [id])
-  orders        Order[]
-  voidsApproved OrderVoidAudit[]     @relation("VoidApprover")
-  voidsCashier  OrderVoidAudit[]     @relation("VoidCashier")
-  compsApproved OrderItemCompAudit[] @relation("CompApprover")
-  compsCashier  OrderItemCompAudit[] @relation("CompCashier")
-  transfersApproved ChequeItemTransferAudit[] @relation("TransferApprover")
-  transfersCashier  ChequeItemTransferAudit[] @relation("TransferCashier")
-  discountsInitiated ChequeDiscountAudit[] @relation("DiscountInitiator")
-  discountsApproved  ChequeDiscountAudit[] @relation("DiscountApprover")
-  discountsCashier   ChequeDiscountAudit[] @relation("DiscountCashier")
-  refundsInitiated Refund[] @relation("RefundInitiator")
-  refundsApproved  Refund[] @relation("RefundApprover")
-  refundsCashier   Refund[] @relation("RefundCashier")
-  approvalsInitiated ManagerApprovalRequest[] @relation("ApprovalInitiator")
-  approvalsResolved  ManagerApprovalRequest[] @relation("ApprovalResolver")
-  approvalsCashier   ManagerApprovalRequest[] @relation("ApprovalCashier")
-  chequesOpened Cheque[]             @relation("ChequeCashier")
-  payments      Payment[]
-  shifts        Shift[]
-  shiftEvents   ShiftEvent[]
-  venueConfigAudits VenueConfigAudit[]
-  auditLogs         AuditLog[]
+  anchorVenue Venue @relation("BillingAnchor", fields: [anchorVenueId], references: [id], onDelete: Cascade)
+  targetVenue Venue @relation("BillingTarget", fields: [targetVenueId], references: [id], onDelete: Cascade)
+
+  @@unique([anchorVenueId, targetVenueId], map: "uq_venue_billing_pair")
+  @@index([anchorVenueId], map: "idx_venue_billing_anchor")
+  @@index([targetVenueId], map: "idx_venue_billing_target")
+  @@map("venue_billing_configs")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username     String?  @unique @db.VarChar(100)
+  passwordHash String?  @map("password_hash") @db.VarChar(255)
+  pinHash      String?  @map("pin_hash") @db.VarChar(255)
+  cardUid      String?  @map("card_uid") @db.VarChar(100)
+  role         UserRole
+  venueId      String?  @map("venue_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue              Venue?                    @relation(fields: [venueId], references: [id])
+  orders             Order[]
+  voidsApproved      OrderVoidAudit[]          @relation("VoidApprover")
+  voidsCashier       OrderVoidAudit[]          @relation("VoidCashier")
+  compsApproved      OrderItemCompAudit[]      @relation("CompApprover")
+  compsCashier       OrderItemCompAudit[]      @relation("CompCashier")
+  transfersApproved  ChequeItemTransferAudit[] @relation("TransferApprover")
+  transfersCashier   ChequeItemTransferAudit[] @relation("TransferCashier")
+  discountsInitiated ChequeDiscountAudit[]     @relation("DiscountInitiator")
+  discountsApproved  ChequeDiscountAudit[]     @relation("DiscountApprover")
+  discountsCashier   ChequeDiscountAudit[]     @relation("DiscountCashier")
+  refundsInitiated   Refund[]                  @relation("RefundInitiator")
+  refundsApproved    Refund[]                  @relation("RefundApprover")
+  refundsCashier     Refund[]                  @relation("RefundCashier")
+  approvalsInitiated ManagerApprovalRequest[]  @relation("ApprovalInitiator")
+  approvalsResolved  ManagerApprovalRequest[]  @relation("ApprovalResolver")
+  approvalsCashier   ManagerApprovalRequest[]  @relation("ApprovalCashier")
+  chequesOpened      Cheque[]                  @relation("ChequeCashier")
+  payments           Payment[]
+  shifts             Shift[]
+  shiftEvents        ShiftEvent[]
+  venueConfigAudits  VenueConfigAudit[]
+  auditLogs          AuditLog[]
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -165,17 +186,17 @@ model User {
 }
 
 model Terminal {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  venueId    String    @map("venue_id") @db.Uuid
-  name       String?   @db.VarChar(100)
-  secretHash String    @map("secret_hash") @db.VarChar(255)
-  isActive   Boolean   @default(true) @map("is_active")
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId        String    @map("venue_id") @db.Uuid
+  name           String?   @db.VarChar(100)
+  secretHash     String    @map("secret_hash") @db.VarChar(255)
+  isActive       Boolean   @default(true) @map("is_active")
   lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz(6)
   syncQueueDepth Int       @default(0) @map("sync_queue_depth")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue  Venue   @relation(fields: [venueId], references: [id])
+  venue   Venue    @relation(fields: [venueId], references: [id])
   orders  Order[]
   cheques Cheque[]
   shifts  Shift[]
@@ -316,12 +337,12 @@ model Order {
   createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue    Venue      @relation(fields: [venueId], references: [id])
-  terminal Terminal?  @relation(fields: [terminalId], references: [id])
-  cashier   User            @relation(fields: [cashierId], references: [id])
-  items       OrderItem[]
-  voidAudit   OrderVoidAudit?
-  chequeLink  ChequeOrder?
+  venue      Venue           @relation(fields: [venueId], references: [id])
+  terminal   Terminal?       @relation(fields: [terminalId], references: [id])
+  cashier    User            @relation(fields: [cashierId], references: [id])
+  items      OrderItem[]
+  voidAudit  OrderVoidAudit?
+  chequeLink ChequeOrder?
 
   @@unique([venueId, orderNumber], map: "uq_orders_venue_number")
   @@index([venueId], map: "idx_orders_venue")
@@ -330,24 +351,24 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId    String   @map("order_id") @db.Uuid
-  menuItemId String   @map("menu_item_id") @db.Uuid
-  quantity           Int      @default(1)
-  unitPrice          Decimal  @map("unit_price") @db.Decimal(10, 2)
-  modifiersSnapshot  Json?    @map("modifiers_snapshot")
-  kitchenStatus      OrderItemKitchenStatus @default(pending) @map("kitchen_status")
-  isComped           Boolean                @default(false) @map("is_comped")
-  billingChequeId    String?                @map("billing_cheque_id") @db.Uuid
-  paidAt             DateTime?              @map("paid_at") @db.Timestamptz(6)
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId           String                 @map("order_id") @db.Uuid
+  menuItemId        String                 @map("menu_item_id") @db.Uuid
+  quantity          Int                    @default(1)
+  unitPrice         Decimal                @map("unit_price") @db.Decimal(10, 2)
+  modifiersSnapshot Json?                  @map("modifiers_snapshot")
+  kitchenStatus     OrderItemKitchenStatus @default(pending) @map("kitchen_status")
+  isComped          Boolean                @default(false) @map("is_comped")
+  billingChequeId   String?                @map("billing_cheque_id") @db.Uuid
+  paidAt            DateTime?              @map("paid_at") @db.Timestamptz(6)
+  createdAt         DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
-  compAudit       OrderItemCompAudit?
-  transferAudits  ChequeItemTransferAudit[]
-  billingCheque   Cheque? @relation("ItemBillingCheque", fields: [billingChequeId], references: [id])
+  order          Order                     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem       MenuItem                  @relation(fields: [menuItemId], references: [id])
+  compAudit      OrderItemCompAudit?
+  transferAudits ChequeItemTransferAudit[]
+  billingCheque  Cheque?                   @relation("ItemBillingCheque", fields: [billingChequeId], references: [id])
 
   @@index([orderId], map: "idx_order_items_order")
   @@index([billingChequeId], map: "idx_order_items_billing_cheque")
@@ -390,31 +411,33 @@ model OrderItemCompAudit {
 }
 
 model Cheque {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  venueId      String       @map("venue_id") @db.Uuid
-  terminalId   String?      @map("terminal_id") @db.Uuid
-  cashierId    String       @map("cashier_id") @db.Uuid
-  chequeNumber Int          @map("cheque_number")
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId        String       @map("venue_id") @db.Uuid
+  terminalId     String?      @map("terminal_id") @db.Uuid
+  cashierId      String       @map("cashier_id") @db.Uuid
+  chequeNumber   Int          @map("cheque_number")
   tableLabel     String       @map("table_label") @db.VarChar(50)
   splitLabel     String?      @map("split_label") @db.VarChar(50)
   splitAmount    Decimal?     @map("split_amount") @db.Decimal(10, 2)
   discountAmount Decimal      @default(0) @map("discount_amount") @db.Decimal(10, 2)
   parentChequeId String?      @map("parent_cheque_id") @db.Uuid
+  isCrossVenue   Boolean      @default(false) @map("is_cross_venue")
+  crossVenueGroupId String?   @map("cross_venue_group_id") @db.Uuid
   status         ChequeStatus @default(open)
   openedAt       DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
-  closedAt     DateTime?    @map("closed_at") @db.Timestamptz(6)
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  closedAt       DateTime?    @map("closed_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue    Venue         @relation(fields: [venueId], references: [id])
-  terminal Terminal?     @relation(fields: [terminalId], references: [id])
-  cashier  User          @relation("ChequeCashier", fields: [cashierId], references: [id])
-  orders         ChequeOrder[]
-  payments       Payment[]
-  compAudits     OrderItemCompAudit[]
-  billedItems    OrderItem[] @relation("ItemBillingCheque")
-  parentCheque   Cheque?  @relation("ChequeSplit", fields: [parentChequeId], references: [id])
-  childCheques      Cheque[] @relation("ChequeSplit")
+  venue             Venue                     @relation(fields: [venueId], references: [id])
+  terminal          Terminal?                 @relation(fields: [terminalId], references: [id])
+  cashier           User                      @relation("ChequeCashier", fields: [cashierId], references: [id])
+  orders            ChequeOrder[]
+  payments          Payment[]
+  compAudits        OrderItemCompAudit[]
+  billedItems       OrderItem[]               @relation("ItemBillingCheque")
+  parentCheque      Cheque?                   @relation("ChequeSplit", fields: [parentChequeId], references: [id])
+  childCheques      Cheque[]                  @relation("ChequeSplit")
   transferAuditsOut ChequeItemTransferAudit[] @relation("TransferSource")
   transferAuditsIn  ChequeItemTransferAudit[] @relation("TransferTarget")
   discountAudits    ChequeDiscountAudit[]
@@ -425,6 +448,7 @@ model Cheque {
   @@index([venueId, status], map: "idx_cheques_venue_status")
   @@index([venueId, tableLabel], map: "idx_cheques_venue_table")
   @@index([parentChequeId], map: "idx_cheques_parent")
+  @@index([crossVenueGroupId], map: "idx_cheques_cross_group")
   @@map("cheques")
 }
 
@@ -472,9 +496,9 @@ model Payment {
   cardLast4   String?       @map("card_last4") @db.VarChar(4)
   processedAt DateTime      @default(now()) @map("processed_at") @db.Timestamptz(6)
 
-  cheque  Cheque @relation(fields: [chequeId], references: [id])
-  cashier User   @relation(fields: [cashierId], references: [id])
-  shift   Shift? @relation(fields: [shiftId], references: [id])
+  cheque  Cheque   @relation(fields: [chequeId], references: [id])
+  cashier User     @relation(fields: [cashierId], references: [id])
+  shift   Shift?   @relation(fields: [shiftId], references: [id])
   refunds Refund[]
 
   @@index([chequeId], map: "idx_payments_cheque")
@@ -545,11 +569,11 @@ model ManagerApprovalRequest {
   createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   resolvedAt   DateTime?             @map("resolved_at") @db.Timestamptz(6)
 
-  venue     Venue @relation(fields: [venueId], references: [id])
+  venue     Venue  @relation(fields: [venueId], references: [id])
   cheque    Cheque @relation(fields: [chequeId], references: [id])
-  cashier   User  @relation("ApprovalCashier", fields: [cashierId], references: [id])
-  initiator User  @relation("ApprovalInitiator", fields: [initiatorId], references: [id])
-  approver  User? @relation("ApprovalResolver", fields: [approverId], references: [id])
+  cashier   User   @relation("ApprovalCashier", fields: [cashierId], references: [id])
+  initiator User   @relation("ApprovalInitiator", fields: [initiatorId], references: [id])
+  approver  User?  @relation("ApprovalResolver", fields: [approverId], references: [id])
 
   @@index([venueId, status], map: "idx_approval_requests_venue_status")
   @@index([chequeId], map: "idx_approval_requests_cheque")
