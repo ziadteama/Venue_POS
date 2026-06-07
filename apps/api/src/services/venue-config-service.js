@@ -9,33 +9,6 @@ function decimalToNumber(value) {
   return Number(value);
 }
 
-function normalizeTableLayout(layout) {
-  if (layout == null) return null;
-  if (!Array.isArray(layout?.tables)) {
-    throw validationError('tableLayout.tables must be an array');
-  }
-  const tables = layout.tables.map((table, index) => {
-    const label = String(table.label ?? '').trim();
-    if (!label) throw validationError('Each table requires a label');
-    const x = Number(table.x ?? 0);
-    const y = Number(table.y ?? 0);
-    const seats = Number(table.seats ?? 4);
-    if (!Number.isFinite(x) || x < 0 || x > 100) throw validationError('Invalid table x position');
-    if (!Number.isFinite(y) || y < 0 || y > 100) throw validationError('Invalid table y position');
-    if (!Number.isInteger(seats) || seats < 1 || seats > 20) {
-      throw validationError('Table seats must be between 1 and 20');
-    }
-    return {
-      id: table.id ?? `table-${index + 1}`,
-      label,
-      x: Math.round(x),
-      y: Math.round(y),
-      seats,
-    };
-  });
-  return { tables };
-}
-
 export function serializeVenueConfig(venue) {
   return {
     id: venue.id,
@@ -46,12 +19,13 @@ export function serializeVenueConfig(venue) {
     isActive: venue.isActive,
     taxRate: decimalToNumber(venue.taxRate),
     taxInclusive: venue.taxInclusive,
+    serviceRate: decimalToNumber(venue.serviceRate),
+    serviceEnabled: venue.serviceEnabled,
     receiptTemplate: venue.receiptTemplate,
     kitchenPrinterHost: venue.kitchenPrinterHost,
     kitchenPrinterPort: venue.kitchenPrinterPort,
     receiptPrinterHost: venue.receiptPrinterHost,
     receiptPrinterPort: venue.receiptPrinterPort,
-    tableLayout: venue.tableLayout ?? { tables: [] },
     updatedAt: venue.updatedAt.toISOString(),
   };
 }
@@ -61,12 +35,13 @@ export function serializeTerminalVenueSettings(venue) {
     venueId: venue.id,
     taxRate: decimalToNumber(venue.taxRate),
     taxInclusive: venue.taxInclusive,
+    serviceRate: decimalToNumber(venue.serviceRate),
+    serviceEnabled: venue.serviceEnabled,
     receiptTemplate: venue.receiptTemplate,
     kitchenPrinterHost: venue.kitchenPrinterHost,
     kitchenPrinterPort: venue.kitchenPrinterPort,
     receiptPrinterHost: venue.receiptPrinterHost ?? venue.kitchenPrinterHost,
     receiptPrinterPort: venue.receiptPrinterPort,
-    tableLayout: venue.tableLayout ?? { tables: [] },
     updatedAt: venue.updatedAt.toISOString(),
   };
 }
@@ -110,6 +85,16 @@ function buildUpdateData(body) {
   if (body.taxInclusive != null) {
     data.taxInclusive = Boolean(body.taxInclusive);
   }
+  if (body.serviceRate != null) {
+    const serviceRate = Number(body.serviceRate);
+    if (!Number.isFinite(serviceRate) || serviceRate < 0 || serviceRate > 1) {
+      throw validationError('Service rate must be between 0 and 1');
+    }
+    data.serviceRate = serviceRate;
+  }
+  if (body.serviceEnabled != null) {
+    data.serviceEnabled = Boolean(body.serviceEnabled);
+  }
   if (body.receiptTemplate != null) {
     if (!RECEIPT_TEMPLATES.includes(body.receiptTemplate)) {
       throw validationError('Invalid receipt template');
@@ -135,9 +120,6 @@ function buildUpdateData(body) {
       throw validationError('Invalid receipt printer port');
     }
     data.receiptPrinterPort = port;
-  }
-  if (body.tableLayout !== undefined) {
-    data.tableLayout = normalizeTableLayout(body.tableLayout);
   }
 
   if (Object.keys(data).length === 0) {

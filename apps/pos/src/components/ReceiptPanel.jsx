@@ -158,6 +158,22 @@ export function ReceiptPanel({
               </span>
             </div>
           )}
+          {(cheque?.serviceAmount ?? 0) > 0 && (
+            <div className="flex justify-between text-secondary">
+              <span>{t('pos.serviceCharge')}</span>
+              <span>
+                {cheque.serviceAmount.toFixed(2)} {t('pos.currency')}
+              </span>
+            </div>
+          )}
+          {(cheque?.taxAmount ?? 0) > 0 && (
+            <div className="flex justify-between text-secondary">
+              <span>{t('pos.tax')}</span>
+              <span>
+                {cheque.taxAmount.toFixed(2)} {t('pos.currency')}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between text-lg font-bold text-slate-900">
             <span>{t('pos.chequeTotal')}</span>
             <span className="text-primary-to">

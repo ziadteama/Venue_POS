@@ -8,20 +8,12 @@ import { ActivityPage } from './pages/ActivityPage.jsx';
 import { AnalyticsPage } from './pages/AnalyticsPage.jsx';
 import { OrdersPage } from './pages/OrdersPage.jsx';
 import { ShiftsPage } from './pages/ShiftsPage.jsx';
-import { ApprovalsPage } from './pages/ApprovalsPage.jsx';
 import { VenueSettingsPage } from './pages/VenueSettingsPage.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 function ProtectedRoute({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return children;
-}
-
-function VenueManagerRoute({ children }) {
-  const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'venue_manager') return <Navigate to="/" replace />;
   return children;
 }
 
@@ -39,19 +31,11 @@ export default function App() {
       >
         <Route index element={<DashboardHome />} />
         <Route path="analytics" element={<AnalyticsPage />} />
-        <Route
-          path="orders"
-          element={
-            <VenueManagerRoute>
-              <OrdersPage />
-            </VenueManagerRoute>
-          }
-        />
+        <Route path="orders" element={<OrdersPage />} />
         <Route path="menus" element={<MenuManagerPage />} />
         <Route path="cheques" element={<ChequesPage />} />
         <Route path="shifts" element={<ShiftsPage />} />
         <Route path="activity" element={<ActivityPage />} />
-        <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="settings" element={<VenueSettingsPage />} />
       </Route>
     </Routes>

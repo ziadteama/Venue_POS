@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { notFound } from '../utils/errors.js';
 import { serializeOrder } from '../utils/serialize.js';
+import { computeVenueCharges } from '../utils/venue-charges.js';
 import { createOrder } from './order-service.js';
 
 export const chequeOrderInclude = {
@@ -12,6 +13,14 @@ export const chequeOrderInclude = {
 };
 
 export const chequeInclude = {
+  venue: {
+    select: {
+      taxRate: true,
+      taxInclusive: true,
+      serviceRate: true,
+      serviceEnabled: true,
+    },
+  },
   orders: { include: chequeOrderInclude, orderBy: { createdAt: 'asc' } },
   payments: { orderBy: { processedAt: 'desc' } },
   discountAudits: { orderBy: { createdAt: 'desc' }, take: 10 },
@@ -102,7 +111,15 @@ export function computeChequeSubtotal(cheque) {
 export function computeChequeTotal(cheque) {
   const subtotal = computeChequeSubtotal(cheque);
   const discount = Number(cheque.discountAmount ?? 0);
-  return Math.max(0, Number((subtotal - discount).toFixed(2)));
+  const net = Math.max(0, Number((subtotal - discount).toFixed(2)));
+  return computeVenueCharges(net, cheque.venue).total;
+}
+
+export function computeChequeFeeBreakdown(cheque) {
+  const subtotal = computeChequeSubtotal(cheque);
+  const discount = Number(cheque.discountAmount ?? 0);
+  const net = Math.max(0, Number((subtotal - discount).toFixed(2)));
+  return { netSubtotal: net, ...computeVenueCharges(net, cheque.venue) };
 }
 
 function serializeChildSummary(child, parentCheque) {
@@ -145,7 +162,8 @@ export function serializeCheque(cheque) {
 
   const subtotalBeforeDiscount = computeChequeSubtotal(cheque);
   const discountAmount = Number(cheque.discountAmount ?? 0);
-  let total = computeChequeTotal(cheque);
+  const fees = computeChequeFeeBreakdown(cheque);
+  let total = fees.total;
 
   if (cheque.status === 'paid' && cheque.payments?.length) {
     total = cheque.payments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -166,6 +184,8 @@ export function serializeCheque(cheque) {
     splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
     discountAmount,
     subtotalBeforeDiscount,
+    serviceAmount: fees.serviceAmount,
+    taxAmount: fees.taxAmount,
     parentChequeId: cheque.parentChequeId ?? null,
     status: cheque.status,
     openedAt: cheque.openedAt,

@@ -16,9 +16,9 @@ export function RefundRequestModal({
     <RequestActionModal
       title={t('cheque.refundTitle', { number: chequeNumber })}
       reasonLabel={t('cheque.refundReason')}
-      confirmLabel={t('cheque.requestRefund')}
-      confirmClass="bg-amber-600 hover:bg-amber-700"
-      subtitle={t('cheque.refundRequestHint')}
+      confirmLabel={t('cheque.processRefund')}
+      confirmClass="bg-red-600 hover:bg-red-700"
+      subtitle={t('cheque.venueManagerAction')}
       t={t}
       onCancel={onCancel}
       onConfirm={({ reason }) =>

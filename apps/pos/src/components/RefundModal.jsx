@@ -96,7 +96,7 @@ export function RefundModal({ cheque, onConfirm, onCancel, t }) {
             type="submit"
             className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
           >
-            {t('pos.refundRequestSubmit')}
+            {t('pos.refundSubmit')}
           </button>
           <button
             type="button"

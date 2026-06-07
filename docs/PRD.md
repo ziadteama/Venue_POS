@@ -594,9 +594,9 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **Acceptance Criteria:**
 - [x] Set venue name (en/ar), type (standard/anchor)
 - [x] Tax settings (rate, inclusive/exclusive)
+- [x] Service charge (optional rate, enable/disable)
 - [x] Receipt template selection
 - [x] Printer IP configuration (kitchen + receipt; synced to local-agent)
-- [x] Table layout editor (drag-and-drop floor plan)
 - [x] Changes propagate via WebSocket immediately (`venue:config_updated`)
 - [x] Audit log captures all changes (`venue_config_audits`)
 

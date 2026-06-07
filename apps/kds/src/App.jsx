@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { io } from 'socket.io-client';
+import { KdsHeader } from './components/KdsHeader.jsx';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 const TERMINAL_ID = import.meta.env.VITE_TERMINAL_ID ?? '';
@@ -29,9 +30,15 @@ function elapsedMinutes(sentAt, now = Date.now()) {
 }
 
 function ageClass(minutes) {
-  if (minutes < 5) return 'border-emerald-500 bg-emerald-950/40';
-  if (minutes < 10) return 'border-amber-500 bg-amber-950/40';
-  return 'border-red-500 bg-red-950/40';
+  if (minutes >= 10) return 'border-red-300 bg-red-50';
+  if (minutes >= 5) return 'border-amber-300 bg-amber-50';
+  return 'border-emerald-300 bg-emerald-50';
+}
+
+function ageTextClass(minutes) {
+  if (minutes >= 10) return 'bg-red-100 text-red-800';
+  if (minutes >= 5) return 'bg-amber-100 text-amber-900';
+  return 'bg-emerald-100 text-emerald-900';
 }
 
 function itemLabel(item, language) {
@@ -45,10 +52,17 @@ function modifierText(item, language) {
 }
 
 function itemStatusClass(status) {
-  if (status === 'in_progress') return 'border-sky-500/60 bg-sky-950/30';
-  if (status === 'ready') return 'border-emerald-500/60 bg-emerald-950/30';
-  if (status === 'served') return 'border-white/10 bg-black/40 opacity-60';
-  return 'border-white/10 bg-black/25';
+  if (status === 'in_progress') return 'border-sky-300 bg-sky-50';
+  if (status === 'ready') return 'border-emerald-300 bg-emerald-50';
+  if (status === 'served') return 'border-slate-200 bg-slate-100 opacity-60';
+  return 'border-slate-200 bg-white';
+}
+
+function itemStatusLabelClass(status) {
+  if (status === 'in_progress') return 'text-sky-700';
+  if (status === 'ready') return 'text-emerald-700';
+  if (status === 'served') return 'text-secondary';
+  return 'text-secondary';
 }
 
 function nextKitchenAction(status) {
@@ -204,44 +218,49 @@ export default function App() {
 
   if (!KDS_ENABLED || serverKdsDisabled) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black p-8 text-center text-white">
-        <p className="text-2xl text-secondary">{t('kds.disabled')}</p>
+      <div className="flex min-h-screen flex-col bg-slate-50">
+        <KdsHeader
+          title={t('kds.title')}
+          connected={false}
+          onlineLabel={t('kds.online')}
+          offlineLabel={t('kds.offline')}
+        />
+        <div className="flex flex-1 items-center justify-center p-8">
+          <p className="rounded-xl border border-slate-200 bg-white px-8 py-6 text-center text-lg text-secondary shadow-sm">
+            {t('kds.disabled')}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-black text-white">
-      <header className="flex items-center justify-between bg-primary-gradient px-6 py-4">
-        <h1 className="text-3xl font-bold">{t('kds.title')}</h1>
-        <div className="flex items-center gap-4 text-sm">
-          <span
-            className={`flex items-center gap-2 rounded-full px-3 py-1 ring-1 ${
-              connected ? 'ring-emerald-400/50 text-emerald-300' : 'ring-red-400/50 text-red-300'
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-red-400'}`} />
-            {connected ? t('kds.online') : t('kds.offline')}
-          </span>
-          <button
-            type="button"
-            onClick={() => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')}
-            className="rounded bg-white/15 px-4 py-2 text-lg ring-1 ring-white/30 hover:bg-white/25"
-          >
-            {i18n.language === 'ar' ? 'EN' : 'ع'}
-          </button>
-        </div>
-      </header>
+    <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
+      <KdsHeader
+        title={t('kds.title')}
+        subtitle={
+          activeOrders.length > 0
+            ? t('kds.activeCount', { count: activeOrders.length })
+            : t('kds.noOrders')
+        }
+        connected={connected}
+        onlineLabel={t('kds.online')}
+        offlineLabel={t('kds.offline')}
+      />
 
       {error && (
-        <div className="bg-amber-900/50 px-6 py-2 text-center text-amber-100">{error}</div>
+        <div className="border-b border-red-200 bg-red-50 px-6 py-3 text-center text-sm text-red-700">
+          {error}
+        </div>
       )}
 
-      <main className="flex-1 overflow-y-auto p-6">
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {loading ? (
-          <p className="text-center text-2xl text-secondary">{t('common.loading')}</p>
+          <p className="text-center text-lg text-secondary">{t('common.loading')}</p>
         ) : activeOrders.length === 0 ? (
-          <p className="text-center text-2xl text-secondary">{t('kds.noOrders')}</p>
+          <p className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-16 text-center text-lg text-secondary">
+            {t('kds.noOrders')}
+          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {activeOrders.map((order) => {
@@ -249,18 +268,20 @@ export default function App() {
               return (
                 <article
                   key={order.id}
-                  className={`rounded-xl border-2 p-4 shadow-lg ${ageClass(minutes)}`}
+                  className={`rounded-xl border-2 bg-white p-4 shadow-sm ${ageClass(minutes)}`}
                 >
                   <div className="mb-3 flex items-start justify-between gap-2">
                     <div>
-                      <h2 className="text-2xl font-bold">
+                      <h2 className="text-xl font-bold text-slate-900">
                         {t('kds.orderNumber', { number: order.orderNumber ?? '—' })}
                       </h2>
-                      <p className="text-lg text-white/80">
+                      <p className="text-sm text-secondary">
                         {t('kds.table', { label: order.tableLabel })}
                       </p>
                     </div>
-                    <span className="rounded-lg bg-black/30 px-3 py-1 text-lg font-semibold tabular-nums">
+                    <span
+                      className={`rounded-lg px-3 py-1 text-sm font-semibold tabular-nums ${ageTextClass(minutes)}`}
+                    >
                       {t('kds.elapsed', { minutes })}
                     </span>
                   </div>
@@ -273,16 +294,18 @@ export default function App() {
                           key={item.id}
                           className={`rounded-lg border px-3 py-2 ${itemStatusClass(status)}`}
                         >
-                          <div className="flex justify-between gap-2 text-lg font-medium">
+                          <div className="flex justify-between gap-2 text-base font-medium text-slate-900">
                             <span>
                               {item.quantity}× {itemLabel(item, i18n.language)}
                             </span>
-                            <span className="text-xs uppercase tracking-wide text-white/60">
+                            <span
+                              className={`text-xs font-semibold uppercase tracking-wide ${itemStatusLabelClass(status)}`}
+                            >
                               {t(`kds.itemStatus.${status}`)}
                             </span>
                           </div>
                           {modifierText(item, i18n.language) && (
-                            <p className="mt-1 text-sm text-white/70">
+                            <p className="mt-1 text-sm text-secondary">
                               {modifierText(item, i18n.language)}
                             </p>
                           )}
@@ -291,7 +314,7 @@ export default function App() {
                               type="button"
                               disabled={updatingItem === item.id}
                               onClick={() => updateItemStatus(order.id, item.id, next)}
-                              className="mt-2 w-full rounded-lg bg-white/15 py-2 text-sm font-semibold hover:bg-white/25 disabled:opacity-50"
+                              className="mt-2 w-full rounded-lg bg-primary-gradient py-2 text-sm font-semibold text-white shadow-sm hover:opacity-95 disabled:opacity-50"
                             >
                               {updatingItem === item.id
                                 ? t('common.loading')

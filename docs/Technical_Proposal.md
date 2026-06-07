@@ -433,7 +433,7 @@ The server maintains a Socket.IO event bus. Clients (POS terminals, KDS, admin d
 | ---               | ---                                                                                                                         |
 | Menu Manager      | Create/edit menu templates. Drag-and-drop category ordering. Item availability toggle (86 an item). Publish with one click. |
 | ---               | ---                                                                                                                         |
-| Venue Config      | Set venue name, type (standard/anchor), tax settings, receipt template, printer IP, table layout.                           |
+| Venue Config      | Set venue name, type (standard/anchor), tax settings, receipt template, printer IP.                           |
 | ---               | ---                                                                                                                         |
 | Billing Rules     | Cross-venue billing matrix. Toggle allowed pairs. Changes take effect immediately and propagate via WebSocket.              |
 | ---               | ---                                                                                                                         |

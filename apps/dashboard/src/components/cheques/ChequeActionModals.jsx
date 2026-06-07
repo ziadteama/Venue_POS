@@ -1,7 +1,6 @@
 import { ManagerActionModal } from './ManagerActionModal.jsx';
 import { DiscountRequestModal } from './DiscountRequestModal.jsx';
 import { RefundRequestModal } from './RefundRequestModal.jsx';
-import { ForceRefundModal } from './ForceRefundModal.jsx';
 
 function managerModalCopy(target, t) {
   if (target.type === 'round') {
@@ -58,21 +57,6 @@ export function ChequeActionModals({
   if (actionTarget.type === 'refund') {
     return (
       <RefundRequestModal
-        chequeNumber={actionTarget.chequeNumber}
-        amount={refundForm.amount}
-        method={refundForm.method}
-        onAmountChange={refundForm.setAmount}
-        onMethodChange={refundForm.setMethod}
-        onConfirm={onSubmit}
-        onCancel={onClose}
-        t={t}
-      />
-    );
-  }
-
-  if (actionTarget.type === 'forceRefund') {
-    return (
-      <ForceRefundModal
         chequeNumber={actionTarget.chequeNumber}
         amount={refundForm.amount}
         method={refundForm.method}

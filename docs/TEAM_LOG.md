@@ -945,7 +945,7 @@ npm run dev:dashboard
 | US-8.2 Revenue analytics | ✅ | Charts, drill-down, CSV |
 | US-8.3 Order explorer | ✅ | Venue manager only; shift → cheque → orders |
 | US-8.4 Menu manager | ✅ (core) | Auto-translate API deferred |
-| US-8.5 Venue configuration | ✅ | Tax, printers, table layout, WS sync, audit |
+| US-8.5 Venue configuration | ✅ | Tax, printers, WS sync, audit |
 | US-8.6 Billing rules | ⬜ | Phase 4 / cross-venue |
 | US-8.7 User management | ⬜ | Staff CRUD, PIN/RFID |
 | US-8.8 Inventory | ⬜ | P2 |
@@ -961,8 +961,8 @@ npm run dev:dashboard
 
 ### 2026-06-07 — US-8.5 Venue configuration (slice 1)
 **Phase:** 5 · **Story:** US-8.5
-**What:** Hub manager venue settings page — names, type, tax, receipt template, printer hosts, draggable table layout; config audit log; terminal settings API; `venue:config_updated` WebSocket; local-agent printer sync.
-**Files:** `schema.prisma`, migration `20260615120000_venue_config`, `venue-config-service.js`, `manager-venue-config.js`, `VenueSettingsPage.jsx`, `TableLayoutEditor.jsx`, `venue-config-sync.js`, socket emit, i18n
+**What:** Hub manager venue settings page — names, type, tax, receipt template, printer hosts; config audit log; terminal settings API; `venue:config_updated` WebSocket; local-agent printer sync.
+**Files:** `schema.prisma`, migration `20260615120000_venue_config`, `venue-config-service.js`, `manager-venue-config.js`, `VenueSettingsPage.jsx`, `venue-config-sync.js`, socket emit, i18n
 **Verify:**
 ```bash
 npm run migrate
@@ -970,6 +970,22 @@ npm run test -w @venue-pos/api
 npm run dev:dashboard
 # admin → Venue settings → edit venue → Save → check config/audits APIs
 ```
+
+---
+
+### 2026-06-07 — Venue service charge (US-8.5)
+**Phase:** 5 · **Story:** US-8.5
+**What:** Optional service charge on venue config (rate + enable toggle); applied to cheque totals with tax on POS receipt panel.
+**Files:** migration `20260615140000_venue_service_charge`, `venue-charges.js`, `cheque-shared.js`, `VenueSettingsPage.jsx`, i18n, `ReceiptPanel.jsx`
+**Verify:** `npm run migrate` · `npm run test -w @venue-pos/api` · enable 12% service on venue → POS cheque shows service line
+
+---
+
+### 2026-06-07 — Remove venue table layout editor (deferred)
+**Phase:** 5 · **Story:** US-8.5 trim
+**What:** Removed dashboard floor-plan editor and `venues.table_layout` — no POS consumer was planned; avoids half-shipped admin UI.
+**Files:** migration `20260615130000_drop_venue_table_layout`, `venue-config-service.js`, `VenueSettingsPage.jsx`, i18n, PRD
+**Verify:** `npm run migrate` · `npm run test -w @venue-pos/api` · Venue settings loads without table layout section
 
 ---
 
