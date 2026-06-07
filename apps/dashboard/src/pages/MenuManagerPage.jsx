@@ -8,7 +8,6 @@ import { PublishConfirmModal } from '../components/menu/PublishConfirmModal.jsx'
 import { MenuPreviewModal } from '../components/menu/MenuPreviewModal.jsx';
 import { AutoTranslateModal } from '../components/menu/AutoTranslateModal.jsx';
 import { menuLabel } from '../utils/menuLabel.js';
-import { isMissingTranslation } from '../utils/menuTranslations.js';
 
 export function MenuManagerPage() {
   const { t, i18n } = useTranslation();

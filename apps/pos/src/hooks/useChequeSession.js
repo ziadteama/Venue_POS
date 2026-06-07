@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
 import { DEFAULT_TABLE, DEMO_CASHIER_ID } from '../constants.js';
-import { canDeleteCheque, normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
+import { normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
 export function useChequeSession({ menu, loading, shiftReady }) {
   const { t } = useTranslation();
