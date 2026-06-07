@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { API_URL, TERMINAL_ID, TERMINAL_SECRET } from '../config.js';
 
-export function useKitchenSocket() {
+export function useKitchenSocket(enabled = true) {
   const [kitchenWatch, setKitchenWatch] = useState(null);
+
+  useEffect(() => {
+    if (!enabled) setKitchenWatch(null);
+  }, [enabled]);
 
   const applyItemStatus = useCallback((payload) => {
     if (!payload?.orderId) return;
@@ -21,6 +25,7 @@ export function useKitchenSocket() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     if (window.venuePos?.onItemStatusChange) {
       return window.venuePos.onItemStatusChange(applyItemStatus);
     }
@@ -32,7 +37,7 @@ export function useKitchenSocket() {
     });
     socket.on('order:item_status', (msg) => applyItemStatus(msg?.payload ?? msg));
     return () => socket.disconnect();
-  }, [applyItemStatus]);
+  }, [applyItemStatus, enabled]);
 
   return { kitchenWatch, setKitchenWatch };
 }
