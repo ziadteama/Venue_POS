@@ -15,13 +15,18 @@ npm run seed
 
 | Role | Username | Password | PIN | Where to use |
 |------|----------|----------|-----|--------------|
-| Hub manager (GM) | `admin` | `admin123` | `9999` | Dashboard (full GM access) |
-| Venue manager | `venue_mgr` | `venue123` | `7777` | **Web** = venue back office · **POS** = floor manager PIN (same role, no split) |
-| Cashier | `cashier1` | — | `1234` | POS (future PIN login); today demo uses fixed cashier ID |
+| Hub manager / hub owner (GM) | `admin` | `admin123` | `9999` | **Web dashboard only** (all venues) |
+| Venue floor manager | `venue_mgr` | — | `7777` | **POS only** — manager PIN (no web login) |
+| Cashier | `cashier1` | — | `1234` | **POS only** |
+| Kitchen | (hub adds in Staff) | — | (set in Staff) | **KDS only** |
+
+**Web = hub GM / hub owner.** Floor venue manager (`venue_mgr`) works on the **POS** with cashiers — PIN `7777`, not the dashboard.
 
 ---
 
 ## Dashboard (`http://localhost:5173`)
+
+**Who:** `admin` / hub owner accounts only. `venue_mgr` **cannot** sign in here.
 
 Login: **username + password** → `POST /api/v1/auth/login`
 
@@ -31,28 +36,14 @@ Login: **username + password** → `POST /api/v1/auth/login`
 |------|------|-------|
 | Overview (live KPIs) | `/` | Revenue today, open tables, orders/min |
 | Analytics | `/analytics` | Charts, presets, CSV export |
-| Cheques | `/cheques` | Open + paid tabs, GM actions |
-| Orders | `/orders` | Order explorer — all venues (investigation, CSV) |
-| Shifts | `/shifts` | All venues (venue filter), EOD reconciliation |
+| Cheques | `/cheques` | Open + paid — investigation (actions on POS) |
+| Orders | `/orders` | Order explorer — all venues, CSV |
+| Shifts | `/shifts` | All venues, EOD reconciliation |
+| Staff | `/users` | Cashiers/kitchen per venue — PINs, RFID |
 | Activity (audit log) | `/activity` | Full audit — filters + CSV |
-| Menus | `/menus` | **All venues** — templates, publish, translations |
-| System health | `/health` | Terminals, sync queue, server memory |
+| Menus | `/menus` | Templates, publish, translations |
+| System health | `/health` | Terminals, sync queue |
 | Venue settings | `/settings` | Tax, service charge, printers |
-
-**Cannot access:** Orders, Staff (venue-manager only).
-
-### Venue manager — `venue_mgr` / `venue123`
-
-| Page | Path | Notes |
-|------|------|-------|
-| Overview | `/` | Own venue metrics |
-| Analytics | `/analytics` | Own venue |
-| Cheques | `/cheques` | Discount / refund on open & paid |
-| Shifts | `/shifts` | Own venue shifts + EOD |
-| Staff | `/users` | Add cashiers/kitchen, reset PIN, deactivate |
-| System health | `/health` | Own venue terminals |
-
-**Cannot access:** Menus, Orders, Activity, Venue settings (hub only). **Order lookup is on POS** (Orders button in header).
 
 ---
 
@@ -72,9 +63,13 @@ Set in `apps/pos/.env` (see `apps/pos/.env.example`):
 
 Terminal name in DB: **POS-1** · Venue: **Demo Cafe**
 
-### Order lookup (cashier + venue manager)
+### Floor manager (`venue_mgr` — PIN `7777`)
 
-Header button **Orders** — search past cheques by number, table, or cashier; view rounds; reprint order or cheque receipt. Uses terminal API (no web login).
+Same POS as cashier. Enter PIN when prompted for discount, refund, void, comp, transfer, shift close. Header **Orders** for past cheque lookup + reprint.
+
+### Order lookup (everyone on POS)
+
+Header button **Orders** — search past cheques; reprint receipts. No web login.
 
 ### Cashier
 
@@ -86,14 +81,12 @@ Header button **Orders** — search past cheques by number, table, or cashier; v
 
 **Current demo:** POS uses a hardcoded cashier ID (`DEMO_CASHIER_ID`) — you do not pick the cashier at login. PIN `1234` is used when the API validates cashier PIN auth (e.g. `POST /api/v1/auth/pin`).
 
-### Manager PIN on POS (venue manager actions)
-
-Enter when prompted for discount, refund, void, comp, line transfer, shift close, or manual card above threshold:
+### Manager PINs on POS
 
 | PIN | Role | Use on POS |
 |-----|------|------------|
-| `7777` | Venue manager (`venue_mgr`) | Discount, refund, void, comp, transfer |
-| `9999` | Hub manager (`admin`) | Policy PIN where hub manager is accepted |
+| `7777` | Floor manager (`venue_mgr`) | Discount, refund, void, comp, transfer, shift close |
+| `9999` | Hub manager (`admin`) | Policy PIN where hub is accepted (rare on terminal) |
 
 ---
 
@@ -115,13 +108,7 @@ curl -X POST http://localhost:3000/api/v1/auth/login \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
-```bash
-curl -X POST http://localhost:3000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"venue_mgr","password":"venue123"}'
-```
-
-Use the returned `accessToken` as `Authorization: Bearer <token>` on manager routes.
+Floor manager `venue_mgr` has no dashboard login. Use `admin` for manager JWT routes in curl tests.
 
 ### Cashier PIN + terminal
 

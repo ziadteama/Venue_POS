@@ -51,14 +51,11 @@ export function ChequesPage() {
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <ChequeDetailView
             detail={manager.detail}
-            user={user}
             statusTab={manager.statusTab}
             busy={manager.busy}
             language={i18n.language}
             t={t}
             onAction={manager.setActionTarget}
-            onDiscountRequest={manager.openDiscountRequest}
-            onRefundRequest={manager.openRefundRequest}
           />
         </section>
       </div>

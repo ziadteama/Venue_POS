@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { DASHBOARD_ROLES } from '@venue-pos/shared';
 import { Layout } from './components/Layout.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { DashboardHome } from './pages/DashboardHome.jsx';
@@ -14,8 +15,12 @@ import { HealthPage } from './pages/HealthPage.jsx';
 import { useAuth } from './hooks/useAuth.js';
 
 function ProtectedRoute({ children }) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (!DASHBOARD_ROLES.includes(user.role)) {
+    logout();
+    return <Navigate to="/login" replace />;
+  }
   return children;
 }
 

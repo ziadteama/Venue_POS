@@ -1,18 +1,17 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../hooks/useAuth.js';
 
 const NAV_ITEMS = [
-  { to: '/', end: true, labelKey: 'nav.overview', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/analytics', labelKey: 'nav.analytics', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/cheques', labelKey: 'nav.cheques', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/shifts', labelKey: 'nav.shifts', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/users', labelKey: 'nav.users', roles: ['venue_manager'] },
-  { to: '/orders', labelKey: 'nav.orders', roles: ['hub_manager'] },
-  { to: '/menus', labelKey: 'nav.menus', roles: ['hub_manager'] },
-  { to: '/activity', labelKey: 'nav.activity', roles: ['hub_manager'] },
-  { to: '/health', labelKey: 'nav.health', roles: ['hub_manager', 'venue_manager'] },
-  { to: '/settings', labelKey: 'nav.settings', roles: ['hub_manager'] },
+  { to: '/', end: true, labelKey: 'nav.overview' },
+  { to: '/analytics', labelKey: 'nav.analytics' },
+  { to: '/cheques', labelKey: 'nav.cheques' },
+  { to: '/shifts', labelKey: 'nav.shifts' },
+  { to: '/users', labelKey: 'nav.users' },
+  { to: '/orders', labelKey: 'nav.orders' },
+  { to: '/menus', labelKey: 'nav.menus' },
+  { to: '/activity', labelKey: 'nav.activity' },
+  { to: '/health', labelKey: 'nav.health' },
+  { to: '/settings', labelKey: 'nav.settings' },
 ];
 
 function linkClass({ isActive }) {
@@ -24,13 +23,10 @@ function linkClass({ isActive }) {
 
 export function DashboardNav() {
   const { t } = useTranslation();
-  const { user } = useAuth();
-
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(user?.role));
 
   return (
     <nav className="flex gap-1.5 overflow-x-auto pb-1 pt-0.5" aria-label={t('nav.main')}>
-      {items.map((item) => (
+      {NAV_ITEMS.map((item) => (
         <NavLink key={item.to} to={item.to} end={item.end} className={linkClass}>
           {t(item.labelKey)}
         </NavLink>

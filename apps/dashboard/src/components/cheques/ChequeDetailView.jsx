@@ -171,68 +171,13 @@ function ChequeMetaPanels({ detail, isOpenTab, t }) {
   );
 }
 
-function ChequeDetailActions({
-  detail,
-  user,
-  isOpenTab,
-  busy,
-  t,
-  onDiscountRequest,
-  onRefundRequest,
-  onVoidCheque,
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {user?.role === 'venue_manager' && isOpenTab && detail.total > 0 && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onDiscountRequest(detail)}
-          className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-        >
-          {t('cheque.applyDiscount')}
-        </button>
-      )}
-      {user?.role === 'venue_manager' && !isOpenTab && detail.status === 'paid' && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onRefundRequest(detail)}
-          className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-        >
-          {t('cheque.processRefund')}
-        </button>
-      )}
-      {user?.role === 'venue_manager' && isOpenTab && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() =>
-            onVoidCheque({
-              type: 'cheque',
-              chequeId: detail.id,
-              chequeNumber: detail.chequeNumber,
-            })
-          }
-          className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-        >
-          {t('cheque.voidCheque')}
-        </button>
-      )}
-    </div>
-  );
-}
-
 export function ChequeDetailView({
   detail,
-  user,
   statusTab,
   busy,
   language,
   t,
   onAction,
-  onDiscountRequest,
-  onRefundRequest,
 }) {
   if (!detail) {
     return <p className="text-secondary">{t('cheque.selectCheque')}</p>;
@@ -240,7 +185,7 @@ export function ChequeDetailView({
 
   const isOpenTab = statusTab === 'open';
   const isPaidTab = statusTab === 'paid';
-  const canManage = user?.role === 'venue_manager';
+  const canManage = false;
   const orders = billableOrders(detail);
 
   return (
@@ -265,16 +210,6 @@ export function ChequeDetailView({
         ))}
         <ChequeMetaPanels detail={detail} isOpenTab={isOpenTab} t={t} />
       </div>
-      <ChequeDetailActions
-        detail={detail}
-        user={user}
-        isOpenTab={isOpenTab}
-        busy={busy}
-        t={t}
-        onDiscountRequest={onDiscountRequest}
-        onRefundRequest={onRefundRequest}
-        onVoidCheque={onAction}
-      />
     </>
   );
 }

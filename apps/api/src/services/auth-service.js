@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { DASHBOARD_ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { signAccessToken } from '../utils/jwt.js';
@@ -13,6 +14,9 @@ export async function loginManager(username, password) {
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw unauthorized('Invalid username or password');
+  if (!DASHBOARD_ROLES.includes(user.role)) {
+    throw unauthorized('Invalid username or password');
+  }
 
   const token = signAccessToken({
     sub: user.id,

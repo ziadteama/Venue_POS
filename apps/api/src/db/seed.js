@@ -37,19 +37,17 @@ async function seed() {
   });
 
   const venueManagerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
-  const venuePasswordHash = await bcrypt.hash('venue123', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'venue_mgr' },
     update: {
       pinHash: venueManagerPinHash,
-      passwordHash: venuePasswordHash,
+      passwordHash: null,
       role: 'venue_manager',
       venueId: venue.id,
       isActive: true,
     },
     create: {
       username: 'venue_mgr',
-      passwordHash: venuePasswordHash,
       pinHash: venueManagerPinHash,
       role: 'venue_manager',
       venueId: venue.id,
