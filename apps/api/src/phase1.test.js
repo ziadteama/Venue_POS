@@ -14,6 +14,7 @@ const CASHIER_ID = '00000000-0000-4000-8000-000000000094';
 
 let app;
 let managerToken;
+let ownerToken;
 let venueManagerToken;
 let templateId;
 let categoryId;
@@ -126,12 +127,36 @@ before(async () => {
     },
   });
 
+  const ownerPasswordHash = await bcrypt.hash('phase1owner', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'phase1owner' },
+    update: {
+      passwordHash: ownerPasswordHash,
+      role: 'hub_owner',
+      venueId: VENUE_ID,
+    },
+    create: {
+      username: 'phase1owner',
+      passwordHash: ownerPasswordHash,
+      role: 'hub_owner',
+      venueId: VENUE_ID,
+    },
+  });
+
   const login = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
     payload: { username: 'phase1admin', password: 'phase1admin' },
   });
   managerToken = login.json().accessToken;
+
+  const ownerLogin = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'phase1owner', password: 'phase1owner' },
+  });
+  assert.equal(ownerLogin.statusCode, 200);
+  ownerToken = ownerLogin.json().accessToken;
 
   const venueLogin = await app.inject({
     method: 'POST',
@@ -728,7 +753,7 @@ test('manager can void a kitchen round on open cheque', async () => {
   const listRes = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/cheques/open',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.ok(listRes.json().some((c) => c.id === chequeId));
 });
@@ -849,7 +874,7 @@ test('manager can list paid cheque history', async () => {
   const paidListRes = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/cheques?status=paid',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(paidListRes.statusCode, 200);
   const paidCheque = paidListRes.json().find((c) => c.id === chequeId);
@@ -879,7 +904,7 @@ test('manager can void entire open cheque', async () => {
   const listRes = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/cheques/open',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(
     listRes.json().some((c) => c.id === chequeId),
@@ -1566,11 +1591,11 @@ test('GET /api/v1/manager/metrics/live requires manager auth', async () => {
   assert.equal(res.statusCode, 401);
 });
 
-test('hub manager receives live metrics snapshot', async () => {
+test('hub owner receives live metrics snapshot', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/metrics/live',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1587,23 +1612,29 @@ test('hub manager receives live metrics snapshot', async () => {
   assert.ok(Array.isArray(venue.openTables));
 });
 
-test('venue manager metrics scoped to own venue', async () => {
+test('hub manager cannot access owner metrics', async () => {
+  const res = await app.inject({
+    method: 'GET',
+    url: '/api/v1/manager/metrics/live',
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(res.statusCode, 403);
+});
+
+test('venue manager cannot access web metrics', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/metrics/live',
     headers: { authorization: `Bearer ${venueManagerToken}` },
   });
-  assert.equal(res.statusCode, 200);
-  const body = res.json();
-  assert.equal(body.venues.length, 1);
-  assert.equal(body.venues[0].venueId, VENUE_ID);
+  assert.equal(res.statusCode, 403);
 });
 
-test('GET /api/v1/manager/analytics/revenue returns report for hub manager', async () => {
+test('GET /api/v1/manager/analytics/revenue returns report for hub owner', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/analytics/revenue?preset=today',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1618,7 +1649,7 @@ test('GET /api/v1/manager/analytics/revenue supports CSV export', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/analytics/revenue?preset=today&format=csv',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['content-type'], /text\/csv/);
@@ -1629,7 +1660,7 @@ test('GET /api/v1/manager/analytics/revenue supports custom date range', async (
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/analytics/revenue?preset=custom&from=2026-06-01&to=2026-06-07',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1646,21 +1677,18 @@ test('GET /api/v1/manager/analytics/revenue rejects custom without dates', async
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/analytics/revenue?preset=custom',
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 400);
 });
 
-test('venue manager analytics scoped and includes category drill-down', async () => {
+test('venue manager cannot access web analytics', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/analytics/revenue?preset=month',
     headers: { authorization: `Bearer ${venueManagerToken}` },
   });
-  assert.equal(res.statusCode, 200);
-  const body = res.json();
-  assert.equal(body.drillVenueId, VENUE_ID);
-  assert.ok(Array.isArray(body.categories));
+  assert.equal(res.statusCode, 403);
 });
 
 test('GET /api/v1/manager/orders requires manager auth', async () => {
@@ -1675,7 +1703,7 @@ test('GET /api/v1/manager/orders lists orders with pagination', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/orders?venueId=' + VENUE_ID,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1689,7 +1717,7 @@ test('GET /api/v1/manager/orders groups results by shift', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}&groupBy=shift`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1708,7 +1736,7 @@ test('GET /api/v1/manager/orders groups results by cheque', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}&groupBy=cheque`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1723,7 +1751,7 @@ test('GET /api/v1/manager/orders groups results by cheque', async () => {
       const detail = await app.inject({
         method: 'GET',
         url: `/api/v1/manager/orders/by-cheque/${group.chequeId}?venueId=${VENUE_ID}`,
-        headers: { authorization: `Bearer ${managerToken}` },
+        headers: { authorization: `Bearer ${ownerToken}` },
       });
       assert.equal(detail.statusCode, 200);
       assert.equal(detail.json().chequeOrders.length, group.orderCount);
@@ -1735,7 +1763,7 @@ test('GET /api/v1/manager/orders supports CSV export', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}&format=csv`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['content-type'], /text\/csv/);
@@ -1746,7 +1774,7 @@ test('GET /api/v1/manager/orders/:id returns detail with items', async () => {
   const list = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   const first = list.json().orders[0];
   assert.ok(first?.id);
@@ -1754,7 +1782,7 @@ test('GET /api/v1/manager/orders/:id returns detail with items', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders/${first.id}?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1767,7 +1795,7 @@ test('GET /api/v1/manager/orders filters by cheque number', async () => {
   const list = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   const withCheque = list.json().orders.find((o) => o.chequeNumber != null);
   if (!withCheque) return;
@@ -1775,7 +1803,7 @@ test('GET /api/v1/manager/orders filters by cheque number', async () => {
   const filtered = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}&chequeNumber=${withCheque.chequeNumber}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(filtered.statusCode, 200);
   assert.ok(filtered.json().orders.length >= 1);
@@ -1786,7 +1814,7 @@ test('GET /api/v1/manager/orders filters by cheque number', async () => {
   const quick = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}&q=${withCheque.chequeNumber}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(quick.statusCode, 200);
   assert.ok(quick.json().orders.some((o) => o.chequeNumber === withCheque.chequeNumber));
@@ -1796,7 +1824,7 @@ test('GET /api/v1/manager/orders/:id/receipt returns text', async () => {
   const list = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   const first = list.json().orders.find((o) => o.status !== 'draft') ?? list.json().orders[0];
   assert.ok(first?.id);
@@ -1804,7 +1832,7 @@ test('GET /api/v1/manager/orders/:id/receipt returns text', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/orders/${first.id}/receipt?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.ok(res.json().text?.length > 0);
@@ -1815,6 +1843,15 @@ test('venue manager cannot use web order explorer API', async () => {
     method: 'GET',
     url: '/api/v1/manager/orders',
     headers: { authorization: `Bearer ${venueManagerToken}` },
+  });
+  assert.equal(res.statusCode, 403);
+});
+
+test('hub manager cannot use web order explorer API', async () => {
+  const res = await app.inject({
+    method: 'GET',
+    url: '/api/v1/manager/orders',
+    headers: { authorization: `Bearer ${managerToken}` },
   });
   assert.equal(res.statusCode, 403);
 });
@@ -1846,7 +1883,7 @@ test('GET /api/v1/manager/shifts lists shifts with pagination', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const body = res.json();
@@ -1863,7 +1900,7 @@ test('GET /api/v1/manager/shifts filters by status=open', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts?venueId=${VENUE_ID}&status=open`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   for (const row of res.json().shifts) {
@@ -1875,7 +1912,7 @@ test('GET /api/v1/manager/shifts/:id returns detail with report', async () => {
   const list = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts?venueId=${VENUE_ID}&status=open`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   const first = list.json().shifts[0];
   assert.ok(first?.id);
@@ -1883,7 +1920,7 @@ test('GET /api/v1/manager/shifts/:id returns detail with report', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts/${first.id}?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   const detail = res.json();
@@ -1896,7 +1933,7 @@ test('GET /api/v1/manager/shifts supports CSV export', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts?venueId=${VENUE_ID}&format=csv`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.match(res.headers['content-type'], /text\/csv/);
@@ -1908,7 +1945,7 @@ test('POST /api/v1/manager/shifts/:id/force-close closes open shift', async () =
   const res = await app.inject({
     method: 'POST',
     url: `/api/v1/manager/shifts/${shift.id}/force-close`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
     payload: { closeFloat: 600, managerPin: '8888' },
   });
   assert.equal(res.statusCode, 200);
@@ -1916,16 +1953,13 @@ test('POST /api/v1/manager/shifts/:id/force-close closes open shift', async () =
   assert.equal(res.json().shift.closeFloat, 600);
 });
 
-test('venue manager shifts scoped to own venue', async () => {
+test('venue manager cannot access web shifts API', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/shifts',
     headers: { authorization: `Bearer ${venueManagerToken}` },
   });
-  assert.equal(res.statusCode, 200);
-  for (const row of res.json().shifts) {
-    assert.equal(row.venueId, VENUE_ID);
-  }
+  assert.equal(res.statusCode, 403);
 });
 
 test('hub manager can read and update venue config', async () => {

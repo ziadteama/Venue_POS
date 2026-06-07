@@ -3,7 +3,7 @@ import { buildLiveMetrics } from '../services/metrics-service.js';
 export const METRICS_TICK_INTERVAL_MS = 60_000;
 
 export function emitDashboardMetricsTick(io, payload) {
-  io.to('dashboard:hub_manager').emit('dashboard:metrics_tick', {
+  io.to('dashboard:hub').emit('dashboard:metrics_tick', {
     event: 'dashboard:metrics_tick',
     payload,
   });

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, getToken } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -14,28 +15,28 @@ export function HealthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const isHub = user?.role === 'hub_manager';
+  const canPickVenue = canPickVenueStaff(user?.role);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const params = new URLSearchParams();
-      const scoped = isHub ? venueId : user?.venueId;
+      const scoped = canPickVenue ? venueId : user?.venueId;
       if (scoped) params.set('venueId', scoped);
       const qs = params.toString() ? `?${params}` : '';
       const [data, venueList] = await Promise.all([
         apiFetch(`/api/v1/manager/health${qs}`),
-        isHub ? apiFetch('/api/v1/venues') : Promise.resolve([]),
+        canPickVenue ? apiFetch('/api/v1/venues') : Promise.resolve([]),
       ]);
       setSnapshot(data);
-      if (isHub) setVenues(venueList);
+      if (canPickVenue) setVenues(venueList);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [isHub, venueId, user?.venueId]);
+  }, [canPickVenue, venueId, user?.venueId]);
 
   useEffect(() => {
     load();
@@ -46,7 +47,7 @@ export function HealthPage() {
   async function exportCsv() {
     const token = getToken();
     const params = new URLSearchParams({ format: 'csv' });
-    const scoped = isHub ? venueId : user?.venueId;
+    const scoped = canPickVenue ? venueId : user?.venueId;
     if (scoped) params.set('venueId', scoped);
     const res = await fetch(`${API_URL}/api/v1/manager/health?${params}`, {
       headers: token ? { authorization: `Bearer ${token}` } : {},
@@ -77,7 +78,7 @@ export function HealthPage() {
         </button>
       </div>
 
-      {isHub && venues.length > 0 ? (
+      {canPickVenue && venues.length > 0 ? (
         <select
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
           value={venueId}

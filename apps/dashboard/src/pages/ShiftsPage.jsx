@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, getToken } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -159,21 +160,21 @@ export function ShiftsPage() {
   const [eod, setEod] = useState(null);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
-  const isHub = user?.role === 'hub_manager';
+  const canPickVenue = canPickVenueStaff(user?.role);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
       limit: String(PAGE_SIZE),
     });
-    const scopedVenue = isHub ? venueId : user?.venueId;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
     if (scopedVenue) params.set('venueId', scopedVenue);
     if (filters.status) params.set('status', filters.status);
     if (filters.cashier.trim()) params.set('cashier', filters.cashier.trim());
     if (filters.from) params.set('from', filters.from);
     if (filters.to) params.set('to', filters.to);
     return params.toString();
-  }, [page, filters, isHub, venueId, user?.venueId]);
+  }, [page, filters, canPickVenue, venueId, user?.venueId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -181,16 +182,16 @@ export function ShiftsPage() {
     try {
       const [data, venueList] = await Promise.all([
         apiFetch(`/api/v1/manager/shifts?${query}`),
-        isHub ? apiFetch('/api/v1/venues') : Promise.resolve([]),
+        canPickVenue ? apiFetch('/api/v1/venues') : Promise.resolve([]),
       ]);
       setResult(data);
-      if (isHub) setVenues(venueList);
+      if (canPickVenue) setVenues(venueList);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [query, isHub]);
+  }, [query, canPickVenue]);
 
   useEffect(() => {
     load();
@@ -201,7 +202,7 @@ export function ShiftsPage() {
     (async () => {
       try {
         const params = new URLSearchParams({ date: eodDate });
-        const scopedVenue = isHub ? venueId : user?.venueId;
+        const scopedVenue = canPickVenue ? venueId : user?.venueId;
         if (scopedVenue) params.set('venueId', scopedVenue);
         const data = await apiFetch(`/api/v1/manager/shifts/eod?${params}`);
         if (!cancelled) setEod(data);
@@ -212,7 +213,7 @@ export function ShiftsPage() {
     return () => {
       cancelled = true;
     };
-  }, [eodDate, isHub, venueId, user?.venueId]);
+  }, [eodDate, canPickVenue, venueId, user?.venueId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -222,7 +223,7 @@ export function ShiftsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const scopedVenue = isHub ? venueId : user?.venueId;
+        const scopedVenue = canPickVenue ? venueId : user?.venueId;
         const qs = scopedVenue ? `?venueId=${scopedVenue}` : '';
         const data = await apiFetch(`/api/v1/manager/shifts/${selectedId}${qs}`);
         if (!cancelled) setDetail(data);
@@ -233,7 +234,7 @@ export function ShiftsPage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, isHub, venueId, user?.venueId]);
+  }, [selectedId, canPickVenue, venueId, user?.venueId]);
 
   const summary = useMemo(() => {
     if (!result?.shifts?.length) {
@@ -345,7 +346,7 @@ export function ShiftsPage() {
       </div>
 
       <div className="flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        {isHub && venues.length > 0 ? (
+        {canPickVenue && venues.length > 0 ? (
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-xs font-medium uppercase tracking-wide text-secondary">
               {t('shifts.venue')}
@@ -459,7 +460,7 @@ export function ShiftsPage() {
                 <thead className="border-b border-slate-200 bg-slate-50 text-start">
                   <tr>
                     <th className="px-3 py-2 font-medium text-secondary">{t('shifts.cashier')}</th>
-                    {isHub ? (
+                    {canPickVenue ? (
                       <th className="px-3 py-2 font-medium text-secondary">{t('shifts.venue')}</th>
                     ) : null}
                     <th className="px-3 py-2 font-medium text-secondary">{t('shifts.terminal')}</th>
@@ -480,7 +481,7 @@ export function ShiftsPage() {
                       }`}
                     >
                       <td className="px-3 py-2 font-medium">{row.cashierUsername}</td>
-                      {isHub ? (
+                      {canPickVenue ? (
                         <td className="px-3 py-2">{labelVenue(row, i18n.language)}</td>
                       ) : null}
                       <td className="px-3 py-2">{row.terminalName}</td>
@@ -557,7 +558,7 @@ export function ShiftsPage() {
                   <h3 className="text-lg font-semibold">{detail.cashierUsername}</h3>
                   <p className="text-sm text-secondary">
                     {detail.terminalName}
-                    {isHub ? ` · ${labelVenue(detail, i18n.language)}` : ''}
+                    {canPickVenue ? ` · ${labelVenue(detail, i18n.language)}` : ''}
                   </p>
                 </div>
                 {detail.status === 'open' ? (

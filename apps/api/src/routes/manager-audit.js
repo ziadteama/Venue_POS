@@ -2,7 +2,7 @@ import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
 import { listFullAuditLog, auditLogToCsv } from '../services/audit-log-service.js';
 
-const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+const hubStaffPreHandler = requireRoles(ROLES.HUB_OWNER, ROLES.HUB_MANAGER);
 
 function resolveVenueId(request) {
   return request.query?.venueId ?? request.user.venue_id ?? undefined;
@@ -11,7 +11,7 @@ function resolveVenueId(request) {
 export async function managerAuditRoutes(app) {
   app.get(
     '/api/v1/manager/audit',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubStaffPreHandler },
     async (request, reply) => {
       const result = await listFullAuditLog(resolveVenueId(request), {
         type: request.query?.type,

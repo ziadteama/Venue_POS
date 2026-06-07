@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isHubStaff } from '@venue-pos/shared';
 import {
   Bar,
   BarChart,
@@ -41,7 +42,7 @@ export function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
-  const isHub = user?.role === 'hub_manager';
+  const canPickVenue = canPickVenueStaff(user?.role);
 
   const query = useMemo(() => {
     if (preset === 'custom' && (!customFrom || !customTo)) return null;
@@ -51,11 +52,11 @@ export function AnalyticsPage() {
       params.set('from', customFrom);
       params.set('to', customTo);
     }
-    const scopedVenue = isHub ? venueId : user?.venueId;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
     if (scopedVenue) params.set('venueId', scopedVenue);
     if (categoryId) params.set('categoryId', categoryId);
     return params.toString();
-  }, [preset, customFrom, customTo, venueId, categoryId, isHub, user?.venueId]);
+  }, [preset, customFrom, customTo, venueId, categoryId, canPickVenue, user?.venueId]);
 
   const customRangeReady = preset !== 'custom' || (customFrom && customTo);
 
@@ -70,16 +71,16 @@ export function AnalyticsPage() {
     try {
       const [data, venueList] = await Promise.all([
         apiFetch(`/api/v1/manager/analytics/revenue?${query}`),
-        isHub ? apiFetch('/api/v1/venues') : Promise.resolve([]),
+        canPickVenue ? apiFetch('/api/v1/venues') : Promise.resolve([]),
       ]);
       setReport(data);
-      if (isHub) setVenues(venueList);
+      if (canPickVenue) setVenues(venueList);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [query, isHub]);
+  }, [query, canPickVenue]);
 
   useEffect(() => {
     load();
@@ -211,7 +212,7 @@ export function AnalyticsPage() {
         </div>
       ) : null}
 
-      {isHub && venues.length > 1 && (
+      {canPickVenue && venues.length > 1 && (
         <label className="block text-sm">
           <span className="mb-1 block text-secondary">{t('analytics.filterVenue')}</span>
           <select
