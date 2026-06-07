@@ -138,16 +138,7 @@ export default function App() {
         tableLabel={tableLabel}
         features={features}
         shift={shift}
-        shiftSession={{
-          needsOpen,
-          opening,
-          showCloseModal,
-          setShowCloseModal,
-          closing,
-          openShift,
-          setShiftError,
-          closeShift,
-        }}
+        shiftSession={shiftSession}
         tableSession={{ navigateToTable, selectOpenCheque, deleteTable }}
         modals={modals}
         onAddItemWithModifiers={(item, mods) =>
@@ -206,7 +197,15 @@ export default function App() {
           refundsEnabled={features.refunds}
           onDiscount={() => modals.setShowDiscountModal(true)}
           onRefund={modals.openRefundFlow}
-          onPay={() => modals.setShowPayModal(true)}
+          onPay={() => {
+            if (!shiftReady) {
+              setShiftError(t('pos.shiftRequiredBanner'));
+              promptOpenModal();
+              return;
+            }
+            modals.setShowPayModal(true);
+          }}
+          payDisabled={!shiftReady}
           onChangeQty={changeQty}
         />
 

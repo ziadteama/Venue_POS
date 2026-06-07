@@ -1,4 +1,4 @@
-import { apiFetch } from '../services/api-fetch.js';
+import { apiFetch, sendApiError } from '../services/api-fetch.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
 
 function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receiptPrinterPort, log }) {
@@ -119,24 +119,28 @@ export function registerChequeRoutes(
   app.post('/v1/cheques/:id/pay', async (request, reply) => {
     const { cashierId, payments, method, amount, tendered, managerPin } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    const result = await apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/pay`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ cashierId, payments, method, amount, tendered, managerPin }),
-      },
-    );
-    const printers = getPrinterConfig();
-    maybePrintReceipt(result.receipt, {
-      autoReceiptPrint,
-      receiptPrinterHost: printers.receiptPrinterHost,
-      receiptPrinterPort: printers.receiptPrinterPort,
-      log: app.log,
-    });
-    return result;
+    try {
+      const result = await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/pay`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ cashierId, payments, method, amount, tendered, managerPin }),
+        },
+      );
+      const printers = getPrinterConfig();
+      maybePrintReceipt(result.receipt, {
+        autoReceiptPrint,
+        receiptPrinterHost: printers.receiptPrinterHost,
+        receiptPrinterPort: printers.receiptPrinterPort,
+        log: app.log,
+      });
+      return result;
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
   });
 
   app.post('/v1/cheques/:id/discount', async (request, reply) => {
