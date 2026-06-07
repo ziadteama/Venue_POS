@@ -1803,16 +1803,27 @@ test('GET /api/v1/manager/orders/:id/receipt returns text', async () => {
   assert.ok(res.json().text?.length > 0);
 });
 
-test('venue manager orders scoped to own venue', async () => {
+test('venue manager cannot use web order explorer API', async () => {
   const res = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/orders',
     headers: { authorization: `Bearer ${venueManagerToken}` },
   });
+  assert.equal(res.statusCode, 403);
+});
+
+test('terminal can search order history for its venue', async () => {
+  const res = await app.inject({
+    method: 'GET',
+    url: '/api/v1/terminal/order-explorer?groupBy=cheque&limit=5',
+    headers: {
+      'x-terminal-id': TERMINAL_ID,
+      'x-terminal-secret': TERMINAL_SECRET,
+    },
+  });
   assert.equal(res.statusCode, 200);
-  for (const row of res.json().orders) {
-    assert.equal(row.venueId, VENUE_ID);
-  }
+  assert.equal(res.json().groupBy, 'cheque');
+  assert.ok(Array.isArray(res.json().cheques));
 });
 
 test('GET /api/v1/manager/shifts requires manager auth', async () => {

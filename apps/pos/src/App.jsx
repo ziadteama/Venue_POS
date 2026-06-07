@@ -1,76 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { callAgent } from './api/agent.js';
 import { KitchenProgress } from './components/KitchenProgress.jsx';
 import { MenuGrid } from './components/MenuGrid.jsx';
-import { ModifierModal } from './components/ModifierModal.jsx';
-import { PayModal } from './components/PayModal.jsx';
 import { PosHeader } from './components/PosHeader.jsx';
+import { PosModals } from './components/PosModals.jsx';
 import { ReceiptPanel } from './components/ReceiptPanel.jsx';
-import { SplitBillModal } from './components/SplitBillModal.jsx';
-import { SplitAmountModal } from './components/SplitAmountModal.jsx';
-import { TableSwitchModal } from './components/TableSwitchModal.jsx';
-import { TransferModal } from './components/TransferModal.jsx';
-import { DiscountModal } from './components/DiscountModal.jsx';
-import { RefundModal } from './components/RefundModal.jsx';
-import { PaidChequePickerModal } from './components/PaidChequePickerModal.jsx';
-import { useManagerSocket } from './hooks/useManagerSocket.js';
-import { ShiftCloseModal } from './components/ShiftCloseModal.jsx';
-import { ShiftOpenModal } from './components/ShiftOpenModal.jsx';
 import { useChequeSession } from './hooks/useChequeSession.js';
-import { useShiftSession } from './hooks/useShiftSession.js';
 import { useFeatures } from './hooks/useFeatures.js';
 import { useKitchenSocket } from './hooks/useKitchenSocket.js';
+import { useManagerSocket } from './hooks/useManagerSocket.js';
+import { usePosMenu } from './hooks/usePosMenu.js';
+import { usePosModals } from './hooks/usePosModals.js';
 import { usePrinterHealth } from './hooks/usePrinterHealth.js';
+import { useOrderLookup } from './hooks/useOrderLookup.js';
+import { useShiftSession } from './hooks/useShiftSession.js';
+import { OrderLookupModal } from './components/OrderLookupModal.jsx';
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const [menu, setMenu] = useState(null);
-  const [activeCategoryId, setActiveCategoryId] = useState('all');
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [modifierItem, setModifierItem] = useState(null);
-  const [showPayModal, setShowPayModal] = useState(false);
-  const [showSplitModal, setShowSplitModal] = useState(false);
-  const [showSplitAmountModal, setShowSplitAmountModal] = useState(false);
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [showTableModal, setShowTableModal] = useState(false);
-  const [showDiscountModal, setShowDiscountModal] = useState(false);
-  const [showRefundPicker, setShowRefundPicker] = useState(false);
-  const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundCheque, setRefundCheque] = useState(null);
-  const [paidCheques, setPaidCheques] = useState([]);
-  const [loadingPaid, setLoadingPaid] = useState(false);
   const [clock, setClock] = useState(() => new Date());
 
+  const orderLookup = useOrderLookup();
   const { features } = useFeatures();
   const printerOk = usePrinterHealth();
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket();
-
-  const loadMenu = useCallback(async () => {
-    setLoading(true);
-    try {
-      let data = await callAgent('/v1/menu');
-      if (!data.categories?.length) {
-        await callAgent('/v1/menu/sync', { method: 'POST' });
-        data = await callAgent('/v1/menu');
-      }
-      setMenu(data);
-    } catch {
-      setMenu(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadMenu();
-  }, [loadMenu]);
-
-  useEffect(() => {
-    const tick = setInterval(() => setClock(new Date()), 30_000);
-    return () => clearInterval(tick);
-  }, []);
+  const { menu, loading, activeCategoryId, setActiveCategoryId, search, setSearch, displayItems } =
+    usePosMenu();
 
   const shiftSession = useShiftSession();
   const {
@@ -115,25 +71,28 @@ export default function App() {
     deleteTable,
   } = session;
 
-  const allItems = useMemo(
-    () => menu?.categories?.flatMap((c) => c.items ?? []) ?? [],
-    [menu],
-  );
+  const modals = usePosModals({
+    refundCheque,
+    setRefundCheque,
+    confirmSplit,
+    confirmSplitAmount,
+    confirmTransfer,
+    confirmDiscount,
+    confirmRefund,
+    confirmPay,
+    loadPaidCheques,
+    refreshShift,
+    setKitchenWatch,
+    setError,
+    t,
+  });
 
-  const activeCategory = useMemo(() => {
-    if (activeCategoryId === 'all') return null;
-    return menu?.categories?.find((c) => c.id === activeCategoryId);
-  }, [menu, activeCategoryId]);
+  useEffect(() => {
+    const tick = setInterval(() => setClock(new Date()), 30_000);
+    return () => clearInterval(tick);
+  }, []);
 
-  const displayItems = useMemo(() => {
-    const base = activeCategoryId === 'all' ? allItems : (activeCategory?.items ?? []);
-    const q = search.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter(
-      (item) =>
-        item.nameEn.toLowerCase().includes(q) || item.nameAr.toLowerCase().includes(q),
-    );
-  }, [activeCategoryId, allItems, activeCategory, search]);
+  useManagerSocket(cheque?.id, refreshCheque);
 
   function handleTapItem(item) {
     if (!order) return;
@@ -142,7 +101,7 @@ export default function App() {
       return;
     }
     if (item.modifierGroups?.length) {
-      setModifierItem(item);
+      modals.setModifierItem(item);
       return;
     }
     setError('');
@@ -152,69 +111,6 @@ export default function App() {
   async function onSend() {
     const sent = await handleSend();
     if (sent) setKitchenWatch(sent);
-  }
-
-  async function onConfirmSplit(body) {
-    const ok = await confirmSplit(body);
-    if (ok) setShowSplitModal(false);
-  }
-
-  async function onConfirmSplitAmount(body) {
-    const ok = await confirmSplitAmount(body);
-    if (ok) setShowSplitAmountModal(false);
-  }
-
-  async function onConfirmTransfer(body) {
-    const ok = await confirmTransfer(body);
-    if (ok) setShowTransferModal(false);
-  }
-
-  async function onConfirmDiscount(body) {
-    const ok = await confirmDiscount(body);
-    if (ok) setShowDiscountModal(false);
-  }
-
-  async function openRefundFlow() {
-    setLoadingPaid(true);
-    setShowRefundPicker(true);
-    const list = await loadPaidCheques();
-    setPaidCheques(list);
-    setLoadingPaid(false);
-  }
-
-  async function onPickRefundCheque(tab) {
-    try {
-      const detail = await callAgent(`/v1/cheques/${tab.id}`);
-      setRefundCheque(detail);
-      setShowRefundPicker(false);
-      setShowRefundModal(true);
-    } catch {
-      setError(t('pos.refundLoadFailed'));
-      setShowRefundPicker(false);
-    }
-  }
-
-  async function onConfirmRefund(body) {
-    if (!refundCheque) return;
-    const ok = await confirmRefund(refundCheque.id, body);
-    if (ok) {
-      setShowRefundModal(false);
-      setRefundCheque(null);
-      setError('');
-    }
-  }
-
-  useManagerSocket(cheque?.id, () => {
-    refreshCheque();
-  });
-
-  async function onConfirmPay(body) {
-    const ok = await confirmPay(body);
-    if (ok) {
-      setShowPayModal(false);
-      setKitchenWatch(null);
-      await refreshShift();
-    }
   }
 
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
@@ -227,124 +123,35 @@ export default function App() {
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
-      {showSplitModal && cheque && (
-        <SplitBillModal
-          cheque={cheque}
-          language={i18n.language}
-          t={t}
-          onCancel={() => setShowSplitModal(false)}
-          onConfirm={onConfirmSplit}
-        />
-      )}
+      {orderLookup.open ? (
+        <OrderLookupModal t={t} language={i18n.language} lookup={orderLookup} />
+      ) : null}
 
-      {showSplitAmountModal && cheque && (
-        <SplitAmountModal
-          cheque={cheque}
-          t={t}
-          onCancel={() => setShowSplitAmountModal(false)}
-          onConfirm={onConfirmSplitAmount}
-        />
-      )}
-
-      {showTableModal && (
-        <TableSwitchModal
-          openCheques={openCheques}
-          currentChequeId={cheque?.id}
-          currentTable={tableLabel}
-          t={t}
-          onClose={() => setShowTableModal(false)}
-          onOpenTable={navigateToTable}
-          onSelectCheque={selectOpenCheque}
-          onDeleteTable={deleteTable}
-        />
-      )}
-
-      {showTransferModal && cheque && (
-        <TransferModal
-          cheque={cheque}
-          openCheques={openCheques}
-          language={i18n.language}
-          t={t}
-          onCancel={() => setShowTransferModal(false)}
-          onConfirm={onConfirmTransfer}
-        />
-      )}
-
-      {showDiscountModal && cheque && (
-        <DiscountModal
-          cheque={cheque}
-          t={t}
-          onCancel={() => setShowDiscountModal(false)}
-          onConfirm={onConfirmDiscount}
-        />
-      )}
-
-      {showRefundPicker && (
-        <PaidChequePickerModal
-          cheques={paidCheques}
-          loading={loadingPaid}
-          t={t}
-          onCancel={() => setShowRefundPicker(false)}
-          onSelect={onPickRefundCheque}
-        />
-      )}
-
-      {showRefundModal && refundCheque && (
-        <RefundModal
-          cheque={refundCheque}
-          t={t}
-          onCancel={() => {
-            setShowRefundModal(false);
-            setRefundCheque(null);
-          }}
-          onConfirm={onConfirmRefund}
-        />
-      )}
-
-      {showPayModal && cheque && (
-        <PayModal
-          cheque={cheque}
-          t={t}
-          manualCardEnabled={features.manualCardPayment}
-          manualCardThreshold={features.manualCardApprovalThreshold}
-          onCancel={() => setShowPayModal(false)}
-          onConfirm={onConfirmPay}
-        />
-      )}
-
-      {needsOpen && (
-        <ShiftOpenModal
-          t={t}
-          opening={opening}
-          onConfirm={(float) => {
-            setShiftError('');
-            openShift(float);
-          }}
-        />
-      )}
-
-      {showCloseModal && shift && (
-        <ShiftCloseModal
-          shift={shift}
-          t={t}
-          closing={closing}
-          onCancel={() => setShowCloseModal(false)}
-          onConfirm={closeShift}
-        />
-      )}
-
-      {modifierItem && (
-        <ModifierModal
-          item={modifierItem}
-          language={i18n.language}
-          t={t}
-          onCancel={() => setModifierItem(null)}
-          onConfirm={(mods) => {
-            setModifierItem(null);
-            addItemToOrder(modifierItem, mods).catch(() => setError(t('pos.itemAddFailed')));
-          }}
-        />
-      )}
+      <PosModals
+        t={t}
+        language={i18n.language}
+        cheque={cheque}
+        refundCheque={refundCheque}
+        openCheques={openCheques}
+        tableLabel={tableLabel}
+        features={features}
+        shift={shift}
+        shiftSession={{
+          needsOpen,
+          opening,
+          showCloseModal,
+          setShowCloseModal,
+          closing,
+          openShift,
+          setShiftError,
+          closeShift,
+        }}
+        tableSession={{ navigateToTable, selectOpenCheque, deleteTable }}
+        modals={modals}
+        onAddItemWithModifiers={(item, mods) =>
+          addItemToOrder(item, mods).catch(() => setError(t('pos.itemAddFailed')))
+        }
+      />
 
       <PosHeader
         t={t}
@@ -352,9 +159,10 @@ export default function App() {
         onSearchChange={setSearch}
         tableLabel={tableLabel}
         openCheques={openCheques}
-        onOpenTables={() => setShowTableModal(true)}
+        onOpenTables={() => modals.setShowTableModal(true)}
         shift={shift}
         onCloseShift={() => setShowCloseModal(true)}
+        onOrderLookup={orderLookup.openLookup}
       />
 
       {bannerError && (
@@ -375,15 +183,15 @@ export default function App() {
           paying={paying}
           onClear={handleClear}
           onSend={onSend}
-          onSplit={() => setShowSplitModal(true)}
-          onSplitAmount={() => setShowSplitAmountModal(true)}
-          onTransfer={() => setShowTransferModal(true)}
+          onSplit={() => modals.setShowSplitModal(true)}
+          onSplitAmount={() => modals.setShowSplitAmountModal(true)}
+          onTransfer={() => modals.setShowTransferModal(true)}
           lineTransferEnabled={features.lineTransfer}
           discountsEnabled={features.discounts}
           refundsEnabled={features.refunds}
-          onDiscount={() => setShowDiscountModal(true)}
-          onRefund={openRefundFlow}
-          onPay={() => setShowPayModal(true)}
+          onDiscount={() => modals.setShowDiscountModal(true)}
+          onRefund={modals.openRefundFlow}
+          onPay={() => modals.setShowPayModal(true)}
           onChangeQty={changeQty}
         />
 

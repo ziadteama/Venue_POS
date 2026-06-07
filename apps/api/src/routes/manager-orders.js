@@ -10,13 +10,11 @@ import {
   ordersExplorerToCsv,
 } from '../services/order-explorer-service.js';
 
-const managerPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
+/** Hub GM only — venue staff use POS order lookup (terminal API). */
+const managerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
 function resolveVenueFilter(request) {
-  const queryVenue = request.query?.venueId;
-  if (queryVenue && request.user.role === ROLES.HUB_MANAGER) return queryVenue;
-  if (request.user.role === ROLES.VENUE_MANAGER) return request.user.venue_id;
-  return queryVenue;
+  return request.query?.venueId || undefined;
 }
 
 function parseListQuery(request) {

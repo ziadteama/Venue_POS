@@ -16,7 +16,7 @@ npm run seed
 | Role | Username | Password | PIN | Where to use |
 |------|----------|----------|-----|--------------|
 | Hub manager (GM) | `admin` | `admin123` | `9999` | Dashboard (full GM access) |
-| Venue manager | `venue_mgr` | `venue123` | `7777` | Dashboard (venue ops) + POS manager actions |
+| Venue manager | `venue_mgr` | `venue123` | `7777` | **Web** = venue back office · **POS** = floor manager PIN (same role, no split) |
 | Cashier | `cashier1` | — | `1234` | POS (future PIN login); today demo uses fixed cashier ID |
 
 ---
@@ -32,6 +32,7 @@ Login: **username + password** → `POST /api/v1/auth/login`
 | Overview (live KPIs) | `/` | Revenue today, open tables, orders/min |
 | Analytics | `/analytics` | Charts, presets, CSV export |
 | Cheques | `/cheques` | Open + paid tabs, GM actions |
+| Orders | `/orders` | Order explorer — all venues (investigation, CSV) |
 | Shifts | `/shifts` | All venues (venue filter), EOD reconciliation |
 | Activity (audit log) | `/activity` | Full audit — filters + CSV |
 | Menus | `/menus` | **All venues** — templates, publish, translations |
@@ -46,13 +47,12 @@ Login: **username + password** → `POST /api/v1/auth/login`
 |------|------|-------|
 | Overview | `/` | Own venue metrics |
 | Analytics | `/analytics` | Own venue |
-| Orders | `/orders` | Shift → cheque → order rounds |
 | Cheques | `/cheques` | Discount / refund on open & paid |
 | Shifts | `/shifts` | Own venue shifts + EOD |
 | Staff | `/users` | Add cashiers/kitchen, reset PIN, deactivate |
 | System health | `/health` | Own venue terminals |
 
-**Cannot access:** Menus, Activity, Venue settings (hub only). POS menu is read-only for all staff.
+**Cannot access:** Menus, Orders, Activity, Venue settings (hub only). **Order lookup is on POS** (Orders button in header).
 
 ---
 
@@ -71,6 +71,10 @@ Set in `apps/pos/.env` (see `apps/pos/.env.example`):
 | `VITE_LOCAL_AGENT_URL` | `http://127.0.0.1:3456` |
 
 Terminal name in DB: **POS-1** · Venue: **Demo Cafe**
+
+### Order lookup (cashier + venue manager)
+
+Header button **Orders** — search past cheques by number, table, or cashier; view rounds; reprint order or cheque receipt. Uses terminal API (no web login).
 
 ### Cashier
 

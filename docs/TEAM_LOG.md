@@ -1013,6 +1013,22 @@ npm run lint && npm run lint:i18n
 
 ---
 
+### 2026-06-06 — Order lookup moved to POS (venue); hub keeps web explorer
+
+**What:** Venue managers and cashiers search past orders on **POS** (header **Orders** button). Web `/orders` is **hub_manager** only. API: `GET /api/v1/terminal/order-explorer` (terminal auth); `GET /api/v1/manager/orders` → hub only.
+
+**Verify:** POS → Orders → search cheque # · `venue_mgr` dashboard has no Orders nav · `admin` → Orders still works.
+
+---
+
+### 2026-06-06 — Role model locked: venue_manager + web GM workflow
+
+**Decision:** No `floor_manager` role. `venue_manager` = POS floor authority (PIN) + web back office (staff, EOD, cheques). `hub_manager` = web-only GM across all venues. POS Electron stays thin (`usePosMenu`, `usePosModals`, `PosModals.jsx`).
+
+**Verify:** `AGENTS.md` § Roles & surfaces · `apps/pos/src/App.jsx` ~200 lines wiring only.
+
+---
+
 ### 2026-06-06 — Menu RBAC: hub manager only
 
 **What:** Menu configuration is hub-manager only across all venues. Venue managers cannot access `/menus`, list templates, or edit/publish menus. POS menu remains read-only via terminal API.
