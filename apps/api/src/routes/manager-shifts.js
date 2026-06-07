@@ -1,6 +1,5 @@
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
-import { validationError } from '../utils/errors.js';
 import {
   listManagerShifts,
   getManagerShiftDetail,

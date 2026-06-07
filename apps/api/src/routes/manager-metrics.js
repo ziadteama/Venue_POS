@@ -1,6 +1,5 @@
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
-import { validationError } from '../utils/errors.js';
 import { buildLiveMetrics } from '../services/metrics-service.js';
 
 const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);

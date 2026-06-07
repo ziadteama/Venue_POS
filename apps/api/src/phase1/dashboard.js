@@ -6,11 +6,8 @@ import {
   VENUE_ID,
   TERMINAL_ID,
   TERMINAL_SECRET,
-  CASHIER_ID,
   terminalHeaders,
-  prisma,
   ensureOpenShift,
-  clearOpenCheques,
 } from './fixture.js';
 
 test('GET /api/v1/manager/metrics/live requires manager auth', async () => {

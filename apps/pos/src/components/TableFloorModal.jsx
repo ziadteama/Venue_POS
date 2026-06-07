@@ -1,6 +1,6 @@
 import { canDeleteCheque, parentOpenCheques } from '../utils/cheque.js';
 
-function tableStatus({ label, openCheque, currentChequeId }) {
+function tableStatus({ openCheque, currentChequeId }) {
   if (!openCheque) return 'free';
   if (openCheque.id === currentChequeId) return 'current';
   return 'occupied';
