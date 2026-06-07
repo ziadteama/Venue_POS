@@ -29,14 +29,16 @@ packages/ shared, i18n
 
 ## Roles & surfaces (locked)
 
+**Web dashboard = hub manager / hub owner only** (`DASHBOARD_ROLES` → `hub_manager`). Enforced in `loginManager` + dashboard `ProtectedRoute`.
+
+**POS = cashiers + venue floor manager** (same terminal). `venue_manager` uses PIN `7777` for discounts, voids, refunds, transfers, shift close, order lookup. No web login.
+
 | Role | Dashboard (web) | POS (Electron) |
 |------|-----------------|----------------|
-| **hub_manager** | All venues — menus, settings, audit, analytics, **orders explorer**, approvals | Policy PIN only where API accepts hub |
-| **venue_manager** | Own venue — staff, shifts/EOD, cheques, analytics, health | Manager PIN + **order lookup** on POS (not web Orders page) |
-| **cashier** | No access | Orders + payments (PIN login when shipped) |
-| **kitchen_staff** | No access | KDS only |
-
-**No separate floor-manager role.** One `venue_manager` covers floor authority (POS PIN) and venue back office (web). Hub/GM workflow stays on the **web dashboard**; POS stays a thin service terminal.
+| **hub_manager** (GM / hub owner) | All venues — menus, staff, settings, audit, analytics, orders, cheques (read), shifts/EOD | Policy PIN `9999` where API accepts hub |
+| **venue_manager** (floor manager) | **No web** | Daily service + manager PIN + order lookup |
+| **cashier** | **No web** | Orders + payments |
+| **kitchen_staff** | **No web** | KDS only |
 
 ## Hard rules
 
@@ -74,7 +76,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 5 in progress** (`Phase-5` branch) — analytics, venue config, shifts + EOD, staff management (venue_manager), system health, full audit log. Inventory out of scope. See `docs/TEAM_LOG.md`.
+**Phase 5 in progress** (`Phase-5` branch) — analytics, venue config, shifts + EOD, staff management (hub), system health, full audit log. Inventory out of scope. See `docs/TEAM_LOG.md`.
 
 ## POS app layout (`apps/pos`)
 
@@ -96,10 +98,11 @@ src/
 
 | Action | Who initiates | Who approves | Where |
 |--------|---------------|--------------|-------|
-| Discount / refund | `venue_manager` (POS PIN or dashboard JWT) | — (logged for review) | POS or dashboard |
-| Void / comp / line transfer | `venue_manager` (PIN) | — (logged for review) | POS or dashboard |
-| GM review | `hub_manager` | Read-only | Dashboard **Activity log** |
-| Shift over/short | Cashier | Either manager PIN | POS close shift |
+| Discount / refund | `venue_manager` (POS PIN) | — (logged for GM review) | POS |
+| Void / comp / line transfer | `venue_manager` (PIN) | — (logged for review) | POS |
+| GM review | `hub_manager` | Read-only + force actions | Dashboard |
+| Shift over/short | Cashier | Manager PIN | POS close shift |
+| Staff CRUD | `hub_manager` | — | Dashboard `/users` |
 
 ## Prompt tip (save tokens)
 

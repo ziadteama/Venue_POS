@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
 import { config } from './config.js';
-import { ensureKeys } from './utils/jwt.js';
+import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 
 const VENUE_ID = '00000000-0000-4000-8000-000000000096';
@@ -84,13 +84,19 @@ before(async () => {
     })
   ).json().accessToken;
 
-  venueManagerToken = (
-    await app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/login',
-      payload: { username: 'phase5venue', password: 'venue123' },
-    })
-  ).json().accessToken;
+  const venueLogin = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'phase5venue', password: 'venue123' },
+  });
+  assert.equal(venueLogin.statusCode, 401);
+
+  const venueUser = await prisma.user.findUnique({ where: { username: 'phase5venue' } });
+  venueManagerToken = signAccessToken({
+    sub: venueUser.id,
+    role: 'venue_manager',
+    venue_id: VENUE_ID,
+  });
 });
 
 after(async () => {
@@ -98,12 +104,12 @@ after(async () => {
   await prisma.$disconnect();
 });
 
-test('venue manager can create and list staff', async () => {
+test('hub manager can create and list staff for a venue', async () => {
   const username = `cashier_${Date.now()}`;
   const create = await app.inject({
     method: 'POST',
-    url: '/api/v1/manager/users',
-    headers: { authorization: `Bearer ${venueManagerToken}` },
+    url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${hubToken}` },
     payload: { username, role: 'cashier', pin: '4321' },
   });
   assert.equal(create.statusCode, 200);
@@ -111,18 +117,18 @@ test('venue manager can create and list staff', async () => {
 
   const list = await app.inject({
     method: 'GET',
-    url: '/api/v1/manager/users',
-    headers: { authorization: `Bearer ${venueManagerToken}` },
+    url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${hubToken}` },
   });
   assert.equal(list.statusCode, 200);
   assert.ok(list.json().some((u) => u.username === username));
 });
 
-test('hub manager cannot access venue user management', async () => {
+test('venue manager cannot use web staff API', async () => {
   const res = await app.inject({
     method: 'GET',
-    url: '/api/v1/manager/users',
-    headers: { authorization: `Bearer ${hubToken}` },
+    url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${venueManagerToken}` },
   });
   assert.equal(res.statusCode, 403);
 });
@@ -131,7 +137,7 @@ test('EOD reconciliation returns daily rollup', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts/eod?venueId=${VENUE_ID}&date=2026-06-07`,
-    headers: { authorization: `Bearer ${venueManagerToken}` },
+    headers: { authorization: `Bearer ${hubToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().date, '2026-06-07');
@@ -142,7 +148,7 @@ test('system health lists terminals', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/health?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${venueManagerToken}` },
+    headers: { authorization: `Bearer ${hubToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.ok(res.json().terminals.length >= 1);

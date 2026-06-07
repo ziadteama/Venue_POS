@@ -6,6 +6,9 @@ export const ROLES = {
   SYSTEM_ADMIN: 'system_admin',
 };
 
+/** Roles allowed to sign in to the web dashboard (hub GM / hub owner). Floor venue managers use POS only. */
+export const DASHBOARD_ROLES = [ROLES.HUB_MANAGER];
+
 export const VENUE_TYPES = {
   STANDARD: 'standard',
   ANCHOR: 'anchor',

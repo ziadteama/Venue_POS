@@ -57,6 +57,57 @@ test('POST /api/v1/auth/login rejects bad credentials', async () => {
   assert.equal(res.statusCode, 401);
 });
 
+test('POST /api/v1/auth/login rejects non-dashboard roles', async () => {
+  const pinHash = await bcrypt.hash('9999', config.bcryptRounds);
+  const passwordHash = await bcrypt.hash('cashpass', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'authcashier' },
+    update: { passwordHash, pinHash, role: 'cashier', venueId: '00000000-0000-4000-8000-000000000099' },
+    create: {
+      username: 'authcashier',
+      passwordHash,
+      pinHash,
+      role: 'cashier',
+      venueId: '00000000-0000-4000-8000-000000000099',
+    },
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'authcashier', password: 'cashpass' },
+  });
+  assert.equal(res.statusCode, 401);
+});
+
+test('POST /api/v1/auth/login rejects venue_manager (POS only)', async () => {
+  const pinHash = await bcrypt.hash('7777', config.bcryptRounds);
+  const passwordHash = await bcrypt.hash('venue123', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'authvenue' },
+    update: {
+      passwordHash,
+      pinHash,
+      role: 'venue_manager',
+      venueId: '00000000-0000-4000-8000-000000000099',
+    },
+    create: {
+      username: 'authvenue',
+      passwordHash,
+      pinHash,
+      role: 'venue_manager',
+      venueId: '00000000-0000-4000-8000-000000000099',
+    },
+  });
+
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/v1/auth/login',
+    payload: { username: 'authvenue', password: 'venue123' },
+  });
+  assert.equal(res.statusCode, 401);
+});
+
 test('POST /api/v1/auth/login accepts valid manager', async () => {
   const res = await app.inject({
     method: 'POST',

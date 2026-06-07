@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
-import { useAuth } from '../hooks/useAuth.js';
 
 const emptyForm = { username: '', role: 'cashier', pin: '', cardUid: '' };
 
+function venueQuery(venueId) {
+  return venueId ? `?venueId=${encodeURIComponent(venueId)}` : '';
+}
+
 export function UsersPage() {
-  const { t } = useTranslation();
-  const { user } = useAuth();
+  const { t, i18n } = useTranslation();
+  const [venues, setVenues] = useState([]);
+  const [venueId, setVenueId] = useState('');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -17,31 +21,41 @@ export function UsersPage() {
   const [pinUser, setPinUser] = useState(null);
   const [newPin, setNewPin] = useState('');
 
+  useEffect(() => {
+    apiFetch('/api/v1/venues')
+      .then((list) => {
+        setVenues(list);
+        if (list[0]?.id) setVenueId(list[0].id);
+      })
+      .catch((err) => setError(err.message));
+  }, []);
+
   const load = useCallback(async () => {
+    if (!venueId) return;
     setLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams({ venueId });
       if (search.trim()) params.set('search', search.trim());
       if (showInactive) params.set('includeInactive', 'true');
-      const qs = params.toString() ? `?${params}` : '';
-      setUsers(await apiFetch(`/api/v1/manager/users${qs}`));
+      setUsers(await apiFetch(`/api/v1/manager/users?${params}`));
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [search, showInactive]);
+  }, [search, showInactive, venueId]);
 
   useEffect(() => {
-    if (user?.role === 'venue_manager') load();
-  }, [load, user?.role]);
+    load();
+  }, [load]);
 
   async function submitCreate(e) {
     e.preventDefault();
+    if (!venueId) return;
     setError('');
     try {
-      await apiFetch('/api/v1/manager/users', {
+      await apiFetch(`/api/v1/manager/users${venueQuery(venueId)}`, {
         method: 'POST',
         body: JSON.stringify(form),
       });
@@ -54,9 +68,10 @@ export function UsersPage() {
 
   async function submitPin(e) {
     e.preventDefault();
+    if (!venueId) return;
     setError('');
     try {
-      await apiFetch(`/api/v1/manager/users/${pinUser.id}/pin`, {
+      await apiFetch(`/api/v1/manager/users/${pinUser.id}/pin${venueQuery(venueId)}`, {
         method: 'POST',
         body: JSON.stringify({ pin: newPin }),
       });
@@ -68,9 +83,10 @@ export function UsersPage() {
   }
 
   async function toggleActive(u) {
+    if (!venueId) return;
     setError('');
     try {
-      await apiFetch(`/api/v1/manager/users/${u.id}/active`, {
+      await apiFetch(`/api/v1/manager/users/${u.id}/active${venueQuery(venueId)}`, {
         method: 'POST',
         body: JSON.stringify({ isActive: !u.isActive }),
       });
@@ -80,12 +96,8 @@ export function UsersPage() {
     }
   }
 
-  if (user?.role !== 'venue_manager') {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
-        {t('users.venueManagerOnly')}
-      </div>
-    );
+  function labelVenue(v) {
+    return i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn;
   }
 
   return (
@@ -93,16 +105,32 @@ export function UsersPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">{t('users.title')}</h2>
-          <p className="mt-1 text-sm text-secondary">{t('users.subtitle')}</p>
+          <p className="mt-1 text-sm text-secondary">{t('users.subtitleHub')}</p>
         </div>
         <button
           type="button"
+          disabled={!venueId}
           onClick={() => setForm({ ...emptyForm })}
-          className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white"
+          className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {t('users.addStaff')}
         </button>
       </div>
+
+      <label className="block max-w-xs text-sm">
+        <span className="mb-1 block text-secondary">{t('users.venue')}</span>
+        <select
+          className="w-full rounded-lg border border-slate-200 px-3 py-2"
+          value={venueId}
+          onChange={(e) => setVenueId(e.target.value)}
+        >
+          {venues.map((v) => (
+            <option key={v.id} value={v.id}>
+              {labelVenue(v)}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="flex flex-wrap gap-3">
         <input
@@ -148,13 +176,7 @@ export function UsersPage() {
                   <td className="px-4 py-3">{t(`users.role.${u.role}`)}</td>
                   <td className="px-4 py-3 text-secondary">{u.cardUid || '—'}</td>
                   <td className="px-4 py-3">
-                    <span
-                      className={
-                        u.isActive
-                          ? 'text-emerald-700'
-                          : 'text-red-600'
-                      }
-                    >
+                    <span className={u.isActive ? 'text-emerald-700' : 'text-red-600'}>
                       {u.isActive ? t('users.active') : t('users.inactive')}
                     </span>
                   </td>

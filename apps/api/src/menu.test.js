@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
 import { config } from './config.js';
-import { ensureKeys } from './utils/jwt.js';
+import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 
 const VENUE_ID = '00000000-0000-4000-8000-000000000098';
@@ -95,12 +95,12 @@ before(async () => {
   });
   managerToken = login.json().accessToken;
 
-  const venueLogin = await app.inject({
-    method: 'POST',
-    url: '/api/v1/auth/login',
-    payload: { username: 'menutestvenue', password: 'venue123' },
+  const venueUser = await prisma.user.findUnique({ where: { username: 'menutestvenue' } });
+  venueManagerToken = signAccessToken({
+    sub: venueUser.id,
+    role: 'venue_manager',
+    venue_id: VENUE_ID,
   });
-  venueManagerToken = venueLogin.json().accessToken;
 });
 
 after(async () => {

@@ -1013,6 +1013,22 @@ npm run lint && npm run lint:i18n
 
 ---
 
+### 2026-06-06 — Web hub-only; venue floor manager on POS
+
+**What:** Dashboard login is **`hub_manager` only**. `venue_mgr` = floor manager on POS (PIN `7777`), no web password. Staff CRUD moved to hub `/users` with venue picker. Cheque discount/void on web removed (POS only).
+
+**Verify:** `venue_mgr` login 401 · `admin` → Staff with venue filter · POS PIN `7777` for manager actions.
+
+---
+
+### 2026-06-06 — Web dashboard locked to hub GM + venue owner
+
+**What:** Only `hub_manager` and `venue_manager` can use `POST /api/v1/auth/login` and the dashboard app. Cashiers/kitchen with passwords are rejected (401). Login subtitle + `DEV_CREDENTIALS.md` updated.
+
+**Verify:** `cashier1` cannot web-login · `admin` / `venue_mgr` can · `DASHBOARD_ROLES` in `packages/shared`.
+
+---
+
 ### 2026-06-06 — Order lookup moved to POS (venue); hub keeps web explorer
 
 **What:** Venue managers and cashiers search past orders on **POS** (header **Orders** button). Web `/orders` is **hub_manager** only. API: `GET /api/v1/terminal/order-explorer` (terminal auth); `GET /api/v1/manager/orders` → hub only.
