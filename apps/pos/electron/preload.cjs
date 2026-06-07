@@ -81,6 +81,14 @@ contextBridge.exposeInMainWorld('venuePos', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  getShiftActive: (cashierId) =>
+    agentFetch(`/v1/shifts/active?cashierId=${encodeURIComponent(cashierId)}`),
+  getShiftOpenContext: (cashierId) =>
+    agentFetch(`/v1/shifts/open-context?cashierId=${encodeURIComponent(cashierId)}`),
+  openShift: (body) =>
+    agentFetch('/v1/shifts/open', { method: 'POST', body: JSON.stringify(body) }),
+  closeShift: (body) =>
+    agentFetch('/v1/shifts/close', { method: 'POST', body: JSON.stringify(body) }),
   loginPin: async (pin) => {
     const res = await fetch(`${apiUrl}/api/v1/auth/pin`, {
       method: 'POST',

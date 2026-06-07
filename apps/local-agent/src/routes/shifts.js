@@ -1,6 +1,13 @@
 import { apiFetch } from '../services/api-fetch.js';
 
 export function registerShiftRoutes(app, { apiUrl, terminalId, terminalSecret }) {
+  app.get('/v1/shifts/open-context', async (request, reply) => {
+    const cashierId = request.query?.cashierId;
+    if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const qs = new URLSearchParams({ cashierId }).toString();
+    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/shifts/open-context?${qs}`);
+  });
+
   app.get('/v1/shifts/active', async (request, reply) => {
     const cashierId = request.query?.cashierId;
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });

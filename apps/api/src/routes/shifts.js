@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError } from '../utils/errors.js';
-import { closeShift, getActiveShift, openShift } from '../services/shift-service.js';
+import {
+  closeShift,
+  countOpenChequesForCashier,
+  getActiveShift,
+  openShift,
+} from '../services/shift-service.js';
 
 const openShiftSchema = z.object({
   cashierId: z.string().uuid(),
@@ -19,7 +24,24 @@ export async function shiftRoutes(app) {
     const cashierId = request.query.cashierId;
     if (!cashierId) throw validationError('cashierId required');
     const shift = await getActiveShift(cashierId, request.terminal.id, request.terminal.venueId);
-    return shift ?? { active: false };
+    if (shift) return shift;
+    return { active: false };
+  });
+
+  app.get('/api/v1/shifts/open-context', { preHandler: authenticateTerminal }, async (request) => {
+    const cashierId = request.query.cashierId;
+    if (!cashierId) throw validationError('cashierId required');
+    const openChequeCount = await countOpenChequesForCashier(
+      request.terminal.venueId,
+      cashierId,
+      request.terminal.id,
+    );
+    const existing = await getActiveShift(cashierId, request.terminal.id, request.terminal.venueId);
+    return {
+      openChequeCount,
+      hasActiveShift: Boolean(existing?.id),
+      activeShift: existing,
+    };
   });
 
   app.post('/api/v1/shifts/open', { preHandler: authenticateTerminal }, async (request) => {

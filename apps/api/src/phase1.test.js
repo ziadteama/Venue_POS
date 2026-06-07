@@ -26,6 +26,13 @@ const terminalHeaders = {
   'x-terminal-secret': TERMINAL_SECRET,
 };
 
+async function clearOpenCheques() {
+  await prisma.cheque.updateMany({
+    where: { venueId: VENUE_ID, cashierId: CASHIER_ID, status: 'open' },
+    data: { status: 'voided', closedAt: new Date() },
+  });
+}
+
 async function ensureOpenShift(openFloat = 500) {
   const active = await app.inject({
     method: 'GET',
@@ -1016,6 +1023,7 @@ test('cheque split by item: pay sub-cheques closes parent', async () => {
 });
 
 test('cashier can open and close shift with payment linkage', async () => {
+  await clearOpenCheques();
   await prisma.shift.deleteMany({ where: { cashierId: CASHIER_ID } });
 
   const openRes = await app.inject({
@@ -1034,7 +1042,9 @@ test('cashier can open and close shift with payment linkage', async () => {
     headers: terminalHeaders,
     payload: { cashierId: CASHIER_ID, openFloat: 100 },
   });
-  assert.equal(dupRes.statusCode, 400);
+  assert.equal(dupRes.statusCode, 200);
+  assert.equal(dupRes.json().resumed, true);
+  assert.equal(dupRes.json().openFloat, 200);
 
   const menuRes = await app.inject({
     method: 'GET',
@@ -1119,6 +1129,47 @@ test('cashier can open and close shift with payment linkage', async () => {
   assert.equal(events.length, 2);
   assert.equal(events[0].action, 'open');
   assert.equal(events[1].action, 'close');
+});
+
+test('cannot close shift while open cheques remain', async () => {
+  await prisma.shift.deleteMany({ where: { cashierId: CASHIER_ID } });
+  await ensureOpenShift(100);
+
+  const chequeRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'SH-BLOCK' },
+  });
+  assert.equal(chequeRes.statusCode, 200);
+
+  const closeRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts/close',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, closeFloat: 100 },
+  });
+  assert.equal(closeRes.statusCode, 400);
+  assert.match(closeRes.json().error.message, /open table/i);
+
+  await app.inject({
+    method: 'DELETE',
+    url: `/api/v1/cheques/${chequeRes.json().id}`,
+    headers: terminalHeaders,
+  });
+});
+
+test('open-context reports open cheques and active shift', async () => {
+  await ensureOpenShift(50);
+
+  const ctxRes = await app.inject({
+    method: 'GET',
+    url: `/api/v1/shifts/open-context?cashierId=${CASHIER_ID}`,
+    headers: terminalHeaders,
+  });
+  assert.equal(ctxRes.statusCode, 200);
+  assert.equal(ctxRes.json().hasActiveShift, true);
+  assert.ok(ctxRes.json().activeShift?.id);
 });
 
 test('manual card payment stores optional last-4', async () => {

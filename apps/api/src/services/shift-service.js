@@ -104,6 +104,12 @@ export async function requireActiveShift(cashierId, terminalId, venueId) {
   return shift;
 }
 
+export async function countOpenChequesForCashier(venueId, cashierId, terminalId) {
+  return prisma.cheque.count({
+    where: { venueId, cashierId, terminalId, status: 'open' },
+  });
+}
+
 export async function openShift({ cashierId, terminalId, venueId, openFloat }) {
   const float = Number(openFloat);
   if (!Number.isFinite(float) || float < 0) {
@@ -120,10 +126,23 @@ export async function openShift({ cashierId, terminalId, venueId, openFloat }) {
 
   const existing = await prisma.shift.findFirst({
     where: { cashierId, status: 'open' },
+    include: { payments: true, refunds: true },
   });
   if (existing) {
-    throw validationError('Cashier already has an open shift');
+    if (existing.terminalId !== terminalId) {
+      throw validationError(
+        'This cashier already has an open shift on another terminal. Close it there first or ask a manager.',
+      );
+    }
+    return {
+      ...serializeShift(existing),
+      resumed: true,
+      openChequeCount: await countOpenChequesForCashier(venueId, cashierId, terminalId),
+      report: buildShiftReport(existing, existing.payments, existing.refunds),
+    };
   }
+
+  const openChequeCount = await countOpenChequesForCashier(venueId, cashierId, terminalId);
 
   const shift = await prisma.$transaction(async (tx) => {
     const created = await tx.shift.create({
@@ -145,7 +164,12 @@ export async function openShift({ cashierId, terminalId, venueId, openFloat }) {
     return created;
   });
 
-  return serializeShift(shift);
+  return {
+    ...serializeShift(shift),
+    resumed: false,
+    openChequeCount,
+    report: buildShiftReport(shift, [], []),
+  };
 }
 
 export async function closeShift(
@@ -162,6 +186,13 @@ export async function closeShift(
     include: { payments: true, refunds: true },
   });
   if (!shift) throw validationError('No open shift for this cashier');
+
+  const openChequeCount = await countOpenChequesForCashier(venueId, cashierId, terminalId);
+  if (openChequeCount > 0) {
+    throw validationError(
+      `Close ${openChequeCount} open table${openChequeCount === 1 ? '' : 's'} before closing the shift`,
+    );
+  }
 
   const report = buildShiftReport(shift, shift.payments, shift.refunds);
   const overShort = Number((counted - report.expectedCash).toFixed(2));

@@ -69,6 +69,20 @@ export async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/cheques\/[^/]+\/split$/) && method === 'POST') {
       return window.venuePos.splitCheque(path.split('/')[3], body);
     }
+    if (path.startsWith('/v1/shifts/active') && method === 'GET') {
+      const cashierId = new URL(path, 'http://local').searchParams.get('cashierId');
+      return window.venuePos.getShiftActive(cashierId);
+    }
+    if (path.startsWith('/v1/shifts/open-context') && method === 'GET') {
+      const cashierId = new URL(path, 'http://local').searchParams.get('cashierId');
+      return window.venuePos.getShiftOpenContext(cashierId);
+    }
+    if (path === '/v1/shifts/open' && method === 'POST') {
+      return window.venuePos.openShift(body);
+    }
+    if (path === '/v1/shifts/close' && method === 'POST') {
+      return window.venuePos.closeShift(body);
+    }
   }
 
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
