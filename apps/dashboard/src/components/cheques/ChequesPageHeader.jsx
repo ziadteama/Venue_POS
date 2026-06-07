@@ -26,7 +26,7 @@ export function ChequesPageHeader({
             </button>
           ))}
         </div>
-        {['hub_owner', 'hub_manager'].includes(user?.role) && venues.length > 1 && (
+        {user?.role === 'hub_owner' && venues.length > 1 && (
           <select
             className="rounded border px-3 py-2 text-sm"
             value={venueId}

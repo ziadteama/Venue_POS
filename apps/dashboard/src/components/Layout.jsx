@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { canAccessDashboardPath, defaultDashboardPath } from '@venue-pos/shared';
+import { canAccessDashboardPath, dashboardRoleI18nKey, defaultDashboardPath } from '@venue-pos/shared';
 import { DashboardNav } from './DashboardNav.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { useAuth } from '../hooks/useAuth.js';
@@ -32,6 +32,11 @@ export function Layout() {
             <h1 className="text-lg font-bold tracking-tight">{t('dashboard.title')}</h1>
             <p className="truncate text-sm text-white/80">
               {t('dashboard.welcome', { name: user?.username })}
+              {user?.role ? (
+                <span className="ms-2 rounded-md bg-white/15 px-2 py-0.5 text-xs font-medium">
+                  {t(dashboardRoleI18nKey(user.role))}
+                </span>
+              ) : null}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">

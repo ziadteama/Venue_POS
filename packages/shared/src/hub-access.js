@@ -1,7 +1,8 @@
 import { ROLES } from './constants.js';
+import { isCeo, isHubManager } from './roles.js';
 
-/** Business / revenue dashboard paths (hub owner). */
-export const HUB_OWNER_PATHS = new Set([
+/** CEO / executive dashboard — revenue & investigation (multi-venue). */
+export const CEO_DASHBOARD_PATHS = new Set([
   '/',
   '/analytics',
   '/cheques',
@@ -12,19 +13,29 @@ export const HUB_OWNER_PATHS = new Set([
   '/health',
 ]);
 
-/** Operations dashboard paths (hub manager). */
-export const HUB_MANAGER_PATHS = new Set(['/menus', '/users', '/settings', '/activity', '/health']);
+/** Hub manager / ops dashboard — menus, staff, venue config. */
+export const HUB_MANAGER_DASHBOARD_PATHS = new Set([
+  '/menus',
+  '/users',
+  '/settings',
+  '/activity',
+  '/health',
+]);
+
+/** @deprecated use CEO_DASHBOARD_PATHS */
+export const HUB_OWNER_PATHS = CEO_DASHBOARD_PATHS;
+
+/** @deprecated use HUB_MANAGER_DASHBOARD_PATHS */
+export const HUB_MANAGER_PATHS = HUB_MANAGER_DASHBOARD_PATHS;
 
 export function isHubOwner(role) {
-  return role === ROLES.HUB_OWNER;
+  return isCeo(role);
 }
 
-export function isHubManager(role) {
-  return role === ROLES.HUB_MANAGER;
-}
+export { isHubManager, isCeo } from './roles.js';
 
 export function isHubStaff(role) {
-  return isHubOwner(role) || isHubManager(role);
+  return isCeo(role) || isHubManager(role);
 }
 
 export function normalizeDashboardPath(pathname) {
@@ -35,18 +46,18 @@ export function normalizeDashboardPath(pathname) {
 
 export function canAccessDashboardPath(role, pathname) {
   const path = normalizeDashboardPath(pathname);
-  if (isHubOwner(role)) return HUB_OWNER_PATHS.has(path);
-  if (isHubManager(role)) return HUB_MANAGER_PATHS.has(path);
+  if (isCeo(role)) return CEO_DASHBOARD_PATHS.has(path);
+  if (isHubManager(role)) return HUB_MANAGER_DASHBOARD_PATHS.has(path);
   return false;
 }
 
 export function defaultDashboardPath(role) {
   if (isHubManager(role)) return '/menus';
-  if (isHubOwner(role)) return '/';
+  if (isCeo(role)) return '/';
   return '/login';
 }
 
-/** Hub staff may pass ?venueId=; others use JWT venue claim. */
+/** CEO and hub manager may pass ?venueId= for multi-venue hub scope. */
 export function resolveHubVenueId(user, queryVenueId) {
   if (queryVenueId && isHubStaff(user?.role)) return queryVenueId;
   return user?.venue_id ?? user?.venueId ?? null;

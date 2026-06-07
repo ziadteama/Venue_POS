@@ -1062,31 +1062,31 @@ npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
 
 ---
 
-## Hub owner vs hub manager RBAC (2026-06-17)
+## Role model locked — 3 roles (2026-06-17)
 
-**What:** Split web dashboard into two roles — business (`hub_owner`) vs operations (`hub_manager`). Venue floor managers remain POS-only.
+**Product roles (canonical):**
 
-**Schema:** `UserRole` enum + migration `20260617120000_hub_owner_role`.
+| Role | Surface | Scope |
+|------|---------|-------|
+| Cashier | POS | Service + payments |
+| Hub manager | Dashboard | All venues — menus, staff, permissions, settings, activity, health |
+| CEO | Dashboard | Revenue — overview, analytics, cheques, orders, shifts/EOD, approvals |
 
-**Shared:** `packages/shared/src/hub-access.js` — path sets, `canAccessDashboardPath`, `defaultDashboardPath`, `resolveHubVenueId`.
+**Implementation notes (not extra product roles):**
+- CEO = DB `hub_owner`, seed `owner` / `owner123`
+- Hub manager = DB `hub_manager`, seed `admin` / `admin123`
+- Shift manager = DB `venue_manager` — hub manager creates in Staff; POS PIN only
+- Kitchen = `kitchen_staff` — KDS only, created in Staff
+- Dev `venue_mgr` / `7777` = seeded shift manager for POS tests
 
-**API (owner-only):** metrics, analytics, orders explorer, shifts/EOD, cheques (GET), approvals list.
-
-**API (manager-only):** menus, staff CRUD, venue config.
-
-**API (both):** audit log, health, venues list. Cheque void/comp POST stays `venue_manager` (POS).
-
-**Dashboard:** Role-filtered nav, `GuardedOutlet` path guards, login redirect, `/approvals` route.
-
-**Seed:** `owner` / `owner123` (`hub_owner`); `admin` remains `hub_manager`.
+**Code:** `packages/shared/src/roles.js` + `hub-access.js` — path guards, `isCeo`, staff role enums. Approvals CEO-only. Staff CRUD includes shift managers.
 
 **Verify:**
 ```bash
-npm run migrate
-npm run seed
-npm run test -w @venue-pos/api
-# owner → overview, analytics, cheques; no menus/users/settings
-# admin → menus, users, settings; no overview/orders/shifts
+npm run migrate && npm run seed
+# owner (CEO) → /, analytics, cheques, orders, shifts — no menus/users/settings
+# admin (hub manager) → /menus, users, settings, activity, health — no revenue pages
+# cashier1 → POS PIN only, no web login
 ```
 
 ---
@@ -1108,7 +1108,7 @@ npm run test -w @venue-pos/api
 - [ ] Include migration `apps/api/prisma/migrations/20260615120000_venue_config/`
 - [ ] `npm run migrate` on clean DB
 - [ ] `npm run test -w @venue-pos/api` + `npm run lint:i18n`
-- [ ] Smoke: hub admin (analytics, venue settings, approvals, shifts) + venue manager (orders, cheques request-refund)
+- [ ] Smoke: CEO (`owner` — analytics, cheques, shifts) + hub manager (`admin` — menus, staff, settings) + cashier on POS
 
 ---
 

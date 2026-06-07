@@ -12,7 +12,7 @@ import { menuLabel } from '../utils/menuLabel.js';
 export function MenuManagerPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
-  const isHub = user?.role === 'hub_manager'; // hub_manager only — owner has no menu access
+  const isHub = user?.role === 'hub_manager';
   const manager = useMenuManager({ canEdit: isHub, enabled: isHub });
   const fileInputRef = useRef(null);
   const dragFrom = useRef(null);

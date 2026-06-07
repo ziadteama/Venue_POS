@@ -1,19 +1,20 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { ROLES } from '@venue-pos/shared';
 import { useAuth } from '../hooks/useAuth.js';
 
 const NAV_ITEMS = [
-  { to: '/', end: true, labelKey: 'nav.overview', roles: ['hub_owner'] },
-  { to: '/analytics', labelKey: 'nav.analytics', roles: ['hub_owner'] },
-  { to: '/cheques', labelKey: 'nav.cheques', roles: ['hub_owner'] },
-  { to: '/shifts', labelKey: 'nav.shifts', roles: ['hub_owner'] },
-  { to: '/orders', labelKey: 'nav.orders', roles: ['hub_owner'] },
-  { to: '/approvals', labelKey: 'nav.approvals', roles: ['hub_owner'] },
-  { to: '/menus', labelKey: 'nav.menus', roles: ['hub_manager'] },
-  { to: '/users', labelKey: 'nav.users', roles: ['hub_manager'] },
-  { to: '/settings', labelKey: 'nav.settings', roles: ['hub_manager'] },
-  { to: '/activity', labelKey: 'nav.activity', roles: ['hub_owner', 'hub_manager'] },
-  { to: '/health', labelKey: 'nav.health', roles: ['hub_owner', 'hub_manager'] },
+  { to: '/', end: true, labelKey: 'nav.overview', roles: [ROLES.HUB_OWNER] },
+  { to: '/analytics', labelKey: 'nav.analytics', roles: [ROLES.HUB_OWNER] },
+  { to: '/cheques', labelKey: 'nav.cheques', roles: [ROLES.HUB_OWNER] },
+  { to: '/shifts', labelKey: 'nav.shifts', roles: [ROLES.HUB_OWNER] },
+  { to: '/orders', labelKey: 'nav.orders', roles: [ROLES.HUB_OWNER] },
+  { to: '/approvals', labelKey: 'nav.approvals', roles: [ROLES.HUB_OWNER] },
+  { to: '/menus', labelKey: 'nav.menus', roles: [ROLES.HUB_MANAGER] },
+  { to: '/users', labelKey: 'nav.users', roles: [ROLES.HUB_MANAGER] },
+  { to: '/settings', labelKey: 'nav.settings', roles: [ROLES.HUB_MANAGER] },
+  { to: '/activity', labelKey: 'nav.activity', roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
+  { to: '/health', labelKey: 'nav.health', roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
 ];
 
 function linkClass({ isActive }) {

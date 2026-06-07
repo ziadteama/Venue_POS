@@ -18,14 +18,14 @@ const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
 const createSchema = z.object({
   username: z.string().min(1).max(100),
-  role: z.enum(['cashier', 'kitchen_staff']),
+  role: z.enum(['cashier', 'kitchen_staff', 'venue_manager']),
   pin: z.string().min(4).max(6),
   cardUid: z.string().max(100).optional(),
 });
 
 const updateSchema = z.object({
   username: z.string().min(1).max(100).optional(),
-  role: z.enum(['cashier', 'kitchen_staff']).optional(),
+  role: z.enum(['cashier', 'kitchen_staff', 'venue_manager']).optional(),
   cardUid: z.string().max(100).nullable().optional(),
 });
 

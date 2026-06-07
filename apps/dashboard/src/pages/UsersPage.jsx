@@ -232,6 +232,7 @@ export function UsersPage() {
                 onChange={(e) => setForm({ ...form, role: e.target.value })}
               >
                 <option value="cashier">{t('users.role.cashier')}</option>
+                <option value="venue_manager">{t('users.role.venue_manager')}</option>
                 <option value="kitchen_staff">{t('users.role.kitchen_staff')}</option>
               </select>
             </label>

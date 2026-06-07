@@ -97,6 +97,7 @@ export async function loginCashier(pin, terminalId, terminalSecret) {
   };
 }
 
+/** POS manager PIN — shift managers (venue) + hub policy PIN (rare on terminal). */
 const MANAGER_ROLES = ['hub_manager', 'venue_manager'];
 
 export async function verifyManagerPin(venueId, pin) {
@@ -126,7 +127,7 @@ export async function verifyManagerPinByRole(venueId, pin, role) {
   throw unauthorized(`Invalid ${role.replace('_', ' ')} PIN`);
 }
 
-/** Restaurant manager initiates; general manager (hub) approves. */
+/** Shift manager initiates on POS; hub manager co-signs (dual control). */
 export async function verifyDualManagerApproval(
   venueId,
   { restaurantManagerPin, generalManagerPin },

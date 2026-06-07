@@ -24,10 +24,7 @@ const forceRefundSchema = z.object({
 });
 
 function resolveVenueFilter(request) {
-  const queryVenue = request.query?.venueId;
-  if (!queryVenue) return undefined;
-  if (request.user.role === ROLES.HUB_MANAGER) return queryVenue;
-  return queryVenue;
+  return request.query?.venueId || undefined;
 }
 
 export async function managerApprovalsRoutes(app) {
