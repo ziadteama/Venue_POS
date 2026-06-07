@@ -26,7 +26,7 @@ export function ChequesPageHeader({
             </button>
           ))}
         </div>
-        {user?.role === 'hub_manager' && venues.length > 1 && (
+        {user?.role === 'hub_manager' && venues.length >= 1 && (
           <select
             className="rounded border px-3 py-2 text-sm"
             value={venueId}

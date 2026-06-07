@@ -4,6 +4,12 @@ import { requireRoles } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
 import { emitManagerAction, emitOrderVoided } from '../plugins/socket.js';
 import {
+  applyChequeDiscount,
+  applyChequeRefund,
+  changeChequeDiscount,
+  removeAppliedChequeDiscount,
+} from '../services/manager-action-service.js';
+import {
   listOpenCheques,
   listChequesForVenue,
   getCheque,
@@ -16,15 +22,43 @@ import {
 } from '../services/cheque-service.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
-const venueManagerPreHandler = requireRoles(ROLES.VENUE_MANAGER);
+const chequeActionPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.VENUE_MANAGER);
 
-const managerActionSchema = z.object({
-  managerPin: z.string().min(4).max(6),
+const hubActionSchema = z.object({
+  managerPin: z.string().min(4).max(6).optional(),
+  reason: z.string().min(1).max(500),
+});
+
+const discountSchema = z.object({
+  amount: z.number().positive().optional(),
+  percent: z.number().positive().max(100).optional(),
+  reason: z.string().min(1).max(500),
+});
+
+const removeDiscountSchema = z.object({
+  reason: z.string().min(1).max(500),
+});
+
+const refundSchema = z.object({
+  amount: z.number().positive(),
+  method: z.enum(['cash', 'card', 'voucher']).optional(),
   reason: z.string().min(1).max(500),
 });
 
 function resolveVenueId(request) {
+  if (request.user.role === ROLES.VENUE_MANAGER) {
+    return request.user.venue_id;
+  }
   return request.query?.venueId || request.user.venue_id;
+}
+
+function hubActor(request, body) {
+  const actor = { ...body };
+  if (request.user.role === ROLES.HUB_MANAGER) {
+    actor.initiatorId = request.user.sub;
+    actor.cashierId = request.user.sub;
+  }
+  return actor;
 }
 
 export async function managerChequeRoutes(app) {
@@ -67,15 +101,19 @@ export async function managerChequeRoutes(app) {
 
   app.post(
     '/api/v1/manager/cheques/:id/void',
-    { preHandler: venueManagerPreHandler },
+    { preHandler: chequeActionPreHandler },
     async (request) => {
-      const parsed = managerActionSchema.safeParse(request.body);
+      const parsed = hubActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
 
-      const result = await voidOpenCheque(request.params.id, parsed.data, venueId);
+      const result = await voidOpenCheque(
+        request.params.id,
+        hubActor(request, parsed.data),
+        venueId,
+      );
       if (request.server.io) {
         for (const orderId of result.voidedOrderIds) {
           emitOrderVoided(request.server.io, {
@@ -100,9 +138,9 @@ export async function managerChequeRoutes(app) {
 
   app.post(
     '/api/v1/manager/cheques/:id/orders/:orderId/void',
-    { preHandler: venueManagerPreHandler },
+    { preHandler: chequeActionPreHandler },
     async (request) => {
-      const parsed = managerActionSchema.safeParse(request.body);
+      const parsed = hubActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = resolveVenueId(request);
@@ -111,7 +149,7 @@ export async function managerChequeRoutes(app) {
       const result = await voidChequeRound(
         request.params.id,
         request.params.orderId,
-        parsed.data,
+        hubActor(request, parsed.data),
         venueId,
       );
       if (request.server.io && result.voidedOrderId) {
@@ -136,9 +174,9 @@ export async function managerChequeRoutes(app) {
 
   app.post(
     '/api/v1/manager/cheques/:id/orders/:orderId/items/:itemId/comp',
-    { preHandler: venueManagerPreHandler },
+    { preHandler: chequeActionPreHandler },
     async (request) => {
-      const parsed = managerActionSchema.safeParse(request.body);
+      const parsed = hubActionSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = resolveVenueId(request);
@@ -148,7 +186,7 @@ export async function managerChequeRoutes(app) {
         request.params.id,
         request.params.orderId,
         request.params.itemId,
-        parsed.data,
+        hubActor(request, parsed.data),
         venueId,
       );
       if (request.server.io) {
@@ -160,6 +198,120 @@ export async function managerChequeRoutes(app) {
         });
       }
       return cheque;
+    },
+  );
+
+  app.post(
+    '/api/v1/manager/cheques/:id/discount',
+    { preHandler: chequeActionPreHandler },
+    async (request) => {
+      const parsed = discountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      if (!parsed.data.amount && !parsed.data.percent) {
+        throw validationError('amount or percent required');
+      }
+
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+
+      const cheque = await applyChequeDiscount(
+        request.params.id,
+        hubActor(request, parsed.data),
+        venueId,
+      );
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'discount',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.patch(
+    '/api/v1/manager/cheques/:id/discount',
+    { preHandler: chequeActionPreHandler },
+    async (request) => {
+      const parsed = discountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      if (!parsed.data.amount && !parsed.data.percent) {
+        throw validationError('amount or percent required');
+      }
+
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+
+      const cheque = await changeChequeDiscount(
+        request.params.id,
+        hubActor(request, parsed.data),
+        venueId,
+      );
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'discount_change',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.post(
+    '/api/v1/manager/cheques/:id/discount/remove',
+    { preHandler: chequeActionPreHandler },
+    async (request) => {
+      const parsed = removeDiscountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+
+      const cheque = await removeAppliedChequeDiscount(
+        request.params.id,
+        hubActor(request, parsed.data),
+        venueId,
+      );
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'discount_remove',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.post(
+    '/api/v1/manager/cheques/:id/refund',
+    { preHandler: chequeActionPreHandler },
+    async (request) => {
+      const parsed = refundSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = resolveVenueId(request);
+      if (!venueId) throw validationError('Venue is required');
+
+      const result = await applyChequeRefund(
+        request.params.id,
+        hubActor(request, parsed.data),
+        venueId,
+      );
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'refund',
+          chequeId: request.params.id,
+          result,
+        });
+      }
+      return result;
     },
   );
 

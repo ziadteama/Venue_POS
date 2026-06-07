@@ -18,7 +18,7 @@ export function RefundRequestModal({
       reasonLabel={t('cheque.refundReason')}
       confirmLabel={t('cheque.processRefund')}
       confirmClass="bg-red-600 hover:bg-red-700"
-      subtitle={t('cheque.venueManagerAction')}
+      subtitle={t('cheque.forceRefundHint')}
       t={t}
       onCancel={onCancel}
       onConfirm={({ reason }) =>
