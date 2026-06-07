@@ -19,6 +19,7 @@
 | Doc | Purpose |
 |-----|---------|
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local dev guide (includes repo structure) |
+| [DEV_CREDENTIALS.md](DEV_CREDENTIALS.md) | **Dev logins, PINs, terminal secrets — where to use each** |
 | [TEAM_LOG.md](TEAM_LOG.md) | Chronological build log — update every merge |
 | [../apps/api/prisma/schema.prisma](../apps/api/prisma/schema.prisma) | Database schema (source of truth) |
 
