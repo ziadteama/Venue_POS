@@ -1,8 +1,19 @@
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { DashboardNav } from './DashboardNav.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { useAuth } from '../hooks/useAuth.js';
+
+const HUB_MANAGER_ROUTES = new Set(['/', '/analytics', '/cheques']);
+
+function GuardedOutlet() {
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  if (user?.role === 'hub_manager' && !HUB_MANAGER_ROUTES.has(pathname)) {
+    return <Navigate to="/" replace />;
+  }
+  return <Outlet />;
+}
 
 export function Layout() {
   const { t } = useTranslation();
@@ -40,7 +51,7 @@ export function Layout() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
-        <Outlet />
+        <GuardedOutlet />
       </main>
     </div>
   );

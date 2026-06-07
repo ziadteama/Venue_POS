@@ -17,7 +17,6 @@ import {
   computeChequeSubtotal,
   ordersFromCheque,
 } from './cheque-shared.js';
-import { getPendingRefundForCheque } from './approval-request-service.js';
 
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
@@ -109,8 +108,7 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
 export async function getCheque(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
-  const pendingRefundRequest = await getPendingRefundForCheque(chequeId, venueId);
-  return { ...serializeCheque(cheque), pendingRefundRequest };
+  return serializeCheque(cheque);
 }
 
 export async function fireChequeRound(chequeId, venueId) {

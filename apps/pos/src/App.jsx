@@ -200,7 +200,7 @@ export default function App() {
     if (ok) {
       setShowRefundModal(false);
       setRefundCheque(null);
-      setError(t('pos.refundRequested'));
+      setError('');
     }
   }
 

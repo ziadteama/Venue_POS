@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
-import { TableLayoutEditor } from '../components/venue/TableLayoutEditor.jsx';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
 
@@ -13,12 +12,13 @@ function emptyForm() {
     type: 'standard',
     taxRate: '0',
     taxInclusive: false,
+    serviceRate: '0',
+    serviceEnabled: false,
     receiptTemplate: 'standard',
     kitchenPrinterHost: '',
     kitchenPrinterPort: '9100',
     receiptPrinterHost: '',
     receiptPrinterPort: '9100',
-    tables: [],
   };
 }
 
@@ -46,12 +46,13 @@ export function VenueSettingsPage() {
         type: config.type,
         taxRate: String((config.taxRate ?? 0) * 100),
         taxInclusive: config.taxInclusive,
+        serviceRate: String((config.serviceRate ?? 0) * 100),
+        serviceEnabled: config.serviceEnabled ?? false,
         receiptTemplate: config.receiptTemplate,
         kitchenPrinterHost: config.kitchenPrinterHost ?? '',
         kitchenPrinterPort: String(config.kitchenPrinterPort ?? 9100),
         receiptPrinterHost: config.receiptPrinterHost ?? '',
         receiptPrinterPort: String(config.receiptPrinterPort ?? 9100),
-        tables: config.tableLayout?.tables ?? [],
       });
       try {
         const auditList = await apiFetch(`/api/v1/manager/venues/${id}/config/audits`);
@@ -87,6 +88,7 @@ export function VenueSettingsPage() {
     setSuccess('');
     try {
       const taxPercent = Number(form.taxRate);
+      const servicePercent = Number(form.serviceRate);
       const result = await apiFetch(`/api/v1/manager/venues/${venueId}/config`, {
         method: 'PATCH',
         body: JSON.stringify({
@@ -95,12 +97,13 @@ export function VenueSettingsPage() {
           type: form.type,
           taxRate: taxPercent / 100,
           taxInclusive: form.taxInclusive,
+          serviceRate: servicePercent / 100,
+          serviceEnabled: form.serviceEnabled,
           receiptTemplate: form.receiptTemplate,
           kitchenPrinterHost: form.kitchenPrinterHost.trim() || null,
           kitchenPrinterPort: Number(form.kitchenPrinterPort),
           receiptPrinterHost: form.receiptPrinterHost.trim() || null,
           receiptPrinterPort: Number(form.receiptPrinterPort),
-          tableLayout: { tables: form.tables },
         }),
       });
       setSuccess(t('venueConfig.saved', { count: result.changes?.length ?? 0 }));
@@ -197,7 +200,7 @@ export function VenueSettingsPage() {
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">{t('venueConfig.tax')}</h3>
+            <h3 className="mb-4 text-lg font-semibold">{t('venueConfig.taxAndService')}</h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="text-sm">
                 <span className="mb-1 block text-secondary">{t('venueConfig.taxRate')}</span>
@@ -211,13 +214,34 @@ export function VenueSettingsPage() {
                   onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
                 />
               </label>
-              <label className="flex items-center gap-2 pt-6 text-sm">
+              <label className="text-sm">
+                <span className="mb-1 block text-secondary">{t('venueConfig.serviceRate')}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className="w-full rounded border px-3 py-2"
+                  value={form.serviceRate}
+                  disabled={!form.serviceEnabled}
+                  onChange={(e) => setForm((f) => ({ ...f, serviceRate: e.target.value }))}
+                />
+              </label>
+              <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={form.taxInclusive}
                   onChange={(e) => setForm((f) => ({ ...f, taxInclusive: e.target.checked }))}
                 />
                 {t('venueConfig.taxInclusive')}
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.serviceEnabled}
+                  onChange={(e) => setForm((f) => ({ ...f, serviceEnabled: e.target.checked }))}
+                />
+                {t('venueConfig.serviceEnabled')}
               </label>
             </div>
           </section>
@@ -267,15 +291,6 @@ export function VenueSettingsPage() {
                 </select>
               </label>
             </div>
-          </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">{t('venueConfig.tableLayout')}</h3>
-            <TableLayoutEditor
-              tables={form.tables}
-              onChange={(tables) => setForm((f) => ({ ...f, tables }))}
-              t={t}
-            />
           </section>
 
           <div className="flex justify-end">

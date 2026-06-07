@@ -7,8 +7,7 @@ import {
   listDiscountAudits,
   resolveDiscountAmount,
 } from './cheque-discount.js';
-import { listRefundAudits } from './cheque-refund.js';
-import { createRefundRequest, forceHubRefund } from './approval-request-service.js';
+import { assertRefundAllowed, executeRefund, listRefundAudits } from './cheque-refund.js';
 import { listTransferAudits } from './cheque-transfer.js';
 import { loadCheque } from './cheque-shared.js';
 
@@ -53,42 +52,32 @@ export async function applyChequeDiscount(
   );
 }
 
-export async function requestChequeRefund(
+export async function applyChequeRefund(
   chequeId,
   { amount, method, reason, restaurantManagerPin, cashierId, initiatorId },
   venueId,
   { terminalId } = {},
 ) {
-  return createRefundRequest(
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  assertRefundAllowed(cheque, { amount, method });
+  if (!reason?.trim()) throw validationError('Refund reason is required');
+
+  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+
+  return executeRefund(
     chequeId,
     {
       amount,
       method,
       reason,
-      restaurantManagerPin,
-      cashierId,
-      initiatorId,
+      initiatorId: manager.id,
+      approverId: manager.id,
+      cashierId: cashierId ?? cheque.cashierId,
       terminalId,
     },
     venueId,
   );
-}
-
-export async function forceChequeRefund(
-  chequeId,
-  { amount, method, reason, approverId, managerPin, cashierId },
-  venueId,
-) {
-  return forceHubRefund(
-    chequeId,
-    { amount, method, reason, approverId, managerPin, cashierId },
-    venueId,
-  );
-}
-
-/** @deprecated use requestChequeRefund */
-export async function applyChequeRefund(chequeId, body, venueId, options = {}) {
-  return requestChequeRefund(chequeId, body, venueId, options);
 }
 
 export async function listCompAudits(venueId, { limit = 50 } = {}) {

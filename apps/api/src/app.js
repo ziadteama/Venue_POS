@@ -17,7 +17,6 @@ import { managerMetricsRoutes } from './routes/manager-metrics.js';
 import { managerAnalyticsRoutes } from './routes/manager-analytics.js';
 import { managerOrderRoutes } from './routes/manager-orders.js';
 import { managerShiftsRoutes } from './routes/manager-shifts.js';
-import { managerApprovalsRoutes } from './routes/manager-approvals.js';
 import { managerVenueConfigRoutes } from './routes/manager-venue-config.js';
 
 export async function buildApp() {
@@ -50,7 +49,6 @@ export async function buildApp() {
   await app.register(managerAnalyticsRoutes);
   await app.register(managerOrderRoutes);
   await app.register(managerShiftsRoutes);
-  await app.register(managerApprovalsRoutes);
   await app.register(managerVenueConfigRoutes);
 
   return app;

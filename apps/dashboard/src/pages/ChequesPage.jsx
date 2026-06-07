@@ -59,7 +59,6 @@ export function ChequesPage() {
             onAction={manager.setActionTarget}
             onDiscountRequest={manager.openDiscountRequest}
             onRefundRequest={manager.openRefundRequest}
-            onForceRefund={manager.openForceRefund}
           />
         </section>
       </div>

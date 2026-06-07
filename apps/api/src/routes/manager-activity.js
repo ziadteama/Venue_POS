@@ -5,7 +5,7 @@ import { validationError } from '../utils/errors.js';
 import { emitManagerAction } from '../plugins/socket.js';
 import {
   applyChequeDiscount,
-  requestChequeRefund,
+  applyChequeRefund,
   listManagerActivity,
 } from '../services/manager-action-service.js';
 
@@ -88,7 +88,7 @@ export async function managerActivityRoutes(app) {
       const venueId = request.user.venue_id;
       if (!venueId) throw validationError('Venue is required');
 
-      const result = await requestChequeRefund(
+      const result = await applyChequeRefund(
         request.params.id,
         {
           ...parsed.data,
@@ -101,7 +101,7 @@ export async function managerActivityRoutes(app) {
       if (request.server.io) {
         emitManagerAction(request.server.io, {
           venueId,
-          type: 'refund_request',
+          type: 'refund',
           chequeId: request.params.id,
           result,
         });

@@ -179,11 +179,8 @@ function ChequeDetailActions({
   t,
   onDiscountRequest,
   onRefundRequest,
-  onForceRefund,
   onVoidCheque,
 }) {
-  const hasPendingRefund = detail.pendingRefundRequest?.status === 'pending';
-
   return (
     <div className="flex flex-wrap gap-2">
       {user?.role === 'venue_manager' && isOpenTab && detail.total > 0 && (
@@ -197,34 +194,13 @@ function ChequeDetailActions({
         </button>
       )}
       {user?.role === 'venue_manager' && !isOpenTab && detail.status === 'paid' && (
-        <>
-          {hasPendingRefund ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">
-              {t('cheque.refundPending', {
-                amount: detail.pendingRefundRequest.payload?.amount,
-                method: detail.pendingRefundRequest.payload?.method,
-              })}
-            </p>
-          ) : (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onRefundRequest(detail)}
-              className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-            >
-              {t('cheque.requestRefund')}
-            </button>
-          )}
-        </>
-      )}
-      {user?.role === 'hub_manager' && detail.status === 'paid' && (
         <button
           type="button"
           disabled={busy}
-          onClick={() => onForceRefund(detail)}
-          className="rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+          onClick={() => onRefundRequest(detail)}
+          className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
         >
-          {t('cheque.forceRefund')}
+          {t('cheque.processRefund')}
         </button>
       )}
       {user?.role === 'venue_manager' && isOpenTab && (
@@ -257,7 +233,6 @@ export function ChequeDetailView({
   onAction,
   onDiscountRequest,
   onRefundRequest,
-  onForceRefund,
 }) {
   if (!detail) {
     return <p className="text-secondary">{t('cheque.selectCheque')}</p>;
@@ -298,7 +273,6 @@ export function ChequeDetailView({
         t={t}
         onDiscountRequest={onDiscountRequest}
         onRefundRequest={onRefundRequest}
-        onForceRefund={onForceRefund}
         onVoidCheque={onAction}
       />
     </>

@@ -16,7 +16,7 @@ import {
   listChequesForVenue,
   closeEmptyCheque,
 } from '../services/cheque-service.js';
-import { applyChequeDiscount, requestChequeRefund } from '../services/manager-action-service.js';
+import { applyChequeDiscount, applyChequeRefund } from '../services/manager-action-service.js';
 import { emitManagerAction } from '../plugins/socket.js';
 
 const splitAmountSchema = z.object({
@@ -250,14 +250,14 @@ export async function chequeRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = request.terminal.venueId;
-      const result = await requestChequeRefund(request.params.id, parsed.data, venueId, {
+      const result = await applyChequeRefund(request.params.id, parsed.data, venueId, {
         terminalId: request.terminal.id,
       });
       if (request.server.io) {
         emitManagerAction(request.server.io, {
           venueId,
           terminalId: request.terminal.id,
-          type: 'refund_request',
+          type: 'refund',
           chequeId: request.params.id,
           result,
         });

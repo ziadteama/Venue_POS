@@ -9,8 +9,6 @@ export function managerActionPath(target) {
       return `/api/v1/manager/cheques/${target.chequeId}/discount`;
     case 'refund':
       return `/api/v1/manager/cheques/${target.chequeId}/refund`;
-    case 'forceRefund':
-      return `/api/v1/manager/cheques/${target.chequeId}/refund/force`;
     case 'comp':
       return `/api/v1/manager/cheques/${target.chequeId}/orders/${target.orderId}/items/${target.itemId}/comp`;
     default:
