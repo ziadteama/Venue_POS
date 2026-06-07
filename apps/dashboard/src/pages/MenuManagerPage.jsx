@@ -1,288 +1,374 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiFetch } from '../api/client.js';
-
-function label(item, lang) {
-  return lang === 'ar' ? item.nameAr : item.nameEn;
-}
+import { useAuth } from '../hooks/useAuth.js';
+import { useMenuManager } from '../hooks/useMenuManager.js';
+import { BilingualField } from '../components/menu/BilingualField.jsx';
+import { CategorySection, ItemEditorModal } from '../components/menu/MenuEditor.jsx';
+import { PublishConfirmModal } from '../components/menu/PublishConfirmModal.jsx';
+import { MenuPreviewModal } from '../components/menu/MenuPreviewModal.jsx';
+import { AutoTranslateModal } from '../components/menu/AutoTranslateModal.jsx';
+import { menuLabel } from '../utils/menuLabel.js';
+import { isMissingTranslation } from '../utils/menuTranslations.js';
 
 export function MenuManagerPage() {
   const { t, i18n } = useTranslation();
-  const [templates, setTemplates] = useState([]);
-  const [venues, setVenues] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
-  const [detail, setDetail] = useState(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const { user } = useAuth();
+  const canEdit = user?.role === 'hub_manager';
+  const manager = useMenuManager({ canEdit });
+  const fileInputRef = useRef(null);
+  const dragFrom = useRef(null);
+  const [localError, setLocalError] = useState('');
 
   const [newTemplate, setNewTemplate] = useState({ nameEn: '', nameAr: '', venueIds: [] });
+  const [templateForm, setTemplateForm] = useState(null);
   const [newCategory, setNewCategory] = useState({ nameEn: '', nameAr: '' });
-  const [newItem, setNewItem] = useState({
-    categoryId: '',
-    nameEn: '',
-    nameAr: '',
-    price: '',
-  });
-
-  const load = useCallback(async () => {
-    setError('');
-    const [list, venueList] = await Promise.all([
-      apiFetch('/api/v1/menu-templates'),
-      apiFetch('/api/v1/venues'),
-    ]);
-    setTemplates(list);
-    setVenues(venueList);
-    if (!selectedId && list[0]) setSelectedId(list[0].id);
-  }, [selectedId]);
-
-  const loadDetail = useCallback(async (id) => {
-    if (!id) return;
-    setDetail(await apiFetch(`/api/v1/menu-templates/${id}`));
-  }, []);
+  const [addingItemCategoryId, setAddingItemCategoryId] = useState(null);
 
   useEffect(() => {
-    load().catch((e) => setError(e.message));
-  }, [load]);
+    if (!manager.detail) {
+      setTemplateForm(null);
+      return;
+    }
+    setTemplateForm({
+      nameEn: manager.detail.nameEn ?? '',
+      nameAr: manager.detail.nameAr ?? '',
+      venueIds: manager.detail.venueIds ?? [],
+    });
+  }, [manager.detail]);
 
-  useEffect(() => {
-    if (selectedId) loadDetail(selectedId).catch((e) => setError(e.message));
-  }, [selectedId, loadDetail]);
+  function handleDragStart(index) {
+    dragFrom.current = index;
+  }
 
-  async function run(action) {
-    setBusy(true);
-    setError('');
-    try {
-      await action();
-      await load();
-      if (selectedId) await loadDetail(selectedId);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
+  function handleDrop(index) {
+    if (dragFrom.current == null || dragFrom.current === index || !manager.detail?.categories) {
+      dragFrom.current = null;
+      return;
+    }
+    const categories = [...manager.detail.categories];
+    const [moved] = categories.splice(dragFrom.current, 1);
+    categories.splice(index, 0, moved);
+    dragFrom.current = null;
+    manager.reorderCategories(categories.map((c) => c.id));
+  }
+
+  async function handleImportFile(file) {
+    const csv = await file.text();
+    await manager.importCsv(csv);
+  }
+
+  async function handleSaveItem(payload) {
+    if (manager.editingItem?.id) {
+      await manager.updateItem(manager.editingItem.id, payload);
+    } else {
+      await manager.addItem(payload.categoryId, payload);
+      setAddingItemCategoryId(null);
     }
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">{t('menu.title')}</h2>
-        <span className="text-sm text-secondary">{t('menu.readOnlyPosNote')}</span>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">{t('menu.title')}</h2>
+          <p className="mt-1 text-sm text-secondary">{t('menu.readOnlyPosNote')}</p>
+        </div>
+        {manager.detail && manager.missingCount > 0 ? (
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-900">
+            {t('menu.missingTranslationsCount', { count: manager.missingCount })}
+          </span>
+        ) : null}
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
-          {error}
+      {!canEdit ? (
+        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-secondary">
+          {t('menu.hubManagerOnly')}
         </div>
-      )}
+      ) : null}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 className="mb-3 font-medium">{t('menu.createTemplate')}</h3>
-        <div className="grid gap-3 md:grid-cols-4">
-          <input
-            className="rounded border px-3 py-2"
-            placeholder={t('menu.nameEn')}
-            value={newTemplate.nameEn}
-            onChange={(e) => setNewTemplate({ ...newTemplate, nameEn: e.target.value })}
-          />
-          <input
-            className="rounded border px-3 py-2"
-            placeholder={t('menu.nameAr')}
-            value={newTemplate.nameAr}
-            onChange={(e) => setNewTemplate({ ...newTemplate, nameAr: e.target.value })}
-          />
-          <select
-            className="rounded border px-3 py-2"
-            value={newTemplate.venueIds[0] ?? ''}
-            onChange={(e) =>
-              setNewTemplate({ ...newTemplate, venueIds: e.target.value ? [e.target.value] : [] })
-            }
-          >
-            <option value="">{t('menu.selectVenue')}</option>
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {label(v, i18n.language)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={busy}
-            className="rounded-lg bg-primary-gradient px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
-            onClick={() =>
-              run(async () => {
-                const created = await apiFetch('/api/v1/menu-templates', {
-                  method: 'POST',
-                  body: JSON.stringify(newTemplate),
-                });
-                setSelectedId(created.id);
-                setNewTemplate({ nameEn: '', nameAr: '', venueIds: [] });
-              })
-            }
-          >
-            {t('common.save')}
-          </button>
+      {manager.error || localError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          {manager.error || localError}
         </div>
-      </section>
+      ) : null}
+
+      {canEdit ? (
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h3 className="mb-3 font-medium">{t('menu.createTemplate')}</h3>
+          <BilingualField
+            labelEn={t('menu.nameEn')}
+            labelAr={t('menu.nameAr')}
+            nameEn={newTemplate.nameEn}
+            nameAr={newTemplate.nameAr}
+            missingLabel={t('menu.missingTranslation')}
+            onNameEnChange={(v) => setNewTemplate({ ...newTemplate, nameEn: v })}
+            onNameArChange={(v) => setNewTemplate({ ...newTemplate, nameAr: v })}
+          />
+          <div className="mt-3 flex flex-wrap gap-3">
+            <select
+              className="min-w-[12rem] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={newTemplate.venueIds[0] ?? ''}
+              onChange={(e) =>
+                setNewTemplate({
+                  ...newTemplate,
+                  venueIds: e.target.value ? [e.target.value] : [],
+                })
+              }
+            >
+              <option value="">{t('menu.selectVenue')}</option>
+              {manager.venues.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {menuLabel(v, i18n.language)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={manager.busy || !newTemplate.nameEn.trim()}
+              className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              onClick={() =>
+                manager.createTemplate(newTemplate).then(() => {
+                  setNewTemplate({ nameEn: '', nameAr: '', venueIds: [] });
+                })
+              }
+            >
+              {t('common.save')}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
         <aside className="rounded-xl border border-slate-200 bg-white p-3">
           <h3 className="mb-2 font-medium">{t('menu.templates')}</h3>
           <ul className="space-y-1">
-            {templates.map((tmpl) => (
+            {manager.templates.map((tmpl) => (
               <li key={tmpl.id}>
                 <button
                   type="button"
-                  onClick={() => setSelectedId(tmpl.id)}
+                  onClick={() => {
+                    manager.setSelectedId(tmpl.id);
+                    setTemplateForm(null);
+                  }}
                   className={`w-full rounded-lg px-3 py-2 text-start text-sm ${
-                    selectedId === tmpl.id ? 'bg-slate-100 font-semibold' : 'hover:bg-slate-50'
+                    manager.selectedId === tmpl.id
+                      ? 'bg-slate-100 font-semibold'
+                      : 'hover:bg-slate-50'
                   }`}
                 >
-                  {label(tmpl, i18n.language)}
-                  <span className="ms-2 text-xs text-secondary">({tmpl.status})</span>
+                  {menuLabel(tmpl, i18n.language)}
+                  <span className="ms-2 text-xs text-secondary">
+                    ({tmpl.status === 'published' ? t('menu.statusPublished') : t('menu.statusDraft')})
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
         </aside>
 
-        {detail && (
+        {manager.detail && templateForm ? (
           <div className="space-y-4">
+            {canEdit ? (
+              <section className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="mb-3 font-medium">{t('menu.templateSettings')}</h3>
+                <BilingualField
+                  labelEn={t('menu.nameEn')}
+                  labelAr={t('menu.nameAr')}
+                  nameEn={templateForm.nameEn}
+                  nameAr={templateForm.nameAr}
+                  missingLabel={t('menu.missingTranslation')}
+                  onNameEnChange={(v) => setTemplateForm({ ...templateForm, nameEn: v })}
+                  onNameArChange={(v) => setTemplateForm({ ...templateForm, nameAr: v })}
+                />
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <select
+                    className="min-w-[12rem] rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    value={templateForm.venueIds[0] ?? ''}
+                    onChange={(e) =>
+                      setTemplateForm({
+                        ...templateForm,
+                        venueIds: e.target.value ? [e.target.value] : [],
+                      })
+                    }
+                  >
+                    <option value="">{t('menu.selectVenue')}</option>
+                    {manager.venues.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {menuLabel(v, i18n.language)}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={manager.busy}
+                    className="rounded-lg border px-4 py-2 text-sm"
+                    onClick={() => manager.updateTemplate(templateForm)}
+                  >
+                    {t('menu.saveTemplate')}
+                  </button>
+                </div>
+              </section>
+            ) : null}
+
             <div className="flex flex-wrap gap-2">
+              {canEdit ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={manager.busy}
+                    className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                    onClick={() => manager.setShowPublishConfirm(true)}
+                  >
+                    {t('menu.publish')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={manager.busy}
+                    className="rounded-lg border px-4 py-2 text-sm"
+                    onClick={() => manager.loadSuggestions()}
+                  >
+                    {t('menu.autoTranslate')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={manager.busy}
+                    className="rounded-lg border px-4 py-2 text-sm"
+                    onClick={() => manager.exportCsv().catch((e) => setLocalError(e.message))}
+                  >
+                    {t('menu.exportCsv')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={manager.busy}
+                    className="rounded-lg border px-4 py-2 text-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {t('menu.importCsv')}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImportFile(file).catch(() => {});
+                      e.target.value = '';
+                    }}
+                  />
+                </>
+              ) : null}
               <button
                 type="button"
-                disabled={busy || detail.status === 'published'}
-                className="rounded-lg bg-primary-gradient px-4 py-2 text-white hover:opacity-90 disabled:opacity-50"
-                onClick={() =>
-                  run(() =>
-                    apiFetch(`/api/v1/menu-templates/${detail.id}/publish`, { method: 'POST' }),
-                  )
-                }
+                className="rounded-lg border px-4 py-2 text-sm"
+                onClick={() => manager.setShowPreview(true)}
               >
-                {t('menu.publish')}
+                {t('menu.preview')}
               </button>
             </div>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="mb-3 font-medium">{t('menu.addCategory')}</h3>
-              <div className="grid gap-3 md:grid-cols-3">
-                <input
-                  className="rounded border px-3 py-2"
-                  placeholder={t('menu.nameEn')}
-                  value={newCategory.nameEn}
-                  onChange={(e) => setNewCategory({ ...newCategory, nameEn: e.target.value })}
-                />
-                <input
-                  className="rounded border px-3 py-2"
-                  placeholder={t('menu.nameAr')}
-                  value={newCategory.nameAr}
-                  onChange={(e) => setNewCategory({ ...newCategory, nameAr: e.target.value })}
+            {canEdit ? (
+              <section className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="mb-3 font-medium">{t('menu.addCategory')}</h3>
+                <BilingualField
+                  labelEn={t('menu.nameEn')}
+                  labelAr={t('menu.nameAr')}
+                  nameEn={newCategory.nameEn}
+                  nameAr={newCategory.nameAr}
+                  missingLabel={t('menu.missingTranslation')}
+                  onNameEnChange={(v) => setNewCategory({ ...newCategory, nameEn: v })}
+                  onNameArChange={(v) => setNewCategory({ ...newCategory, nameAr: v })}
                 />
                 <button
                   type="button"
-                  disabled={busy}
-                  className="rounded-lg border px-4 py-2 disabled:opacity-50"
+                  disabled={manager.busy || !newCategory.nameEn.trim()}
+                  className="mt-3 rounded-lg border px-4 py-2 text-sm disabled:opacity-50"
                   onClick={() =>
-                    run(async () => {
-                      await apiFetch(`/api/v1/menu-templates/${detail.id}/categories`, {
-                        method: 'POST',
-                        body: JSON.stringify(newCategory),
-                      });
-                      setNewCategory({ nameEn: '', nameAr: '' });
-                    })
+                    manager.addCategory(newCategory).then(() => setNewCategory({ nameEn: '', nameAr: '' }))
                   }
                 >
                   {t('menu.addCategory')}
                 </button>
-              </div>
-            </section>
-
-            {detail.categories?.map((category) => (
-              <section key={category.id} className="rounded-xl border border-slate-200 bg-white p-4">
-                <h3 className="mb-3 text-lg font-semibold">{label(category, i18n.language)}</h3>
-                <ul className="mb-4 space-y-2">
-                  {category.items?.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
-                    >
-                      <span>
-                        {label(item, i18n.language)} — {item.price.toFixed(2)}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        className="text-sm text-amber-700 hover:underline"
-                        onClick={() =>
-                          run(() =>
-                            apiFetch(`/api/v1/menu-items/${item.id}`, {
-                              method: 'PATCH',
-                              body: JSON.stringify({ isAvailable: !item.isAvailable }),
-                            }),
-                          )
-                        }
-                      >
-                        {item.isAvailable ? t('menu.mark86') : t('menu.markAvailable')}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="grid gap-2 md:grid-cols-4">
-                  <input
-                    className="rounded border px-3 py-2"
-                    placeholder={t('menu.nameEn')}
-                    value={newItem.categoryId === category.id ? newItem.nameEn : ''}
-                    onChange={(e) =>
-                      setNewItem({
-                        categoryId: category.id,
-                        nameEn: e.target.value,
-                        nameAr: newItem.categoryId === category.id ? newItem.nameAr : '',
-                        price: newItem.categoryId === category.id ? newItem.price : '',
-                      })
-                    }
-                  />
-                  <input
-                    className="rounded border px-3 py-2"
-                    placeholder={t('menu.nameAr')}
-                    value={newItem.categoryId === category.id ? newItem.nameAr : ''}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, categoryId: category.id, nameAr: e.target.value })
-                    }
-                  />
-                  <input
-                    className="rounded border px-3 py-2"
-                    placeholder={t('menu.price')}
-                    type="number"
-                    value={newItem.categoryId === category.id ? newItem.price : ''}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, categoryId: category.id, price: e.target.value })
-                    }
-                  />
-                  <button
-                    type="button"
-                    disabled={busy || newItem.categoryId !== category.id}
-                    className="rounded-lg border px-4 py-2 disabled:opacity-50"
-                    onClick={() =>
-                      run(async () => {
-                        await apiFetch(`/api/v1/categories/${category.id}/items`, {
-                          method: 'POST',
-                          body: JSON.stringify({
-                            nameEn: newItem.nameEn,
-                            nameAr: newItem.nameAr,
-                            price: Number(newItem.price),
-                          }),
-                        });
-                        setNewItem({ categoryId: '', nameEn: '', nameAr: '', price: '' });
-                      })
-                    }
-                  >
-                    {t('menu.addItem')}
-                  </button>
-                </div>
               </section>
-            ))}
+            ) : null}
+
+            {manager.detail.categories?.length ? (
+              manager.detail.categories.map((category, index) => (
+                <CategorySection
+                  key={category.id}
+                  t={t}
+                  language={i18n.language}
+                  category={category}
+                  canEdit={canEdit}
+                  busy={manager.busy}
+                  dragIndex={index}
+                  onDragStart={handleDragStart}
+                  onDragOver={() => {}}
+                  onDrop={handleDrop}
+                  onToggleAvailability={manager.toggleAvailability}
+                  onEditItem={(item) => manager.setEditingItem({ ...item, categoryId: category.id })}
+                  onAddItem={setAddingItemCategoryId}
+                />
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-white p-8 text-center text-secondary">
+                {t('menu.noCategories')}
+              </div>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
+
+      {manager.showPublishConfirm ? (
+        <PublishConfirmModal
+          t={t}
+          missingCount={manager.missingCount}
+          busy={manager.busy}
+          onCancel={() => manager.setShowPublishConfirm(false)}
+          onConfirm={() => manager.publish()}
+        />
+      ) : null}
+
+      {manager.showPreview ? (
+        <MenuPreviewModal
+          t={t}
+          detail={manager.detail}
+          language={i18n.language}
+          onClose={() => manager.setShowPreview(false)}
+        />
+      ) : null}
+
+      {manager.showAutoTranslate ? (
+        <AutoTranslateModal
+          t={t}
+          suggestions={manager.suggestions}
+          busy={manager.busy}
+          onChange={(index, value) => {
+            manager.setSuggestions(
+              manager.suggestions.map((row, i) => (i === index ? { ...row, nameAr: value } : row)),
+            );
+          }}
+          onCancel={() => {
+            manager.setShowAutoTranslate(false);
+            manager.setSuggestions([]);
+          }}
+          onApply={() => manager.applySuggestions()}
+        />
+      ) : null}
+
+      {(manager.editingItem || addingItemCategoryId) && canEdit ? (
+        <ItemEditorModal
+          t={t}
+          item={manager.editingItem}
+          categoryId={addingItemCategoryId ?? manager.editingItem?.categoryId}
+          busy={manager.busy}
+          onCancel={() => {
+            manager.setEditingItem(null);
+            setAddingItemCategoryId(null);
+          }}
+          onSave={handleSaveItem}
+        />
+      ) : null}
     </div>
   );
 }

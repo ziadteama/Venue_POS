@@ -10,6 +10,7 @@ export function RequestActionModal({
   onCancel,
   t,
   children,
+  subtitle,
 }) {
   const [reason, setReason] = useState('');
 
@@ -23,7 +24,9 @@ export function RequestActionModal({
     <ModalShell>
       <form onSubmit={handleSubmit}>
         <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
-        <p className="mb-4 text-sm text-secondary">{t('cheque.venueManagerAction')}</p>
+        <p className="mb-4 text-sm text-secondary">
+          {subtitle ?? t('cheque.venueManagerAction')}
+        </p>
         {children}
         <label className="mb-4 block text-sm">
           <span className="mb-1 block text-secondary">{reasonLabel}</span>

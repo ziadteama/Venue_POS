@@ -1,5 +1,27 @@
 import { AGENT_URL } from '../config.js';
 
+function parseAgentError(body) {
+  if (!body) return 'Request failed';
+  const pinMsg = body.match(/Invalid (?:venue )?manager PIN/i)?.[0];
+  if (pinMsg) return pinMsg;
+
+  const apiMessages = [...body.matchAll(/"message":"([^"\\]+)"/g)].map((m) => m[1]);
+  const friendly = apiMessages.find((m) => !m.startsWith('API /api/'));
+  if (friendly) return friendly;
+
+  try {
+    const json = JSON.parse(body);
+    if (json.error?.message) return json.error.message;
+    if (typeof json.message === 'string' && !json.message.startsWith('API /api/')) {
+      return json.message;
+    }
+  } catch {
+    // plain-text error from agent
+  }
+
+  return body.length > 120 ? `${body.slice(0, 120)}…` : body;
+}
+
 export async function callAgent(path, options = {}) {
   const method = options.method ?? 'GET';
   const body = options.body ? JSON.parse(options.body) : undefined;
@@ -32,6 +54,9 @@ export async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/cheques\/[^/]+$/) && method === 'GET') {
       return window.venuePos.getCheque(path.split('/')[3]);
     }
+    if (path.match(/^\/v1\/cheques\/[^/]+$/) && method === 'DELETE') {
+      return window.venuePos.deleteCheque(path.split('/')[3]);
+    }
     if (path.match(/^\/v1\/cheques\/[^/]+\/fire$/) && method === 'POST') {
       return window.venuePos.fireCheque(path.split('/')[3]);
     }
@@ -52,6 +77,6 @@ export async function callAgent(path, options = {}) {
     ...options,
     ...(needsBody ? { body: '{}' } : {}),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(parseAgentError(await res.text()));
   return res.json();
 }

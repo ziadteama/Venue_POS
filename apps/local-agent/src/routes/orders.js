@@ -15,7 +15,7 @@ import { printKitchenTicket } from '../services/kitchen-printer.js';
 
 export function registerOrderRoutes(
   app,
-  { db, apiUrl, venueId, terminalId, terminalSecret, kitchenPrinterHost, kitchenPrinterPort },
+  { db, apiUrl, venueId, terminalId, terminalSecret, getPrinterConfig },
 ) {
   app.post('/v1/orders', async (request, reply) => {
     const { cashierId, tableLabel } = request.body ?? {};
@@ -190,9 +190,10 @@ export function registerOrderRoutes(
   app.post('/v1/orders/:id/send', async (request) => {
     const local = sendLocalOrder(db, request.params.id);
     const orderForPrint = getLocalOrder(db, request.params.id);
+    const printers = getPrinterConfig();
     const printOpts = {
-      host: kitchenPrinterHost,
-      port: kitchenPrinterPort,
+      host: printers.kitchenPrinterHost,
+      port: printers.kitchenPrinterPort,
       log: app.log,
     };
     try {

@@ -759,6 +759,245 @@ npm run lint && npm run lint:i18n
 
 ---
 
+## Phase 5 — Epic 8 admin dashboard (`Phase-5` branch)
+
+### 2026-06-07 — US-8.1 Live sales overview (slice 1)
+
+**Story:** US-8.1  
+**What:** Hub/venue manager live metrics — revenue today, active kitchen orders, orders/min, open-table heat map. REST snapshot + `dashboard:metrics_tick` every 60s.
+
+**API** (`metrics-service.js`, `routes/manager-metrics.js`, `plugins/metrics-ticker.js`):
+- `GET /api/v1/manager/metrics/live` — hub_manager (all venues) or venue_manager (own venue)
+- WebSocket `dashboard:metrics_tick` → `dashboard:hub_manager` + per-venue rooms
+
+**Dashboard:** `DashboardHome` — KPI cards, per-venue open-table heat map, live socket updates via `useMetricsSocket`.
+
+**Verify:**
+```bash
+npm run migrate && npm run test -w @venue-pos/api
+npm run lint:i18n
+npm run dev:api & npm run dev:dashboard
+# Login admin/admin123 → home shows live KPIs; pay a cheque on POS → revenue updates within 60s
+```
+
+**Deferred (Phase 5 slice 2+):** US-8.2 revenue analytics charts, US-8.3 order explorer.
+
+---
+
+### 2026-06-07 — US-8.2 Revenue analytics (slice 2)
+
+**Story:** US-8.2  
+**What:** Revenue analytics with period presets, venue/category/item drill-down, period comparison, Recharts bar chart, CSV export.
+
+**API** (`analytics-service.js`, `routes/manager-analytics.js`):
+- `GET /api/v1/manager/analytics/revenue?preset=&venueId=&categoryId=&format=csv`
+- Presets: today, yesterday, week, last_week, month, last_month, custom
+- Net revenue from payments minus refunds; category/item breakdown from paid cheques
+
+**Dashboard:** `/analytics` — preset buttons (incl. **custom range** with start/end date pickers), venue filter (hub), KPI + comparison, bar chart, category/item tables, CSV export.
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run lint && npm run lint:i18n
+npm run dev:dashboard
+# Login admin/admin123 → Analytics → switch presets; pick venue → drill category → Export CSV
+```
+
+**Deferred (Phase 5 slice 3):** US-8.3 order explorer.
+
+---
+
+### 2026-06-07 — US-8.3 Order explorer (slice 3)
+
+**Story:** US-8.3  
+**What:** Searchable order explorer with filters, pagination (50/page), drill-down detail, void reason, split-cheque linkage, receipt reprint, CSV export.
+
+**API** (`order-explorer-service.js`, `routes/manager-orders.js`):
+- `GET /api/v1/manager/orders` — search/filter + `format=csv`
+- `GET /api/v1/manager/orders/:id` — line items, modifiers, payments, void audit, cheque splits
+- `GET /api/v1/manager/orders/:id/receipt` — reprint order receipt
+- `GET /api/v1/manager/cheques/:id/receipt` — reprint cheque receipt (manager auth)
+
+**Dashboard:** `/orders` — **venue_manager only** (hidden from hub admin nav). Cheques grouped by shift → cheques → orders; cheque # search; detail shows all rounds on a tab.
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run lint && npm run lint:i18n
+npm run dev:dashboard
+# Login as venue_manager → Orders tab visible; cheques nested under shifts
+# Login admin/admin123 → no Orders tab (hub uses Analytics, Cheques, Activity)
+```
+
+**Note:** Cross-venue cheque linkage deferred with Phase 4; split parent/child cheques shown instead.
+
+---
+
+### 2026-06-07 — US-8.4 Menu Manager polish (slice 4)
+
+**Story:** US-8.4  
+**What:** Full menu manager UX — template edit, drag-drop category reorder, bilingual item editor, missing-translation badges, publish confirmation, POS preview, CSV import/export, suggest-Arabic review flow.
+
+**API** (`menu-translations.js`, `routes/menus.js`):
+- `GET /api/v1/menu-templates/:id/translations/export` — CSV download
+- `POST .../translations/import` — bulk update from CSV
+- `GET .../translations/suggest` — missing Arabic names with EN copy as draft
+- `POST .../translations/apply` — batch apply reviewed translations
+- Optional `nameAr` on create (draft menus may omit Arabic until review)
+
+**Dashboard:** `/menus` refactored — `useMenuManager`, bilingual fields, category drag reorder, item modal, publish confirm, POS preview modal, translation tools.
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run lint:i18n
+npm run dev:dashboard
+# Login admin/admin123 → Menus → edit template, drag categories, add item (EN+AR), Preview, Suggest Arabic, Export/Import CSV, Publish (confirm)
+```
+
+**Deferred:** External auto-translate API (suggest copies EN for manager review); item drag reorder within category.
+
+---
+
+### 2026-06-07 — POS table switch UX (read-only header + modal)
+**Phase:** 5 · **Story:** POS polish (table navigation)
+**What:** Replaced editable table input with read-only header badge + Tables modal; smart rename for empty cheques; confirm when leaving table with items; receipt chip row for parent tables only.
+**Files:** `apps/api/src/services/cheque-lifecycle.js`, `routes/cheques.js`, `apps/local-agent/src/routes/cheques.js`, `apps/pos/src/hooks/useChequeSession.js`, `App.jsx`, `PosHeader.jsx`, `TableSwitchModal.jsx`, `ReceiptPanel.jsx`, `preload.cjs`, `packages/i18n/locales/{en,ar}.json`
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run dev:pos
+# Header shows table badge + open count → Tables opens grid modal
+# Empty table rename via new table name; confirm strip when switching with draft/fired items
+```
+**Notes:** `DELETE /api/v1/cheques/:id` removes empty open tables (no fired items, no draft lines). Table rename removed — opening a new label always creates/resumes that table.
+
+---
+
+### 2026-06-07 — Dashboard nav, Activity log UX, shared auth
+
+**What:** Header tab navigation (blue bar); Activity page filter chips, day groups, structured cards; `AuthProvider` fixes logout (shared session state).
+
+**Files:** `apps/dashboard/src/components/DashboardNav.jsx`, `Layout.jsx`, `pages/ActivityPage.jsx`, `hooks/useAuth.js`, `main.jsx`, `packages/i18n/locales/{en,ar}.json`
+
+**Verify:** Login admin → tabs in header; Activity filters work; Logout returns to login.
+
+---
+
+### 2026-06-07 — Order explorer: cheque + shift grouping (US-8.3 polish)
+
+**What:** Venue-manager order explorer groups **cheques by shift**, each cheque lists all order rounds. Cheque # filter/search; detail panel shows every order on the tab.
+
+**API** (`order-explorer-service.js`):
+- `GET /api/v1/manager/orders?groupBy=shift` (default for dashboard)
+- `GET /api/v1/manager/orders?groupBy=cheque`
+- `GET /api/v1/manager/orders/by-cheque/:id` — all rounds + line items
+- Shift assignment: payment `shiftId`, else cashier/terminal time match
+
+**Dashboard:** Orders nav **venue_manager only** — not shown to hub_manager (admin).
+
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run dev:dashboard
+# venue_manager login → Orders → shifts contain cheques; click cheque for detail
+# admin login → no Orders tab
+```
+
+---
+
+### 2026-06-07 — Refund approval workflow (venue request → hub approve)
+**Phase:** 5 · **Story:** US-5.6 / manager authority
+**What:** Venue managers request refunds (POS + dashboard); hub manager approves/rejects on Approvals page or force-refunds from Cheques. Uses `ManagerApprovalRequest` queue.
+**Files:** `approval-request-service.js`, `manager-approvals.js`, dashboard `ApprovalsPage`, POS/dashboard cheque UI, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run dev:dashboard
+# venue_mgr → Cheques → paid tab → Request refund
+# admin → Approvals → Approve, or Cheques → Force refund
+# POS → Refund paid cheque → venue PIN → hub approves
+```
+
+---
+
+### 2026-06-07 — US-8.9 Shift management dashboard (slice 1)
+**Phase:** 5 · **Story:** US-8.9
+**What:** Manager shift list/detail API, CSV export, force-close, dashboard Shifts page with filters and cash report panel.
+**Files:** `apps/api/src/services/manager-shift-service.js`, `apps/api/src/routes/manager-shifts.js`, `apps/api/src/services/shift-service.js` (`forceCloseShiftById`), `apps/dashboard/src/pages/ShiftsPage.jsx`, nav/routes, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/api
+npm run lint:i18n
+npm run dev:dashboard
+# hub or venue_manager → Shifts → filter, detail, CSV, force-close open shift (manager PIN)
+```
+**Notes:** EOD reconciliation view deferred to slice 2.
+
+---
+
+## Phase 5 — Remaining (Epic 8)
+
+| Story | Status | Notes |
+|-------|--------|-------|
+| US-8.1 Live sales overview | ✅ | Metrics + WebSocket tick |
+| US-8.2 Revenue analytics | ✅ | Charts, drill-down, CSV |
+| US-8.3 Order explorer | ✅ | Venue manager only; shift → cheque → orders |
+| US-8.4 Menu manager | ✅ (core) | Auto-translate API deferred |
+| US-8.5 Venue configuration | ✅ | Tax, printers, table layout, WS sync, audit |
+| US-8.6 Billing rules | ⬜ | Phase 4 / cross-venue |
+| US-8.7 User management | ⬜ | Staff CRUD, PIN/RFID |
+| US-8.8 Inventory | ⬜ | P2 |
+| US-8.9 Shift management (dashboard) | ✅ (slice 1) | List, detail, over/short, force-close, CSV; EOD view next |
+| US-8.10 System health | ⬜ | Terminals, sync queue |
+| US-8.11 Audit log (full) | ⬜ | Extend Activity → immutable audit |
+
+**Recommended next slice:** **US-8.9 slice 2** — end-of-day reconciliation view, or **US-8.7** user management.
+
+**Then:** US-8.7 users → US-8.10 health → US-8.11 full audit.
+
+---
+
+### 2026-06-07 — US-8.5 Venue configuration (slice 1)
+**Phase:** 5 · **Story:** US-8.5
+**What:** Hub manager venue settings page — names, type, tax, receipt template, printer hosts, draggable table layout; config audit log; terminal settings API; `venue:config_updated` WebSocket; local-agent printer sync.
+**Files:** `schema.prisma`, migration `20260615120000_venue_config`, `venue-config-service.js`, `manager-venue-config.js`, `VenueSettingsPage.jsx`, `TableLayoutEditor.jsx`, `venue-config-sync.js`, socket emit, i18n
+**Verify:**
+```bash
+npm run migrate
+npm run test -w @venue-pos/api
+npm run dev:dashboard
+# admin → Venue settings → edit venue → Save → check config/audits APIs
+```
+
+---
+
+## Phase 5 — Path forward
+
+**Shipped on this branch:** US-8.1–8.5 (core), US-8.9 slice 1, refund approval workflow, POS table-switch UX, dashboard nav/auth polish. PRD updated to match shipped behaviour.
+
+**Open Epic 8 work (priority order):**
+
+| Priority | Story | Scope |
+|----------|-------|-------|
+| 1 | **US-8.9 slice 2** | End-of-day reconciliation view — shift totals vs payments/refunds, venue-day rollup for hub |
+| 2 | **US-8.7** | User management — staff CRUD, PIN/RFID assign, role + venue scope, deactivate |
+| 3 | **US-8.10** | System health — terminal last-seen, local-agent sync queue depth, API uptime panel |
+| 4 | **US-8.11** | Full audit log — immutable export, filter by actor/action/venue, extend Activity feed |
+| — | US-8.6 | Billing rules — **Phase 4** cross-venue |
+| — | US-8.8 | Inventory — **P2** |
+
+**Suggested branch names:** `feature/US-8.9-eod-reconciliation` or `feature/US-8.7-user-management`
+
+**Before merge checklist:**
+- [ ] Include migration `apps/api/prisma/migrations/20260615120000_venue_config/`
+- [ ] `npm run migrate` on clean DB
+- [ ] `npm run test -w @venue-pos/api` + `npm run lint:i18n`
+- [ ] Smoke: hub admin (analytics, venue settings, approvals, shifts) + venue manager (orders, cheques request-refund)
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

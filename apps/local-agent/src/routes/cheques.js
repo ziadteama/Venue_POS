@@ -1,18 +1,18 @@
 import { apiFetch } from '../services/api-fetch.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
 
-function maybePrintReceipt(text, { autoReceiptPrint, kitchenPrinterHost, kitchenPrinterPort, log }) {
+function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receiptPrinterPort, log }) {
   if (!autoReceiptPrint || !text) return;
   printCustomerReceipt(text, {
-    host: kitchenPrinterHost,
-    port: kitchenPrinterPort,
+    host: receiptPrinterHost,
+    port: receiptPrinterPort,
     log,
   }).catch((err) => log.warn({ err }, 'Receipt print failed'));
 }
 
 export function registerChequeRoutes(
   app,
-  { apiUrl, terminalId, terminalSecret, kitchenPrinterHost, kitchenPrinterPort, autoReceiptPrint },
+  { apiUrl, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint },
 ) {
   app.get('/v1/cheques/open', async () =>
     apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open'),
@@ -41,6 +41,12 @@ export function registerChequeRoutes(
     apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`),
   );
 
+  app.delete('/v1/cheques/:id', async (request) =>
+    apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`, {
+      method: 'DELETE',
+    }),
+  );
+
   app.post('/v1/cheques/:id/fire', async (request) => {
     const result = await apiFetch(
       apiUrl,
@@ -49,9 +55,10 @@ export function registerChequeRoutes(
       `/api/v1/cheques/${request.params.id}/fire`,
       { method: 'POST' },
     );
+    const printers = getPrinterConfig();
     printKitchenTicket(result.sentOrder, {
-      host: kitchenPrinterHost,
-      port: kitchenPrinterPort,
+      host: printers.kitchenPrinterHost,
+      port: printers.kitchenPrinterPort,
       log: app.log,
     }).catch((err) => app.log.warn({ err }, 'Kitchen print failed'));
     return result;
@@ -122,10 +129,11 @@ export function registerChequeRoutes(
         body: JSON.stringify({ cashierId, payments, method, amount, tendered, managerPin }),
       },
     );
+    const printers = getPrinterConfig();
     maybePrintReceipt(result.receipt, {
       autoReceiptPrint,
-      kitchenPrinterHost,
-      kitchenPrinterPort,
+      receiptPrinterHost: printers.receiptPrinterHost,
+      receiptPrinterPort: printers.receiptPrinterPort,
       log: app.log,
     });
     return result;
@@ -153,12 +161,15 @@ export function registerChequeRoutes(
       `/api/v1/cheques/${request.params.id}/refund`,
       { method: 'POST', body: JSON.stringify(body) },
     );
-    maybePrintReceipt(result.receipt, {
-      autoReceiptPrint,
-      kitchenPrinterHost,
-      kitchenPrinterPort,
-      log: app.log,
-    });
+    if (result.receipt) {
+      const printers = getPrinterConfig();
+      maybePrintReceipt(result.receipt, {
+        autoReceiptPrint,
+        receiptPrinterHost: printers.receiptPrinterHost,
+        receiptPrinterPort: printers.receiptPrinterPort,
+        log: app.log,
+      });
+    }
     return result;
   });
 }

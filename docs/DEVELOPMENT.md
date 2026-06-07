@@ -278,4 +278,5 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 1 Core POS | ✅ Done | Menu, modifiers, POS order flow, send to kitchen |
 | 2 Kitchen | ✅ Done (optional KDS) | Printer, item status, void — [TEAM_LOG.md](TEAM_LOG.md) |
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
-| 5 Dashboard analytics | Next | Revenue, live metrics — `docs/Technical_Proposal.md` §12 |
+| 4 Cross-venue billing | Deferred | Client-driven — [PHASE3_SCALABLE_PLAN.md](PHASE3_SCALABLE_PLAN.md) |
+| 5 Dashboard analytics | In progress | US-8.1–8.4 done; next US-8.9 shifts dashboard — [TEAM_LOG.md](TEAM_LOG.md) |

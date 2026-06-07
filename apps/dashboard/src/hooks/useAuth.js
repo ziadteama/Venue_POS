@@ -1,8 +1,10 @@
-import { useState, useCallback } from 'react';
+import { createContext, createElement, useCallback, useContext, useState } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
-export function useAuth() {
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const raw = sessionStorage.getItem('user');
     return raw ? JSON.parse(raw) : null;
@@ -31,5 +33,17 @@ export function useAuth() {
     setUser(null);
   }, []);
 
-  return { user, token, login, logout };
+  return createElement(
+    AuthContext.Provider,
+    { value: { user, token, login, logout } },
+    children,
+  );
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return ctx;
 }

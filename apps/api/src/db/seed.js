@@ -37,16 +37,19 @@ async function seed() {
   });
 
   const venueManagerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
+  const venuePasswordHash = await bcrypt.hash('venue123', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'venue_mgr' },
     update: {
       pinHash: venueManagerPinHash,
+      passwordHash: venuePasswordHash,
       role: 'venue_manager',
       venueId: venue.id,
       isActive: true,
     },
     create: {
       username: 'venue_mgr',
+      passwordHash: venuePasswordHash,
       pinHash: venueManagerPinHash,
       role: 'venue_manager',
       venueId: venue.id,
@@ -174,7 +177,8 @@ async function seed() {
   await publishMenuTemplate(menuTemplate.id);
 
   console.log('Seed complete');
-  console.log('  Manager: admin / admin123');
+  console.log('  Hub manager: admin / admin123 (PIN 9999 for shift/card policy)');
+  console.log('  Venue manager: venue_mgr / venue123 (PIN 7777 for refund/discount/void on POS)');
   console.log('  Cashier PIN: 1234');
   console.log(`  Cashier ID: ${cashier.id}`);
   console.log(`  Venue ID: ${venue.id}`);

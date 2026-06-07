@@ -395,17 +395,23 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 #### US-5.6: Refund Processing
 **As a** Manager, **I want** to process refunds, **so that** customer complaints can be resolved.
 
-**Acceptance Criteria:**
-- [ ] Refund initiated from order explorer or POS
-- [ ] Manager PIN required for approval
-- [ ] Refund linked to original cheque
-- [ ] Refund amount cannot exceed original payment
-- [ ] Refund method matches original payment method (cash→cash, card→card)
-- [ ] Audit log records: original_cheque_id, refund_amount, reason, approver_id
-- [ ] Refund reflected in revenue reports (negative revenue)
-- [ ] Receipt printed for refund transaction
+**Workflow (implemented):**
+- **Venue manager** (`venue_manager`) **requests** a refund from POS (PIN) or dashboard Cheques — creates a pending `ManagerApprovalRequest`.
+- **Hub manager** (`hub_manager`) **approves or rejects** on dashboard **Approvals** (`/approvals`), or **force-refunds** immediately from Cheques without a prior request.
+- On approval or force-refund, the refund is executed, audited, and receipt printed (when printer configured).
 
-**Priority:** P1 | **Effort:** 3 days
+**Acceptance Criteria:**
+- [x] Refund initiated from POS or dashboard Cheques (venue manager request)
+- [x] Hub manager approval required before refund executes (venue manager cannot finalize alone)
+- [x] Refund linked to original cheque
+- [x] Refund amount cannot exceed original payment
+- [x] Refund method validated against original payment method (cash/card/voucher caps)
+- [x] Audit log records: cheque, amount, reason, initiator, approver
+- [x] Refund reflected in revenue reports (negative revenue)
+- [x] Receipt printed for refund transaction (on approve / force-refund)
+- [ ] Refund initiated from order explorer (hub) — deferred; use Cheques + Approvals
+
+**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (request → approve)
 
 ---
 
@@ -527,74 +533,74 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Hub Manager, **I want** to see real-time sales data, **so that** I can monitor operations.
 
 **Acceptance Criteria:**
-- [ ] Real-time sales counter (total revenue today)
-- [ ] Active orders by venue (live count)
-- [ ] Orders-per-minute rate
-- [ ] Current open tables heat map
-- [ ] Data updates every 60 seconds via WebSocket (dashboard:metrics_tick)
-- [ ] Page load < 2 seconds initial, < 500ms subsequent
-- [ ] Responsive layout for tablet and desktop
+- [x] Real-time sales counter (total revenue today)
+- [x] Active orders by venue (live count)
+- [x] Orders-per-minute rate
+- [x] Current open tables heat map
+- [x] Data updates every 60 seconds via WebSocket (`dashboard:metrics_tick`)
+- [ ] Page load < 2 seconds initial, < 500ms subsequent — not formally benchmarked
+- [x] Responsive layout for tablet and desktop
 
-**Priority:** P0 | **Effort:** 4 days
+**Priority:** P0 | **Effort:** 4 days · **Status:** Shipped
 
 #### US-8.2: Revenue Analytics
 **As a** Hub Manager, **I want** to analyze revenue trends, **so that** I can make business decisions.
 
 **Acceptance Criteria:**
-- [ ] Revenue by venue, category, item
-- [ ] Period comparison: today vs yesterday, this week vs last
-- [ ] Date range picker (daily, weekly, monthly, custom)
-- [ ] Charts using Recharts/Chart.js
-- [ ] Export to CSV/Excel
-- [ ] Drill-down from venue → category → item
-- [ ] Currency formatting respects locale (EGP)
+- [x] Revenue by venue, category, item
+- [x] Period comparison: today vs yesterday, this week vs last, etc.
+- [x] Date range picker (presets + custom start/end)
+- [x] Charts using Recharts
+- [x] Export to CSV
+- [x] Drill-down from venue → category → item
+- [x] Currency formatting respects locale (EGP)
 
-**Priority:** P1 | **Effort:** 4 days
+**Priority:** P1 | **Effort:** 4 days · **Status:** Shipped
 
 #### US-8.3: Order Explorer
-**As a** Hub Manager, **I want** to search and view all orders, **so that** I can investigate issues.
+**As a** Venue Manager, **I want** to search and view orders for my venue, **so that** I can investigate issues. *(Hub manager uses Analytics, Activity, and Approvals; order explorer is scoped to venue managers per product decision.)*
 
 **Acceptance Criteria:**
-- [ ] Search by: order number, table, cashier, date range, status
-- [ ] Filter by: venue, status, payment method, amount range
-- [ ] Drill down to line items, modifiers, payment details
-- [ ] Reprint any receipt
-- [ ] View voided orders with reason
-- [ ] View cross-venue cheque linkage
-- [ ] Pagination: 50 orders per page
-- [ ] Export filtered results to CSV
+- [x] Search by: order number, cheque number, table, cashier, date range, status
+- [x] Filter by: venue (single), status, payment method, amount range
+- [x] Drill down to line items, modifiers, payment details (grouped by shift → cheque → orders)
+- [x] Reprint order/cheque receipt
+- [x] View voided orders with reason (via status filter)
+- [ ] View cross-venue cheque linkage — Phase 4
+- [x] Pagination: 50 per page
+- [x] Export filtered results to CSV
 
-**Priority:** P1 | **Effort:** 3 days
+**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (venue_manager only)
 
 #### US-8.4: Menu Manager
 **As a** Hub Manager, **I want** a visual interface to manage menus, **so that** I can update offerings easily.
 
 **Acceptance Criteria:**
-- [ ] Create/edit menu templates
-- [ ] Drag-and-drop category ordering
-- [ ] Item form with side-by-side Arabic/English fields
-- [ ] Missing translation indicator
-- [ ] Item availability toggle (86)
-- [ ] One-click publish with confirmation
-- [ ] Preview menu as it appears in POS
-- [ ] Bulk CSV export/import for translations
-- [ ] Auto-translate button with manager review
+- [x] Create/edit menu templates
+- [x] Drag-and-drop category ordering
+- [x] Item form with side-by-side Arabic/English fields
+- [x] Missing translation indicator + suggest Arabic
+- [x] Item availability toggle (86)
+- [x] One-click publish with confirmation
+- [x] Preview menu as it appears in POS
+- [x] Bulk CSV export/import for translations
+- [ ] Auto-translate via external API — deferred (suggest copies EN for manager edit)
 
-**Priority:** P0 | **Effort:** 5 days
+**Priority:** P0 | **Effort:** 5 days · **Status:** Shipped (core)
 
 #### US-8.5: Venue Configuration
 **As a** Hub Manager, **I want** to configure venue settings, **so that** each venue operates correctly.
 
 **Acceptance Criteria:**
-- [ ] Set venue name (en/ar), type (standard/anchor)
-- [ ] Tax settings (rate, inclusive/exclusive)
-- [ ] Receipt template selection
-- [ ] Printer IP configuration
-- [ ] Table layout editor (drag-and-drop floor plan)
-- [ ] Changes propagate via WebSocket immediately
-- [ ] Audit log captures all changes
+- [x] Set venue name (en/ar), type (standard/anchor)
+- [x] Tax settings (rate, inclusive/exclusive)
+- [x] Receipt template selection
+- [x] Printer IP configuration (kitchen + receipt; synced to local-agent)
+- [x] Table layout editor (drag-and-drop floor plan)
+- [x] Changes propagate via WebSocket immediately (`venue:config_updated`)
+- [x] Audit log captures all changes (`venue_config_audits`)
 
-**Priority:** P1 | **Effort:** 3 days
+**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (slice 1)
 
 #### US-8.6: Billing Rules Configuration
 **As a** Hub Manager, **I want** to configure cross-venue billing rules, **so that** anchor venues can bill correctly.
@@ -642,15 +648,15 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Hub Manager, **I want** to view and manage cashier shifts, **so that** I can track cash handling.
 
 **Acceptance Criteria:**
-- [ ] View open shifts (cashier, venue, open time)
-- [ ] View declared float vs actual close float
-- [ ] Over/short report per shift
-- [ ] Force-close shift (manager override)
-- [ ] Shift history searchable by date, venue, cashier
-- [ ] Export shift reports to CSV
-- [ ] End-of-day reconciliation view
+- [x] View open shifts (cashier, venue, open time)
+- [x] View declared float vs actual close float
+- [x] Over/short report per shift
+- [x] Force-close shift (manager override)
+- [x] Shift history searchable by date, venue, cashier
+- [x] Export shift reports to CSV
+- [ ] End-of-day reconciliation view — slice 2
 
-**Priority:** P1 | **Effort:** 3 days
+**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (slice 1)
 
 #### US-8.10: System Health Panel
 **As a** System Admin, **I want** to monitor system health, **so that** I can detect issues.

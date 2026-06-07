@@ -1,4 +1,9 @@
 import { prisma } from '../db/prisma.js';
+import {
+  linkOrphanBillableOrdersToOpenCheque,
+  linkOrphanDraftOrdersToOpenCheque,
+  reconcileVenueOpenCheques,
+} from './cheque-reconcile.js';
 import { validationError } from '../utils/errors.js';
 import { createOrder, sendOrderToKitchen } from './order-service.js';
 import {
@@ -9,7 +14,10 @@ import {
   ensureDraftOrder,
   nextChequeNumber,
   serializeCheque,
+  computeChequeSubtotal,
+  ordersFromCheque,
 } from './cheque-shared.js';
+import { getPendingRefundForCheque } from './approval-request-service.js';
 
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
@@ -48,10 +56,43 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
     cheque = await loadCheque(cheque.id);
   }
 
+  await linkOrphanBillableOrdersToOpenCheque(cheque.id, venueId, trimmed);
+  await linkOrphanDraftOrdersToOpenCheque(cheque.id, venueId, trimmed);
+  cheque = await loadCheque(cheque.id);
+
   return serializeCheque(cheque);
 }
 
+export async function closeEmptyCheque(chequeId, venueId) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
+  if (cheque.status !== 'open') throw validationError('Cheque is not open');
+  if (cheque.parentChequeId) throw validationError('Cannot remove a split sub-cheque');
+  if (cheque.childCheques?.length) {
+    throw validationError('Cannot remove a table with split cheques');
+  }
+
+  if (computeChequeSubtotal(cheque) > 0) {
+    throw validationError('Cannot remove a table with fired items');
+  }
+  const draft = findDraftOrder(cheque);
+  if (draft?.items?.length) {
+    throw validationError('Clear the current round before removing table');
+  }
+
+  const orders = ordersFromCheque(cheque);
+  await prisma.$transaction(async (tx) => {
+    for (const order of orders) {
+      await tx.order.delete({ where: { id: order.id } });
+    }
+    await tx.cheque.delete({ where: { id: chequeId } });
+  });
+
+  return { deleted: true, id: chequeId };
+}
+
 export async function listOpenCheques(venueId) {
+  await reconcileVenueOpenCheques(venueId);
   return listChequesForVenue(venueId, { status: 'open' });
 }
 
@@ -68,7 +109,8 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
 export async function getCheque(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
-  return serializeCheque(cheque);
+  const pendingRefundRequest = await getPendingRefundForCheque(chequeId, venueId);
+  return { ...serializeCheque(cheque), pendingRefundRequest };
 }
 
 export async function fireChequeRound(chequeId, venueId) {

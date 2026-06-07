@@ -14,8 +14,9 @@ import {
   splitChequeByAmount,
   transferChequeItems,
   listChequesForVenue,
+  closeEmptyCheque,
 } from '../services/cheque-service.js';
-import { applyChequeDiscount, applyChequeRefund } from '../services/manager-action-service.js';
+import { applyChequeDiscount, requestChequeRefund } from '../services/manager-action-service.js';
 import { emitManagerAction } from '../plugins/socket.js';
 
 const splitAmountSchema = z.object({
@@ -102,6 +103,10 @@ export async function chequeRoutes(app) {
 
   app.get('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
     return getCheque(request.params.id, request.terminal.venueId);
+  });
+
+  app.delete('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
+    return closeEmptyCheque(request.params.id, request.terminal.venueId);
   });
 
   app.get(
@@ -245,14 +250,14 @@ export async function chequeRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = request.terminal.venueId;
-      const result = await applyChequeRefund(request.params.id, parsed.data, venueId, {
+      const result = await requestChequeRefund(request.params.id, parsed.data, venueId, {
         terminalId: request.terminal.id,
       });
       if (request.server.io) {
         emitManagerAction(request.server.io, {
           venueId,
           terminalId: request.terminal.id,
-          type: 'refund',
+          type: 'refund_request',
           chequeId: request.params.id,
           result,
         });

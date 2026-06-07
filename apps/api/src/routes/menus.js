@@ -17,10 +17,16 @@ import {
   publishMenuTemplate,
   getPublishedMenuForVenue,
 } from '../services/menu-service.js';
+import {
+  applyTranslationUpdates,
+  buildMenuTranslationsCsv,
+  importMenuTranslationsCsv,
+  suggestMissingTranslations,
+} from '../services/menu-translations.js';
 
 const bilingualName = z.object({
   nameEn: z.string().min(1),
-  nameAr: z.string().min(1),
+  nameAr: z.string().optional(),
 });
 
 const createTemplateSchema = bilingualName.extend({
@@ -152,6 +158,62 @@ export async function menuRoutes(app) {
       const parsed = createItemSchema.partial().safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
       return updateMenuItem(request.params.itemId, parsed.data);
+    },
+  );
+
+  app.get(
+    '/api/v1/menu-templates/:id/translations/export',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request, reply) => {
+      const template = await getMenuTemplate(request.params.id);
+      const csv = buildMenuTranslationsCsv(template);
+      reply.header('content-type', 'text/csv; charset=utf-8');
+      reply.header(
+        'content-disposition',
+        `attachment; filename="menu-translations-${template.id}.csv"`,
+      );
+      return reply.send(csv);
+    },
+  );
+
+  app.post(
+    '/api/v1/menu-templates/:id/translations/import',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const schema = z.object({ csv: z.string().min(1) });
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return importMenuTranslationsCsv(request.params.id, parsed.data.csv);
+    },
+  );
+
+  app.get(
+    '/api/v1/menu-templates/:id/translations/suggest',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => suggestMissingTranslations(request.params.id),
+  );
+
+  app.post(
+    '/api/v1/menu-templates/:id/translations/apply',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const schema = z.object({
+        updates: z
+          .array(
+            z.object({
+              entityType: z.enum(['template', 'category', 'item']),
+              entityId: z.string().uuid(),
+              nameEn: z.string().min(1).optional(),
+              nameAr: z.string().min(1).optional(),
+              descriptionEn: z.string().optional(),
+              descriptionAr: z.string().optional(),
+            }),
+          )
+          .min(1),
+      });
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return applyTranslationUpdates(request.params.id, parsed.data.updates);
     },
   );
 

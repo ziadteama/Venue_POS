@@ -80,6 +80,7 @@ export function RefundModal({ cheque, onConfirm, onCancel, t }) {
 
         <label className="mb-4 block text-sm">
           <span className="mb-1 block text-secondary">{t('pos.restaurantManagerPin')}</span>
+          <p className="mb-2 text-xs text-secondary">{t('pos.refundPinHint')}</p>
           <input
             type="password"
             inputMode="numeric"
@@ -95,7 +96,7 @@ export function RefundModal({ cheque, onConfirm, onCancel, t }) {
             type="submit"
             className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white hover:bg-red-700"
           >
-            {t('pos.refundSubmit')}
+            {t('pos.refundRequestSubmit')}
           </button>
           <button
             type="button"

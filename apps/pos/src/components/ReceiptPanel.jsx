@@ -1,6 +1,52 @@
-import { canSplitByAmount, splittableItems, transferableItems } from '../utils/cheque.js';
+import { canSplitByAmount, firedOrders, splittableItems, transferableItems } from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
 import { ClearIcon, PrinterIcon } from './icons.jsx';
+
+function ReceiptLine({ line, language, readOnly, onChangeQty, order, t }) {
+  return (
+    <li className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-gradient text-sm font-bold text-white">
+        {displayInitial(language === 'ar' ? line.nameAr : line.nameEn)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex justify-between gap-2">
+          <span className="truncate font-medium text-slate-900">
+            {language === 'ar' ? line.nameAr : line.nameEn}
+            {line.isComped ? ` (${t('pos.comped')})` : ''}
+          </span>
+          <span className="shrink-0 font-semibold text-primary-to">
+            {line.isComped ? '0.00' : lineTotal(line).toFixed(2)}
+          </span>
+        </div>
+        {modifierLabel(line, language) && (
+          <p className="mt-0.5 truncate text-xs text-secondary">{modifierLabel(line, language)}</p>
+        )}
+        {!readOnly && order?.status === 'draft' && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onChangeQty(line.id, line.quantity - 1)}
+              className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
+            >
+              −
+            </button>
+            <span className="min-w-[1.25rem] text-center text-sm font-medium">{line.quantity}</span>
+            <button
+              type="button"
+              onClick={() => onChangeQty(line.id, line.quantity + 1)}
+              className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
+            >
+              +
+            </button>
+          </div>
+        )}
+        {readOnly && (
+          <p className="mt-1 text-xs text-secondary">× {line.quantity}</p>
+        )}
+      </div>
+    </li>
+  );
+}
 
 export function ReceiptPanel({
   t,
@@ -8,11 +54,9 @@ export function ReceiptPanel({
   loading,
   cheque,
   order,
-  openCheques,
   printerOk,
   sending,
   paying,
-  onSwitchCheque,
   onClear,
   onSend,
   onSplit,
@@ -26,29 +70,15 @@ export function ReceiptPanel({
   onPay,
   onChangeQty,
 }) {
+  const sentRounds = firedOrders(cheque);
+  const draftItems = order?.items ?? [];
+  const hasReceiptLines = sentRounds.length > 0 || draftItems.length > 0;
+
   return (
     <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
         <h2 className="font-semibold text-slate-900">{t('pos.currentOrder')}</h2>
-        {openCheques.length > 0 && (
-          <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
-            {openCheques.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onSwitchCheque(tab)}
-                className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${
-                  cheque?.id === tab.id
-                    ? 'bg-primary-gradient text-white'
-                    : 'bg-slate-100 text-secondary hover:bg-slate-200'
-                }`}
-              >
-                {tab.splitLabel || tab.tableLabel} · {tab.total.toFixed(0)}
-              </button>
-            ))}
-          </div>
-        )}
-        <p className="text-sm text-secondary">
+        <p className="mt-1 text-sm text-secondary">
           {cheque
             ? t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })
             : t('pos.noActiveCheque')}
@@ -63,57 +93,52 @@ export function ReceiptPanel({
       <div className="flex-1 overflow-y-auto px-3 py-2">
         {loading ? (
           <p className="p-2 text-secondary">{t('common.loading')}</p>
-        ) : !order?.items?.length ? (
+        ) : !hasReceiptLines ? (
           <p className="p-2 text-secondary">{t('pos.emptyCart')}</p>
         ) : (
-          <ul className="space-y-2">
-            {order.items.map((line) => (
-              <li
-                key={line.id}
-                className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3"
-              >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-gradient text-sm font-bold text-white">
-                  {displayInitial(language === 'ar' ? line.nameAr : line.nameEn)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex justify-between gap-2">
-                    <span className="truncate font-medium text-slate-900">
-                      {language === 'ar' ? line.nameAr : line.nameEn}
-                    </span>
-                    <span className="shrink-0 font-semibold text-primary-to">
-                      {lineTotal(line).toFixed(2)}
-                    </span>
-                  </div>
-                  {modifierLabel(line, language) && (
-                    <p className="mt-0.5 truncate text-xs text-secondary">
-                      {modifierLabel(line, language)}
-                    </p>
-                  )}
-                  {order.status === 'draft' && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onChangeQty(line.id, line.quantity - 1)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
-                      >
-                        −
-                      </button>
-                      <span className="min-w-[1.25rem] text-center text-sm font-medium">
-                        {line.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => onChangeQty(line.id, line.quantity + 1)}
-                        className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
-                      >
-                        +
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </li>
+          <div className="space-y-4">
+            {sentRounds.map((round) => (
+              <section key={round.id}>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
+                  {t('pos.firedRound', { number: round.orderNumber })}
+                </p>
+                <ul className="space-y-2">
+                  {round.items.map((line) => (
+                    <ReceiptLine
+                      key={line.id}
+                      line={line}
+                      language={language}
+                      readOnly
+                      order={round}
+                      t={t}
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+            {draftItems.length > 0 && (
+              <section>
+                {sentRounds.length > 0 ? (
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
+                    {t('pos.currentRound')}
+                  </p>
+                ) : null}
+                <ul className="space-y-2">
+                  {draftItems.map((line) => (
+                    <ReceiptLine
+                      key={line.id}
+                      line={line}
+                      language={language}
+                      readOnly={false}
+                      onChangeQty={onChangeQty}
+                      order={order}
+                      t={t}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
         )}
       </div>
 

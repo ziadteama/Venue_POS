@@ -18,8 +18,7 @@ export async function buildAgentServer({ db, config }) {
     terminalId,
     terminalSecret,
     corsOrigins,
-    kitchenPrinterHost,
-    kitchenPrinterPort,
+    getPrinterConfig,
     autoReceiptPrint,
   } = config;
 
@@ -35,8 +34,7 @@ export async function buildAgentServer({ db, config }) {
     venueId,
     terminalId,
     terminalSecret,
-    kitchenPrinterHost,
-    kitchenPrinterPort,
+    getPrinterConfig,
     autoReceiptPrint,
   };
 

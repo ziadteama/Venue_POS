@@ -67,7 +67,7 @@ export async function createMenuTemplate(data) {
   const template = await prisma.menuTemplate.create({
     data: {
       nameEn: data.nameEn,
-      nameAr: data.nameAr,
+      nameAr: data.nameAr ?? '',
       venues: data.venueIds?.length
         ? { create: data.venueIds.map((venueId) => ({ venueId })) }
         : undefined,
@@ -107,7 +107,7 @@ export async function createCategory(menuTemplateId, data) {
     data: {
       menuTemplateId,
       nameEn: data.nameEn,
-      nameAr: data.nameAr,
+      nameAr: data.nameAr ?? '',
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
@@ -132,7 +132,7 @@ export async function createMenuItem(categoryId, data) {
     data: {
       categoryId,
       nameEn: data.nameEn,
-      nameAr: data.nameAr,
+      nameAr: data.nameAr ?? '',
       descriptionEn: data.descriptionEn,
       descriptionAr: data.descriptionAr,
       price: data.price,
@@ -157,7 +157,7 @@ export async function updateMenuItem(itemId, data) {
     where: { id: itemId },
     data: {
       nameEn: data.nameEn,
-      nameAr: data.nameAr,
+      nameAr: data.nameAr ?? '',
       descriptionEn: data.descriptionEn,
       descriptionAr: data.descriptionAr,
       price: data.price,
@@ -175,7 +175,7 @@ export async function createModifierGroup(menuTemplateId, data) {
     data: {
       menuTemplateId,
       nameEn: data.nameEn,
-      nameAr: data.nameAr,
+      nameAr: data.nameAr ?? '',
       minSelection: data.minSelection ?? 0,
       maxSelection: data.maxSelection ?? 1,
       options: data.options?.length
