@@ -1,7 +1,7 @@
 import { VENUE_STAFF_ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
-import { hashSecret } from './auth-service.js';
+import { assertPinUniqueGlobally, hashSecret } from './auth-service.js';
 import { appendAuditLog } from './audit-log-service.js';
 
 export { VENUE_STAFF_ROLES };
@@ -111,6 +111,8 @@ export async function createVenueUser(actor, venueId, body) {
   const existing = await prisma.user.findFirst({ where: { username: username.trim() } });
   if (existing) throw validationError('Username already exists');
 
+  await assertPinUniqueGlobally(pin);
+
   const user = await prisma.user.create({
     data: {
       username: username.trim(),
@@ -158,6 +160,8 @@ export async function resetVenueUserPin(actor, userId, venueId, pin) {
   });
   if (!user) throw notFound('User not found');
   assertPin(pin);
+
+  await assertPinUniqueGlobally(pin, { excludeUserId: userId });
 
   await prisma.user.update({ where: { id: userId }, data: { pinHash: await hashSecret(pin) } });
   await auditUserChange(actor, venueId, 'user.pin_reset', user, {});

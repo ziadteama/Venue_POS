@@ -175,13 +175,13 @@ curl -X POST http://localhost:3000/api/v1/auth/pin \
 
 ## Staff you create in the dashboard
 
-Hub manager adds staff at **Staff** (`/users`):
+Hub manager adds staff at **Staff** (`/users`). **PINs must be unique across all staff in the system** (every venue and role — cashiers, kitchen, shift managers). The API rejects a PIN already used by anyone else.
 
 ```csv
 username,role,pin,card_uid
 new_cashier,cashier,5678,
-shift_lead,venue_manager,7777,
-kitchen1,kitchen_staff,4321,RFID-ABC
+shift_lead,venue_manager,4321,
+kitchen1,kitchen_staff,8765,RFID-ABC
 ```
 
 ---

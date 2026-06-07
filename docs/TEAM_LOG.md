@@ -1219,6 +1219,12 @@ npm run test -w @venue-pos/api
 # Hub: Orders shows linkage; Activity + analytics attribute per venue
 ```
 
+### 2026-06-08 — Global unique staff PIN enforcement
+**Phase:** 4 · **Story:** staff ops
+**What:** `assertPinUniqueGlobally()` blocks duplicate PINs on staff create and PIN reset — checked against every user with a `pinHash`, any venue/role.
+**Files:** `auth-service.js`, `manager-user-service.js`, `manager-user-service.test.js`, `DEV_CREDENTIALS.md`
+**Verify:** `npm run test -w @venue-pos/api` — duplicate PIN rejected same venue and cross-venue; same user can keep PIN on reset.
+
 ### 2026-06-08 — Cross-venue dashboard badges + POS header/PIN UX
 **Phase:** 4 · **Story:** US-8.3 ext, US-4.x polish
 **What:** Orders/Cheques show cross-venue badge + linked settlement panel; PIN login accepts keyboard + keypad; POS header consolidates tools/account into dropdowns.
