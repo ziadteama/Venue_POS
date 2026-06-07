@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isHubOwner } from '@venue-pos/shared';
+import { isCeo } from '@venue-pos/shared';
 import { apiFetch } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -52,7 +52,7 @@ export function ApprovalsPage() {
   }, [venueId]);
 
   useEffect(() => {
-    if (!isHubOwner(user?.role)) return;
+    if (!isCeo(user?.role)) return;
     load();
   }, [load, user?.role]);
 
@@ -94,10 +94,10 @@ export function ApprovalsPage() {
     }
   }
 
-  if (!isHubOwner(user?.role)) {
+  if (!isCeo(user?.role)) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
-        {t('approvals.hubOwnerOnly')}
+        {t('approvals.ceoOnly')}
       </div>
     );
   }

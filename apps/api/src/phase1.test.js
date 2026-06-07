@@ -1556,7 +1556,7 @@ test('paid cheque refund: venue manager applies with PIN', async () => {
   const audits = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/refunds?venueId=${VENUE_ID}`,
-    headers: { authorization: `Bearer ${managerToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(audits.statusCode, 200);
   assert.ok(audits.json().some((r) => r.chequeId === chequeId));

@@ -23,7 +23,7 @@ function countSocketClients(io, venueId) {
       continue;
     }
 
-    if (role === 'hub_manager' || role === 'venue_manager') {
+    if (role === 'hub_owner' || role === 'hub_manager') {
       if (venueId && socket.data?.user?.venue_id && socket.data.user.venue_id !== venueId) {
         continue;
       }

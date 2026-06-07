@@ -135,8 +135,8 @@ Not every hub needs every app. During **provider / client onboarding**, feature 
 | `kds_enabled` | `FEATURE_KDS_ENABLED=false` | ON in spec; **turn OFF** for printer-only kitchens | No KDS installer, no `venue:*:kitchen` WS clients required. Orders still **send to kitchen** via API + printer. `apps/kds` not run in prod. |
 | `manual_card_payment` | `FEATURE_MANUAL_CARD_PAYMENT=false` | **OFF** (cash-only venues) | POS hides card / split-card pay; API rejects `method: card`. Set `true` when the client uses an external PDQ and cashiers record card manually (US-5.3). |
 | `line_transfer` | `FEATURE_LINE_TRANSFER=false` | **OFF** | POS hides transfer UI; API rejects line moves. Set `true` when venues move fired lines between tables (manager PIN + audit). |
-| `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque discount — `venue_manager` applies (POS PIN or dashboard JWT); logged for GM review. |
-| `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refund — venue manager applies; audit at `/manager/refunds` and Activity log. |
+| `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque discount — manager PIN on POS; logged for CEO/hub review in Activity. |
+| `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refund — manager PIN on POS; CEO approves on dashboard when required. |
 | `auto_receipt_print` | `FEATURE_AUTO_RECEIPT_PRINT=true` | **ON** | Local agent prints customer receipt on pay/refund when `KITCHEN_PRINTER_HOST` is set. |
 | Kitchen printer | (venue config) | varies | Primary ticket path when KDS is OFF |
 
@@ -146,11 +146,11 @@ See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US fe
 
 ## Manager workflows
 
-**Venue manager authority** (discount, refund, void, comp, line transfer): `venue_manager` PIN on POS (`7777` in seed) or JWT on dashboard. All actions audit-logged.
+**Three product roles:** cashier (POS), hub manager (dashboard ops), CEO (dashboard revenue). See `AGENTS.md`.
 
-**GM review** (`hub_manager`): read-only **Activity log** at `/activity` — no approval queue.
+**POS manager PIN** (discount, refund, void, comp, line transfer): staff with manager permissions — hub manager creates them in **Staff**. Dev seed uses `venue_mgr` / PIN `7777` for testing.
 
-**Policy PIN** (manual card above threshold, shift over/short): manager PIN on POS; hub or venue manager per policy.
+**CEO** reviews revenue on `/analytics`, `/shifts`, and refund **Approvals**. **Hub manager** runs menus, staff, and venue settings.
 
 Full matrix: `AGENTS.md` § Manager workflows.
 
@@ -158,7 +158,7 @@ Full matrix: `AGENTS.md` § Manager workflows.
 
 See **[DEV_CREDENTIALS.md](DEV_CREDENTIALS.md)** for full logins, PINs, terminal headers, dashboard pages per role, and curl examples.
 
-Quick: `admin` / `admin123` · `venue_mgr` / `venue123` · cashier PIN `1234` · manager PINs `7777` / `9999` · terminal secret `dev-terminal-secret`
+Quick: CEO `owner` / `owner123` · hub manager `admin` / `admin123` · cashier PIN `1234` · POS manager PIN `7777` (dev) · terminal secret `dev-terminal-secret`
 
 ## Troubleshooting
 

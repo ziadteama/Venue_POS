@@ -30,9 +30,9 @@ export const config = {
   manualCardApprovalThreshold: Number(process.env.MANUAL_CARD_APPROVAL_THRESHOLD ?? 500),
   /** Provider onboarding — set FEATURE_LINE_TRANSFER=true to allow moving lines between tables */
   featureLineTransferEnabled: process.env.FEATURE_LINE_TRANSFER === 'true',
-  /** Cheque-level discounts before payment (venue_manager PIN; audit for GM review) */
+  /** Cheque-level discounts before payment (POS manager PIN; audit for CEO review) */
   featureDiscountsEnabled: process.env.FEATURE_DISCOUNTS_ENABLED !== 'false',
-  /** Post-payment refunds (venue_manager PIN; audit for GM review) (US-5.6) */
+  /** Post-payment refunds (POS manager PIN; CEO approves on dashboard) (US-5.6) */
   featureRefundsEnabled: process.env.FEATURE_REFUNDS_ENABLED !== 'false',
   /** Auto-print customer receipt on checkout via local agent */
   featureAutoReceiptPrint: process.env.FEATURE_AUTO_RECEIPT_PRINT !== 'false',

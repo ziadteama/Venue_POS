@@ -1,9 +1,10 @@
+import { VENUE_STAFF_ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
 import { hashSecret } from './auth-service.js';
 import { appendAuditLog } from './audit-log-service.js';
 
-export const VENUE_STAFF_ROLES = ['cashier', 'kitchen_staff'];
+export { VENUE_STAFF_ROLES };
 
 const userSelect = {
   id: true,
