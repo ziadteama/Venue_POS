@@ -1,23 +1,18 @@
 import { ROLES } from './constants.js';
 import { isCeo, isHubManager } from './roles.js';
 
-/** CEO / executive dashboard — revenue & investigation (multi-venue). */
-export const CEO_DASHBOARD_PATHS = new Set([
-  '/',
-  '/analytics',
-  '/cheques',
-  '/shifts',
-  '/orders',
-  '/approvals',
-  '/activity',
-  '/health',
-]);
+/** CEO — read-only monitoring: live KPIs + revenue analytics only. No operational pages. */
+export const CEO_DASHBOARD_PATHS = new Set(['/', '/analytics']);
 
-/** Hub manager / ops dashboard — menus, staff, venue config. */
+/** Hub manager — full back office across all venues (Toast/Square GM portal pattern). */
 export const HUB_MANAGER_DASHBOARD_PATHS = new Set([
   '/menus',
   '/users',
   '/settings',
+  '/cheques',
+  '/shifts',
+  '/orders',
+  '/approvals',
   '/activity',
   '/health',
 ]);
@@ -57,7 +52,7 @@ export function defaultDashboardPath(role) {
   return '/login';
 }
 
-/** CEO and hub manager may pass ?venueId= for multi-venue hub scope. */
+/** Hub manager and CEO may pass ?venueId= for multi-venue hub scope. */
 export function resolveHubVenueId(user, queryVenueId) {
   if (queryVenueId && isHubStaff(user?.role)) return queryVenueId;
   return user?.venue_id ?? user?.venueId ?? null;

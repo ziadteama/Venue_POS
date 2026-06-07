@@ -135,8 +135,8 @@ export async function approveRefundRequest(
   let approver;
   if (approverId) {
     approver = await prisma.user.findUnique({ where: { id: approverId } });
-    if (!approver?.isActive || approver.role !== 'hub_owner') {
-      throw forbidden('Only the CEO can approve refunds');
+    if (!approver?.isActive || approver.role !== 'hub_manager') {
+      throw forbidden('Only the hub manager can approve refunds');
     }
   } else if (managerPin) {
     approver = await verifyManagerPinByRole(request.venueId, managerPin, 'hub_manager');
@@ -185,8 +185,8 @@ export async function rejectRefundRequest(
   let approver;
   if (approverId) {
     approver = await prisma.user.findUnique({ where: { id: approverId } });
-    if (!approver?.isActive || approver.role !== 'hub_owner') {
-      throw forbidden('Only the CEO can reject refunds');
+    if (!approver?.isActive || approver.role !== 'hub_manager') {
+      throw forbidden('Only the hub manager can reject refunds');
     }
   } else if (managerPin) {
     approver = await verifyManagerPinByRole(request.venueId, managerPin, 'hub_manager');
@@ -224,16 +224,16 @@ export async function forceHubRefund(
   let approver;
   if (approverId) {
     approver = await prisma.user.findUnique({ where: { id: approverId } });
-    if (!approver?.isActive || approver.role !== 'hub_owner') {
-      throw forbidden('Only the CEO can force a refund');
+    if (!approver?.isActive || approver.role !== 'hub_manager') {
+      throw forbidden('Only the hub manager can force a refund');
     }
   } else if (managerPin) {
     approver = await verifyManagerPin(cheque.venueId, managerPin);
-    if (approver.role !== 'hub_owner') {
-      throw forbidden('Only the CEO can force a refund');
+    if (approver.role !== 'hub_manager') {
+      throw forbidden('Only the hub manager can force a refund');
     }
   } else {
-    throw validationError('CEO authorization is required');
+    throw validationError('Hub manager authorization is required');
   }
 
   return executeRefund(

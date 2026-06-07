@@ -1,13 +1,12 @@
 import { ROLES } from './constants.js';
 
 /**
- * Product roles (see AGENTS.md). Matches common F&B / hospitality SaaS splits:
- * - Cashier: POS service (like Toast/Square front-of-house)
- * - Hub manager: multi-venue back office — menus, staff, config (ops GM)
- * - CEO (hub_owner): corporate reporting — revenue, EOD, approvals (owner/exec)
+ * Product roles (see AGENTS.md). Matches multi-unit F&B SaaS (Toast, Lightspeed, Square):
+ * - Cashier: POS — ring orders, take payment
+ * - Hub manager: back office — menus, staff, permissions, cheques, shifts, approvals, audit
+ * - CEO (hub_owner): executive reporting only — live KPIs + revenue analytics (no operations)
  *
- * venue_manager / kitchen_staff are venue staff types the hub manager provisions
- * for POS/KDS — not separate web logins.
+ * venue_manager / kitchen_staff are venue staff the hub manager provisions for POS/KDS.
  */
 export const PRODUCT_ROLES = {
   CASHIER: ROLES.CASHIER,

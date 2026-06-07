@@ -154,22 +154,22 @@ test('venue manager cannot use web staff API', async () => {
   assert.equal(res.statusCode, 403);
 });
 
-test('EOD reconciliation returns daily rollup for hub owner', async () => {
+test('EOD reconciliation returns daily rollup for hub manager', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts/eod?venueId=${VENUE_ID}&date=2026-06-07`,
-    headers: { authorization: `Bearer ${ownerToken}` },
+    headers: { authorization: `Bearer ${hubToken}` },
   });
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().date, '2026-06-07');
   assert.ok(Array.isArray(res.json().shifts));
 });
 
-test('hub manager cannot access EOD reconciliation', async () => {
+test('CEO cannot access EOD reconciliation', async () => {
   const res = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts/eod?venueId=${VENUE_ID}&date=2026-06-07`,
-    headers: { authorization: `Bearer ${hubToken}` },
+    headers: { authorization: `Bearer ${ownerToken}` },
   });
   assert.equal(res.statusCode, 403);
 });
@@ -198,7 +198,7 @@ test('terminal heartbeat updates last seen', async () => {
   assert.equal(terminal.syncQueueDepth, 3);
 });
 
-test('full audit log is hub staff only', async () => {
+test('full audit log is hub manager only', async () => {
   const manager = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/audit?venueId=${VENUE_ID}`,
@@ -207,13 +207,12 @@ test('full audit log is hub staff only', async () => {
   assert.equal(manager.statusCode, 200);
   assert.ok(Array.isArray(manager.json().events));
 
-  const owner = await app.inject({
+  const ceo = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/audit?venueId=${VENUE_ID}`,
     headers: { authorization: `Bearer ${ownerToken}` },
   });
-  assert.equal(owner.statusCode, 200);
-  assert.ok(Array.isArray(owner.json().events));
+  assert.equal(ceo.statusCode, 403);
 
   const venue = await app.inject({
     method: 'GET',

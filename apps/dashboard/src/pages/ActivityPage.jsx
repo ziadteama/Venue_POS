@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isHubStaff } from '@venue-pos/shared';
+import { isHubManager } from '@venue-pos/shared';
 import { apiFetch, getToken } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -158,7 +158,7 @@ export function ActivityPage() {
   }, [venueId, typeFilter, userFilter, from, to, keyword]);
 
   useEffect(() => {
-    if (!isHubStaff(user?.role)) return;
+    if (!isHubManager(user?.role)) return;
     apiFetch('/api/v1/venues')
       .then((list) => {
         setVenues(list);
@@ -168,7 +168,7 @@ export function ActivityPage() {
   }, [user?.role, venueId]);
 
   useEffect(() => {
-    if (!isHubStaff(user?.role) || !venueId) return;
+    if (!isHubManager(user?.role) || !venueId) return;
     load();
   }, [load, user?.role, venueId]);
 
@@ -195,10 +195,10 @@ export function ActivityPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (!isHubStaff(user?.role)) {
+  if (!isHubManager(user?.role)) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
-        {t('activity.hubStaffOnly')}
+        {t('activity.hubManagerOnly')}
       </div>
     );
   }

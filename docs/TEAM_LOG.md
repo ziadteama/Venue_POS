@@ -1069,8 +1069,8 @@ npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
 | Role | Surface | Scope |
 |------|---------|-------|
 | Cashier | POS | Service + payments |
-| Hub manager | Dashboard | All venues — menus, staff, permissions, settings, activity, health |
-| CEO | Dashboard | Revenue — overview, analytics, cheques, orders, shifts/EOD, approvals |
+| Hub manager | Dashboard | **All operations** — menus, staff, cheques, orders, shifts, approvals, audit, health |
+| CEO | Dashboard | **Monitoring only** — overview + analytics (no operational pages) |
 
 **Implementation notes (not extra product roles):**
 - CEO = DB `hub_owner`, seed `owner` / `owner123`
@@ -1079,14 +1079,14 @@ npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
 - Kitchen = `kitchen_staff` — KDS only, created in Staff
 - Dev `venue_mgr` / `7777` = seeded shift manager for POS tests
 
-**Code:** `packages/shared/src/roles.js` + `hub-access.js` — path guards, `isCeo`, staff role enums. Approvals CEO-only. Staff CRUD includes shift managers.
+**Code:** `packages/shared/src/roles.js` + `hub-access.js`. CEO paths: `/`, `/analytics` only. Hub manager: all ops routes + API. Approvals/refunds: hub manager. POS manager PIN unchanged on cashier terminal.
 
 **Verify:**
 ```bash
 npm run migrate && npm run seed
-# owner (CEO) → /, analytics, cheques, orders, shifts — no menus/users/settings
-# admin (hub manager) → /menus, users, settings, activity, health — no revenue pages
-# cashier1 → POS PIN only, no web login
+# owner (CEO) → /, /analytics only — 403 on orders/cheques/approvals API
+# admin (hub manager) → menus, users, cheques, orders, shifts, approvals — no overview/analytics API
+# cashier1 → POS PIN only
 ```
 
 ---

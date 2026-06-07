@@ -6,15 +6,15 @@ import { useAuth } from '../hooks/useAuth.js';
 const NAV_ITEMS = [
   { to: '/', end: true, labelKey: 'nav.overview', roles: [ROLES.HUB_OWNER] },
   { to: '/analytics', labelKey: 'nav.analytics', roles: [ROLES.HUB_OWNER] },
-  { to: '/cheques', labelKey: 'nav.cheques', roles: [ROLES.HUB_OWNER] },
-  { to: '/shifts', labelKey: 'nav.shifts', roles: [ROLES.HUB_OWNER] },
-  { to: '/orders', labelKey: 'nav.orders', roles: [ROLES.HUB_OWNER] },
-  { to: '/approvals', labelKey: 'nav.approvals', roles: [ROLES.HUB_OWNER] },
   { to: '/menus', labelKey: 'nav.menus', roles: [ROLES.HUB_MANAGER] },
+  { to: '/cheques', labelKey: 'nav.cheques', roles: [ROLES.HUB_MANAGER] },
+  { to: '/shifts', labelKey: 'nav.shifts', roles: [ROLES.HUB_MANAGER] },
+  { to: '/orders', labelKey: 'nav.orders', roles: [ROLES.HUB_MANAGER] },
+  { to: '/approvals', labelKey: 'nav.approvals', roles: [ROLES.HUB_MANAGER] },
   { to: '/users', labelKey: 'nav.users', roles: [ROLES.HUB_MANAGER] },
   { to: '/settings', labelKey: 'nav.settings', roles: [ROLES.HUB_MANAGER] },
-  { to: '/activity', labelKey: 'nav.activity', roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
-  { to: '/health', labelKey: 'nav.health', roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
+  { to: '/activity', labelKey: 'nav.activity', roles: [ROLES.HUB_MANAGER] },
+  { to: '/health', labelKey: 'nav.health', roles: [ROLES.HUB_MANAGER] },
 ];
 
 function linkClass({ isActive }) {
