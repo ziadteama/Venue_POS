@@ -130,6 +130,7 @@
   "orders.splitChild": "{{label}} (cheque #{{number}})",
   "orders.payments": "Payments",
   "orders.lineItems": "Line items",
+  "orders.noLineItems": "No line items",
   "orders.comped": "Comped",
   "orders.reprintOrder": "Reprint order receipt",
   "orders.reprintCheque": "Reprint cheque receipt",

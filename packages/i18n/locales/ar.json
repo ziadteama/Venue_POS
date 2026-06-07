@@ -130,6 +130,7 @@
   "orders.splitChild": "{{label}} (شيك #{{number}})",
   "orders.payments": "المدفوعات",
   "orders.lineItems": "الأصناف",
+  "orders.noLineItems": "لا توجد أصناف",
   "orders.comped": "مجاني",
   "orders.reprintOrder": "إعادة طباعة إيصال الطلب",
   "orders.reprintCheque": "إعادة طباعة إيصال الشيك",
