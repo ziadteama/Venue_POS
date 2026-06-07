@@ -1127,7 +1127,7 @@ npm run migrate && npm run seed
 
 ---
 
-## Phase 4 — Cross-venue billing (in progress)
+## Phase 4 — Cross-venue billing (complete)
 
 ### 2026-06-08 — Cross-venue billing foundation + settlement (slices 4.1–4.5)
 **Phase:** 4 · **Story:** US-4.1, US-4.2, US-4.3, US-8.6  
@@ -1218,6 +1218,13 @@ npm run test -w @venue-pos/api
 # Cafe anchor POS: cross-venue cheque → include B order → pay
 # Hub: Orders shows linkage; Activity + analytics attribute per venue
 ```
+
+### 2026-06-08 — Cross-venue dashboard badges + POS header/PIN UX
+**Phase:** 4 · **Story:** US-8.3 ext, US-4.x polish
+**What:** Orders/Cheques show cross-venue badge + linked settlement panel; PIN login accepts keyboard + keypad; POS header consolidates tools/account into dropdowns.
+**Files:** `CrossVenueBadge.jsx`, `ChequesSidebar.jsx`, `ChequeDetailView.jsx`, `OrdersPage.jsx`, `cheque-shared.js`, `order-explorer-service.js`, `cross-venue-service.js`, `PinLoginScreen.jsx`, `PosHeader.jsx`, i18n
+**Verify:** Pay cross-venue group → hub `/cheques` and `/orders` show badge + linked cheques list. POS: type PIN with keyboard; header Tools ▾ / Account ▾ menus.
+**Notes:** `serializeCheque` exposes `isCrossVenue` + `crossVenueGroupId`; `getCrossVenueGroupSummary()` loads sibling cheques.
 
 ### 2026-06-08 — POS cashier logout + shift discount stats
 **Phase:** 4 · **Story:** POS ops / US-8.x shifts

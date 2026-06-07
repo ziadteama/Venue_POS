@@ -18,6 +18,7 @@ import {
   computeChequeSubtotal,
   ordersFromCheque,
 } from './cheque-shared.js';
+import { getCrossVenueGroupSummary } from './cross-venue-service.js';
 
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
@@ -110,7 +111,10 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
 export async function getCheque(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
-  return serializeCheque(cheque);
+  const crossVenueGroup = cheque.crossVenueGroupId
+    ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
+    : null;
+  return { ...serializeCheque(cheque), crossVenueGroup };
 }
 
 export async function fireChequeRound(chequeId, venueId) {

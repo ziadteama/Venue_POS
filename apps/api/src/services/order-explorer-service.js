@@ -4,6 +4,7 @@ import { notFound, validationError } from '../utils/errors.js';
 import { serializeOrder, decimalToNumber } from '../utils/serialize.js';
 import { getOrderReceipt } from './order-service.js';
 import { getChequeReceipt } from './cheque-pay.js';
+import { getCrossVenueGroupSummary } from './cross-venue-service.js';
 
 const PAGE_SIZE = 50;
 
@@ -81,6 +82,8 @@ function serializeChequeLink(cheque) {
     tableLabel: cheque.tableLabel,
     status: cheque.status,
     venueId: cheque.venueId,
+    isCrossVenue: Boolean(cheque.isCrossVenue),
+    crossVenueGroupId: cheque.crossVenueGroupId ?? null,
     splitLabel: cheque.splitLabel,
     parentCheque: cheque.parentCheque
       ? {
@@ -291,6 +294,8 @@ function groupOrdersIntoCheques(orderRecords) {
         chequeId: cheque?.id ?? null,
         chequeNumber: cheque?.chequeNumber ?? null,
         chequeStatus: cheque?.status ?? null,
+        isCrossVenue: Boolean(cheque?.isCrossVenue),
+        crossVenueGroupId: cheque?.crossVenueGroupId ?? null,
         tableLabel: cheque?.tableLabel ?? order.tableLabel,
         venueId: order.venueId,
         venueNameEn: order.venue.nameEn,
@@ -543,10 +548,14 @@ export async function getChequeExplorerDetail(chequeId, venueId) {
   if (venueId && cheque.venueId !== venueId) throw notFound('Cheque not found');
 
   const chequeOrders = await loadChequeOrders(chequeId, null);
+  const crossVenueGroup = cheque.crossVenueGroupId
+    ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
+    : null;
 
   return {
     chequeId: cheque.id,
     cheque: serializeChequeLink(cheque),
+    crossVenueGroup,
     chequeOrders,
     venueId: cheque.venueId,
     venueNameEn: cheque.venue.nameEn,
@@ -571,6 +580,9 @@ export async function getOrderExplorerDetail(orderId, venueId) {
   const serialized = serializeOrder(order);
   const cheque = order.chequeLink?.cheque ?? null;
   const chequeOrders = cheque ? await loadChequeOrders(cheque.id, orderId) : [];
+  const crossVenueGroup = cheque?.crossVenueGroupId
+    ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
+    : null;
 
   return {
     ...serialized,
@@ -586,6 +598,7 @@ export async function getOrderExplorerDetail(orderId, venueId) {
         }
       : null,
     cheque: serializeChequeLink(cheque),
+    crossVenueGroup,
     chequeOrders,
     compItems: order.items
       .filter((i) => i.compAudit)

@@ -1,3 +1,5 @@
+import { CrossVenueBadge } from '../CrossVenueBadge.jsx';
+
 export function ChequesSidebar({ t, statusTab, cheques, selectedId, onSelect }) {
   return (
     <aside className="rounded-xl border border-slate-200 bg-white">
@@ -19,9 +21,12 @@ export function ChequesSidebar({ t, statusTab, cheques, selectedId, onSelect }) 
                   selectedId === c.id ? 'bg-primary-from/5 font-medium' : ''
                 }`}
               >
-                <div>
-                  {t('cheque.number', { number: c.chequeNumber })} —{' '}
-                  {c.splitLabel ? `${c.tableLabel} (${c.splitLabel})` : c.tableLabel}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span>
+                    {t('cheque.number', { number: c.chequeNumber })} —{' '}
+                    {c.splitLabel ? `${c.tableLabel} (${c.splitLabel})` : c.tableLabel}
+                  </span>
+                  {c.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
                 </div>
                 <div className="text-secondary">
                   {c.total.toFixed(2)} {t('pos.currency')}

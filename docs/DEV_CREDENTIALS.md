@@ -81,15 +81,33 @@ Set in `apps/pos/.env` (see `apps/pos/.env.example`):
 | `VITE_TERMINAL_SECRET` | `dev-terminal-secret` |
 | `VITE_LOCAL_AGENT_URL` | `http://127.0.0.1:3456` |
 
-Terminal name in DB: **POS-1** · Venue: **Demo Cafe**
+Terminal name in DB: **POS-1** · Venue: **Demo Cafe** (anchor)
 
-### Cashier — `cashier1` / PIN `1234`
+### Restaurant terminal (cross-venue demos)
+
+| Variable | Dev value |
+|----------|-----------|
+| `VITE_TERMINAL_ID` | `00000000-0000-4000-8000-000000000012` |
+| `VITE_TERMINAL_SECRET` | `dev-terminal-secret-restaurant` |
+
+Terminal name in DB: **POS-2** · Venue: **Demo Restaurant**
+
+### Cashier — `cashier1` / PIN `1234` (Demo Cafe)
 
 | Field | Dev value |
 |-------|-----------|
 | User | `cashier1` |
 | User ID | `00000000-0000-4000-8000-000000000011` |
 | PIN | `1234` |
+
+### Cashier — `cashier2` / PIN `2345` (Demo Restaurant)
+
+| Field | Dev value |
+|-------|-----------|
+| User | `cashier2` |
+| PIN | `2345` |
+
+Use with **POS-2** terminal env above. Hub manager enables Cafe→Restaurant in **Settings → Cross-venue billing**, then Cafe anchor POS uses **Tools → Cross-venue** to settle Restaurant cheques.
 
 ### Manager PIN on POS
 
@@ -146,9 +164,12 @@ curl -X POST http://localhost:3000/api/v1/auth/pin \
 
 | Entity | UUID |
 |--------|------|
-| Demo Cafe (venue) | `00000000-0000-4000-8000-000000000010` |
-| Terminal POS-1 | `00000000-0000-4000-8000-000000000001` |
+| Demo Cafe (venue, anchor) | `00000000-0000-4000-8000-000000000010` |
+| Demo Restaurant (venue) | `00000000-0000-4000-8000-000000000020` |
+| Terminal POS-1 (Cafe) | `00000000-0000-4000-8000-000000000001` |
+| Terminal POS-2 (Restaurant) | `00000000-0000-4000-8000-000000000012` |
 | Cashier `cashier1` | `00000000-0000-4000-8000-000000000011` |
+| Cashier `cashier2` | `00000000-0000-4000-8000-000000000012` |
 
 ---
 

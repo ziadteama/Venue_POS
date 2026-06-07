@@ -566,7 +566,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Drill down to line items, modifiers, payment details (grouped by shift → cheque → orders)
 - [x] Reprint order/cheque receipt
 - [x] View voided orders with reason (via status filter)
-- [ ] View cross-venue cheque linkage — Phase 4
+- [x] View cross-venue cheque linkage — Phase 4
 - [x] Pagination: 50 per page
 - [x] Export filtered results to CSV
 

@@ -1,12 +1,21 @@
 import { isHubManager } from '@venue-pos/shared';
 import { billableOrders } from '../../utils/chequeActions.js';
+import { CrossVenueBadge, CrossVenueGroupPanel } from '../CrossVenueBadge.jsx';
+
+function formatMoney(value, locale) {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(Number(value ?? 0));
+}
 
 function ChequeDetailHeader({ detail, t }) {
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h3 className="text-lg font-semibold">
+        <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
           {t('cheque.number', { number: detail.chequeNumber })}
+          {detail.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
         </h3>
         <p className="text-sm text-secondary">
           {t('cheque.table', { label: detail.tableLabel })}
@@ -281,6 +290,17 @@ export function ChequeDetailView({
     <>
       <ChequeDetailHeader detail={detail} t={t} />
       <ChildChequesPanel childCheques={detail.childCheques} t={t} />
+      {detail.crossVenueGroup ? (
+        <div className="mb-4">
+          <CrossVenueGroupPanel
+            group={detail.crossVenueGroup}
+            t={t}
+            language={language}
+            locale={language === 'ar' ? 'ar-EG' : 'en-EG'}
+            formatMoney={formatMoney}
+          />
+        </div>
+      ) : null}
       <div className="mb-4 space-y-3">
         {orders.map((order) => (
           <OrderRoundCard

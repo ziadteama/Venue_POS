@@ -78,10 +78,46 @@ export async function listCrossVenueBillableCheques(anchorVenueId) {
 async function loadGroupMembers(groupId) {
   const cheques = await prisma.cheque.findMany({
     where: { crossVenueGroupId: groupId },
-    include: chequeInclude,
+    include: {
+      ...chequeInclude,
+      venue: {
+        select: {
+          id: true,
+          nameEn: true,
+          nameAr: true,
+          taxRate: true,
+          taxInclusive: true,
+          serviceRate: true,
+          serviceEnabled: true,
+        },
+      },
+    },
     orderBy: { venueId: 'asc' },
   });
   return cheques;
+}
+
+/** Linked cheques in a cross-venue settlement group (hub read-only). */
+export async function getCrossVenueGroupSummary(groupId) {
+  if (!groupId) return null;
+  const members = await loadGroupMembers(groupId);
+  if (!members.length) return null;
+  return {
+    groupId,
+    members: members.map((m) => {
+      const serialized = serializeCheque(m);
+      return {
+        id: serialized.id,
+        chequeNumber: serialized.chequeNumber,
+        venueId: serialized.venueId,
+        venueNameEn: m.venue?.nameEn ?? null,
+        venueNameAr: m.venue?.nameAr ?? null,
+        tableLabel: serialized.tableLabel,
+        status: serialized.status,
+        total: serialized.total,
+      };
+    }),
+  };
 }
 
 function serializeGroup(groupId, anchorVenueId, members) {
