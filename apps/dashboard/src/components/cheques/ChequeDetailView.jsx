@@ -1,3 +1,4 @@
+import { ROLES } from '@venue-pos/shared';
 import { billableOrders } from '../../utils/chequeActions.js';
 
 function ChequeDetailHeader({ detail, t }) {
@@ -126,7 +127,10 @@ function OrderRoundCard({
   );
 }
 
-function ChequeMetaPanels({ detail, isOpenTab, t }) {
+function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, onDiscountAction }) {
+  const hasDiscount = (detail.discountAmount ?? 0) > 0;
+  const canDiscount = canManage && isOpenTab && !detail.draftOrder?.items?.length;
+
   return (
     <>
       {isOpenTab && detail.draftOrder?.items?.length > 0 && (
@@ -134,10 +138,42 @@ function ChequeMetaPanels({ detail, isOpenTab, t }) {
           {t('cheque.draftPending')}
         </div>
       )}
-      {(detail.discountAmount ?? 0) > 0 && (
+      {hasDiscount && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          {t('cheque.discountApplied', { amount: detail.discountAmount.toFixed(2) })}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>{t('cheque.discountApplied', { amount: detail.discountAmount.toFixed(2) })}</span>
+            {canDiscount && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onDiscountAction('discount_change')}
+                  className="text-xs font-semibold text-amber-900 hover:underline disabled:opacity-50"
+                >
+                  {t('cheque.editDiscount')}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onDiscountAction('discount_remove')}
+                  className="text-xs font-semibold text-red-700 hover:underline disabled:opacity-50"
+                >
+                  {t('cheque.removeDiscount')}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+      )}
+      {canDiscount && !hasDiscount && detail.total > 0 && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onDiscountAction('discount')}
+          className="w-full rounded-lg border border-amber-300 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+        >
+          {t('cheque.applyDiscount')}
+        </button>
       )}
       {detail.payments?.length > 0 && (
         <div className="rounded-lg border border-slate-200 bg-white p-3 text-sm">
@@ -176,8 +212,10 @@ export function ChequeDetailView({
   statusTab,
   busy,
   language,
+  userRole,
   t,
   onAction,
+  onDiscountAction,
 }) {
   if (!detail) {
     return <p className="text-secondary">{t('cheque.selectCheque')}</p>;
@@ -185,7 +223,7 @@ export function ChequeDetailView({
 
   const isOpenTab = statusTab === 'open';
   const isPaidTab = statusTab === 'paid';
-  const canManage = false;
+  const canManage = userRole === ROLES.VENUE_MANAGER;
   const orders = billableOrders(detail);
 
   return (
@@ -208,7 +246,14 @@ export function ChequeDetailView({
             onVoidRound={onAction}
           />
         ))}
-        <ChequeMetaPanels detail={detail} isOpenTab={isOpenTab} t={t} />
+        <ChequeMetaPanels
+          detail={detail}
+          isOpenTab={isOpenTab}
+          canManage={canManage}
+          busy={busy}
+          t={t}
+          onDiscountAction={onDiscountAction}
+        />
       </div>
     </>
   );

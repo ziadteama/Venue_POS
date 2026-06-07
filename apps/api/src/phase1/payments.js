@@ -373,6 +373,108 @@ test('cheque discount reduces total before pay', async () => {
   assert.equal(payRes.json().cheque.payments[0].amount, beforeTotal - 10);
 });
 
+test('cheque discount can be changed and removed before pay', async () => {
+  await ensureOpenShift();
+  const tableLabel = `DC2-${Date.now()}`;
+
+  const menuRes = await fx.app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId: fx.menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+
+  const fireRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const beforeTotal = fireRes.json().cheque.total;
+
+  const applyRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/discount`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      amount: 10,
+      reason: 'Loyalty guest',
+      restaurantManagerPin: '7777',
+    },
+  });
+  assert.equal(applyRes.statusCode, 200);
+  assert.equal(applyRes.json().discountAmount, 10);
+
+  const changeRes = await fx.app.inject({
+    method: 'PATCH',
+    url: `/api/v1/cheques/${chequeId}/discount`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      amount: 15,
+      reason: 'Manager adjustment',
+      restaurantManagerPin: '8888',
+    },
+  });
+  assert.equal(changeRes.statusCode, 200);
+  assert.equal(changeRes.json().discountAmount, 15);
+  assert.equal(changeRes.json().total, beforeTotal - 15);
+
+  const removeRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/discount/remove`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      reason: 'Customer changed mind',
+      restaurantManagerPin: '7777',
+    },
+  });
+  assert.equal(removeRes.statusCode, 200);
+  assert.equal(removeRes.json().discountAmount, 0);
+  assert.equal(removeRes.json().total, beforeTotal);
+
+  const activityRes = await fx.app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/activity?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+  });
+  assert.equal(activityRes.statusCode, 200);
+  const types = activityRes.json().map((e) => e.type);
+  assert.ok(types.includes('discount'));
+  assert.ok(types.includes('discount_change'));
+  assert.ok(types.includes('discount_remove'));
+});
+
 test('paid cheque refund: venue manager applies with PIN', async () => {
   await ensureOpenShift();
   const tableLabel = `RF-${Date.now()}`;

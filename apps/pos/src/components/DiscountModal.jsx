@@ -1,9 +1,13 @@
 import { useState } from 'react';
 
-export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
+export function DiscountModal({ cheque, mode = 'apply', onConfirm, onCancel, t }) {
   const subtotal = cheque?.subtotalBeforeDiscount ?? cheque?.total ?? 0;
-  const [mode, setMode] = useState('amount');
-  const [amount, setAmount] = useState('');
+  const currentDiscount = Number(cheque?.discountAmount ?? 0);
+  const isRemove = mode === 'remove';
+  const isEdit = mode === 'edit';
+
+  const [discountMode, setDiscountMode] = useState('amount');
+  const [amount, setAmount] = useState(isEdit && currentDiscount > 0 ? String(currentDiscount) : '');
   const [percent, setPercent] = useState('');
   const [reason, setReason] = useState('');
   const [restaurantManagerPin, setRestaurantManagerPin] = useState('');
@@ -11,14 +15,38 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
   const amountNum = Number(amount) || 0;
   const percentNum = Number(percent) || 0;
   const preview =
-    mode === 'percent'
+    discountMode === 'percent'
       ? Number(((subtotal * percentNum) / 100).toFixed(2))
       : amountNum;
+
+  const title = isRemove
+    ? t('pos.discountRemoveTitle')
+    : isEdit
+      ? t('pos.discountEditTitle')
+      : t('pos.discountTitle');
+
+  const hint = isRemove
+    ? t('pos.discountRemoveHint', { amount: currentDiscount.toFixed(2) })
+    : isEdit
+      ? t('pos.discountEditHint', { amount: currentDiscount.toFixed(2) })
+      : t('pos.discountApplyHint');
+
+  const submitLabel = isRemove
+    ? t('pos.discountRemoveSubmit')
+    : isEdit
+      ? t('pos.discountEditSubmit')
+      : t('pos.discountApplySubmit');
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!reason.trim() || restaurantManagerPin.length < 4) return;
-    if (mode === 'percent') {
+
+    if (isRemove) {
+      onConfirm({ reason: reason.trim(), restaurantManagerPin });
+      return;
+    }
+
+    if (discountMode === 'percent') {
       if (percentNum <= 0 || percentNum > 100) return;
       onConfirm({
         percent: percentNum,
@@ -41,64 +69,68 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
         onSubmit={handleSubmit}
         className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
       >
-        <h3 className="mb-2 text-lg font-semibold text-slate-900">{t('pos.discountTitle')}</h3>
-        <p className="mb-4 text-sm text-secondary">{t('pos.discountApplyHint')}</p>
+        <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
+        <p className="mb-4 text-sm text-secondary">{hint}</p>
 
-        <div className="mb-3 flex gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => setMode('amount')}
-            className={`flex-1 rounded-lg border px-3 py-2 ${
-              mode === 'amount' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
-            }`}
-          >
-            {t('pos.discountAmount')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('percent')}
-            className={`flex-1 rounded-lg border px-3 py-2 ${
-              mode === 'percent' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
-            }`}
-          >
-            {t('pos.discountPercent')}
-          </button>
-        </div>
+        {!isRemove && (
+          <>
+            <div className="mb-3 flex gap-2 text-sm">
+              <button
+                type="button"
+                onClick={() => setDiscountMode('amount')}
+                className={`flex-1 rounded-lg border px-3 py-2 ${
+                  discountMode === 'amount' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
+                }`}
+              >
+                {t('pos.discountAmount')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiscountMode('percent')}
+                className={`flex-1 rounded-lg border px-3 py-2 ${
+                  discountMode === 'percent' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
+                }`}
+              >
+                {t('pos.discountPercent')}
+              </button>
+            </div>
 
-        {mode === 'amount' ? (
-          <label className="mb-3 block text-sm">
-            <span className="mb-1 block text-secondary">{t('pos.discountAmount')}</span>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              max={subtotal}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full rounded border px-3 py-2"
-              autoFocus
-            />
-          </label>
-        ) : (
-          <label className="mb-3 block text-sm">
-            <span className="mb-1 block text-secondary">{t('pos.discountPercent')}</span>
-            <input
-              type="number"
-              min="1"
-              max="100"
-              step="1"
-              value={percent}
-              onChange={(e) => setPercent(e.target.value)}
-              className="w-full rounded border px-3 py-2"
-              autoFocus
-            />
-          </label>
-        )}
+            {discountMode === 'amount' ? (
+              <label className="mb-3 block text-sm">
+                <span className="mb-1 block text-secondary">{t('pos.discountAmount')}</span>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={subtotal}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="w-full rounded border px-3 py-2"
+                  autoFocus
+                />
+              </label>
+            ) : (
+              <label className="mb-3 block text-sm">
+                <span className="mb-1 block text-secondary">{t('pos.discountPercent')}</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  value={percent}
+                  onChange={(e) => setPercent(e.target.value)}
+                  className="w-full rounded border px-3 py-2"
+                  autoFocus
+                />
+              </label>
+            )}
 
-        {preview > 0 && (
-          <p className="mb-3 text-sm font-medium text-emerald-700">
-            {t('pos.discountPreview', { amount: preview.toFixed(2) })}
-          </p>
+            {preview > 0 && (
+              <p className="mb-3 text-sm font-medium text-emerald-700">
+                {t('pos.discountPreview', { amount: preview.toFixed(2) })}
+              </p>
+            )}
+          </>
         )}
 
         <label className="mb-3 block text-sm">
@@ -108,6 +140,7 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
             onChange={(e) => setReason(e.target.value)}
             rows={2}
             className="w-full rounded border px-3 py-2"
+            autoFocus={isRemove}
           />
         </label>
 
@@ -126,9 +159,11 @@ export function DiscountModal({ cheque, onConfirm, onCancel, t }) {
         <div className="flex gap-3">
           <button
             type="submit"
-            className="rounded-lg bg-amber-600 px-4 py-2 font-medium text-white hover:bg-amber-700"
+            className={`rounded-lg px-4 py-2 font-medium text-white ${
+              isRemove ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
+            }`}
           >
-            {t('pos.discountApplySubmit')}
+            {submitLabel}
           </button>
           <button
             type="button"

@@ -6,7 +6,9 @@ import { emitManagerAction } from '../plugins/socket.js';
 import {
   applyChequeDiscount,
   applyChequeRefund,
+  changeChequeDiscount,
   listManagerActivity,
+  removeAppliedChequeDiscount,
 } from '../services/manager-action-service.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
@@ -14,6 +16,11 @@ const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 const discountSchema = z.object({
   amount: z.number().positive().optional(),
   percent: z.number().positive().max(100).optional(),
+  reason: z.string().min(1).max(500),
+  restaurantManagerPin: z.string().min(4).max(6).optional(),
+});
+
+const removeDiscountSchema = z.object({
   reason: z.string().min(1).max(500),
   restaurantManagerPin: z.string().min(4).max(6).optional(),
 });
@@ -70,6 +77,73 @@ export async function managerActivityRoutes(app) {
         emitManagerAction(request.server.io, {
           venueId,
           type: 'discount',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.patch(
+    '/api/v1/manager/cheques/:id/discount',
+    { preHandler: requireRoles(ROLES.VENUE_MANAGER) },
+    async (request) => {
+      const parsed = discountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      if (!parsed.data.amount && !parsed.data.percent) {
+        throw validationError('amount or percent required');
+      }
+
+      const venueId = request.user.venue_id;
+      if (!venueId) throw validationError('Venue is required');
+
+      const cheque = await changeChequeDiscount(
+        request.params.id,
+        {
+          ...parsed.data,
+          cashierId: request.user.sub,
+          initiatorId: request.user.sub,
+        },
+        venueId,
+      );
+
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'discount_change',
+          chequeId: request.params.id,
+          result: cheque,
+        });
+      }
+      return cheque;
+    },
+  );
+
+  app.post(
+    '/api/v1/manager/cheques/:id/discount/remove',
+    { preHandler: requireRoles(ROLES.VENUE_MANAGER) },
+    async (request) => {
+      const parsed = removeDiscountSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = request.user.venue_id;
+      if (!venueId) throw validationError('Venue is required');
+
+      const cheque = await removeAppliedChequeDiscount(
+        request.params.id,
+        {
+          ...parsed.data,
+          cashierId: request.user.sub,
+          initiatorId: request.user.sub,
+        },
+        venueId,
+      );
+
+      if (request.server.io) {
+        emitManagerAction(request.server.io, {
+          venueId,
+          type: 'discount_remove',
           chequeId: request.params.id,
           result: cheque,
         });

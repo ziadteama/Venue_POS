@@ -50,6 +50,36 @@ export function assertDiscountAllowed(cheque) {
   }
 }
 
+function assertDiscountPresent(cheque) {
+  if (Number(cheque.discountAmount ?? 0) <= 0) {
+    throw validationError('No discount on this cheque');
+  }
+}
+
+function discountAuditData({
+  chequeId,
+  cashierId,
+  initiatorId,
+  approverId,
+  action,
+  amount,
+  previousAmount = null,
+  percent = null,
+  reason,
+}) {
+  return {
+    chequeId,
+    cashierId,
+    initiatorId,
+    approverId,
+    action,
+    amount,
+    previousAmount,
+    percent,
+    reason: reason.trim(),
+  };
+}
+
 export async function executeChequeDiscount(
   chequeId,
   {
@@ -65,30 +95,133 @@ export async function executeChequeDiscount(
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found');
   assertDiscountAllowed(cheque);
+  if (Number(cheque.discountAmount ?? 0) > 0) {
+    throw validationError('Discount already applied — edit or remove it first');
+  }
   if (!reason?.trim()) throw validationError('Discount reason is required');
 
   const { discountAmount, percent: pct } = resolveDiscountAmount(cheque, { amount, percent });
   const resolvedCashierId = cashierId ?? cheque.cashierId;
 
-  await prisma.$transaction([
-    prisma.chequeDiscountAudit.create({
-      data: {
+  await prisma.$transaction(async (tx) => {
+    await tx.chequeDiscountAudit.create({
+      data: discountAuditData({
         chequeId,
         cashierId: resolvedCashierId,
         initiatorId,
         approverId,
+        action: 'apply',
         amount: discountAmount,
         percent: pct,
-        reason: reason.trim(),
-      },
-    }),
-    prisma.cheque.update({
+        reason,
+      }),
+    });
+    await tx.cheque.update({
       where: { id: chequeId },
       data: { discountAmount },
-    }),
-  ]);
+    });
+  });
 
   return getCheque(chequeId, venueId);
+}
+
+export async function updateChequeDiscount(
+  chequeId,
+  {
+    amount,
+    percent,
+    reason,
+    initiatorId,
+    approverId,
+    cashierId,
+  },
+  venueId,
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  assertDiscountAllowed(cheque);
+  assertDiscountPresent(cheque);
+  if (!reason?.trim()) throw validationError('Discount reason is required');
+
+  const previousAmount = Number(cheque.discountAmount);
+  const { discountAmount, percent: pct } = resolveDiscountAmount(cheque, { amount, percent });
+  const resolvedCashierId = cashierId ?? cheque.cashierId;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chequeDiscountAudit.create({
+      data: discountAuditData({
+        chequeId,
+        cashierId: resolvedCashierId,
+        initiatorId,
+        approverId,
+        action: 'change',
+        amount: discountAmount,
+        previousAmount,
+        percent: pct,
+        reason,
+      }),
+    });
+    await tx.cheque.update({
+      where: { id: chequeId },
+      data: { discountAmount },
+    });
+  });
+
+  return getCheque(chequeId, venueId);
+}
+
+export async function removeChequeDiscount(
+  chequeId,
+  { reason, initiatorId, approverId, cashierId },
+  venueId,
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+  assertDiscountAllowed(cheque);
+  assertDiscountPresent(cheque);
+  if (!reason?.trim()) throw validationError('Discount reason is required');
+
+  const removedAmount = Number(cheque.discountAmount);
+  const resolvedCashierId = cashierId ?? cheque.cashierId;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.chequeDiscountAudit.create({
+      data: discountAuditData({
+        chequeId,
+        cashierId: resolvedCashierId,
+        initiatorId,
+        approverId,
+        action: 'remove',
+        amount: removedAmount,
+        previousAmount: removedAmount,
+        reason,
+      }),
+    });
+    await tx.cheque.update({
+      where: { id: chequeId },
+      data: { discountAmount: 0 },
+    });
+  });
+
+  return getCheque(chequeId, venueId);
+}
+
+function discountActivityType(action) {
+  if (action === 'change') return 'discount_change';
+  if (action === 'remove') return 'discount_remove';
+  return 'discount';
+}
+
+function discountActivityDetail(row) {
+  const amount = Number(row.amount);
+  const prev = row.previousAmount != null ? Number(row.previousAmount) : null;
+  if (row.action === 'change' && prev != null) {
+    return `${prev.toFixed(2)} → ${amount.toFixed(2)} EGP`;
+  }
+  if (row.action === 'remove') {
+    return `Removed ${amount.toFixed(2)} EGP`;
+  }
+  return row.percent ? `${row.percent}%` : null;
 }
 
 export async function listDiscountAudits(venueId, { limit = 50 } = {}) {
@@ -108,11 +241,15 @@ export async function listDiscountAudits(venueId, { limit = 50 } = {}) {
     chequeId: row.chequeId,
     chequeNumber: row.cheque.chequeNumber,
     tableLabel: row.cheque.tableLabel,
+    action: row.action,
     amount: Number(row.amount),
+    previousAmount: row.previousAmount != null ? Number(row.previousAmount) : null,
     percent: row.percent != null ? Number(row.percent) : null,
     reason: row.reason,
     createdAt: row.createdAt.toISOString(),
     initiator: row.initiator.username,
     approver: row.approver.username,
+    activityType: discountActivityType(row.action),
+    detail: discountActivityDetail(row),
   }));
 }

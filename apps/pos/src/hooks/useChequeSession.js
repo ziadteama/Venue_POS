@@ -226,6 +226,21 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     }
   }, [cheque?.id, refreshOpenCheques]);
 
+  function mapDiscountError(err, fallbackKey) {
+    const msg = err?.message ?? '';
+    if (msg.toLowerCase().includes('pin')) {
+      setError(t('pos.discountInvalidPin'));
+    } else if (msg.toLowerCase().includes('send or clear')) {
+      setError(t('pos.discountClearDraftFirst'));
+    } else if (msg.toLowerCase().includes('no discount')) {
+      setError(t('pos.discountNoneApplied'));
+    } else if (msg.toLowerCase().includes('edit or remove')) {
+      setError(t('pos.discountAlreadyApplied'));
+    } else {
+      setError(msg || t(fallbackKey));
+    }
+  }
+
   async function confirmDiscount(discountBody) {
     if (!cheque) return false;
     setError('');
@@ -238,14 +253,41 @@ export function useChequeSession({ menu, loading, shiftReady }) {
       await refreshOpenCheques();
       return true;
     } catch (err) {
-      const msg = err?.message ?? '';
-      if (msg.toLowerCase().includes('pin')) {
-        setError(t('pos.discountInvalidPin'));
-      } else if (msg.toLowerCase().includes('send or clear')) {
-        setError(t('pos.discountClearDraftFirst'));
-      } else {
-        setError(msg || t('pos.discountFailed'));
-      }
+      mapDiscountError(err, 'pos.discountFailed');
+      return false;
+    }
+  }
+
+  async function confirmChangeDiscount(discountBody) {
+    if (!cheque) return false;
+    setError('');
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/discount`, {
+        method: 'PATCH',
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
+      });
+      setCheque(updated);
+      await refreshOpenCheques();
+      return true;
+    } catch (err) {
+      mapDiscountError(err, 'pos.discountChangeFailed');
+      return false;
+    }
+  }
+
+  async function confirmRemoveDiscount(discountBody) {
+    if (!cheque) return false;
+    setError('');
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/discount/remove`, {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...discountBody }),
+      });
+      setCheque(updated);
+      await refreshOpenCheques();
+      return true;
+    } catch (err) {
+      mapDiscountError(err, 'pos.discountRemoveFailed');
       return false;
     }
   }
@@ -314,6 +356,8 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     confirmSplitAmount,
     confirmTransfer,
     confirmDiscount,
+    confirmChangeDiscount,
+    confirmRemoveDiscount,
     confirmRefund,
     loadPaidCheques,
     refreshCheque,
