@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { canAccessDashboardPath, dashboardRoleI18nKey, defaultDashboardPath } from '@venue-pos/shared';
 import { DashboardNav } from './DashboardNav.jsx';
+import { ErrorBoundary } from './ErrorBoundary.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 
@@ -55,7 +56,9 @@ export function Layout() {
         </div>
       </header>
       <main className="mx-auto max-w-7xl p-4 sm:p-6">
-        <GuardedOutlet />
+        <ErrorBoundary>
+          <GuardedOutlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

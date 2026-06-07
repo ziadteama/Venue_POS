@@ -33,6 +33,11 @@ export function isHubStaff(role) {
   return isCeo(role) || isHubManager(role);
 }
 
+/** Hub roles that may pick a venue in multi-venue dashboard filters. */
+export function canPickVenueStaff(role) {
+  return isHubStaff(role);
+}
+
 export function normalizeDashboardPath(pathname) {
   if (!pathname || pathname === '/') return '/';
   const base = pathname.split('?')[0].replace(/\/$/, '');

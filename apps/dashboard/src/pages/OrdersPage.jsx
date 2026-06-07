@@ -48,9 +48,13 @@ function lineItemTotal(item) {
 }
 
 function OrderLineItems({ items, t, i18n, locale }) {
+  const lines = items ?? [];
+  if (!lines.length) {
+    return <p className="text-xs text-secondary">{t('orders.noLineItems')}</p>;
+  }
   return (
     <ul className="space-y-2">
-      {items.map((item) => (
+      {lines.map((item) => (
         <li key={item.id} className="rounded border border-slate-100 p-2">
           <div className="flex justify-between gap-2">
             <span>
@@ -107,7 +111,7 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
-  const canPickVenue = canPickVenueStaff(user?.role);
+  const canPickVenue = isHubStaff(user?.role);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -433,7 +437,7 @@ export function OrdersPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {shift.cheques.map((group) => {
+                          {(shift.cheques ?? []).map((group) => {
                             const key = groupKey(group);
                             const isSelected = selectedKey === key;
                             return (
@@ -451,7 +455,7 @@ export function OrdersPage() {
                                 </td>
                                 <td className="px-3 py-2">
                                   {t('orders.orderRoundsList', {
-                                    numbers: group.orderNumbers.map((n) => `#${n}`).join(', '),
+                                    numbers: (group.orderNumbers ?? []).map((n) => `#${n}`).join(', ') || '—',
                                     count: group.orderCount,
                                   })}
                                 </td>
@@ -459,7 +463,7 @@ export function OrdersPage() {
                                 <td className="px-3 py-2">
                                   {group.chequeStatus
                                     ? chequeStatusLabel(group.chequeStatus, t)
-                                    : group.orders
+                                    : (group.orders ?? [])
                                         .map((o) => t(`orders.status.${o.status}`, o.status))
                                         .join(', ')}
                                 </td>

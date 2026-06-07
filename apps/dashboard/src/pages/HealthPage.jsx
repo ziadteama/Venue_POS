@@ -15,7 +15,7 @@ export function HealthPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const canPickVenue = canPickVenueStaff(user?.role);
+  const canPickVenue = isHubStaff(user?.role);
 
   const load = useCallback(async () => {
     setLoading(true);

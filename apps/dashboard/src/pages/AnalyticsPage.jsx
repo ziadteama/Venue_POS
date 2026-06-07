@@ -42,7 +42,7 @@ export function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
-  const canPickVenue = canPickVenueStaff(user?.role);
+  const canPickVenue = isHubStaff(user?.role);
 
   const query = useMemo(() => {
     if (preset === 'custom' && (!customFrom || !customTo)) return null;

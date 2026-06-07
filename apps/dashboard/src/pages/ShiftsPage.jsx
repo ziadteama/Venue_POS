@@ -160,7 +160,7 @@ export function ShiftsPage() {
   const [eod, setEod] = useState(null);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
-  const canPickVenue = canPickVenueStaff(user?.role);
+  const canPickVenue = isHubStaff(user?.role);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
