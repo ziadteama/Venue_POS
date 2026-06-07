@@ -1,18 +1,49 @@
 import { z } from 'zod';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError } from '../utils/errors.js';
-import { emitCrossVenueLock, emitCrossVenueBilled } from '../plugins/socket.js';
+import { emitCrossVenueBilled, emitOrderCreated } from '../plugins/socket.js';
 import {
-  listCrossVenueBillableCheques,
-  createCrossVenueGroup,
+  getCrossVenueMenu,
+  startCrossVenueOrder,
+  addCrossVenueItem,
+  editCrossVenueItem,
+  removeCrossVenueItem,
+  fireCrossVenueGroup,
   getCrossVenueGroup,
   cancelCrossVenueGroup,
   payCrossVenueGroup,
 } from '../services/cross-venue-service.js';
 
-const createGroupSchema = z.object({
+const startOrderSchema = z.object({
   cashierId: z.string().uuid(),
-  chequeIds: z.array(z.string().uuid()).min(1).max(20),
+  tableLabel: z.string().min(1).max(32).optional(),
+});
+
+const addItemSchema = z.object({
+  cashierId: z.string().uuid(),
+  venueId: z.string().uuid(),
+  menuItemId: z.string().uuid(),
+  quantity: z.number().int().positive().max(99).optional(),
+  modifiers: z
+    .array(
+      z.object({
+        groupId: z.string().uuid(),
+        optionId: z.string().uuid(),
+        nameEn: z.string(),
+        nameAr: z.string(),
+        priceDelta: z.number().optional(),
+      }),
+    )
+    .optional(),
+});
+
+const editItemSchema = z.object({
+  quantity: z.number().int().positive().max(99),
+});
+
+const fireSchema = z.object({
+  cashierId: z.string().uuid(),
+  venueId: z.string().uuid().optional(),
 });
 
 const payGroupSchema = z.object({
@@ -32,45 +63,120 @@ const cancelGroupSchema = z.object({
 
 export async function crossVenueRoutes(app) {
   app.get(
-    '/api/v1/cross-venue/billable',
+    '/api/v1/cross-venue/menu/:venueId',
     { preHandler: authenticateTerminal },
-    async (request) => listCrossVenueBillableCheques(request.terminal.venueId),
+    async (request) =>
+      getCrossVenueMenu(request.terminal.venueId, request.params.venueId),
   );
 
   app.post(
-    '/api/v1/cross-venue/groups',
+    '/api/v1/cross-venue/order',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const parsed = createGroupSchema.safeParse(request.body);
+      const parsed = startOrderSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
-      const group = await createCrossVenueGroup({
+      return startCrossVenueOrder({
         anchorVenueId: request.terminal.venueId,
         anchorTerminalId: request.terminal.id,
         cashierId: parsed.data.cashierId,
-        chequeIds: parsed.data.chequeIds,
+        tableLabel: parsed.data.tableLabel,
       });
-
-      if (request.server.io) {
-        emitCrossVenueLock(request.server.io, {
-          groupId: group.groupId,
-          anchorVenueId: group.anchorVenueId,
-          cheques: group.cheques.map((c) => ({ id: c.id, venueId: c.venueId })),
-        });
-      }
-      return group;
     },
   );
 
   app.get(
-    '/api/v1/cross-venue/groups/:groupId',
+    '/api/v1/cross-venue/order/:groupId',
     { preHandler: authenticateTerminal },
-    async (request) =>
-      getCrossVenueGroup(request.params.groupId, request.terminal.venueId),
+    async (request) => getCrossVenueGroup(request.params.groupId, request.terminal.venueId),
   );
 
   app.post(
-    '/api/v1/cross-venue/groups/:groupId/cancel',
+    '/api/v1/cross-venue/order/:groupId/items',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = addItemSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return addCrossVenueItem({
+        groupId: request.params.groupId,
+        venueId: parsed.data.venueId,
+        anchorVenueId: request.terminal.venueId,
+        anchorTerminalId: request.terminal.id,
+        cashierId: parsed.data.cashierId,
+        menuItemId: parsed.data.menuItemId,
+        quantity: parsed.data.quantity,
+        modifiers: parsed.data.modifiers,
+      });
+    },
+  );
+
+  app.patch(
+    '/api/v1/cross-venue/order/:groupId/items/:itemId',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = editItemSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = request.query?.venueId;
+      if (!venueId || typeof venueId !== 'string') {
+        throw validationError('venueId query parameter is required');
+      }
+
+      return editCrossVenueItem({
+        groupId: request.params.groupId,
+        venueId,
+        anchorVenueId: request.terminal.venueId,
+        itemId: request.params.itemId,
+        quantity: parsed.data.quantity,
+      });
+    },
+  );
+
+  app.delete(
+    '/api/v1/cross-venue/order/:groupId/items/:itemId',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const venueId = request.query?.venueId;
+      if (!venueId || typeof venueId !== 'string') {
+        throw validationError('venueId query parameter is required');
+      }
+
+      return removeCrossVenueItem({
+        groupId: request.params.groupId,
+        venueId,
+        anchorVenueId: request.terminal.venueId,
+        itemId: request.params.itemId,
+      });
+    },
+  );
+
+  app.post(
+    '/api/v1/cross-venue/order/:groupId/fire',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = fireSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const result = await fireCrossVenueGroup({
+        groupId: request.params.groupId,
+        anchorVenueId: request.terminal.venueId,
+        anchorTerminalId: request.terminal.id,
+        cashierId: parsed.data.cashierId,
+        venueId: parsed.data.venueId,
+      });
+
+      if (request.server.io) {
+        for (const order of result.sentOrders) {
+          emitOrderCreated(request.server.io, order);
+        }
+      }
+      return result;
+    },
+  );
+
+  app.post(
+    '/api/v1/cross-venue/order/:groupId/cancel',
     { preHandler: authenticateTerminal },
     async (request) => {
       const parsed = cancelGroupSchema.safeParse(request.body ?? {});
@@ -82,7 +188,7 @@ export async function crossVenueRoutes(app) {
   );
 
   app.post(
-    '/api/v1/cross-venue/groups/:groupId/pay',
+    '/api/v1/cross-venue/order/:groupId/pay',
     { preHandler: authenticateTerminal },
     async (request) => {
       const parsed = payGroupSchema.safeParse(request.body);

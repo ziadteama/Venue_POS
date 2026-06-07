@@ -107,7 +107,7 @@ Terminal name in DB: **POS-2** · Venue: **Demo Restaurant**
 | User | `cashier2` |
 | PIN | `2345` |
 
-Use with **POS-2** terminal env above. Hub manager enables Cafe→Restaurant in **Settings → Cross-venue billing**, then Cafe anchor POS uses **Tools → Cross-venue** to settle Restaurant cheques.
+**Cross-venue unified ordering (v1):** only **POS-1 (Cafe anchor)** is required. Hub manager enables Cafe→Restaurant in **Settings → Cross-venue billing**, then on Cafe POS: **Tools → Cross-venue order** → switch venue tabs → add items → **Fire all** → **Pay**. The server creates per-venue cheques/orders; kitchen routing and revenue stay per venue. POS-2 is optional (separate Restaurant terminal demos).
 
 ### Manager PIN on POS
 

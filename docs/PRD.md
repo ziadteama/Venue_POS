@@ -289,19 +289,18 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **Priority:** P0 | **Effort:** 3 days
 
 #### US-4.2: Create Cross-Venue Cheque
-**As a** Cashier at an Anchor Venue, **I want** to create a cheque combining orders from multiple venues, **so that** customers can pay in one transaction.
+**As a** Cashier at an Anchor Venue, **I want** to build one order spanning multiple linked venues from the anchor POS, **so that** customers can order from Cafe and Restaurant menus and pay in one transaction.
 
 **Acceptance Criteria:**
-- [ ] Cashier selects "New Cheque" → "Cross-Venue" option
-- [ ] POS queries server for permitted venues (venue_billing_config)
-- [ ] Cashier selects which venues to include from permitted list
-- [ ] POS fetches open, unbilled orders from selected venues
-- [ ] Cashier selects specific orders or items to include
-- [ ] Server creates cheque record, links to orders via cheque_orders junction
-- [ ] Linked orders locked from being billed elsewhere (cheque:lock_acquired event)
-- [ ] All linked venues receive real-time notification of locked status
+- [x] Anchor cashier opens **Tools → Cross-venue order** (online-only; clear error when hub offline)
+- [x] POS shows venue tabs (anchor home + `venue_billing_config` targets)
+- [x] Each tab loads that venue's published menu from the server
+- [x] Adding an item creates/uses a real cheque + draft order for that venue (`cheque.venueId` / `order.venueId` = item's venue)
+- [x] Server rejects menu items that do not belong to the selected venue tab
+- [x] **Fire** sends each venue's draft round to its own kitchen (`order:created` per `order.venueId`)
+- [x] Combined cart shows items grouped by venue with per-venue subtotals
+- [x] Cross-venue group linked via `crossVenueGroupId` on each venue's cheque
 - [ ] Cross-venue cheques disabled when offline (clear UI message)
-- [ ] Server-side lock with 30-second timeout prevents double-billing
 
 **Priority:** P0 | **Effort:** 5 days
 

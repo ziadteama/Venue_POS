@@ -1,19 +1,29 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
-import { notFound, validationError, forbidden, conflict } from '../utils/errors.js';
-import { isBillingAllowed, getEnabledTargets } from './billing-config-service.js';
+import { notFound, validationError, forbidden } from '../utils/errors.js';
+import { isBillingAllowed } from './billing-config-service.js';
 import { assertManualCardPaymentsAllowed } from './payment-policy.js';
 import { requireActiveShift } from './shift-service.js';
+import { getPublishedMenuForVenue } from './menu-service.js';
+import {
+  addOrderItem,
+  updateOrderItemQuantity,
+  removeOrderItem,
+  sendOrderToKitchen,
+} from './order-service.js';
 import {
   BILLABLE_ORDER_STATUSES,
   chequeInclude,
   computeChequeTotal,
   findDraftOrder,
+  itemLineTotal,
+  nextChequeNumber,
   ordersFromCheque,
   serializeCheque,
 } from './cheque-shared.js';
 import { appendAuditLog } from './audit-log-service.js';
+import { serializeOrder } from '../utils/serialize.js';
 
 function ensureFeatureEnabled() {
   if (!config.featureCrossVenueBilling) {
@@ -21,58 +31,71 @@ function ensureFeatureEnabled() {
   }
 }
 
-function chequeSummary(cheque) {
-  const serialized = serializeCheque(cheque);
-  return {
-    id: serialized.id,
-    venueId: serialized.venueId,
-    chequeNumber: serialized.chequeNumber,
-    tableLabel: serialized.tableLabel,
-    status: serialized.status,
-    total: serialized.total,
-    crossVenueGroupId: cheque.crossVenueGroupId ?? null,
-  };
+async function assertAnchorVenue(anchorVenueId) {
+  const venue = await prisma.venue.findUnique({
+    where: { id: anchorVenueId },
+    select: { id: true, type: true, isActive: true },
+  });
+  if (!venue?.isActive) throw notFound('Venue not found');
+  if (venue.type !== 'anchor') {
+    throw forbidden('Cross-venue ordering is only available on anchor terminals');
+  }
 }
 
-/**
- * Open, settle-ready cheques the anchor terminal may pull onto a cross-venue
- * settlement, grouped by their originating venue. Each cheque keeps its own
- * venueId so revenue and kitchen routing stay attributed to that venue.
- */
-export async function listCrossVenueBillableCheques(anchorVenueId) {
-  ensureFeatureEnabled();
-  const targets = await getEnabledTargets(anchorVenueId);
-  if (!targets.length) return { venues: [] };
-
-  const venueIds = targets.map((v) => v.id);
-  const cheques = await prisma.cheque.findMany({
-    where: {
-      venueId: { in: venueIds },
-      status: 'open',
-      parentChequeId: null,
-      crossVenueGroupId: null,
-    },
-    include: chequeInclude,
-    orderBy: { openedAt: 'asc' },
+async function assertAnchorCashier(anchorVenueId, cashierId) {
+  const cashier = await prisma.user.findFirst({
+    where: { id: cashierId, venueId: anchorVenueId, role: 'cashier', isActive: true },
   });
+  if (!cashier) throw validationError('Invalid cashier for this anchor venue');
+  return cashier;
+}
 
-  const byVenue = new Map(targets.map((v) => [v.id, { venue: v, cheques: [] }]));
-  for (const cheque of cheques) {
-    const total = computeChequeTotal(cheque);
-    if (total <= 0) continue; // nothing fired yet — skip empty tables
-    byVenue.get(cheque.venueId)?.cheques.push(chequeSummary(cheque));
+async function assertVenueBillingAccess(anchorVenueId, targetVenueId) {
+  if (targetVenueId === anchorVenueId) return;
+  const allowed = await isBillingAllowed(anchorVenueId, targetVenueId);
+  if (!allowed) {
+    throw forbidden('This venue is not linked for cross-venue billing');
   }
+}
 
-  return {
-    venues: [...byVenue.values()]
-      .filter((entry) => entry.cheques.length > 0)
-      .map((entry) => ({
-        venueId: entry.venue.id,
-        nameEn: entry.venue.nameEn,
-        nameAr: entry.venue.nameAr,
-        cheques: entry.cheques,
-      })),
-  };
+async function assertMenuItemForVenue(menuItemId, venueId) {
+  const menuItem = await prisma.menuItem.findFirst({
+    where: {
+      id: menuItemId,
+      isActive: true,
+      category: {
+        isActive: true,
+        menuTemplate: {
+          status: 'published',
+          isActive: true,
+          venues: { some: { venueId } },
+        },
+      },
+    },
+  });
+  if (!menuItem) {
+    throw validationError('Menu item does not belong to this venue');
+  }
+  return menuItem;
+}
+
+async function createCrossVenueDraftOrderInTx(tx, { venueId, terminalId, cashierId, tableLabel }) {
+  const last = await tx.order.findFirst({
+    where: { venueId },
+    orderBy: { orderNumber: 'desc' },
+    select: { orderNumber: true },
+  });
+  const orderNumber = (last?.orderNumber ?? 0) + 1;
+  return tx.order.create({
+    data: {
+      venueId,
+      terminalId,
+      cashierId,
+      orderNumber,
+      tableLabel: tableLabel ?? null,
+      status: 'draft',
+    },
+  });
 }
 
 async function loadGroupMembers(groupId) {
@@ -95,6 +118,75 @@ async function loadGroupMembers(groupId) {
     orderBy: { venueId: 'asc' },
   });
   return cheques;
+}
+
+function draftSubtotal(draftOrder) {
+  if (!draftOrder?.items?.length) return 0;
+  return Number(
+    draftOrder.items.reduce((sum, item) => sum + itemLineTotal(item), 0).toFixed(2),
+  );
+}
+
+function hasSentOrders(cheque) {
+  return ordersFromCheque(cheque).some((o) => BILLABLE_ORDER_STATUSES.includes(o.status));
+}
+
+export function serializeCrossVenueGroup(groupId, anchorVenueId, members) {
+  const cheques = members.map((member) => {
+    const serialized = serializeCheque(member);
+    const draft = findDraftOrder(member);
+    const draftOrder = draft ? serializeOrder(draft) : null;
+    const firedSubtotal = computeChequeTotal(member);
+    const pendingSubtotal = draftSubtotal(draftOrder);
+    return {
+      ...serialized,
+      venueNameEn: member.venue?.nameEn ?? null,
+      venueNameAr: member.venue?.nameAr ?? null,
+      draftOrder,
+      firedSubtotal,
+      pendingSubtotal,
+      displaySubtotal: Number((firedSubtotal + pendingSubtotal).toFixed(2)),
+    };
+  });
+
+  const combinedTotal = Number(
+    cheques.reduce((sum, c) => sum + c.firedSubtotal, 0).toFixed(2),
+  );
+  const pendingTotal = Number(
+    cheques.reduce((sum, c) => sum + c.pendingSubtotal, 0).toFixed(2),
+  );
+  const displayTotal = Number((combinedTotal + pendingTotal).toFixed(2));
+  const status = members.every((m) => m.status === 'paid') ? 'paid' : 'open';
+  const tableLabel = members[0]?.tableLabel ?? null;
+
+  const venueMap = new Map();
+  for (const cheque of cheques) {
+    const existing = venueMap.get(cheque.venueId);
+    if (!existing) {
+      venueMap.set(cheque.venueId, {
+        venueId: cheque.venueId,
+        nameEn: cheque.venueNameEn,
+        nameAr: cheque.venueNameAr,
+        chequeId: cheque.id,
+        draftOrder: cheque.draftOrder,
+        firedSubtotal: cheque.firedSubtotal,
+        pendingSubtotal: cheque.pendingSubtotal,
+        displaySubtotal: cheque.displaySubtotal,
+      });
+    }
+  }
+
+  return {
+    groupId,
+    anchorVenueId,
+    status,
+    tableLabel,
+    combinedTotal,
+    pendingTotal,
+    displayTotal,
+    cheques,
+    venues: [...venueMap.values()],
+  };
 }
 
 /** Linked cheques in a cross-venue settlement group (hub read-only). */
@@ -120,136 +212,285 @@ export async function getCrossVenueGroupSummary(groupId) {
   };
 }
 
-function serializeGroup(groupId, anchorVenueId, members) {
-  const cheques = members.map((m) => {
-    const serialized = serializeCheque(m);
-    return { ...serialized, venueNameEn: m.venue?.nameEn ?? null };
-  });
-  const combinedTotal = Number(
-    cheques.reduce((sum, c) => sum + c.total, 0).toFixed(2),
-  );
-  const status = members.every((m) => m.status === 'paid') ? 'paid' : 'open';
-  return {
-    groupId,
-    anchorVenueId,
-    status,
-    combinedTotal,
-    cheques,
-  };
+export async function getCrossVenueMenu(anchorVenueId, targetVenueId) {
+  ensureFeatureEnabled();
+  await assertAnchorVenue(anchorVenueId);
+  await assertVenueBillingAccess(anchorVenueId, targetVenueId);
+  return getPublishedMenuForVenue(targetVenueId);
 }
 
-/**
- * Reserve the selected open cheques onto a new cross-venue settlement group.
- * The group id acts as a durable lock: a cheque can only belong to one group,
- * and the conditional update guards against two anchor terminals grabbing the
- * same cheque at once.
- */
-export async function createCrossVenueGroup({
+export async function startCrossVenueOrder({
   anchorVenueId,
   anchorTerminalId,
   cashierId,
-  chequeIds,
+  tableLabel,
 }) {
   ensureFeatureEnabled();
-  if (!Array.isArray(chequeIds) || chequeIds.length === 0) {
-    throw validationError('Select at least one cheque to combine');
-  }
-  const uniqueIds = [...new Set(chequeIds)];
-
-  const cheques = await prisma.cheque.findMany({
-    where: { id: { in: uniqueIds } },
-    include: chequeInclude,
-  });
-  if (cheques.length !== uniqueIds.length) {
-    throw notFound('One or more cheques were not found');
-  }
-
-  for (const cheque of cheques) {
-    if (cheque.status !== 'open') {
-      throw validationError(`Cheque #${cheque.chequeNumber} is not open`);
-    }
-    if (cheque.parentChequeId) {
-      throw validationError('Split sub-cheques cannot be cross-billed');
-    }
-    if (cheque.crossVenueGroupId) {
-      throw conflict('Cheque is already part of another cross-venue settlement');
-    }
-    const allowed = await isBillingAllowed(anchorVenueId, cheque.venueId);
-    if (!allowed) {
-      throw forbidden('This venue is not linked for cross-venue billing');
-    }
-    const draft = findDraftOrder(cheque);
-    if (draft?.items?.length) {
-      throw validationError(
-        `Send or clear the open round on cheque #${cheque.chequeNumber} before combining`,
-      );
-    }
-    if (computeChequeTotal(cheque) <= 0) {
-      throw validationError(`Cheque #${cheque.chequeNumber} has nothing to settle`);
-    }
-  }
+  await assertAnchorVenue(anchorVenueId);
+  await assertAnchorCashier(anchorVenueId, cashierId);
 
   const groupId = randomUUID();
-  const reserved = await prisma.cheque.updateMany({
-    where: {
-      id: { in: uniqueIds },
-      status: 'open',
-      parentChequeId: null,
-      crossVenueGroupId: null,
-    },
-    data: { crossVenueGroupId: groupId, isCrossVenue: true },
+
+  await prisma.$transaction(async (tx) => {
+    const chequeNumber = await nextChequeNumber(tx, anchorVenueId);
+    const cheque = await tx.cheque.create({
+      data: {
+        venueId: anchorVenueId,
+        terminalId: anchorTerminalId,
+        cashierId,
+        chequeNumber,
+        tableLabel: tableLabel ?? null,
+        status: 'open',
+        crossVenueGroupId: groupId,
+        isCrossVenue: true,
+      },
+    });
+    const order = await createCrossVenueDraftOrderInTx(tx, {
+      venueId: anchorVenueId,
+      terminalId: anchorTerminalId,
+      cashierId,
+      tableLabel,
+    });
+    await tx.chequeOrder.create({ data: { chequeId: cheque.id, orderId: order.id } });
   });
-  if (reserved.count !== uniqueIds.length) {
-    // A concurrent settlement grabbed one of these cheques first.
-    throw conflict('One or more cheques were just locked by another terminal');
-  }
 
   await appendAuditLog({
     venueId: anchorVenueId,
     actorId: cashierId,
-    action: 'cross_venue_lock',
+    action: 'cross_venue_order_start',
     entityType: 'cross_venue_group',
     entityId: groupId,
-    summary: `Locked ${uniqueIds.length} cheque(s) for cross-venue settlement`,
-    details: { chequeIds: uniqueIds, anchorTerminalId },
+    summary: `Started cross-venue order${tableLabel ? ` for table ${tableLabel}` : ''}`,
+    details: { anchorTerminalId, tableLabel },
   });
 
   const members = await loadGroupMembers(groupId);
-  return serializeGroup(groupId, anchorVenueId, members);
+  return serializeCrossVenueGroup(groupId, anchorVenueId, members);
+}
+
+export async function ensureVenueChequeInGroup({
+  groupId,
+  targetVenueId,
+  anchorVenueId,
+  anchorTerminalId,
+  cashierId,
+  tableLabel,
+}) {
+  ensureFeatureEnabled();
+  await assertAnchorCashier(anchorVenueId, cashierId);
+  await assertVenueBillingAccess(anchorVenueId, targetVenueId);
+
+  const members = await loadGroupMembers(groupId);
+  if (!members.length) throw notFound('Cross-venue order not found');
+
+  const existing = members.find((m) => m.venueId === targetVenueId && m.status === 'open');
+  if (existing) return existing;
+
+  const label = tableLabel ?? members[0]?.tableLabel ?? null;
+
+  const cheque = await prisma.$transaction(async (tx) => {
+    const chequeNumber = await nextChequeNumber(tx, targetVenueId);
+    const created = await tx.cheque.create({
+      data: {
+        venueId: targetVenueId,
+        terminalId: anchorTerminalId,
+        cashierId,
+        chequeNumber,
+        tableLabel: label,
+        status: 'open',
+        crossVenueGroupId: groupId,
+        isCrossVenue: true,
+      },
+    });
+    const order = await createCrossVenueDraftOrderInTx(tx, {
+      venueId: targetVenueId,
+      terminalId: anchorTerminalId,
+      cashierId,
+      tableLabel: label,
+    });
+    await tx.chequeOrder.create({ data: { chequeId: created.id, orderId: order.id } });
+    return created;
+  });
+
+  return prisma.cheque.findUnique({
+    where: { id: cheque.id },
+    include: {
+      ...chequeInclude,
+      venue: {
+        select: {
+          id: true,
+          nameEn: true,
+          nameAr: true,
+          taxRate: true,
+          taxInclusive: true,
+          serviceRate: true,
+          serviceEnabled: true,
+        },
+      },
+    },
+  });
+}
+
+async function resolveDraftForVenue(groupId, venueId) {
+  const members = await loadGroupMembers(groupId);
+  if (!members.length) throw notFound('Cross-venue order not found');
+
+  const member = members.find((m) => m.venueId === venueId);
+  if (!member) throw notFound('No cheque for this venue in the group');
+
+  const draft = findDraftOrder(member);
+  if (!draft) throw validationError('No draft order on this venue cheque');
+  return { members, member, draft };
+}
+
+export async function addCrossVenueItem({
+  groupId,
+  venueId,
+  anchorVenueId,
+  anchorTerminalId,
+  cashierId,
+  menuItemId,
+  quantity = 1,
+  modifiers = [],
+}) {
+  ensureFeatureEnabled();
+  await assertAnchorCashier(anchorVenueId, cashierId);
+  await assertMenuItemForVenue(menuItemId, venueId);
+
+  const members = await loadGroupMembers(groupId);
+  if (!members.length) throw notFound('Cross-venue order not found');
+  const tableLabel = members[0]?.tableLabel ?? null;
+
+  await ensureVenueChequeInGroup({
+    groupId,
+    targetVenueId: venueId,
+    anchorVenueId,
+    anchorTerminalId,
+    cashierId,
+    tableLabel,
+  });
+
+  const { draft } = await resolveDraftForVenue(groupId, venueId);
+  await addOrderItem(draft.id, { menuItemId, quantity, modifiers });
+
+  const updatedMembers = await loadGroupMembers(groupId);
+  return serializeCrossVenueGroup(groupId, anchorVenueId, updatedMembers);
+}
+
+export async function editCrossVenueItem({ groupId, venueId, anchorVenueId, itemId, quantity }) {
+  ensureFeatureEnabled();
+  const { draft } = await resolveDraftForVenue(groupId, venueId);
+  const item = draft.items.find((row) => row.id === itemId);
+  if (!item) throw notFound('Order item not found');
+
+  await updateOrderItemQuantity(draft.id, itemId, quantity);
+  const updatedMembers = await loadGroupMembers(groupId);
+  return serializeCrossVenueGroup(groupId, anchorVenueId, updatedMembers);
+}
+
+export async function removeCrossVenueItem({ groupId, venueId, anchorVenueId, itemId }) {
+  ensureFeatureEnabled();
+  const { draft } = await resolveDraftForVenue(groupId, venueId);
+  const item = draft.items.find((row) => row.id === itemId);
+  if (!item) throw notFound('Order item not found');
+
+  await removeOrderItem(draft.id, itemId);
+  const updatedMembers = await loadGroupMembers(groupId);
+  return serializeCrossVenueGroup(groupId, anchorVenueId, updatedMembers);
+}
+
+export async function fireCrossVenueGroup({
+  groupId,
+  anchorVenueId,
+  anchorTerminalId,
+  cashierId,
+  venueId,
+}) {
+  ensureFeatureEnabled();
+  await assertAnchorCashier(anchorVenueId, cashierId);
+
+  const members = await loadGroupMembers(groupId);
+  if (!members.length) throw notFound('Cross-venue order not found');
+
+  const targets = venueId
+    ? members.filter((m) => m.venueId === venueId)
+    : members;
+
+  const sentOrders = [];
+  for (const member of targets) {
+    const draft = findDraftOrder(member);
+    if (!draft?.items?.length) continue;
+
+    const sentOrder = await sendOrderToKitchen(draft.id);
+    sentOrders.push(sentOrder);
+
+    const nextDraft = await prisma.$transaction(async (tx) => {
+      const created = await createCrossVenueDraftOrderInTx(tx, {
+        venueId: member.venueId,
+        terminalId: anchorTerminalId,
+        cashierId,
+        tableLabel: member.tableLabel,
+      });
+      await tx.chequeOrder.create({ data: { chequeId: member.id, orderId: created.id } });
+      return created;
+    });
+    void nextDraft;
+  }
+
+  if (!sentOrders.length) {
+    throw validationError('No draft items to send to the kitchen');
+  }
+
+  const updatedMembers = await loadGroupMembers(groupId);
+  return {
+    sentOrders,
+    group: serializeCrossVenueGroup(groupId, anchorVenueId, updatedMembers),
+  };
 }
 
 export async function getCrossVenueGroup(groupId, anchorVenueId) {
   ensureFeatureEnabled();
   const members = await loadGroupMembers(groupId);
-  if (!members.length) throw notFound('Cross-venue settlement not found');
-  return serializeGroup(groupId, anchorVenueId, members);
+  if (!members.length) throw notFound('Cross-venue order not found');
+  return serializeCrossVenueGroup(groupId, anchorVenueId, members);
 }
 
-/** Release a settlement that was not paid — clears the lock on open members. */
+/** Cancel an unpaid cross-venue order — deletes empty cheques and draft rounds. */
 export async function cancelCrossVenueGroup(groupId, anchorVenueId, { cashierId } = {}) {
   ensureFeatureEnabled();
   const members = await loadGroupMembers(groupId);
-  if (!members.length) throw notFound('Cross-venue settlement not found');
+  if (!members.length) throw notFound('Cross-venue order not found');
+
   if (members.some((m) => m.status === 'paid')) {
     throw validationError('Settlement already has paid cheques and cannot be cancelled');
   }
+  if (members.some((m) => hasSentOrders(m))) {
+    throw validationError('Cannot cancel — orders already sent to the kitchen');
+  }
 
-  await prisma.cheque.updateMany({
-    where: { crossVenueGroupId: groupId, status: 'open' },
-    data: { crossVenueGroupId: null, isCrossVenue: false },
+  await prisma.$transaction(async (tx) => {
+    for (const member of members) {
+      const orders = ordersFromCheque(member);
+      for (const order of orders) {
+        await tx.orderItem.deleteMany({ where: { orderId: order.id } });
+        await tx.chequeOrder.deleteMany({ where: { orderId: order.id } });
+        await tx.order.delete({ where: { id: order.id } });
+      }
+      await tx.cheque.delete({ where: { id: member.id } });
+    }
   });
 
   await appendAuditLog({
     venueId: anchorVenueId,
     actorId: cashierId ?? null,
-    action: 'cross_venue_unlock',
+    action: 'cross_venue_order_cancel',
     entityType: 'cross_venue_group',
     entityId: groupId,
-    summary: `Released cross-venue settlement (${members.length} cheque(s))`,
+    summary: `Cancelled cross-venue order (${members.length} cheque(s))`,
     details: { chequeIds: members.map((m) => m.id) },
   });
 
-  return { groupId, released: true };
+  return { groupId, cancelled: true };
 }
 
 function buildCrossVenueReceipt(members, { tendered, change, method }) {
@@ -286,10 +527,17 @@ export async function payCrossVenueGroup({
 }) {
   ensureFeatureEnabled();
   const members = await loadGroupMembers(groupId);
-  if (!members.length) throw notFound('Cross-venue settlement not found');
+  if (!members.length) throw notFound('Cross-venue order not found');
 
   const openMembers = members.filter((m) => m.status === 'open');
   if (!openMembers.length) throw validationError('Settlement is already paid');
+
+  for (const member of openMembers) {
+    const draft = findDraftOrder(member);
+    if (draft?.items?.length) {
+      throw validationError('Send all items to the kitchen before paying');
+    }
+  }
 
   const memberTotals = openMembers.map((member) => ({
     member,
@@ -325,8 +573,6 @@ export async function payCrossVenueGroup({
     change = Number((tendered - combinedTotal).toFixed(2));
   }
 
-  // Settle each member against the anchor cashier's active shift (the drawer
-  // physically taking the money), but credit revenue to the member's venue.
   const activeShift = anchorTerminalId
     ? await requireActiveShift(cashierId, anchorTerminalId, anchorVenueId)
     : null;
@@ -368,6 +614,8 @@ export async function payCrossVenueGroup({
 
       const draft = findDraftOrder(member);
       if (draft && !draft.items.length) {
+        await tx.orderItem.deleteMany({ where: { orderId: draft.id } });
+        await tx.chequeOrder.deleteMany({ where: { orderId: draft.id } });
         await tx.order.delete({ where: { id: draft.id } });
       }
 
@@ -400,7 +648,7 @@ export async function payCrossVenueGroup({
   });
 
   return {
-    group: serializeGroup(groupId, anchorVenueId, paidMembers),
+    group: serializeCrossVenueGroup(groupId, anchorVenueId, paidMembers),
     receipt,
     change,
     combinedTotal,

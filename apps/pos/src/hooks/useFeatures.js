@@ -13,6 +13,7 @@ const DEFAULT_FEATURES = {
   crossVenueBilling: false,
   isAnchor: false,
   crossVenueTargets: [],
+  anchorVenue: null,
 };
 
 export function useFeatures() {
@@ -39,6 +40,7 @@ export function useFeatures() {
             crossVenueTargets: Array.isArray(data?.crossVenueTargets)
               ? data.crossVenueTargets
               : [],
+            anchorVenue: data?.anchorVenue ?? null,
           });
         }
       } catch {

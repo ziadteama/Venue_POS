@@ -9,7 +9,7 @@ export async function featureRoutes(app) {
     const venueId = request.terminal.venueId;
     const venue = await prisma.venue.findUnique({
       where: { id: venueId },
-      select: { tables: true, type: true },
+      select: { tables: true, type: true, nameEn: true, nameAr: true },
     });
 
     const crossVenueTargets = config.featureCrossVenueBilling
@@ -28,6 +28,10 @@ export async function featureRoutes(app) {
       crossVenueBilling: config.featureCrossVenueBilling && crossVenueTargets.length > 0,
       isAnchor: venue?.type === 'anchor',
       crossVenueTargets,
+      anchorVenue:
+        venue?.type === 'anchor'
+          ? { id: venueId, nameEn: venue.nameEn, nameAr: venue.nameAr }
+          : null,
     };
   });
 }

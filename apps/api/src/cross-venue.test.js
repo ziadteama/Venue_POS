@@ -21,6 +21,7 @@ const targetHeaders = { 'x-terminal-id': TARGET_TERMINAL, 'x-terminal-secret': T
 
 let app;
 let managerToken;
+let anchorMenuItemId;
 let targetMenuItemId;
 
 async function seedVenueMenu(venueId, nameEn, price) {
@@ -44,6 +45,15 @@ async function seedVenueMenu(venueId, nameEn, price) {
   });
   await publishMenuTemplate(template.id);
   return template.categories[0].items[0].id;
+}
+
+async function enableBilling() {
+  await app.inject({
+    method: 'PUT',
+    url: '/api/v1/manager/billing-config',
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: { anchorVenueId: ANCHOR_VENUE, targetVenueId: TARGET_VENUE, enabled: true },
+  });
 }
 
 before(async () => {
@@ -94,11 +104,13 @@ before(async () => {
     create: { id: TARGET_TERMINAL, venueId: TARGET_VENUE, name: 'XTargetPOS', secretHash },
   });
 
-  await seedVenueMenu(ANCHOR_VENUE, 'XCoffee', 50);
+  anchorMenuItemId = await seedVenueMenu(ANCHOR_VENUE, 'XCoffee', 50);
   targetMenuItemId = await seedVenueMenu(TARGET_VENUE, 'XBurger', 120);
 
   const adminUser = await prisma.user.findUnique({ where: { username: 'xadmin' } });
   managerToken = signAccessToken({ sub: adminUser.id, role: 'hub_manager', venue_id: ANCHOR_VENUE });
+
+  await enableBilling();
 });
 
 after(async () => {
@@ -109,44 +121,7 @@ after(async () => {
   await prisma.$disconnect();
 });
 
-async function openFireCheque(headers, cashierId, menuItemId, table, qty) {
-  const open = await app.inject({
-    method: 'POST',
-    url: '/api/v1/cheques/open',
-    headers,
-    payload: { cashierId, tableLabel: table },
-  });
-  assert.equal(open.statusCode, 200, open.body);
-  const chequeId = open.json().id;
-  const draftId = open.json().draftOrder.id;
-
-  const add = await app.inject({
-    method: 'POST',
-    url: `/api/v1/orders/${draftId}/items`,
-    headers,
-    payload: { menuItemId, quantity: qty },
-  });
-  assert.equal(add.statusCode, 200, add.body);
-
-  const fire = await app.inject({
-    method: 'POST',
-    url: `/api/v1/cheques/${chequeId}/fire`,
-    headers,
-  });
-  assert.equal(fire.statusCode, 200, fire.body);
-  return chequeId;
-}
-
 test('hub manager can configure and read the billing matrix', async () => {
-  const put = await app.inject({
-    method: 'PUT',
-    url: '/api/v1/manager/billing-config',
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: { anchorVenueId: ANCHOR_VENUE, targetVenueId: TARGET_VENUE, enabled: true },
-  });
-  assert.equal(put.statusCode, 200, put.body);
-  assert.equal(put.json().enabled, true);
-
   const get = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/billing-config',
@@ -157,6 +132,7 @@ test('hub manager can configure and read the billing matrix', async () => {
     .json()
     .pairs.find((p) => p.anchorVenueId === ANCHOR_VENUE && p.targetVenueId === TARGET_VENUE);
   assert.ok(pair, 'configured pair should appear in matrix');
+  assert.equal(pair.enabled, true);
 });
 
 test('a venue cannot be configured to bill itself', async () => {
@@ -186,6 +162,7 @@ test('anchor terminal features expose configured cross-venue targets', async () 
   assert.equal(body.isAnchor, true);
   assert.equal(body.crossVenueBilling, true);
   assert.ok(body.crossVenueTargets.some((v) => v.id === TARGET_VENUE));
+  assert.equal(body.anchorVenue?.id, ANCHOR_VENUE);
 });
 
 test('target terminal sees no cross-venue targets', async () => {
@@ -195,48 +172,84 @@ test('target terminal sees no cross-venue targets', async () => {
   assert.equal(res.json().crossVenueTargets.length, 0);
 });
 
-test('cross-venue settlement: lock, conflict guard, pay, revenue per venue', async () => {
-  const targetChequeId = await openFireCheque(targetHeaders, TARGET_CASHIER, targetMenuItemId, 'R1', 2);
-
-  // Order created at target stays attributed to the target venue (kitchen routing).
-  const targetOrder = await prisma.order.findFirst({
-    where: { venueId: TARGET_VENUE, status: 'sent' },
-    orderBy: { sentAt: 'desc' },
+test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attribution', async () => {
+  const start = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cross-venue/order',
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER, tableLabel: 'CV1' },
   });
-  assert.equal(targetOrder.venueId, TARGET_VENUE);
+  assert.equal(start.statusCode, 200, start.body);
+  const groupId = start.json().groupId;
+  assert.ok(groupId);
+  assert.equal(start.json().cheques.length, 1);
+  assert.equal(start.json().cheques[0].venueId, ANCHOR_VENUE);
 
-  // Anchor lists billable target cheques.
-  const billable = await app.inject({
+  const menu = await app.inject({
     method: 'GET',
-    url: '/api/v1/cross-venue/billable',
+    url: `/api/v1/cross-venue/menu/${TARGET_VENUE}`,
     headers: anchorHeaders,
   });
-  assert.equal(billable.statusCode, 200, billable.body);
-  const targetVenueEntry = billable.json().venues.find((v) => v.venueId === TARGET_VENUE);
-  assert.ok(targetVenueEntry, 'target venue should appear as billable');
-  assert.ok(targetVenueEntry.cheques.some((c) => c.id === targetChequeId));
+  assert.equal(menu.statusCode, 200, menu.body);
+  assert.ok(menu.json().categories?.length);
 
-  // Lock the target cheque onto a cross-venue group.
-  const create = await app.inject({
+  const addAnchor = await app.inject({
     method: 'POST',
-    url: '/api/v1/cross-venue/groups',
+    url: `/api/v1/cross-venue/order/${groupId}/items`,
     headers: anchorHeaders,
-    payload: { cashierId: ANCHOR_CASHIER, chequeIds: [targetChequeId] },
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: ANCHOR_VENUE,
+      menuItemId: anchorMenuItemId,
+      quantity: 1,
+    },
   });
-  assert.equal(create.statusCode, 200, create.body);
-  const groupId = create.json().groupId;
-  assert.ok(create.json().combinedTotal >= 240);
+  assert.equal(addAnchor.statusCode, 200, addAnchor.body);
 
-  // A second attempt to grab the same cheque must conflict (durable lock).
-  const conflictRes = await app.inject({
+  const addTarget = await app.inject({
     method: 'POST',
-    url: '/api/v1/cross-venue/groups',
+    url: `/api/v1/cross-venue/order/${groupId}/items`,
     headers: anchorHeaders,
-    payload: { cashierId: ANCHOR_CASHIER, chequeIds: [targetChequeId] },
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: TARGET_VENUE,
+      menuItemId: targetMenuItemId,
+      quantity: 2,
+    },
   });
-  assert.equal(conflictRes.statusCode, 409, conflictRes.body);
+  assert.equal(addTarget.statusCode, 200, addTarget.body);
+  assert.equal(addTarget.json().cheques.length, 2);
+  const venueIds = addTarget.json().cheques.map((c) => c.venueId).sort();
+  assert.deepEqual(venueIds, [ANCHOR_VENUE, TARGET_VENUE].sort());
 
-  // Anchor needs an open shift to take the money.
+  const wrongVenueItem = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/order/${groupId}/items`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: TARGET_VENUE,
+      menuItemId: anchorMenuItemId,
+      quantity: 1,
+    },
+  });
+  assert.equal(wrongVenueItem.statusCode, 400, wrongVenueItem.body);
+
+  const fire = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/order/${groupId}/fire`,
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER },
+  });
+  assert.equal(fire.statusCode, 200, fire.body);
+  assert.equal(fire.json().sentOrders.length, 2);
+
+  for (const order of fire.json().sentOrders) {
+    assert.ok([ANCHOR_VENUE, TARGET_VENUE].includes(order.venueId));
+    const dbOrder = await prisma.order.findUnique({ where: { id: order.id } });
+    assert.equal(dbOrder.venueId, order.venueId);
+  }
+
   const shift = await app.inject({
     method: 'POST',
     url: '/api/v1/shifts/open',
@@ -252,34 +265,33 @@ test('cross-venue settlement: lock, conflict guard, pay, revenue per venue', asy
 
   const pay = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/groups/${groupId}/pay`,
+    url: `/api/v1/cross-venue/order/${groupId}/pay`,
     headers: anchorHeaders,
-    payload: { cashierId: ANCHOR_CASHIER, method: 'cash', tendered: 300 },
+    payload: { cashierId: ANCHOR_CASHIER, method: 'cash', tendered: 500 },
   });
   assert.equal(pay.statusCode, 200, pay.body);
   assert.equal(pay.json().group.status, 'paid');
   assert.ok(pay.json().receipt.includes('CROSS-VENUE'));
 
-  // The target cheque is paid and its payment is attributed to the TARGET venue.
-  const paidCheque = await prisma.cheque.findUnique({ where: { id: targetChequeId } });
-  assert.equal(paidCheque.status, 'paid');
+  const anchorPayment = await prisma.payment.findFirst({
+    where: { cheque: { venueId: ANCHOR_VENUE, crossVenueGroupId: groupId } },
+  });
+  const targetPayment = await prisma.payment.findFirst({
+    where: { cheque: { venueId: TARGET_VENUE, crossVenueGroupId: groupId } },
+  });
+  assert.ok(anchorPayment, 'anchor venue should have a payment row');
+  assert.ok(targetPayment, 'target venue should have a payment row');
+  assert.ok(Number(targetPayment.amount) >= 240);
 
   const revenueAfter = await prisma.payment.aggregate({
     where: { cheque: { venueId: TARGET_VENUE } },
     _sum: { amount: true },
   });
   const delta = Number(revenueAfter._sum.amount ?? 0) - Number(revenueBefore._sum.amount ?? 0);
-  assert.ok(delta >= 240, `target venue revenue should increase by the bill, got ${delta}`);
-
-  // The anchor venue must NOT be credited with the target's revenue.
-  const anchorPayment = await prisma.payment.findFirst({
-    where: { chequeId: targetChequeId, cheque: { venueId: ANCHOR_VENUE } },
-  });
-  assert.equal(anchorPayment, null);
+  assert.ok(delta >= 240, `target venue revenue should increase, got ${delta}`);
 });
 
-test('cross-venue billing is rejected for unlinked venues', async () => {
-  // Disable the pair, then a fresh target cheque should not be billable.
+test('cross-venue ordering rejects unlinked target venue', async () => {
   await app.inject({
     method: 'PUT',
     url: '/api/v1/manager/billing-config',
@@ -287,20 +299,27 @@ test('cross-venue billing is rejected for unlinked venues', async () => {
     payload: { anchorVenueId: ANCHOR_VENUE, targetVenueId: TARGET_VENUE, enabled: false },
   });
 
-  const targetChequeId = await openFireCheque(targetHeaders, TARGET_CASHIER, targetMenuItemId, 'R2', 1);
-  const create = await app.inject({
+  const start = await app.inject({
     method: 'POST',
-    url: '/api/v1/cross-venue/groups',
+    url: '/api/v1/cross-venue/order',
     headers: anchorHeaders,
-    payload: { cashierId: ANCHOR_CASHIER, chequeIds: [targetChequeId] },
+    payload: { cashierId: ANCHOR_CASHIER, tableLabel: 'CV2' },
   });
-  assert.equal(create.statusCode, 403, create.body);
+  assert.equal(start.statusCode, 200, start.body);
+  const groupId = start.json().groupId;
 
-  // Re-enable for any later runs.
-  await app.inject({
-    method: 'PUT',
-    url: '/api/v1/manager/billing-config',
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: { anchorVenueId: ANCHOR_VENUE, targetVenueId: TARGET_VENUE, enabled: true },
+  const addTarget = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/order/${groupId}/items`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: TARGET_VENUE,
+      menuItemId: targetMenuItemId,
+      quantity: 1,
+    },
   });
+  assert.equal(addTarget.statusCode, 403, addTarget.body);
+
+  await enableBilling();
 });
