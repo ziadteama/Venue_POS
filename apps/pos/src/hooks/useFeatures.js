@@ -8,6 +8,7 @@ const DEFAULT_FEATURES = {
   discounts: true,
   refunds: true,
   autoReceiptPrint: true,
+  tables: [],
 };
 
 export function useFeatures() {
@@ -27,6 +28,7 @@ export function useFeatures() {
             discounts: data?.discounts !== false,
             refunds: data?.refunds !== false,
             autoReceiptPrint: data?.autoReceiptPrint !== false,
+            tables: Array.isArray(data?.tables) ? data.tables : [],
           });
         }
       } catch {

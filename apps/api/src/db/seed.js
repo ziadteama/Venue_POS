@@ -8,12 +8,18 @@ const DEMO_VENUE_ID = '00000000-0000-4000-8000-000000000010';
 async function seed() {
   let venue = await prisma.venue.upsert({
     where: { id: DEMO_VENUE_ID },
-    update: { nameEn: 'Demo Cafe', nameAr: 'مقهى تجريبي', type: 'anchor' },
+    update: {
+      nameEn: 'Demo Cafe',
+      nameAr: 'مقهى تجريبي',
+      type: 'anchor',
+      tables: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'Bar1', 'Bar2'],
+    },
     create: {
       id: DEMO_VENUE_ID,
       nameEn: 'Demo Cafe',
       nameAr: 'مقهى تجريبي',
       type: 'anchor',
+      tables: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'Bar1', 'Bar2'],
     },
   });
 

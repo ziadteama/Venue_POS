@@ -1,5 +1,10 @@
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
+import {
+  normalizeVenueTablesInput,
+  parseVenueTables,
+  serializeVenueTableLabels,
+} from '../utils/venue-tables.js';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
 const VENUE_TYPES = ['standard', 'anchor'];
@@ -26,6 +31,7 @@ export function serializeVenueConfig(venue) {
     kitchenPrinterPort: venue.kitchenPrinterPort,
     receiptPrinterHost: venue.receiptPrinterHost,
     receiptPrinterPort: venue.receiptPrinterPort,
+    tables: parseVenueTables(venue.tables),
     updatedAt: venue.updatedAt.toISOString(),
   };
 }
@@ -42,8 +48,24 @@ export function serializeTerminalVenueSettings(venue) {
     kitchenPrinterPort: venue.kitchenPrinterPort,
     receiptPrinterHost: venue.receiptPrinterHost ?? venue.kitchenPrinterHost,
     receiptPrinterPort: venue.receiptPrinterPort,
+    tables: serializeVenueTableLabels(venue.tables),
     updatedAt: venue.updatedAt.toISOString(),
   };
+}
+
+export async function assertTableAssigned(venueId, tableLabel) {
+  const trimmed = tableLabel?.trim();
+  if (!trimmed) throw validationError('Table label is required');
+
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    select: { tables: true },
+  });
+  const assigned = serializeVenueTableLabels(venue?.tables);
+  if (assigned.length === 0) return;
+
+  const ok = assigned.some((label) => label.toLowerCase() === trimmed.toLowerCase());
+  if (!ok) throw validationError('Table is not assigned for this venue');
 }
 
 export async function getVenueConfig(venueId) {
@@ -120,6 +142,13 @@ function buildUpdateData(body) {
       throw validationError('Invalid receipt printer port');
     }
     data.receiptPrinterPort = port;
+  }
+  if (body.tables != null) {
+    try {
+      data.tables = normalizeVenueTablesInput(body.tables);
+    } catch {
+      throw validationError('Invalid tables list');
+    }
   }
 
   if (Object.keys(data).length === 0) {

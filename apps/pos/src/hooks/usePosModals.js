@@ -28,6 +28,7 @@ export function usePosModals({
   const [showTableModal, setShowTableModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [discountModalMode, setDiscountModalMode] = useState('apply');
+  const [showActionsSheet, setShowActionsSheet] = useState(false);
   const [showRefundPicker, setShowRefundPicker] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
@@ -53,6 +54,16 @@ export function usePosModals({
   function openDiscountModal(mode = 'apply') {
     setDiscountModalMode(mode);
     setShowDiscountModal(true);
+    setShowActionsSheet(false);
+  }
+
+  function openActionsSheet() {
+    setShowActionsSheet(true);
+  }
+
+  function runFromActions(action) {
+    setShowActionsSheet(false);
+    action();
   }
 
   async function onConfirmDiscount(body) {
@@ -100,6 +111,7 @@ export function usePosModals({
     if (ok) {
       setShowPayModal(false);
       setKitchenWatch(null);
+      setShowTableModal(true);
       await refreshShift();
     }
   }
@@ -121,6 +133,10 @@ export function usePosModals({
     setShowDiscountModal,
     discountModalMode,
     openDiscountModal,
+    showActionsSheet,
+    setShowActionsSheet,
+    openActionsSheet,
+    runFromActions,
     showRefundPicker,
     showRefundModal,
     setShowRefundModal,

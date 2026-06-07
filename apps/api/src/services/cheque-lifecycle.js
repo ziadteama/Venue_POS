@@ -5,6 +5,7 @@ import {
   reconcileVenueOpenCheques,
 } from './cheque-reconcile.js';
 import { validationError } from '../utils/errors.js';
+import { assertTableAssigned } from './venue-config-service.js';
 import { createOrder, sendOrderToKitchen } from './order-service.js';
 import {
   chequeInclude,
@@ -21,6 +22,7 @@ import {
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
   if (!trimmed) throw validationError('Table label is required');
+  await assertTableAssigned(venueId, trimmed);
 
   let cheque = await prisma.cheque.findFirst({
     where: { venueId, tableLabel: trimmed, status: 'open', parentChequeId: null },
