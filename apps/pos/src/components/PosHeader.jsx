@@ -1,15 +1,18 @@
 import { LanguageToggle } from './LanguageToggle.jsx';
+import { parentOpenCheques } from '../utils/cheque.js';
 
 export function PosHeader({
   t,
   search,
   onSearchChange,
   tableLabel,
-  onTableLabelChange,
-  onTableBlur,
+  openCheques,
+  onOpenTables,
   shift,
   onCloseShift,
 }) {
+  const openCount = parentOpenCheques(openCheques).length;
+
   return (
     <header className="flex shrink-0 items-center gap-4 bg-primary-gradient px-5 py-3 text-white shadow-md">
       <div className="flex items-center gap-3">
@@ -29,27 +32,41 @@ export function PosHeader({
         />
       </div>
 
-      <div className="flex items-center gap-3">
-        <label className="flex items-center gap-2 text-sm">
-          <span className="text-white/80">{t('pos.tableLabel')}</span>
-          <input
-            value={tableLabel}
-            onChange={(e) => onTableLabelChange(e.target.value)}
-            onBlur={onTableBlur}
-            className="w-16 rounded border border-white/30 bg-white/15 px-2 py-1 text-center text-sm"
-          />
-        </label>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onOpenTables}
+          className="group flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/20 transition hover:bg-white/20"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-sm font-bold">
+            {tableLabel || '—'}
+          </span>
+          <span className="hidden text-start sm:block">
+            <span className="block text-[10px] uppercase tracking-wide text-white/70">
+              {t('pos.tableLabel')}
+            </span>
+            <span className="block text-sm font-semibold leading-tight">
+              {tableLabel ? t('pos.tableActive', { table: tableLabel }) : t('pos.noTable')}
+            </span>
+          </span>
+          {openCount > 0 ? (
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
+              {openCount}
+            </span>
+          ) : null}
+        </button>
+
         {shift && (
           <button
             type="button"
             onClick={onCloseShift}
-            className="rounded-full bg-white/15 px-3 py-1 text-xs font-medium ring-1 ring-white/25 hover:bg-white/25"
+            className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 hover:bg-white/25"
             title={t('pos.shiftCloseTitle')}
           >
             {t('pos.shiftActive', { float: Number(shift.openFloat).toFixed(0) })}
           </button>
         )}
-        <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-medium ring-1 ring-white/25">
+        <span className="hidden rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium ring-1 ring-white/25 md:inline">
           {t('pos.dineIn')}
         </span>
         <LanguageToggle onDark />

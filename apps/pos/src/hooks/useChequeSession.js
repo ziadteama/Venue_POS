@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
-import { DEMO_CASHIER_ID } from '../constants.js';
+import { DEFAULT_TABLE, DEMO_CASHIER_ID } from '../constants.js';
+import { canDeleteCheque, normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
 export function useChequeSession({ menu, loading, shiftReady }) {
   const { t } = useTranslation();
   const [cheque, setCheque] = useState(null);
   const order = cheque?.draftOrder ?? null;
-  const [tableLabel, setTableLabel] = useState('T4');
-  const tableLabelRef = useRef(tableLabel);
-  tableLabelRef.current = tableLabel;
+  const tableLabel = cheque?.tableLabel ?? '';
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -33,57 +32,80 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     }
   }, []);
 
-  const openCheque = useCallback(
+  const resumeCheque = useCallback(
     async (label) => {
       setError('');
-      const table = (label ?? tableLabelRef.current).trim();
-      if (!table) return;
+      const table = normalizeTableLabel(label ?? DEFAULT_TABLE);
+      if (!table) return { ok: false };
       try {
-        const opened = await callAgent('/v1/cheques/open', {
+        const loaded = await callAgent('/v1/cheques/open', {
           method: 'POST',
           body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, tableLabel: table }),
         });
-        setCheque(opened);
-        setTableLabel(table);
+        setCheque(loaded);
         await refreshOpenCheques();
+        return { ok: true };
       } catch {
         setError(t('pos.chequeOpenFailed'));
+        return { ok: false };
       }
     },
     [t, refreshOpenCheques],
   );
 
+  const openCheque = resumeCheque;
+
   const switchToCheque = useCallback(
-    async (tab) => {
-      setTableLabel(tab.tableLabel);
-      tableLabelRef.current = tab.tableLabel;
-      if (tab.splitLabel || tab.parentChequeId) {
-        const loaded = await callAgent(`/v1/cheques/${tab.id}`);
-        setCheque(loaded);
-      } else {
-        await openCheque(tab.tableLabel);
-      }
-    },
-    [openCheque],
+    async (tab) => resumeCheque(tab.tableLabel),
+    [resumeCheque],
   );
 
-  const syncTableLabel = useCallback(
-    async (label) => {
-      if (!order || order.status !== 'draft') return order;
-      const trimmed = (label ?? tableLabelRef.current).trim();
-      if ((order.tableLabel ?? '') === trimmed) return order;
-      const updated = await callAgent(`/v1/orders/${order.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ tableLabel: trimmed || null }),
-      });
-      applyDraftOrder(updated);
-      return updated;
+  const navigateToTable = useCallback(
+    async (targetTable) => {
+      const target = normalizeTableLabel(targetTable);
+      if (!target) return { ok: false };
+      if (cheque?.tableLabel === target) return { ok: true };
+      return resumeCheque(target);
     },
-    [order, applyDraftOrder],
+    [cheque?.tableLabel, resumeCheque],
+  );
+
+  const selectOpenCheque = useCallback(
+    async (tab) => {
+      if (tab.id === cheque?.id) return { ok: true };
+      return resumeCheque(tab.tableLabel);
+    },
+    [cheque?.id, resumeCheque],
+  );
+
+  const deleteTable = useCallback(
+    async (tab) => {
+      setError('');
+      try {
+        await callAgent(`/v1/cheques/${tab.id}`, { method: 'DELETE' });
+        const list = await callAgent('/v1/cheques/open');
+        const parents = parentOpenCheques(Array.isArray(list) ? list : []);
+        setOpenCheques(parents);
+
+        if (cheque?.id === tab.id) {
+          if (parents.length) {
+            await switchToCheque(parents[0]);
+          } else {
+            setCheque(null);
+            await openCheque(DEFAULT_TABLE);
+          }
+        }
+        return { ok: true };
+      } catch (err) {
+        setError(err?.message || t('pos.deleteTableFailed'));
+        return { ok: false };
+      }
+    },
+    [cheque?.id, switchToCheque, openCheque, t],
   );
 
   useEffect(() => {
-    if (!loading && menu && shiftReady && !cheque) openCheque();
+    if (!loading && menu && shiftReady && !cheque) openCheque(DEFAULT_TABLE);
   }, [loading, menu, shiftReady, cheque, openCheque]);
 
   useEffect(() => {
@@ -118,7 +140,6 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     setSending(true);
     setError('');
     try {
-      await syncTableLabel(tableLabelRef.current);
       const result = await callAgent(`/v1/cheques/${cheque.id}/fire`, { method: 'POST' });
       setCheque(result.cheque);
       await refreshOpenCheques();
@@ -238,13 +259,14 @@ export function useChequeSession({ menu, loading, shiftReady }) {
         method: 'POST',
         body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...refundBody }),
       });
-      if (cheque?.id === chequeId) {
-        const updated = await callAgent(`/v1/cheques/${chequeId}`);
-        setCheque(updated);
-      }
       return true;
-    } catch {
-      setError(t('pos.refundFailed'));
+    } catch (err) {
+      const msg = err?.message ?? '';
+      if (msg.toLowerCase().includes('pin')) {
+        setError(t('pos.refundInvalidPin'));
+      } else {
+        setError(msg || t('pos.refundFailed'));
+      }
       return false;
     }
   }
@@ -258,7 +280,7 @@ export function useChequeSession({ menu, loading, shiftReady }) {
         method: 'POST',
         body: JSON.stringify({ cashierId: DEMO_CASHIER_ID, ...paymentBody }),
       });
-      await openCheque(tableLabelRef.current);
+      await openCheque(cheque.tableLabel || DEFAULT_TABLE);
       return true;
     } catch {
       setError(t('pos.payFailed'));
@@ -268,22 +290,15 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     }
   }
 
-  function handleTableBlur() {
-    openCheque(tableLabelRef.current).catch(() => {});
-  }
-
   return {
     cheque,
     order,
     tableLabel,
-    setTableLabel,
-    tableLabelRef,
     error,
     setError,
     sending,
     paying,
     openCheques,
-    applyDraftOrder,
     addItemToOrder,
     changeQty,
     handleSend,
@@ -296,7 +311,9 @@ export function useChequeSession({ menu, loading, shiftReady }) {
     loadPaidCheques,
     refreshCheque,
     confirmPay,
-    handleTableBlur,
-    switchToCheque,
+    navigateToTable,
+    selectOpenCheque,
+    deleteTable,
+    refreshOpenCheques,
   };
 }

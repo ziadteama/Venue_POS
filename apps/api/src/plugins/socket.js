@@ -53,9 +53,13 @@ export function registerSocket(app) {
         socket.join(`venue:${venueId}:pos`);
       }
     } else if (socket.data.user?.venue_id) {
-      socket.join(`venue:${socket.data.user.venue_id}`);
+      const skipVenueRoom =
+        socket.data.clientType === 'dashboard' && socket.data.role === 'hub_manager';
+      if (!skipVenueRoom) {
+        socket.join(`venue:${socket.data.user.venue_id}`);
+      }
     }
-    if (socket.data.role === 'hub_manager') {
+    if (socket.data.role === 'hub_manager' && socket.data.clientType === 'dashboard') {
       socket.join('dashboard:hub_manager');
     }
   });
@@ -120,6 +124,27 @@ export function emitManagerAction(io, { venueId, terminalId, type, chequeId, res
       payload,
     });
   }
+}
+
+export function emitVenueConfigUpdated(io, { venueId, changes, config }) {
+  const payload = {
+    venueId,
+    changes,
+    config,
+    updatedAt: new Date().toISOString(),
+  };
+  io.to(`venue:${venueId}`).emit('venue:config_updated', {
+    event: 'venue:config_updated',
+    payload,
+  });
+  io.to(`venue:${venueId}:pos`).emit('venue:config_updated', {
+    event: 'venue:config_updated',
+    payload,
+  });
+  io.to('dashboard:hub_manager').emit('venue:config_updated', {
+    event: 'venue:config_updated',
+    payload,
+  });
 }
 
 export function emitOrderItemStatus(io, { order, itemId, kitchenStatus, updatedBy }) {

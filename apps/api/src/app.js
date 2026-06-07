@@ -13,6 +13,12 @@ import { shiftRoutes } from './routes/shifts.js';
 import { featureRoutes } from './routes/features.js';
 import { kitchenRoutes } from './routes/kitchen.js';
 import { venueRoutes } from './routes/venues.js';
+import { managerMetricsRoutes } from './routes/manager-metrics.js';
+import { managerAnalyticsRoutes } from './routes/manager-analytics.js';
+import { managerOrderRoutes } from './routes/manager-orders.js';
+import { managerShiftsRoutes } from './routes/manager-shifts.js';
+import { managerApprovalsRoutes } from './routes/manager-approvals.js';
+import { managerVenueConfigRoutes } from './routes/manager-venue-config.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -40,6 +46,12 @@ export async function buildApp() {
   await app.register(featureRoutes);
   await app.register(kitchenRoutes);
   await app.register(venueRoutes);
+  await app.register(managerMetricsRoutes);
+  await app.register(managerAnalyticsRoutes);
+  await app.register(managerOrderRoutes);
+  await app.register(managerShiftsRoutes);
+  await app.register(managerApprovalsRoutes);
+  await app.register(managerVenueConfigRoutes);
 
   return app;
 }

@@ -9,6 +9,7 @@ import { PosHeader } from './components/PosHeader.jsx';
 import { ReceiptPanel } from './components/ReceiptPanel.jsx';
 import { SplitBillModal } from './components/SplitBillModal.jsx';
 import { SplitAmountModal } from './components/SplitAmountModal.jsx';
+import { TableSwitchModal } from './components/TableSwitchModal.jsx';
 import { TransferModal } from './components/TransferModal.jsx';
 import { DiscountModal } from './components/DiscountModal.jsx';
 import { RefundModal } from './components/RefundModal.jsx';
@@ -33,6 +34,7 @@ export default function App() {
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showSplitAmountModal, setShowSplitAmountModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showTableModal, setShowTableModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showRefundPicker, setShowRefundPicker] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -91,7 +93,6 @@ export default function App() {
     cheque,
     order,
     tableLabel,
-    setTableLabel,
     error,
     setError,
     sending,
@@ -109,8 +110,9 @@ export default function App() {
     loadPaidCheques,
     refreshCheque,
     confirmPay,
-    handleTableBlur,
-    switchToCheque,
+    navigateToTable,
+    selectOpenCheque,
+    deleteTable,
   } = session;
 
   const allItems = useMemo(
@@ -198,6 +200,7 @@ export default function App() {
     if (ok) {
       setShowRefundModal(false);
       setRefundCheque(null);
+      setError(t('pos.refundRequested'));
     }
   }
 
@@ -240,6 +243,19 @@ export default function App() {
           t={t}
           onCancel={() => setShowSplitAmountModal(false)}
           onConfirm={onConfirmSplitAmount}
+        />
+      )}
+
+      {showTableModal && (
+        <TableSwitchModal
+          openCheques={openCheques}
+          currentChequeId={cheque?.id}
+          currentTable={tableLabel}
+          t={t}
+          onClose={() => setShowTableModal(false)}
+          onOpenTable={navigateToTable}
+          onSelectCheque={selectOpenCheque}
+          onDeleteTable={deleteTable}
         />
       )}
 
@@ -335,8 +351,8 @@ export default function App() {
         search={search}
         onSearchChange={setSearch}
         tableLabel={tableLabel}
-        onTableLabelChange={setTableLabel}
-        onTableBlur={handleTableBlur}
+        openCheques={openCheques}
+        onOpenTables={() => setShowTableModal(true)}
         shift={shift}
         onCloseShift={() => setShowCloseModal(true)}
       />
@@ -354,11 +370,9 @@ export default function App() {
           loading={loading}
           cheque={cheque}
           order={order}
-          openCheques={openCheques}
           printerOk={printerOk}
           sending={sending}
           paying={paying}
-          onSwitchCheque={switchToCheque}
           onClear={handleClear}
           onSend={onSend}
           onSplit={() => setShowSplitModal(true)}

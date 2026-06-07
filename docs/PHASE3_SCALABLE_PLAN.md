@@ -16,11 +16,9 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 
 ## Manager authority (shipped)
 
-**Venue manager** (`venue_manager`) executes all sensitive cheque actions directly (POS PIN or dashboard JWT):
+**Venue manager** (`venue_manager`) executes discount, void, comp, line transfer directly. **Refunds** require hub approval (request → approve).
 
-- Discount, refund, void, comp, line transfer
-
-**General manager** (`hub_manager`) has **read-only review** on dashboard **Activity log** (`/activity`):
+**General manager** (`hub_manager`) approves refund requests on **Approvals** (`/approvals`), can force-refund from Cheques, and has read-only **Activity log** review.
 
 - Unified feed: discounts, refunds, voids, comps, transfers
 - `GET /api/v1/manager/activity`

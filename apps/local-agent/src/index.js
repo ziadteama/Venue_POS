@@ -4,6 +4,10 @@ import { buildAgentServer } from './server.js';
 import { syncMenuFromServer } from './services/menu-sync.js';
 import { processSyncQueue } from './services/sync-processor.js';
 import { connectTerminalSocket } from './services/ws-client.js';
+import {
+  syncVenueConfigFromServer,
+  resolvePrinterConfig,
+} from './services/venue-config-sync.js';
 
 const port = Number(process.env.PORT ?? 3456);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -18,6 +22,11 @@ const kitchenPrinterPort = Number(process.env.KITCHEN_PRINTER_PORT ?? 9100);
 const autoReceiptPrint = process.env.FEATURE_AUTO_RECEIPT_PRINT !== 'false';
 
 const db = createDatabase(dbPath);
+const envPrinterDefaults = {
+  kitchenPrinterHost,
+  kitchenPrinterPort,
+};
+
 const app = await buildAgentServer({
   db,
   config: {
@@ -28,9 +37,8 @@ const app = await buildAgentServer({
     terminalId,
     terminalSecret,
     corsOrigins,
-    kitchenPrinterHost,
-    kitchenPrinterPort,
     autoReceiptPrint,
+    getPrinterConfig: () => resolvePrinterConfig(envPrinterDefaults),
   },
 });
 
@@ -51,6 +59,15 @@ async function withRetry(label, fn, { attempts = 12, delayMs = 1000 } = {}) {
 }
 
 if (venueId && terminalId && terminalSecret) {
+  try {
+    await withRetry('Venue config sync on startup', () =>
+      syncVenueConfigFromServer({ apiUrl, venueId, terminalId, terminalSecret }),
+    );
+    app.log.info('Venue config synced on startup');
+  } catch (err) {
+    app.log.warn({ err }, 'Venue config sync on startup failed — using env printer defaults');
+  }
+
   try {
     const result = await withRetry('Menu sync on startup', () =>
       syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),

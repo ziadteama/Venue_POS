@@ -94,10 +94,26 @@ export function useChequeManager({ user }) {
   }, []);
 
   const openRefundRequest = useCallback((cheque) => {
-    setRefundAmount('');
+    const paidTotal = cheque.payments?.reduce((s, p) => s + Number(p.amount), 0) ?? 0;
+    const refunded = cheque.refunds?.reduce((s, r) => s + Number(r.amount), 0) ?? 0;
+    const remaining = Math.max(0, paidTotal - refunded);
+    setRefundAmount(remaining > 0 ? String(remaining) : '');
     setRefundMethod(cheque.payments?.[0]?.method ?? 'cash');
     setActionTarget({
       type: 'refund',
+      chequeId: cheque.id,
+      chequeNumber: cheque.chequeNumber,
+    });
+  }, []);
+
+  const openForceRefund = useCallback((cheque) => {
+    const paidTotal = cheque.payments?.reduce((s, p) => s + Number(p.amount), 0) ?? 0;
+    const refunded = cheque.refunds?.reduce((s, r) => s + Number(r.amount), 0) ?? 0;
+    const remaining = Math.max(0, paidTotal - refunded);
+    setRefundAmount(remaining > 0 ? String(remaining) : '');
+    setRefundMethod(cheque.payments?.[0]?.method ?? 'cash');
+    setActionTarget({
+      type: 'forceRefund',
       chequeId: cheque.id,
       chequeNumber: cheque.chequeNumber,
     });
@@ -128,6 +144,7 @@ export function useChequeManager({ user }) {
     runAction,
     openDiscountRequest,
     openRefundRequest,
+    openForceRefund,
     changeTab,
     changeVenue,
     setActionTarget,

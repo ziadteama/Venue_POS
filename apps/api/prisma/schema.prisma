@@ -12,6 +12,12 @@ enum VenueType {
   anchor
 }
 
+enum ReceiptTemplate {
+  standard
+  compact
+  detailed
+}
+
 enum UserRole {
   hub_manager
   venue_manager
@@ -84,6 +90,14 @@ model Venue {
   type      VenueType @default(standard)
   currency  String    @default("EGP") @db.VarChar(3)
   isActive  Boolean   @default(true) @map("is_active")
+  taxRate         Decimal         @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxInclusive    Boolean         @default(false) @map("tax_inclusive")
+  receiptTemplate ReceiptTemplate @default(standard) @map("receipt_template")
+  kitchenPrinterHost String?      @map("kitchen_printer_host") @db.VarChar(255)
+  kitchenPrinterPort Int          @default(9100) @map("kitchen_printer_port")
+  receiptPrinterHost String?      @map("receipt_printer_host") @db.VarChar(255)
+  receiptPrinterPort Int          @default(9100) @map("receipt_printer_port")
+  tableLayout     Json?           @map("table_layout")
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -94,6 +108,7 @@ model Venue {
   cheques      Cheque[]
   shifts       Shift[]
   approvalRequests ManagerApprovalRequest[]
+  configAudits VenueConfigAudit[]
 
   @@map("venues")
 }
@@ -131,6 +146,7 @@ model User {
   payments      Payment[]
   shifts        Shift[]
   shiftEvents   ShiftEvent[]
+  venueConfigAudits VenueConfigAudit[]
 
   @@index([venueId], map: "idx_users_venue")
   @@index([role], map: "idx_users_role")
@@ -524,6 +540,20 @@ model ManagerApprovalRequest {
   @@index([venueId, status], map: "idx_approval_requests_venue_status")
   @@index([chequeId], map: "idx_approval_requests_cheque")
   @@map("manager_approval_requests")
+}
+
+model VenueConfigAudit {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId   String   @map("venue_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  changes   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  venue Venue @relation(fields: [venueId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@index([venueId], map: "idx_venue_config_audit_venue")
+  @@map("venue_config_audits")
 }
 
 model Shift {

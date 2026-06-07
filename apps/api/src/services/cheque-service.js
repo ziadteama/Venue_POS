@@ -6,6 +6,7 @@ export {
   getCheque,
   fireChequeRound,
   clearChequeDraft,
+  closeEmptyCheque,
 } from './cheque-lifecycle.js';
 export { payCheque, getChequeReceipt } from './cheque-pay.js';
 export { splitChequeByItems, splitChequeByAmount } from './cheque-split.js';

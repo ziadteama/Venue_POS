@@ -1,10 +1,10 @@
 import { prisma } from '../db/prisma.js';
-import { validationError } from '../utils/errors.js';
+import { validationError, notFound } from '../utils/errors.js';
 import { verifyManagerPin } from './auth-service.js';
 
 export const OVER_SHORT_THRESHOLD = 50;
 
-function serializeShift(shift) {
+export function serializeShift(shift) {
   return {
     id: shift.id,
     venueId: shift.venueId,
@@ -193,6 +193,70 @@ export async function closeShift(
           closeFloat: counted,
           expectedCash: report.expectedCash,
           overShortAmount: overShort,
+          report,
+        },
+      },
+    });
+    return updated;
+  });
+
+  return {
+    shift: serializeShift(closed),
+    report: {
+      ...report,
+      closeFloat: counted,
+      overShortAmount: overShort,
+    },
+  };
+}
+
+export async function forceCloseShiftById(
+  shiftId,
+  { closeFloat, managerPin },
+  venueScopeId,
+) {
+  const counted = Number(closeFloat);
+  if (!Number.isFinite(counted) || counted < 0) {
+    throw validationError('Close float must be zero or greater');
+  }
+  if (!managerPin) {
+    throw validationError('Manager PIN is required to force-close a shift');
+  }
+
+  const shift = await prisma.shift.findUnique({
+    where: { id: shiftId },
+    include: { payments: true, refunds: true },
+  });
+  if (!shift) throw notFound('Shift not found');
+  if (venueScopeId && shift.venueId !== venueScopeId) throw notFound('Shift not found');
+  if (shift.status !== 'open') throw validationError('Shift is already closed');
+
+  await verifyManagerPin(shift.venueId, managerPin);
+
+  const report = buildShiftReport(shift, shift.payments, shift.refunds);
+  const overShort = Number((counted - report.expectedCash).toFixed(2));
+
+  const closed = await prisma.$transaction(async (tx) => {
+    const updated = await tx.shift.update({
+      where: { id: shift.id },
+      data: {
+        status: 'closed',
+        closeFloat: counted,
+        expectedCash: report.expectedCash,
+        overShortAmount: overShort,
+        closedAt: new Date(),
+      },
+    });
+    await tx.shiftEvent.create({
+      data: {
+        shiftId: shift.id,
+        action: 'close',
+        userId: shift.cashierId,
+        details: {
+          closeFloat: counted,
+          expectedCash: report.expectedCash,
+          overShortAmount: overShort,
+          forcedByManager: true,
           report,
         },
       },
