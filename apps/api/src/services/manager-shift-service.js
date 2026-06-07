@@ -155,3 +155,128 @@ function csvEscape(value) {
   }
   return s;
 }
+
+function dayBounds(dateInput) {
+  let start;
+  let dateLabel;
+
+  if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+    const [year, month, day] = dateInput.split('-').map(Number);
+    start = new Date(year, month - 1, day);
+    dateLabel = dateInput;
+  } else {
+    start = new Date(dateInput ?? Date.now());
+    if (Number.isNaN(start.getTime())) throw validationError('Invalid date');
+    start.setHours(0, 0, 0, 0);
+    const y = start.getFullYear();
+    const m = String(start.getMonth() + 1).padStart(2, '0');
+    const d = String(start.getDate()).padStart(2, '0');
+    dateLabel = `${y}-${m}-${d}`;
+  }
+
+  return { start, end: endOfDay(start), dateLabel };
+}
+
+function aggregateShiftRows(rows) {
+  const totals = {
+    shiftCount: rows.length,
+    openShiftCount: rows.filter((r) => r.status === 'open').length,
+    closedShiftCount: rows.filter((r) => r.status === 'closed').length,
+    totalRevenue: 0,
+    totalRefunds: 0,
+    netRevenue: 0,
+    totalOverShort: 0,
+    paymentsByMethod: { cash: 0, card: 0, voucher: 0 },
+    refundsByMethod: { cash: 0, card: 0, voucher: 0 },
+    paymentCount: 0,
+    refundCount: 0,
+  };
+
+  for (const row of rows) {
+    totals.totalRevenue += row.totalRevenue ?? 0;
+    totals.totalRefunds += row.totalRefunds ?? 0;
+    totals.paymentCount += row.paymentCount ?? 0;
+    totals.refundCount += row.refundCount ?? 0;
+    if (row.overShortAmount != null) totals.totalOverShort += row.overShortAmount;
+    for (const method of ['cash', 'card', 'voucher']) {
+      totals.paymentsByMethod[method] += row.paymentsByMethod?.[method] ?? 0;
+      totals.refundsByMethod[method] += row.refundsByMethod?.[method] ?? 0;
+    }
+  }
+
+  totals.netRevenue = Number((totals.totalRevenue - totals.totalRefunds).toFixed(2));
+  totals.totalRevenue = Number(totals.totalRevenue.toFixed(2));
+  totals.totalRefunds = Number(totals.totalRefunds.toFixed(2));
+  totals.totalOverShort = Number(totals.totalOverShort.toFixed(2));
+  for (const method of ['cash', 'card', 'voucher']) {
+    totals.paymentsByMethod[method] = Number(totals.paymentsByMethod[method].toFixed(2));
+    totals.refundsByMethod[method] = Number(totals.refundsByMethod[method].toFixed(2));
+  }
+  return totals;
+}
+
+export async function getEodReconciliation({ venueId, date }) {
+  const { start, end, dateLabel } = dayBounds(date ?? new Date());
+
+  const shifts = await prisma.shift.findMany({
+    where: {
+      ...(venueId ? { venueId } : {}),
+      OR: [
+        { openedAt: { gte: start, lte: end } },
+        { closedAt: { gte: start, lte: end } },
+      ],
+    },
+    include: shiftInclude,
+    orderBy: { openedAt: 'asc' },
+  });
+
+  const rows = shifts.map(serializeShiftListRow);
+  const totals = aggregateShiftRows(rows);
+
+  let venues;
+  if (!venueId) {
+    const byVenue = new Map();
+    for (const row of rows) {
+      if (!byVenue.has(row.venueId)) {
+        byVenue.set(row.venueId, {
+          venueId: row.venueId,
+          venueNameEn: row.venueNameEn,
+          venueNameAr: row.venueNameAr,
+          shifts: [],
+        });
+      }
+      byVenue.get(row.venueId).shifts.push(row);
+    }
+    venues = [...byVenue.values()].map((v) => ({
+      venueId: v.venueId,
+      venueNameEn: v.venueNameEn,
+      venueNameAr: v.venueNameAr,
+      ...aggregateShiftRows(v.shifts),
+    }));
+  }
+
+  return { date: dateLabel, venueId: venueId ?? null, ...totals, shifts: rows, venues };
+}
+
+export function eodReconciliationToCsv(result) {
+  const lines = [
+    'date,venue,cashier,terminal,status,total_revenue,total_refunds,over_short,opened_at,closed_at',
+  ];
+  for (const row of result.shifts) {
+    lines.push(
+      [
+        result.date,
+        csvEscape(row.venueNameEn),
+        csvEscape(row.cashierUsername),
+        csvEscape(row.terminalName),
+        row.status,
+        row.totalRevenue,
+        row.totalRefunds,
+        row.overShortAmount ?? '',
+        row.openedAt,
+        row.closedAt ?? '',
+      ].join(','),
+    );
+  }
+  return lines.join('\n');
+}

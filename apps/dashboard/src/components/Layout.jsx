@@ -4,12 +4,16 @@ import { DashboardNav } from './DashboardNav.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 
-const HUB_MANAGER_ROUTES = new Set(['/', '/analytics', '/cheques']);
+const HUB_ONLY_ROUTES = new Set(['/activity', '/settings']);
+const VENUE_ONLY_ROUTES = new Set(['/orders', '/menus', '/users']);
 
 function GuardedOutlet() {
   const { user } = useAuth();
   const { pathname } = useLocation();
-  if (user?.role === 'hub_manager' && !HUB_MANAGER_ROUTES.has(pathname)) {
+  if (user?.role === 'hub_manager' && VENUE_ONLY_ROUTES.has(pathname)) {
+    return <Navigate to="/" replace />;
+  }
+  if (user?.role === 'venue_manager' && HUB_ONLY_ROUTES.has(pathname)) {
     return <Navigate to="/" replace />;
   }
   return <Outlet />;

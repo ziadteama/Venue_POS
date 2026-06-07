@@ -62,7 +62,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 3 closed** (`phase-3` branch) — open cheques, payments, shifts, venue-manager authority (discount/refund/void/comp/transfer), Activity log for GM review. Deferred: seat split, vouchers, integrated PDQ, receipt PDF. Next: **Phase 5** dashboard analytics. See `docs/TEAM_LOG.md` + `docs/PHASE3_SCALABLE_PLAN.md`.
+**Phase 5 in progress** (`Phase-5` branch) — analytics, venue config, shifts + EOD, staff management (venue_manager), system health, full audit log. Inventory out of scope. See `docs/TEAM_LOG.md`.
 
 ## Manager workflows (quick reference)
 

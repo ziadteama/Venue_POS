@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import { config } from '../config.js';
 import { prisma } from '../db/prisma.js';
 import { verifyAccessToken } from '../utils/jwt.js';
+import { touchTerminalSeen } from '../services/manager-health-service.js';
 
 export function registerSocket(app) {
   const io = new Server(app.server, {
@@ -45,6 +46,7 @@ export function registerSocket(app) {
   io.on('connection', (socket) => {
     if (socket.data.terminal) {
       const { id, venueId } = socket.data.terminal;
+      touchTerminalSeen(id).catch(() => {});
       socket.join(`venue:${venueId}`);
       socket.join(`terminal:${id}`);
       if (socket.data.clientType === 'kds') {

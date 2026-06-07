@@ -55,8 +55,15 @@ before(async () => {
 
   await prisma.venue.upsert({
     where: { id: VENUE_ID },
-    update: {},
-    create: { id: VENUE_ID, nameEn: 'Phase1 Venue', nameAr: 'اختبار', type: 'standard' },
+    update: { serviceEnabled: false, serviceRate: 0 },
+    create: {
+      id: VENUE_ID,
+      nameEn: 'Phase1 Venue',
+      nameAr: 'اختبار',
+      type: 'standard',
+      serviceEnabled: false,
+      serviceRate: 0,
+    },
   });
 
   await prisma.user.upsert({

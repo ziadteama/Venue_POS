@@ -155,6 +155,8 @@ export function ShiftsPage() {
   const [forceCloseShift, setForceCloseShift] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [eodDate, setEodDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [eod, setEod] = useState(null);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const isHub = user?.role === 'hub_manager';
@@ -193,6 +195,24 @@ export function ShiftsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ date: eodDate });
+        const scopedVenue = isHub ? venueId : user?.venueId;
+        if (scopedVenue) params.set('venueId', scopedVenue);
+        const data = await apiFetch(`/api/v1/manager/shifts/eod?${params}`);
+        if (!cancelled) setEod(data);
+      } catch {
+        if (!cancelled) setEod(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eodDate, isHub, venueId, user?.venueId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -265,6 +285,47 @@ export function ShiftsPage() {
           {t('shifts.exportCsv')}
         </button>
       </div>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h3 className="font-semibold text-slate-900">{t('shifts.eodTitle')}</h3>
+            <p className="mt-1 text-sm text-secondary">{t('shifts.eodSubtitle')}</p>
+          </div>
+          <input
+            type="date"
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+            value={eodDate}
+            onChange={(e) => setEodDate(e.target.value)}
+          />
+        </div>
+        {eod ? (
+          <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.eodNetRevenue')}</dt>
+              <dd className="text-xl font-bold text-primary-to">
+                {formatMoney(eod.netRevenue, locale)} {t('pos.currency')}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.totalRevenue')}</dt>
+              <dd className="text-lg font-semibold">{formatMoney(eod.totalRevenue, locale)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.refundCount')}</dt>
+              <dd className="text-lg font-semibold">
+                {formatMoney(eod.totalRefunds, locale)} ({eod.refundCount})
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.pageOverShort')}</dt>
+              <dd className={`text-lg font-semibold ${overShortClass(eod.totalOverShort)}`}>
+                {formatMoney(eod.totalOverShort, locale)}
+              </dd>
+            </div>
+          </dl>
+        ) : null}
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
