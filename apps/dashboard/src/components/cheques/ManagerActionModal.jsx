@@ -9,32 +9,40 @@ export function ManagerActionModal({
   onConfirm,
   onCancel,
   t,
+  subtitle,
+  pinOptional = false,
 }) {
   const [pin, setPin] = useState('');
   const [reason, setReason] = useState('');
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (!pin.trim() || !reason.trim()) return;
-    onConfirm({ managerPin: pin.trim(), reason: reason.trim() });
+    if (!reason.trim()) return;
+    if (!pinOptional && !pin.trim()) return;
+    const payload = { reason: reason.trim() };
+    if (pin.trim()) payload.managerPin = pin.trim();
+    onConfirm(payload);
   }
 
   return (
     <ModalShell>
       <form onSubmit={handleSubmit}>
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">{title}</h3>
-        <label className="mb-3 block text-sm">
-          <span className="mb-1 block text-secondary">{t('cheque.managerPin')}</span>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength={6}
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            className="w-full rounded border px-3 py-2"
-            autoFocus
-          />
-        </label>
+        <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
+        {subtitle ? <p className="mb-4 text-sm text-secondary">{subtitle}</p> : null}
+        {!pinOptional ? (
+          <label className="mb-3 block text-sm">
+            <span className="mb-1 block text-secondary">{t('cheque.managerPin')}</span>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className="w-full rounded border px-3 py-2"
+              autoFocus
+            />
+          </label>
+        ) : null}
         <label className="mb-4 block text-sm">
           <span className="mb-1 block text-secondary">{reasonLabel}</span>
           <textarea
@@ -42,6 +50,7 @@ export function ManagerActionModal({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             className="w-full rounded border px-3 py-2"
+            autoFocus={pinOptional}
           />
         </label>
         <div className="flex gap-3">

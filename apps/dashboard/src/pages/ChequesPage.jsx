@@ -62,6 +62,7 @@ export function ChequesPage() {
               if (type === 'discount_remove') manager.openDiscountRemove(manager.detail);
               else manager.openDiscountRequest(manager.detail, type);
             }}
+            onRefund={manager.openRefundRequest}
           />
         </section>
       </div>

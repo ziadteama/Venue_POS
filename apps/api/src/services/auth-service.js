@@ -1,9 +1,9 @@
 import bcrypt from 'bcrypt';
-import { DASHBOARD_ROLES } from '@venue-pos/shared';
+import { DASHBOARD_ROLES, ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { signAccessToken } from '../utils/jwt.js';
-import { unauthorized } from '../utils/errors.js';
+import { unauthorized, validationError } from '../utils/errors.js';
 import { appendAuditLog } from './audit-log-service.js';
 
 export async function loginManager(username, password) {
@@ -99,6 +99,19 @@ export async function loginCashier(pin, terminalId, terminalSecret) {
 
 /** POS manager PIN — shift managers (venue) + hub policy PIN (rare on terminal). */
 const MANAGER_ROLES = ['hub_manager', 'venue_manager'];
+
+/** Dashboard JWT session or POS PIN for void/comp/discount authority. */
+export async function resolveDashboardManager(venueId, { initiatorId, managerPin } = {}) {
+  if (initiatorId) {
+    const user = await prisma.user.findUnique({ where: { id: initiatorId } });
+    if (!user?.isActive) throw unauthorized('Manager not authorized');
+    if (user.role === ROLES.HUB_MANAGER) return user;
+    if (user.role === ROLES.VENUE_MANAGER && user.venueId === venueId) return user;
+    throw unauthorized('Manager not authorized for this venue');
+  }
+  if (!managerPin) throw validationError('Manager PIN is required');
+  return verifyManagerPin(venueId, managerPin);
+}
 
 export async function verifyManagerPin(venueId, pin) {
   const managers = await prisma.user.findMany({

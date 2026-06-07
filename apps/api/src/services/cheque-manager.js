@@ -1,6 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { validationError } from '../utils/errors.js';
-import { verifyManagerPinByRole } from './auth-service.js';
+import { resolveDashboardManager } from './auth-service.js';
 import { executeRefund } from './cheque-refund.js';
 import {
   BILLABLE_ORDER_STATUSES,
@@ -41,7 +41,7 @@ async function refundPaidAdjustment(cheque, amount, reason, manager, venueId, te
 export async function voidChequeRound(
   chequeId,
   orderId,
-  { managerPin, reason },
+  { managerPin, reason, initiatorId },
   venueId,
   { terminalId } = {},
 ) {
@@ -58,7 +58,7 @@ export async function voidChequeRound(
   }
   if (!reason?.trim()) throw validationError('Void reason is required');
 
-  const manager = await verifyManagerPinByRole(venueId, managerPin, 'venue_manager');
+  const manager = await resolveDashboardManager(venueId, { initiatorId, managerPin });
   const isPaid = cheque.status === 'paid';
   const roundAmount = isPaid ? orderBillableSubtotal(order) : 0;
 
@@ -96,13 +96,13 @@ export async function voidChequeRound(
   return { cheque: await getCheque(chequeId, venueId), voidedOrderId: orderId };
 }
 
-export async function voidOpenCheque(chequeId, { managerPin, reason }, venueId) {
+export async function voidOpenCheque(chequeId, { managerPin, reason, initiatorId }, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found');
   if (cheque.status !== 'open') throw validationError('Only open cheques can be voided');
   if (!reason?.trim()) throw validationError('Void reason is required');
 
-  const manager = await verifyManagerPinByRole(venueId, managerPin, 'venue_manager');
+  const manager = await resolveDashboardManager(venueId, { initiatorId, managerPin });
   const ordersToVoid = ordersFromCheque(cheque).filter((o) =>
     VOIDABLE_ROUND_STATUSES.includes(o.status),
   );
@@ -142,7 +142,7 @@ export async function compChequeItem(
   chequeId,
   orderId,
   itemId,
-  { managerPin, reason },
+  { managerPin, reason, initiatorId },
   venueId,
   { terminalId } = {},
 ) {
@@ -163,7 +163,7 @@ export async function compChequeItem(
   if (item.isComped) throw validationError('Item is already comped');
   if (!reason?.trim()) throw validationError('Comp reason is required');
 
-  const manager = await verifyManagerPinByRole(venueId, managerPin, 'venue_manager');
+  const manager = await resolveDashboardManager(venueId, { initiatorId, managerPin });
   const isPaid = cheque.status === 'paid';
   const lineAmount = isPaid ? itemLineTotal(item) : 0;
 

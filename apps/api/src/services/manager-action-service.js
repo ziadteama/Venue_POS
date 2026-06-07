@@ -1,6 +1,8 @@
+import { ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { forbidden, validationError } from '../utils/errors.js';
 import { verifyManagerPin, verifyManagerPinByRole } from './auth-service.js';
+export { forceHubRefund as forceChequeRefund } from './approval-request-service.js';
 import {
   assertDiscountAllowed,
   executeChequeDiscount,
@@ -13,21 +15,17 @@ import { assertRefundAllowed, executeRefund, listRefundAudits } from './cheque-r
 import { listTransferAudits } from './cheque-transfer.js';
 import { loadCheque } from './cheque-shared.js';
 
-async function resolveVenueManager(venueId, { initiatorId, restaurantManagerPin }) {
+async function resolveVenueManager(venueId, { initiatorId, restaurantManagerPin, managerPin }) {
   if (initiatorId) {
     const user = await prisma.user.findUnique({ where: { id: initiatorId } });
-    if (!user?.isActive || user.venueId !== venueId) {
-      throw forbidden('Manager not authorized for this venue');
-    }
-    if (!['venue_manager', 'hub_manager'].includes(user.role)) {
-      throw forbidden('Only managers can perform this action');
-    }
-    return user;
+    if (!user?.isActive) throw forbidden('Manager not authorized for this venue');
+    if (user.role === ROLES.HUB_MANAGER) return user;
+    if (user.role === ROLES.VENUE_MANAGER && user.venueId === venueId) return user;
+    throw forbidden('Manager not authorized for this venue');
   }
-  if (!restaurantManagerPin) {
-    throw validationError('Venue manager PIN is required');
-  }
-  return verifyManagerPin(venueId, restaurantManagerPin);
+  const pin = restaurantManagerPin ?? managerPin;
+  if (!pin) throw validationError('Venue manager PIN is required');
+  return verifyManagerPin(venueId, pin);
 }
 
 export async function applyChequeDiscount(

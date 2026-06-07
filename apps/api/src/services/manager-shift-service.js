@@ -218,13 +218,11 @@ function aggregateShiftRows(rows) {
 export async function getEodReconciliation({ venueId, date }) {
   const { start, end, dateLabel } = dayBounds(date ?? new Date());
 
+  // Attribute each shift to the calendar day it opened, even if it closed later.
   const shifts = await prisma.shift.findMany({
     where: {
       ...(venueId ? { venueId } : {}),
-      OR: [
-        { openedAt: { gte: start, lte: end } },
-        { closedAt: { gte: start, lte: end } },
-      ],
+      openedAt: { gte: start, lte: end },
     },
     include: shiftInclude,
     orderBy: { openedAt: 'asc' },

@@ -1,4 +1,4 @@
-import { ROLES } from '@venue-pos/shared';
+import { isHubManager } from '@venue-pos/shared';
 import { billableOrders } from '../../utils/chequeActions.js';
 
 function ChequeDetailHeader({ detail, t }) {
@@ -207,6 +207,56 @@ function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, onDiscountAct
   );
 }
 
+function ChequeActionToolbar({
+  detail,
+  isOpenTab,
+  isPaidTab,
+  canManage,
+  busy,
+  t,
+  onAction,
+  onRefund,
+}) {
+  if (!canManage) return null;
+
+  const paidTotal = detail.payments?.reduce((s, p) => s + Number(p.amount), 0) ?? 0;
+  const refunded = detail.refunds?.reduce((s, r) => s + Number(r.amount), 0) ?? 0;
+  const canRefund = isPaidTab && paidTotal - refunded > 0.01;
+
+  if (!isOpenTab && !canRefund) return null;
+
+  return (
+    <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      {isOpenTab && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            onAction({
+              type: 'cheque',
+              chequeId: detail.id,
+              chequeNumber: detail.chequeNumber,
+            })
+          }
+          className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+        >
+          {t('cheque.voidCheque')}
+        </button>
+      )}
+      {canRefund && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => onRefund(detail)}
+          className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+        >
+          {t('cheque.processRefund')}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function ChequeDetailView({
   detail,
   statusTab,
@@ -216,6 +266,7 @@ export function ChequeDetailView({
   t,
   onAction,
   onDiscountAction,
+  onRefund,
 }) {
   if (!detail) {
     return <p className="text-secondary">{t('cheque.selectCheque')}</p>;
@@ -223,7 +274,7 @@ export function ChequeDetailView({
 
   const isOpenTab = statusTab === 'open';
   const isPaidTab = statusTab === 'paid';
-  const canManage = userRole === ROLES.VENUE_MANAGER;
+  const canManage = isHubManager(userRole);
   const orders = billableOrders(detail);
 
   return (
@@ -253,6 +304,16 @@ export function ChequeDetailView({
           busy={busy}
           t={t}
           onDiscountAction={onDiscountAction}
+        />
+        <ChequeActionToolbar
+          detail={detail}
+          isOpenTab={isOpenTab}
+          isPaidTab={isPaidTab}
+          canManage={canManage}
+          busy={busy}
+          t={t}
+          onAction={onAction}
+          onRefund={onRefund}
         />
       </div>
     </>
