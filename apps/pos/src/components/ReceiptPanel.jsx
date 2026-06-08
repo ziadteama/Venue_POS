@@ -2,7 +2,7 @@ import { firedOrders } from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
 import { ClearIcon, PrinterIcon } from './icons.jsx';
 
-function ReceiptLine({ line, language, readOnly, onChangeQty, order, t }) {
+function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId }) {
   return (
     <li className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-gradient text-sm font-bold text-white">
@@ -25,7 +25,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t }) {
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onChangeQty(line.id, line.quantity - 1)}
+              onClick={() => onChangeQty(line.id, line.quantity - 1, { venueId })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
             >
               −
@@ -33,7 +33,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t }) {
             <span className="min-w-[1.25rem] text-center text-sm font-medium">{line.quantity}</span>
             <button
               type="button"
-              onClick={() => onChangeQty(line.id, line.quantity + 1)}
+              onClick={() => onChangeQty(line.id, line.quantity + 1, { venueId })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
             >
               +
@@ -46,11 +46,82 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t }) {
   );
 }
 
+function venueLabel(venue, language) {
+  const name = language === 'ar' ? venue.nameAr || venue.nameEn : venue.nameEn;
+  return name ?? 'Venue';
+}
+
+function CrossVenueReceiptBody({ group, language, t, onChangeQty }) {
+  return (
+    <div className="space-y-4">
+      {(group.cheques ?? []).map((member) => {
+        const sentRounds = firedOrders(member);
+        const draftItems = member.draftOrder?.items ?? [];
+        if (!sentRounds.length && !draftItems.length) return null;
+
+        return (
+          <section key={member.id}>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-primary-to">
+              {venueLabel(
+                { nameEn: member.venueNameEn, nameAr: member.venueNameAr },
+                language,
+              )}
+            </p>
+            {sentRounds.map((round) => (
+              <div key={round.id} className="mb-3">
+                <p className="mb-1 text-xs font-medium uppercase tracking-wide text-secondary">
+                  {t('pos.firedRound', { number: round.orderNumber })}
+                </p>
+                <ul className="space-y-2">
+                  {round.items.map((line) => (
+                    <ReceiptLine
+                      key={line.id}
+                      line={line}
+                      language={language}
+                      readOnly
+                      order={round}
+                      t={t}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {draftItems.length > 0 ? (
+              <div>
+                {sentRounds.length > 0 ? (
+                  <p className="mb-1 text-xs font-medium uppercase tracking-wide text-secondary">
+                    {t('pos.currentRound')}
+                  </p>
+                ) : null}
+                <ul className="space-y-2">
+                  {draftItems.map((line) => (
+                    <ReceiptLine
+                      key={line.id}
+                      line={line}
+                      language={language}
+                      readOnly={false}
+                      onChangeQty={onChangeQty}
+                      order={member.draftOrder}
+                      venueId={member.venueId}
+                      t={t}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ReceiptPanel({
   t,
   language,
   loading,
   cheque,
+  crossVenueGroup,
   order,
   tableLabel,
   printerOk,
@@ -65,11 +136,29 @@ export function ReceiptPanel({
   onPickTable,
   onEditDiscount,
 }) {
+  const isCrossVenue = Boolean(crossVenueGroup?.groupId);
   const sentRounds = firedOrders(cheque);
   const draftItems = order?.items ?? [];
-  const hasReceiptLines = sentRounds.length > 0 || draftItems.length > 0;
-  const hasDraftItems = draftItems.length > 0;
-  const canPay = cheque && cheque.total > 0 && !hasDraftItems;
+  const groupPending =
+    (crossVenueGroup?.venues ?? []).reduce(
+      (sum, v) => sum + (v.draftOrder?.items?.length ?? 0),
+      0,
+    ) > 0;
+  const hasReceiptLines = isCrossVenue
+    ? (crossVenueGroup?.displayTotal ?? 0) > 0 || groupPending
+    : sentRounds.length > 0 || draftItems.length > 0;
+  const hasDraftItems = isCrossVenue
+    ? groupPending || draftItems.length > 0
+    : draftItems.length > 0;
+  const displayTotal = isCrossVenue
+    ? (crossVenueGroup?.displayTotal ?? crossVenueGroup?.combinedTotal ?? 0)
+    : (cheque?.total ?? 0);
+  const canPay = isCrossVenue
+    ? (crossVenueGroup?.combinedTotal ?? 0) > 0 && !hasDraftItems
+    : cheque && cheque.total > 0 && !hasDraftItems;
+  const payButtonAmount = isCrossVenue
+    ? Number(crossVenueGroup?.combinedTotal ?? 0)
+    : Number(cheque?.total ?? 0);
   const discountAmount = Number(cheque?.discountAmount ?? 0);
 
   if (!cheque) {
@@ -95,7 +184,9 @@ export function ReceiptPanel({
       <div className="border-b border-slate-200 px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h2 className="font-semibold text-slate-900">{t('pos.currentOrder')}</h2>
+            <h2 className="font-semibold text-slate-900">
+              {isCrossVenue ? t('crossVenue.combinedCart') : t('pos.currentOrder')}
+            </h2>
             <button
               type="button"
               onClick={onPickTable}
@@ -103,6 +194,9 @@ export function ReceiptPanel({
             >
               {t('pos.tableActive', { table: tableLabel || '—' })}
             </button>
+            {isCrossVenue ? (
+              <p className="mt-1 text-xs font-medium text-primary-to">{t('crossVenue.badge')}</p>
+            ) : null}
           </div>
           <div className="text-end text-xs text-secondary">
             <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })}</p>
@@ -118,6 +212,13 @@ export function ReceiptPanel({
           <p className="p-2 text-secondary">{t('common.loading')}</p>
         ) : !hasReceiptLines ? (
           <p className="p-2 text-secondary">{t('pos.emptyCart')}</p>
+        ) : isCrossVenue ? (
+          <CrossVenueReceiptBody
+            group={crossVenueGroup}
+            language={language}
+            t={t}
+            onChangeQty={onChangeQty}
+          />
         ) : (
           <div className="space-y-4">
             {sentRounds.map((round) => (
@@ -167,12 +268,22 @@ export function ReceiptPanel({
 
       <div className="mt-auto border-t border-slate-200 p-4">
         <div className="mb-3 space-y-1 text-sm">
-          <div className="flex justify-between text-secondary">
-            <span>{t('pos.roundSubtotal')}</span>
-            <span>
-              {order?.subtotal?.toFixed(2) ?? '0.00'} {t('pos.currency')}
-            </span>
-          </div>
+          {!isCrossVenue && (
+            <div className="flex justify-between text-secondary">
+              <span>{t('pos.roundSubtotal')}</span>
+              <span>
+                {order?.subtotal?.toFixed(2) ?? '0.00'} {t('pos.currency')}
+              </span>
+            </div>
+          )}
+          {isCrossVenue && (crossVenueGroup?.pendingTotal ?? 0) > 0 ? (
+            <div className="flex justify-between text-secondary">
+              <span>{t('crossVenue.pendingTotal')}</span>
+              <span>
+                {(crossVenueGroup.pendingTotal ?? 0).toFixed(2)} {t('pos.currency')}
+              </span>
+            </div>
+          ) : null}
           {discountAmount > 0 && (
             <button
               type="button"
@@ -185,7 +296,7 @@ export function ReceiptPanel({
               </span>
             </button>
           )}
-          {(cheque?.serviceAmount ?? 0) > 0 && (
+          {!isCrossVenue && (cheque?.serviceAmount ?? 0) > 0 && (
             <div className="flex justify-between text-secondary">
               <span>{t('pos.serviceCharge')}</span>
               <span>
@@ -193,7 +304,7 @@ export function ReceiptPanel({
               </span>
             </div>
           )}
-          {(cheque?.taxAmount ?? 0) > 0 && (
+          {!isCrossVenue && (cheque?.taxAmount ?? 0) > 0 && (
             <div className="flex justify-between text-secondary">
               <span>{t('pos.tax')}</span>
               <span>
@@ -202,9 +313,9 @@ export function ReceiptPanel({
             </div>
           )}
           <div className="flex justify-between border-t border-slate-100 pt-2 text-lg font-bold text-slate-900">
-            <span>{t('pos.chequeTotal')}</span>
+            <span>{isCrossVenue ? t('crossVenue.combinedTotal') : t('pos.chequeTotal')}</span>
             <span className="text-primary-to">
-              {cheque?.total?.toFixed(2) ?? '0.00'} {t('pos.currency')}
+              {displayTotal.toFixed(2)} {t('pos.currency')}
             </span>
           </div>
         </div>
@@ -248,7 +359,7 @@ export function ReceiptPanel({
               >
                 {paying
                   ? t('common.loading')
-                  : t('pos.payAmount', { amount: cheque.total.toFixed(2) })}
+                  : t('pos.payAmount', { amount: payButtonAmount.toFixed(2) })}
               </button>
             ) : (
               <div className="flex-1 rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">

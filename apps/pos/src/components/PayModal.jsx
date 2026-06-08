@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 
 export function PayModal({
   cheque,
+  payTotal,
   onConfirm,
   onCancel,
   t,
   manualCardEnabled = false,
   manualCardThreshold = 500,
 }) {
-  const total = cheque?.total ?? 0;
+  const total = payTotal ?? cheque?.total ?? 0;
   const [mode, setMode] = useState('cash');
   const [tendered, setTendered] = useState(String(total || ''));
   const [cashPart, setCashPart] = useState('');

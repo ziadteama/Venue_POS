@@ -172,18 +172,16 @@ test('target terminal sees no cross-venue targets', async () => {
   assert.equal(res.json().crossVenueTargets.length, 0);
 });
 
-test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attribution', async () => {
-  const start = await app.inject({
+test('unified cross-venue ordering: lazy attach, per-venue cheques, fire, pay', async () => {
+  const open = await app.inject({
     method: 'POST',
-    url: '/api/v1/cross-venue/order',
+    url: '/api/v1/cheques/open',
     headers: anchorHeaders,
     payload: { cashierId: ANCHOR_CASHIER, tableLabel: 'CV1' },
   });
-  assert.equal(start.statusCode, 200, start.body);
-  const groupId = start.json().groupId;
-  assert.ok(groupId);
-  assert.equal(start.json().cheques.length, 1);
-  assert.equal(start.json().cheques[0].venueId, ANCHOR_VENUE);
+  assert.equal(open.statusCode, 200, open.body);
+  const anchorChequeId = open.json().id;
+  assert.equal(open.json().crossVenueGroupId, null);
 
   const menu = await app.inject({
     method: 'GET',
@@ -195,7 +193,7 @@ test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attrib
 
   const addAnchor = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/order/${groupId}/items`,
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
     headers: anchorHeaders,
     payload: {
       cashierId: ANCHOR_CASHIER,
@@ -205,10 +203,11 @@ test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attrib
     },
   });
   assert.equal(addAnchor.statusCode, 200, addAnchor.body);
+  assert.equal(addAnchor.json().group, null);
 
   const addTarget = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/order/${groupId}/items`,
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
     headers: anchorHeaders,
     payload: {
       cashierId: ANCHOR_CASHIER,
@@ -218,13 +217,15 @@ test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attrib
     },
   });
   assert.equal(addTarget.statusCode, 200, addTarget.body);
-  assert.equal(addTarget.json().cheques.length, 2);
-  const venueIds = addTarget.json().cheques.map((c) => c.venueId).sort();
+  const groupId = addTarget.json().group.groupId;
+  assert.ok(groupId);
+  assert.equal(addTarget.json().group.cheques.length, 2);
+  const venueIds = addTarget.json().group.cheques.map((c) => c.venueId).sort();
   assert.deepEqual(venueIds, [ANCHOR_VENUE, TARGET_VENUE].sort());
 
   const wrongVenueItem = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/order/${groupId}/items`,
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
     headers: anchorHeaders,
     payload: {
       cashierId: ANCHOR_CASHIER,
@@ -237,9 +238,8 @@ test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attrib
 
   const fire = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/order/${groupId}/fire`,
+    url: `/api/v1/cheques/${anchorChequeId}/fire`,
     headers: anchorHeaders,
-    payload: { cashierId: ANCHOR_CASHIER },
   });
   assert.equal(fire.statusCode, 200, fire.body);
   assert.equal(fire.json().sentOrders.length, 2);
@@ -265,13 +265,12 @@ test('unified cross-venue ordering: per-venue cheques, fire, pay, revenue attrib
 
   const pay = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/order/${groupId}/pay`,
+    url: `/api/v1/cheques/${anchorChequeId}/pay`,
     headers: anchorHeaders,
     payload: { cashierId: ANCHOR_CASHIER, method: 'cash', tendered: 500 },
   });
   assert.equal(pay.statusCode, 200, pay.body);
-  assert.equal(pay.json().group.status, 'paid');
-  assert.ok(pay.json().receipt.includes('CROSS-VENUE'));
+  assert.ok(pay.json().receipt?.includes('CROSS-VENUE') || pay.json().text?.includes('CROSS-VENUE'));
 
   const anchorPayment = await prisma.payment.findFirst({
     where: { cheque: { venueId: ANCHOR_VENUE, crossVenueGroupId: groupId } },
@@ -299,18 +298,17 @@ test('cross-venue ordering rejects unlinked target venue', async () => {
     payload: { anchorVenueId: ANCHOR_VENUE, targetVenueId: TARGET_VENUE, enabled: false },
   });
 
-  const start = await app.inject({
+  const open = await app.inject({
     method: 'POST',
-    url: '/api/v1/cross-venue/order',
+    url: '/api/v1/cheques/open',
     headers: anchorHeaders,
     payload: { cashierId: ANCHOR_CASHIER, tableLabel: 'CV2' },
   });
-  assert.equal(start.statusCode, 200, start.body);
-  const groupId = start.json().groupId;
+  assert.equal(open.statusCode, 200, open.body);
 
   const addTarget = await app.inject({
     method: 'POST',
-    url: `/api/v1/cross-venue/order/${groupId}/items`,
+    url: `/api/v1/cross-venue/cheques/${open.json().id}/items`,
     headers: anchorHeaders,
     payload: {
       cashierId: ANCHOR_CASHIER,

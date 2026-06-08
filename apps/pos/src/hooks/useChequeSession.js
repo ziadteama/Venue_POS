@@ -3,15 +3,29 @@ import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
 import { normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
-export function useChequeSession({ menu, loading, cashierId }) {
+export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
   const { t } = useTranslation();
   const [cheque, setCheque] = useState(null);
+  const [crossVenueGroup, setCrossVenueGroup] = useState(null);
   const order = cheque?.draftOrder ?? null;
   const tableLabel = cheque?.tableLabel ?? '';
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [paying, setPaying] = useState(false);
   const [openCheques, setOpenCheques] = useState([]);
+
+  const applyChequePayload = useCallback((payload) => {
+    if (!payload) return;
+    if (payload.cheque) {
+      setCheque(payload.cheque);
+      setCrossVenueGroup(payload.group ?? null);
+      return;
+    }
+    const { crossVenueGroup: group, ...chequeFields } = payload;
+    setCheque(payload);
+    setCrossVenueGroup(group ?? null);
+    void chequeFields;
+  }, []);
 
   const applyDraftOrder = useCallback((updated) => {
     setCheque((prev) => {
@@ -41,15 +55,15 @@ export function useChequeSession({ menu, loading, cashierId }) {
           method: 'POST',
           body: JSON.stringify({ cashierId, tableLabel: table }),
         });
-        setCheque(loaded);
+        applyChequePayload(loaded);
         await refreshOpenCheques();
-        return { ok: true };
+        return { ok: true, crossVenueGroup: loaded.crossVenueGroup ?? null };
       } catch {
         setError(t('pos.chequeOpenFailed'));
         return { ok: false };
       }
     },
-    [cashierId, t, refreshOpenCheques],
+    [cashierId, t, refreshOpenCheques, applyChequePayload],
   );
 
   const navigateToTable = useCallback(
@@ -81,6 +95,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
 
         if (cheque?.id === tab.id) {
           setCheque(null);
+          setCrossVenueGroup(null);
         }
         return { ok: true };
       } catch (err) {
@@ -93,6 +108,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
 
   useEffect(() => {
     setCheque(null);
+    setCrossVenueGroup(null);
     setError('');
   }, [cashierId]);
 
@@ -100,7 +116,25 @@ export function useChequeSession({ menu, loading, cashierId }) {
     if (!loading && menu && cashierId) refreshOpenCheques();
   }, [loading, menu, cashierId, refreshOpenCheques]);
 
-  async function addItemToOrder(item, modifiers = []) {
+  async function addItemToOrder(item, modifiers = [], { venueId } = {}) {
+    const isRemote =
+      venueId && homeVenueId && venueId !== homeVenueId && cheque?.id;
+
+    if (isRemote) {
+      const result = await callAgent(`/v1/cross-venue/cheques/${cheque.id}/items`, {
+        method: 'POST',
+        body: JSON.stringify({
+          cashierId,
+          venueId,
+          menuItemId: item.id,
+          quantity: 1,
+          modifiers,
+        }),
+      });
+      applyChequePayload(result);
+      return;
+    }
+
     const updated = await callAgent(`/v1/orders/${order.id}/items`, {
       method: 'POST',
       body: JSON.stringify({
@@ -113,25 +147,67 @@ export function useChequeSession({ menu, loading, cashierId }) {
       }),
     });
     applyDraftOrder(updated);
+    if (cheque?.crossVenueGroupId) {
+      await refreshCheque();
+    }
   }
 
-  async function changeQty(itemId, quantity) {
+  async function changeQty(itemId, quantity, { venueId } = {}) {
+    const useGroup =
+      crossVenueGroup &&
+      venueId &&
+      homeVenueId &&
+      venueId !== homeVenueId &&
+      cheque?.id;
+
+    if (useGroup) {
+      let result;
+      if (quantity <= 0) {
+        result = await callAgent(
+          `/v1/cross-venue/cheques/${cheque.id}/items/${itemId}?venueId=${venueId}`,
+          { method: 'DELETE' },
+        );
+      } else {
+        result = await callAgent(
+          `/v1/cross-venue/cheques/${cheque.id}/items/${itemId}?venueId=${venueId}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify({ quantity }),
+          },
+        );
+      }
+      applyChequePayload(result);
+      return;
+    }
+
     const updated = await callAgent(`/v1/orders/${order.id}/items/${itemId}`, {
       method: 'PATCH',
       body: JSON.stringify({ quantity }),
     });
     applyDraftOrder(updated);
+    if (crossVenueGroup) await refreshCheque();
   }
 
   async function handleSend() {
-    if (!cheque || !order || sending) return;
+    if (!cheque || sending) return;
+    const hasGroupDraft =
+      crossVenueGroup?.pendingTotal > 0 ||
+      (crossVenueGroup?.venues ?? []).some((v) => v.draftOrder?.items?.length);
+    const hasHomeDraft = (order?.items?.length ?? 0) > 0;
+    if (!hasGroupDraft && !hasHomeDraft) return;
+
     setSending(true);
     setError('');
     try {
       const result = await callAgent(`/v1/cheques/${cheque.id}/fire`, { method: 'POST' });
-      setCheque(result.cheque);
+      if (result.crossVenueGroup) {
+        setCheque(result.cheque);
+        setCrossVenueGroup(result.crossVenueGroup);
+      } else if (result.cheque) {
+        applyChequePayload(result.cheque);
+      }
       await refreshOpenCheques();
-      return result.sentOrder;
+      return result.sentOrder ?? result.sentOrders?.[0] ?? null;
     } catch {
       setError(t('pos.sendFailed'));
       return null;
@@ -145,7 +221,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
     setError('');
     try {
       const updated = await callAgent(`/v1/cheques/${cheque.id}/clear`, { method: 'POST' });
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
     } catch {
       setError(t('pos.clearFailed'));
@@ -160,7 +236,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         method: 'POST',
         body: JSON.stringify(splitBody),
       });
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
       return true;
     } catch {
@@ -177,7 +253,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         method: 'POST',
         body: JSON.stringify(splitBody),
       });
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
       return true;
     } catch {
@@ -194,7 +270,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         method: 'POST',
         body: JSON.stringify({ cashierId, ...transferBody }),
       });
-      setCheque(result.source);
+      applyChequePayload(result.source);
       await refreshOpenCheques();
       return true;
     } catch {
@@ -207,12 +283,12 @@ export function useChequeSession({ menu, loading, cashierId }) {
     if (!cheque?.id) return;
     try {
       const updated = await callAgent(`/v1/cheques/${cheque.id}`);
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
     } catch {
       /* ignore */
     }
-  }, [cheque?.id, refreshOpenCheques]);
+  }, [cheque?.id, refreshOpenCheques, applyChequePayload]);
 
   function mapDiscountError(err, fallbackKey) {
     const msg = err?.message ?? '';
@@ -237,7 +313,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         method: 'POST',
         body: JSON.stringify({ cashierId, ...discountBody }),
       });
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
       return true;
     } catch (err) {
@@ -254,7 +330,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         method: 'PATCH',
         body: JSON.stringify({ cashierId, ...discountBody }),
       });
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
       return true;
     } catch (err) {
@@ -271,7 +347,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         method: 'POST',
         body: JSON.stringify({ cashierId, ...discountBody }),
       });
-      setCheque(updated);
+      applyChequePayload(updated);
       await refreshOpenCheques();
       return true;
     } catch (err) {
@@ -318,6 +394,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
         body: JSON.stringify({ cashierId, ...paymentBody }),
       });
       setCheque(null);
+      setCrossVenueGroup(null);
       await refreshOpenCheques();
       return true;
     } catch {
@@ -330,6 +407,7 @@ export function useChequeSession({ menu, loading, cashierId }) {
 
   return {
     cheque,
+    crossVenueGroup,
     order,
     tableLabel,
     error,

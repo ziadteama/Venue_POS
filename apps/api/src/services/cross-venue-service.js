@@ -18,6 +18,7 @@ import {
   computeChequeTotal,
   findDraftOrder,
   itemLineTotal,
+  loadCheque,
   nextChequeNumber,
   ordersFromCheque,
   serializeCheque,
@@ -210,6 +211,179 @@ export async function getCrossVenueGroupSummary(groupId) {
       };
     }),
   };
+}
+
+export async function getCrossVenueGroupByAnchorCheque(anchorChequeId, anchorVenueId) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) return null;
+  return getCrossVenueGroup(anchorCheque.crossVenueGroupId, anchorVenueId);
+}
+
+/**
+ * Lazy attach: add an item to the anchor's open cheque. Target-venue items stamp
+ * crossVenueGroupId on the existing cheque and create sibling venue cheques.
+ */
+export async function addCrossVenueItemByCheque({
+  anchorChequeId,
+  venueId,
+  anchorVenueId,
+  anchorTerminalId,
+  cashierId,
+  menuItemId,
+  quantity = 1,
+  modifiers = [],
+}) {
+  ensureFeatureEnabled();
+  await assertAnchorVenue(anchorVenueId);
+  await assertAnchorCashier(anchorVenueId, cashierId);
+  await assertMenuItemForVenue(menuItemId, venueId);
+
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (anchorCheque.status !== 'open') throw validationError('Cheque is not open');
+
+  if (venueId === anchorVenueId) {
+    const draft = findDraftOrder(anchorCheque);
+    if (!draft) throw validationError('No draft order on this cheque');
+    await addOrderItem(draft.id, { menuItemId, quantity, modifiers });
+    const updatedAnchor = await loadCheque(anchorChequeId);
+    const group = anchorCheque.crossVenueGroupId
+      ? await getCrossVenueGroup(anchorCheque.crossVenueGroupId, anchorVenueId)
+      : null;
+    return { cheque: serializeCheque(updatedAnchor), group };
+  }
+
+  let groupId = anchorCheque.crossVenueGroupId;
+  if (!groupId) {
+    groupId = randomUUID();
+    await prisma.cheque.update({
+      where: { id: anchorChequeId },
+      data: { crossVenueGroupId: groupId, isCrossVenue: true },
+    });
+    await appendAuditLog({
+      venueId: anchorVenueId,
+      actorId: cashierId,
+      action: 'cross_venue_order_attach',
+      entityType: 'cross_venue_group',
+      entityId: groupId,
+      summary: `Attached cheque #${anchorCheque.chequeNumber} to cross-venue group`,
+      details: { anchorChequeId, anchorTerminalId },
+    });
+  }
+
+  await ensureVenueChequeInGroup({
+    groupId,
+    targetVenueId: venueId,
+    anchorVenueId,
+    anchorTerminalId,
+    cashierId,
+    tableLabel: anchorCheque.tableLabel,
+  });
+
+  const { draft } = await resolveDraftForVenue(groupId, venueId);
+  await addOrderItem(draft.id, { menuItemId, quantity, modifiers });
+
+  const updatedAnchor = await loadCheque(anchorChequeId);
+  const group = await getCrossVenueGroup(groupId, anchorVenueId);
+  return { cheque: serializeCheque(updatedAnchor), group };
+}
+
+export async function editCrossVenueItemByCheque({
+  anchorChequeId,
+  venueId,
+  anchorVenueId,
+  itemId,
+  quantity,
+}) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) {
+    throw validationError('Cheque is not part of a cross-venue group');
+  }
+  const group = await editCrossVenueItem({
+    groupId: anchorCheque.crossVenueGroupId,
+    venueId,
+    anchorVenueId,
+    itemId,
+    quantity,
+  });
+  const updatedAnchor = await loadCheque(anchorChequeId);
+  return { cheque: serializeCheque(updatedAnchor), group };
+}
+
+export async function removeCrossVenueItemByCheque({
+  anchorChequeId,
+  venueId,
+  anchorVenueId,
+  itemId,
+}) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) {
+    throw validationError('Cheque is not part of a cross-venue group');
+  }
+  const group = await removeCrossVenueItem({
+    groupId: anchorCheque.crossVenueGroupId,
+    venueId,
+    anchorVenueId,
+    itemId,
+  });
+  const updatedAnchor = await loadCheque(anchorChequeId);
+  return { cheque: serializeCheque(updatedAnchor), group };
+}
+
+/** Clear draft rounds on every open cheque in the group. */
+export async function clearCrossVenueGroupDrafts(anchorChequeId, anchorVenueId) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) return null;
+
+  const members = await loadGroupMembers(anchorCheque.crossVenueGroupId);
+  await prisma.$transaction(async (tx) => {
+    for (const member of members) {
+      const draft = findDraftOrder(member);
+      if (!draft?.items?.length) continue;
+      await tx.orderItem.deleteMany({ where: { orderId: draft.id } });
+    }
+  });
+
+  const group = await getCrossVenueGroup(anchorCheque.crossVenueGroupId, anchorVenueId);
+  const updatedAnchor = await loadCheque(anchorChequeId);
+  return { cheque: serializeCheque(updatedAnchor), group };
+}
+
+export async function fireCrossVenueGroupByCheque({
+  anchorChequeId,
+  anchorVenueId,
+  anchorTerminalId,
+  cashierId,
+}) {
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) return null;
+  return fireCrossVenueGroup({
+    groupId: anchorCheque.crossVenueGroupId,
+    anchorVenueId,
+    anchorTerminalId,
+    cashierId,
+  });
 }
 
 export async function getCrossVenueMenu(anchorVenueId, targetVenueId) {

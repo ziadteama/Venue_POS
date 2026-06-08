@@ -6,10 +6,14 @@ import {
   getCrossVenueMenu,
   startCrossVenueOrder,
   addCrossVenueItem,
+  addCrossVenueItemByCheque,
+  editCrossVenueItemByCheque,
+  removeCrossVenueItemByCheque,
   editCrossVenueItem,
   removeCrossVenueItem,
   fireCrossVenueGroup,
   getCrossVenueGroup,
+  getCrossVenueGroupByAnchorCheque,
   cancelCrossVenueGroup,
   payCrossVenueGroup,
 } from '../services/cross-venue-service.js';
@@ -62,6 +66,78 @@ const cancelGroupSchema = z.object({
 });
 
 export async function crossVenueRoutes(app) {
+  app.get(
+    '/api/v1/cross-venue/cheques/:chequeId/group',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const group = await getCrossVenueGroupByAnchorCheque(
+        request.params.chequeId,
+        request.terminal.venueId,
+      );
+      return group ?? { group: null };
+    },
+  );
+
+  app.post(
+    '/api/v1/cross-venue/cheques/:chequeId/items',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = addItemSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return addCrossVenueItemByCheque({
+        anchorChequeId: request.params.chequeId,
+        venueId: parsed.data.venueId,
+        anchorVenueId: request.terminal.venueId,
+        anchorTerminalId: request.terminal.id,
+        cashierId: parsed.data.cashierId,
+        menuItemId: parsed.data.menuItemId,
+        quantity: parsed.data.quantity,
+        modifiers: parsed.data.modifiers,
+      });
+    },
+  );
+
+  app.patch(
+    '/api/v1/cross-venue/cheques/:chequeId/items/:itemId',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = editItemSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const venueId = request.query?.venueId;
+      if (!venueId || typeof venueId !== 'string') {
+        throw validationError('venueId query parameter is required');
+      }
+
+      return editCrossVenueItemByCheque({
+        anchorChequeId: request.params.chequeId,
+        venueId,
+        anchorVenueId: request.terminal.venueId,
+        itemId: request.params.itemId,
+        quantity: parsed.data.quantity,
+      });
+    },
+  );
+
+  app.delete(
+    '/api/v1/cross-venue/cheques/:chequeId/items/:itemId',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const venueId = request.query?.venueId;
+      if (!venueId || typeof venueId !== 'string') {
+        throw validationError('venueId query parameter is required');
+      }
+
+      return removeCrossVenueItemByCheque({
+        anchorChequeId: request.params.chequeId,
+        venueId,
+        anchorVenueId: request.terminal.venueId,
+        itemId: request.params.itemId,
+      });
+    },
+  );
+
   app.get(
     '/api/v1/cross-venue/menu/:venueId',
     { preHandler: authenticateTerminal },

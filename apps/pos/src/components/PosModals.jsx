@@ -18,6 +18,7 @@ export function PosModals({
   t,
   language,
   cheque,
+  crossVenueGroup,
   order,
   refundCheque,
   openCheques,
@@ -182,6 +183,7 @@ export function PosModals({
       {showPayModal && cheque && (
         <PayModal
           cheque={cheque}
+          payTotal={crossVenueGroup?.combinedTotal}
           t={t}
           manualCardEnabled={features.manualCardPayment}
           manualCardThreshold={features.manualCardApprovalThreshold}

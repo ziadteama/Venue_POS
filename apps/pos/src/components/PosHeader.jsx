@@ -69,12 +69,11 @@ export function PosHeader({
   shift,
   onCloseShift,
   onOrderLookup,
-  onCrossVenue,
   cashierUsername,
   onLogout,
 }) {
   const openCount = parentOpenCheques(openCheques).length;
-  const hasTools = onOrderLookup || onCrossVenue || (shift && onCloseShift);
+  const hasTools = onOrderLookup || (shift && onCloseShift);
 
   return (
     <header className="flex shrink-0 items-center gap-3 bg-primary-gradient px-4 py-2.5 text-white shadow-md sm:gap-4 sm:px-5 sm:py-3">
@@ -132,16 +131,6 @@ export function PosHeader({
                     }}
                   >
                     {t('pos.orderLookup')}
-                  </MenuItem>
-                ) : null}
-                {onCrossVenue ? (
-                  <MenuItem
-                    onClick={() => {
-                      close();
-                      onCrossVenue();
-                    }}
-                  >
-                    {t('crossVenue.button')}
                   </MenuItem>
                 ) : null}
                 {shift && onCloseShift ? (

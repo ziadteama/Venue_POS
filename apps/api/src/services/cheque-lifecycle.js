@@ -18,7 +18,12 @@ import {
   computeChequeSubtotal,
   ordersFromCheque,
 } from './cheque-shared.js';
-import { getCrossVenueGroupSummary } from './cross-venue-service.js';
+import {
+  clearCrossVenueGroupDrafts,
+  fireCrossVenueGroupByCheque,
+  getCrossVenueGroup,
+} from './cross-venue-service.js';
+import { config } from '../config.js';
 
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
@@ -111,9 +116,10 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
 export async function getCheque(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
-  const crossVenueGroup = cheque.crossVenueGroupId
-    ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
-    : null;
+  const crossVenueGroup =
+    cheque.crossVenueGroupId && config.featureCrossVenueBilling
+      ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId)
+      : null;
   return { ...serializeCheque(cheque), crossVenueGroup };
 }
 
@@ -121,6 +127,24 @@ export async function fireChequeRound(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
+
+  if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
+    const groupResult = await fireCrossVenueGroupByCheque({
+      anchorChequeId: chequeId,
+      anchorVenueId: venueId,
+      anchorTerminalId: cheque.terminalId,
+      cashierId: cheque.cashierId,
+    });
+    if (groupResult) {
+      const updated = await loadCheque(chequeId);
+      return {
+        sentOrder: groupResult.sentOrders[0] ?? null,
+        sentOrders: groupResult.sentOrders,
+        cheque: serializeCheque(updated),
+        crossVenueGroup: groupResult.group,
+      };
+    }
+  }
 
   const draft = findDraftOrder(cheque);
   if (!draft) throw validationError('No draft order on this cheque');
@@ -147,6 +171,13 @@ export async function clearChequeDraft(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
+
+  if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
+    const cleared = await clearCrossVenueGroupDrafts(chequeId, venueId);
+    if (cleared) {
+      return { ...cleared.cheque, crossVenueGroup: cleared.group };
+    }
+  }
 
   const draft = findDraftOrder(cheque);
   if (draft?.items?.length) {

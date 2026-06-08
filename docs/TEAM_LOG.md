@@ -1232,12 +1232,18 @@ npm run test -w @venue-pos/api
 **Verify:** Pay cross-venue group → hub `/cheques` and `/orders` show badge + linked cheques list. POS: type PIN with keyboard; header Tools ▾ / Account ▾ menus.
 **Notes:** `serializeCheque` exposes `isCrossVenue` + `crossVenueGroupId`; `getCrossVenueGroupSummary()` loads sibling cheques.
 
+### 2026-06-08 — Cross-sell integrated into main POS screen
+**Phase:** 4 · **Story:** US-4.2, US-4.3
+**What:** Cross-venue ordering is an add-on on the normal POS screen: **Standard / Cross-sell** toggle + venue tabs above MenuGrid. Lazy attach stamps `crossVenueGroupId` on the current table cheque when the first linked-venue item is added. Same Send/Pay/Clear/actions as standard; receipt groups lines by venue. Removed separate `CrossVenueModal` page.
+**Files:** `cross-venue-service.js`, `cheque-lifecycle.js`, `cheque-pay.js`, `useCrossSell.js`, `CrossSellBar.jsx`, `useChequeSession.js`, `ReceiptPanel.jsx`, `App.jsx`, agent routes, `cross-venue.test.js`, i18n
+**Verify:** Cafe POS-1 PIN `1234` → open table → toggle Cross-sell → Restaurant tab → add items → Send → Pay. Table persists if you switch away; no separate modal session.
+**Notes:** `FEATURE_CROSS_VENUE_BILLING=true`; billing matrix Cafe→Restaurant ON.
+
 ### 2026-06-08 — Cross-venue unified ordering (replaces combine-cheques flow)
 **Phase:** 4 · **Story:** US-4.2, US-4.3
-**What:** Anchor cashier builds one multi-venue order from POS: venue tabs + per-venue menus, combined cart, fire each kitchen, pay once. Server keeps one cheque+order per venue under `crossVenueGroupId`; removed billable/combine-cheques API.
-**Files:** `cross-venue-service.js`, `routes/cross-venue.js`, `local-agent/.../cross-venue.js`, `useCrossVenue.js`, `CrossVenueModal.jsx`, `features.js`, `cross-venue.test.js`, i18n, `PRD.md`, `DEV_CREDENTIALS.md`
-**Verify:** `npm run test -w @venue-pos/api` (cross-venue tests); Cafe POS-1 PIN `1234` → Tools → Cross-venue order → add Cafe + Restaurant items → Fire all → Pay; hub Orders/Cheques show cross-venue badge per venue cheque.
-**Notes:** Online-only; `FEATURE_CROSS_VENUE_BILLING=true`. Pay requires all draft items fired first.
+**What:** Anchor cashier builds one multi-venue order: one cheque+order per venue under `crossVenueGroupId`; removed billable/combine-cheques API.
+**Files:** `cross-venue-service.js`, `routes/cross-venue.js`, `cross-venue.test.js`, `PRD.md`, `DEV_CREDENTIALS.md`
+**Notes:** Superseded by integrated cross-sell UX above; API cheque-scoped routes retained.
 
 ### 2026-06-08 — POS cashier logout + shift discount stats
 **Phase:** 4 · **Story:** POS ops / US-8.x shifts

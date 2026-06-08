@@ -10,6 +10,69 @@ export function registerCrossVenueRoutes(
   app,
   { apiUrl, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint },
 ) {
+  app.get('/v1/cross-venue/cheques/:chequeId/group', async (request, reply) => {
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cross-venue/cheques/${request.params.chequeId}/group`,
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
+  app.post('/v1/cross-venue/cheques/:chequeId/items', async (request, reply) => {
+    const { cashierId, venueId, menuItemId } = request.body ?? {};
+    if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    if (!venueId) return reply.status(400).send({ error: 'venueId required' });
+    if (!menuItemId) return reply.status(400).send({ error: 'menuItemId required' });
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cross-venue/cheques/${request.params.chequeId}/items`,
+        { method: 'POST', body: JSON.stringify(request.body) },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
+  app.patch('/v1/cross-venue/cheques/:chequeId/items/:itemId', async (request, reply) => {
+    const venueId = request.query?.venueId;
+    if (!venueId) return reply.status(400).send({ error: 'venueId query required' });
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cross-venue/cheques/${request.params.chequeId}/items/${request.params.itemId}?venueId=${venueId}`,
+        { method: 'PATCH', body: JSON.stringify(request.body) },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
+  app.delete('/v1/cross-venue/cheques/:chequeId/items/:itemId', async (request, reply) => {
+    const venueId = request.query?.venueId;
+    if (!venueId) return reply.status(400).send({ error: 'venueId query required' });
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cross-venue/cheques/${request.params.chequeId}/items/${request.params.itemId}?venueId=${venueId}`,
+        { method: 'DELETE' },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
   app.get('/v1/cross-venue/menu/:venueId', async (request, reply) => {
     try {
       return await apiFetch(

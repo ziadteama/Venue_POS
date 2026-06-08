@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useTranslation } from 'react-i18next';
 
@@ -30,13 +30,13 @@ import { useOrderLookup } from './hooks/useOrderLookup.js';
 
 import { useShiftSession } from './hooks/useShiftSession.js';
 
-import { useCrossVenue } from './hooks/useCrossVenue.js';
+import { useCrossSell } from './hooks/useCrossSell.js';
 
 import { useCashierSession } from './hooks/useCashierSession.js';
 
 import { OrderLookupModal } from './components/OrderLookupModal.jsx';
 
-import { CrossVenueModal } from './components/CrossVenueModal.jsx';
+import { CrossSellBar } from './components/CrossSellBar.jsx';
 
 import { PinLoginScreen } from './components/PinLoginScreen.jsx';
 
@@ -62,7 +62,9 @@ function PosWorkspace({ cashier, onLogout }) {
 
   const { features, loading: featuresLoading } = useFeatures();
 
-  const crossVenue = useCrossVenue(cashier.id, features);
+  const homeVenueId = features.anchorVenue?.id ?? null;
+
+  const crossSell = useCrossSell(features, homeVenueId);
 
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket(features.kdsEnabled);
 
@@ -98,11 +100,13 @@ function PosWorkspace({ cashier, onLogout }) {
 
 
 
-  const session = useChequeSession({ menu, loading, cashierId: cashier.id });
+  const session = useChequeSession({ menu, loading, cashierId: cashier.id, homeVenueId });
 
   const {
 
     cheque,
+
+    crossVenueGroup,
 
     order,
 
@@ -154,7 +158,37 @@ function PosWorkspace({ cashier, onLogout }) {
 
   } = session;
 
+  const groupLocked = Boolean(crossVenueGroup?.groupId);
 
+  const { lockCrossSell } = crossSell;
+
+  useEffect(() => {
+    if (groupLocked) lockCrossSell();
+  }, [groupLocked, lockCrossSell]);
+
+  const menuForGrid = crossSell.crossSellMode ? crossSell.getActiveMenu(menu) : menu;
+
+  const baseDisplayItems = crossSell.crossSellMode
+    ? crossSell.getDisplayItems(menu)
+    : displayItems;
+
+  const menuDisplayItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return baseDisplayItems;
+    return baseDisplayItems.filter(
+      (item) =>
+        item.nameEn.toLowerCase().includes(q) || item.nameAr.toLowerCase().includes(q),
+    );
+  }, [baseDisplayItems, search]);
+
+  const gridCategoryId = crossSell.crossSellMode ? crossSell.activeCategoryId : activeCategoryId;
+
+  const onGridCategoryChange = crossSell.crossSellMode
+    ? crossSell.setActiveCategoryId
+    : setActiveCategoryId;
+
+  const menuGridLoading =
+    loading || (crossSell.crossSellMode && crossSell.isRemoteVenue && crossSell.menuLoading);
 
   const modals = usePosModals({
 
@@ -223,35 +257,29 @@ function PosWorkspace({ cashier, onLogout }) {
 
 
   function handleTapItem(item) {
-
     if (!cheque || !order) {
-
       modals.setShowTableModal(true);
-
       return;
-
     }
 
-    if (order.status !== 'draft') {
+    const isRemote =
+      crossSell.crossSellMode &&
+      crossSell.isRemoteVenue &&
+      crossSell.activeVenueId;
 
+    if (!isRemote && order.status !== 'draft') {
       setError(t('pos.orderLocked'));
-
       return;
-
     }
 
     if (item.modifierGroups?.length) {
-
       modals.setModifierItem(item);
-
       return;
-
     }
 
     setError('');
-
-    addItemToOrder(item).catch(() => setError(t('pos.itemAddFailed')));
-
+    const venueId = isRemote ? crossSell.activeVenueId : undefined;
+    addItemToOrder(item, [], { venueId }).catch(() => setError(t('pos.itemAddFailed')));
   }
 
 
@@ -328,19 +356,6 @@ function PosWorkspace({ cashier, onLogout }) {
 
 
 
-      {crossVenue.open ? (
-
-        <CrossVenueModal
-          t={t}
-          language={i18n.language}
-          crossVenue={crossVenue}
-          features={features}
-        />
-
-      ) : null}
-
-
-
       <PosModals
 
         t={t}
@@ -348,6 +363,8 @@ function PosWorkspace({ cashier, onLogout }) {
         language={i18n.language}
 
         cheque={cheque}
+
+        crossVenueGroup={crossVenueGroup}
 
         order={order}
 
@@ -367,11 +384,13 @@ function PosWorkspace({ cashier, onLogout }) {
 
         modals={modals}
 
-        onAddItemWithModifiers={(item, mods) =>
-
-          addItemToOrder(item, mods).catch(() => setError(t('pos.itemAddFailed')))
-
-        }
+        onAddItemWithModifiers={(item, mods) => {
+          const venueId =
+            crossSell.crossSellMode && crossSell.isRemoteVenue
+              ? crossSell.activeVenueId
+              : undefined;
+          addItemToOrder(item, mods, { venueId }).catch(() => setError(t('pos.itemAddFailed')));
+        }}
 
       />
 
@@ -396,12 +415,6 @@ function PosWorkspace({ cashier, onLogout }) {
         onCloseShift={() => setShowCloseModal(true)}
 
         onOrderLookup={orderLookup.openLookup}
-
-        onCrossVenue={
-          features.crossVenueBilling
-            ? () => crossVenue.openModal(tableLabel || undefined)
-            : null
-        }
 
         cashierUsername={cashier.username}
 
@@ -460,6 +473,8 @@ function PosWorkspace({ cashier, onLogout }) {
           loading={loading}
 
           cheque={cheque}
+
+          crossVenueGroup={crossVenueGroup}
 
           order={order}
 
@@ -521,23 +536,35 @@ function PosWorkspace({ cashier, onLogout }) {
 
           ) : null}
 
+          <CrossSellBar
+            t={t}
+            language={i18n.language}
+            crossSell={crossSell}
+            homeVenueId={homeVenueId}
+            groupLocked={groupLocked}
+          />
+
           <MenuGrid
 
             t={t}
 
             language={i18n.language}
 
-            loading={loading}
+            loading={menuGridLoading}
 
-            menu={menu}
+            menu={menuForGrid}
 
-            activeCategoryId={activeCategoryId}
+            activeCategoryId={gridCategoryId}
 
-            onCategoryChange={setActiveCategoryId}
+            onCategoryChange={onGridCategoryChange}
 
-            displayItems={displayItems}
+            displayItems={menuDisplayItems}
 
-            order={order}
+            order={
+              crossSell.crossSellMode && crossSell.isRemoteVenue
+                ? { status: 'draft' }
+                : order
+            }
 
             onTapItem={handleTapItem}
 
