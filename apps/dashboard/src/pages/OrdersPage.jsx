@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ORDER_STATUSES, isHubStaff } from '@venue-pos/shared';
-import { apiFetch, getToken } from '../api/client.js';
+import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { CrossVenueBadge, CrossVenueGroupPanel } from '../components/CrossVenueBadge.jsx';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 const PAGE_SIZE = 50;
 
 function formatMoney(value, locale) {
@@ -195,15 +194,10 @@ export function OrdersPage() {
   }
 
   async function exportCsv() {
-    const token = getToken();
     const flatQuery = query
       .replace(/groupBy=shift&?/, '')
       .replace(/&groupBy=shift/, '');
-    const res = await fetch(`${API_URL}/api/v1/manager/orders?${flatQuery}&format=csv`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error(t('orders.exportFailed'));
-    const blob = await res.blob();
+    const blob = await apiFetchBlob(`/api/v1/manager/orders?${flatQuery}&format=csv`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

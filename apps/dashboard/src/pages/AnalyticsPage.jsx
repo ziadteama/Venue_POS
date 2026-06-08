@@ -10,12 +10,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { apiFetch, getToken } from '../api/client.js';
+import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 const PRESETS = ['today', 'yesterday', 'week', 'last_week', 'month', 'last_month', 'custom'];
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 function formatMoney(value, locale) {
   return new Intl.NumberFormat(locale, {
@@ -117,13 +115,7 @@ export function AnalyticsPage() {
 
   async function exportCsv() {
     if (!query) return;
-    const token = getToken();
-    const res = await fetch(
-      `${API_URL}/api/v1/manager/analytics/revenue?${query}&format=csv`,
-      { headers: token ? { authorization: `Bearer ${token}` } : {} },
-    );
-    if (!res.ok) throw new Error(t('analytics.exportFailed'));
-    const blob = await res.blob();
+    const blob = await apiFetchBlob(`/api/v1/manager/analytics/revenue?${query}&format=csv`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubManager } from '@venue-pos/shared';
-import { apiFetch, getToken } from '../api/client.js';
+import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 const TYPE_FILTERS = [
   'all',
@@ -177,18 +175,13 @@ export function ActivityPage() {
   const grouped = useMemo(() => groupByDay(events, locale), [events, locale]);
 
   async function exportCsv() {
-    const token = getToken();
     const params = new URLSearchParams({ venueId, format: 'csv' });
     if (typeFilter !== 'all') params.set('type', typeFilter);
     if (userFilter.trim()) params.set('user', userFilter.trim());
     if (from) params.set('from', from);
     if (to) params.set('to', to);
     if (keyword.trim()) params.set('q', keyword.trim());
-    const res = await fetch(`${API_URL}/api/v1/manager/audit?${params}`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error(t('activity.exportFailed'));
-    const blob = await res.blob();
+    const blob = await apiFetchBlob(`/api/v1/manager/audit?${params}`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

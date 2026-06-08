@@ -1,4 +1,5 @@
-import { createContext, createElement, useCallback, useContext, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
+import { resetAuthSession, setAuthInvalidHandler } from '../api/client.js';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -19,6 +20,7 @@ export function AuthProvider({ children }) {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message ?? 'Login failed');
+    resetAuthSession();
     sessionStorage.setItem('token', data.accessToken);
     sessionStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.accessToken);
@@ -32,6 +34,11 @@ export function AuthProvider({ children }) {
     setToken(null);
     setUser(null);
   }, []);
+
+  useEffect(() => {
+    setAuthInvalidHandler(logout);
+    return () => setAuthInvalidHandler(null);
+  }, [logout]);
 
   return createElement(
     AuthContext.Provider,
