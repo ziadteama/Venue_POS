@@ -67,7 +67,12 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
   await linkOrphanDraftOrdersToOpenCheque(cheque.id, venueId, trimmed);
   cheque = await loadCheque(cheque.id);
 
-  return serializeCheque(cheque);
+  const crossVenueGroup =
+    cheque.crossVenueGroupId && config.featureCrossVenueBilling
+      ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId).catch(() => null)
+      : null;
+
+  return { ...serializeCheque(cheque), crossVenueGroup };
 }
 
 export async function closeEmptyCheque(chequeId, venueId) {
@@ -100,7 +105,20 @@ export async function closeEmptyCheque(chequeId, venueId) {
 
 export async function listOpenCheques(venueId) {
   await reconcileVenueOpenCheques(venueId);
-  return listChequesForVenue(venueId, { status: 'open' });
+  const cheques = await listChequesForVenue(venueId, { status: 'open' });
+  if (!config.featureCrossVenueBilling) return cheques;
+
+  return Promise.all(
+    cheques.map(async (c) => {
+      if (!c.crossVenueGroupId) return c;
+      try {
+        const group = await getCrossVenueGroup(c.crossVenueGroupId, venueId);
+        return { ...c, total: group.displayTotal, crossVenueDisplayTotal: group.displayTotal };
+      } catch {
+        return c;
+      }
+    }),
+  );
 }
 
 export async function listChequesForVenue(venueId, { status = 'open', limit = 50 } = {}) {
