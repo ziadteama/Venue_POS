@@ -154,6 +154,7 @@ export function PosModals({
       {showDiscountModal && cheque && (
         <DiscountModal
           cheque={cheque}
+          crossVenueGroup={crossVenueGroup}
           mode={discountModalMode}
           t={t}
           onCancel={() => setShowDiscountModal(false)}

@@ -1243,6 +1243,13 @@ sequenceDiagram
 **What:** Synced `AGENTS.md`, `PRD.md` Epic 4 + US-8.6, `README.md`, `DEVELOPMENT.md`, and § Roadmap below to match shipped cross-sell UX (replaces combine-cheques + separate modal).
 **Verify:** Read § Roadmap — next phase, loose ends, and env flags match repo.
 
+### 2026-06-08 — Cross-venue split pay + group percent discount
+**Phase:** 4 · **Story:** US-4.x polish
+**What:** Proportional cash+card split across venue cheques on group pay; percent-only group discount (apply/edit/remove) on all open members; POS percent-only `DiscountModal` + receipt group discount display; receipt tender breakdown by method.
+**Files:** `cross-venue-service.js`, `cheque-pay.js`, `manager-action-service.js`, `DiscountModal.jsx`, `ReceiptPanel.jsx`, `PosModals.jsx`, `cross-venue.test.js`, i18n
+**Verify:** `FEATURE_CROSS_VENUE_BILLING=true FEATURE_MANUAL_CARD_PAYMENT=true npm run test -w @venue-pos/api -- cross-venue.test.js` · Cafe POS Cross-sell → discount % → split pay cash+card
+**Notes:** Requires `FEATURE_MANUAL_CARD_PAYMENT=true` for card lines on group pay. Standard single-cheque discounts unchanged.
+
 ---
 
 ## Roadmap (as of 2026-06-08)
@@ -1265,7 +1272,7 @@ sequenceDiagram
 | Item | Notes |
 |------|--------|
 | Cross-venue **offline** | Online-only today; needs Phase 6 sync + clear POS message when hub down |
-| Cross-venue **pay methods** | v1 single tender (cash/card/voucher pick one for whole group); no split mix on group pay |
+| Cross-venue **group discount** | Shipped — percent only at anchor; fixed amount rejected on groups |
 | **Receipt detail** | Combined slip with per-venue subtotals only — no itemized lines per venue |
 | **Target POS/KDS** | No live refresh when anchor pays; target kitchen already got tickets on Send |
 | **Approvals nav** | Removed from dashboard nav; API + `ApprovalsPage.jsx` remain — use Cheques force-refund or re-add route |
@@ -1281,7 +1288,7 @@ sequenceDiagram
 ### Optional polish (any phase)
 
 - Itemized lines on cross-venue customer receipt.
-- Card/split tender on cross-venue group pay.
+- Hub dashboard UI for cross-venue group discount (anchor POS path ships v1).
 - Re-enable Approvals nav or fold pending refunds into Cheques inbox.
 - Menu auto-translate API (US-8.4 deferred).
 - Receipt PDF export.

@@ -14,6 +14,7 @@ const ANCHOR_TERMINAL = '00000000-0000-4000-8000-0000000000a2';
 const TARGET_TERMINAL = '00000000-0000-4000-8000-0000000000a3';
 const ANCHOR_CASHIER = '00000000-0000-4000-8000-0000000000a4';
 const TARGET_CASHIER = '00000000-0000-4000-8000-0000000000a5';
+const ANCHOR_VENUE_MANAGER = '00000000-0000-4000-8000-0000000000a6';
 const TERMINAL_SECRET = 'cross-venue-secret';
 
 const anchorHeaders = { 'x-terminal-id': ANCHOR_TERMINAL, 'x-terminal-secret': TERMINAL_SECRET };
@@ -56,6 +57,68 @@ async function enableBilling() {
   });
 }
 
+async function ensureAnchorShift() {
+  const shift = await app.inject({
+    method: 'POST',
+    url: '/api/v1/shifts/open',
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER, openFloat: 500 },
+  });
+  assert.ok([200, 409].includes(shift.statusCode), shift.body);
+}
+
+/** Open table, add anchor + target items, fire — returns anchor cheque id and group id. */
+async function setupFiredCrossVenueGroup(tableLabel, { targetQty = 2 } = {}) {
+  const open = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER, tableLabel },
+  });
+  assert.equal(open.statusCode, 200, open.body);
+  const anchorChequeId = open.json().id;
+
+  const addAnchor = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: ANCHOR_VENUE,
+      menuItemId: anchorMenuItemId,
+      quantity: 1,
+    },
+  });
+  assert.equal(addAnchor.statusCode, 200, addAnchor.body);
+
+  const addTarget = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: TARGET_VENUE,
+      menuItemId: targetMenuItemId,
+      quantity: targetQty,
+    },
+  });
+  assert.equal(addTarget.statusCode, 200, addTarget.body);
+  const groupId = addTarget.json().group.groupId;
+
+  const fire = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/fire`,
+    headers: anchorHeaders,
+  });
+  assert.equal(fire.statusCode, 200, fire.body);
+
+  return {
+    anchorChequeId,
+    groupId,
+    combinedBeforeDiscount: fire.json().crossVenueGroup?.combinedTotal ?? 0,
+  };
+}
+
 before(async () => {
   ensureKeys();
   app = await buildApp();
@@ -64,7 +127,9 @@ before(async () => {
 
   const secretHash = await hashSecret(TERMINAL_SECRET);
   const pinHash = await bcrypt.hash('1234', config.bcryptRounds);
+  const managerPinHash = await bcrypt.hash('7777', config.bcryptRounds);
   const adminHash = await bcrypt.hash('xadmin123', config.bcryptRounds);
+  config.featureManualCardEnabled = true;
 
   await prisma.venue.upsert({
     where: { id: ANCHOR_VENUE },
@@ -91,6 +156,23 @@ before(async () => {
     where: { id: TARGET_CASHIER },
     update: { username: 'xtargetcashier', pinHash, role: 'cashier', venueId: TARGET_VENUE, isActive: true },
     create: { id: TARGET_CASHIER, username: 'xtargetcashier', pinHash, role: 'cashier', venueId: TARGET_VENUE },
+  });
+  await prisma.user.upsert({
+    where: { id: ANCHOR_VENUE_MANAGER },
+    update: {
+      username: 'xanchormgr',
+      pinHash: managerPinHash,
+      role: 'venue_manager',
+      venueId: ANCHOR_VENUE,
+      isActive: true,
+    },
+    create: {
+      id: ANCHOR_VENUE_MANAGER,
+      username: 'xanchormgr',
+      pinHash: managerPinHash,
+      role: 'venue_manager',
+      venueId: ANCHOR_VENUE,
+    },
   });
 
   await prisma.terminal.upsert({
@@ -320,4 +402,149 @@ test('cross-venue ordering rejects unlinked target venue', async () => {
   assert.equal(addTarget.statusCode, 403, addTarget.body);
 
   await enableBilling();
+});
+
+test('cross-venue group percent discount apply, edit, and remove', async () => {
+  await ensureAnchorShift();
+  const { anchorChequeId, groupId, combinedBeforeDiscount } = await setupFiredCrossVenueGroup(
+    `CV-DISC-${Date.now()}`,
+  );
+  assert.equal(combinedBeforeDiscount, 290);
+
+  const rejectAmount = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/discount`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      amount: 20,
+      reason: 'Should fail',
+      restaurantManagerPin: '7777',
+    },
+  });
+  assert.equal(rejectAmount.statusCode, 400, rejectAmount.body);
+
+  const apply = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/discount`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      percent: 10,
+      reason: 'Group loyalty',
+      restaurantManagerPin: '7777',
+    },
+  });
+  assert.equal(apply.statusCode, 200, apply.body);
+  const group = apply.json().crossVenueGroup;
+  assert.ok(group, 'response should include crossVenueGroup');
+  assert.equal(group.groupDiscountPercent, 10);
+  assert.equal(group.groupDiscountTotal, 29);
+  assert.equal(group.combinedTotal, 261);
+
+  const anchorCheque = group.cheques.find((c) => c.venueId === ANCHOR_VENUE);
+  const targetCheque = group.cheques.find((c) => c.venueId === TARGET_VENUE);
+  assert.equal(anchorCheque.discountAmount, 5);
+  assert.equal(targetCheque.discountAmount, 24);
+
+  const audits = await prisma.chequeDiscountAudit.findMany({
+    where: { cheque: { crossVenueGroupId: groupId } },
+  });
+  assert.equal(audits.length, 2);
+  assert.ok(audits.every((a) => Number(a.percent) === 10));
+
+  const change = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/cheques/${anchorChequeId}/discount`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      percent: 15,
+      reason: 'Increase group discount',
+      restaurantManagerPin: '7777',
+    },
+  });
+  assert.equal(change.statusCode, 200, change.body);
+  assert.equal(change.json().crossVenueGroup.groupDiscountPercent, 15);
+  assert.equal(change.json().crossVenueGroup.groupDiscountTotal, 43.5);
+  assert.equal(change.json().crossVenueGroup.combinedTotal, 246.5);
+
+  const remove = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/discount/remove`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      reason: 'Customer changed mind',
+      restaurantManagerPin: '7777',
+    },
+  });
+  assert.equal(remove.statusCode, 200, remove.body);
+  assert.equal(remove.json().crossVenueGroup.groupDiscountPercent, null);
+  assert.equal(remove.json().crossVenueGroup.groupDiscountTotal, 0);
+  assert.equal(remove.json().crossVenueGroup.combinedTotal, 290);
+});
+
+test('cross-venue proportional split pay records cash and card per venue', async () => {
+  await ensureAnchorShift();
+  const { anchorChequeId, groupId } = await setupFiredCrossVenueGroup(`CV-SPLIT-${Date.now()}`);
+  const combinedTotal = 290;
+  const cashTender = 60;
+  const cardTender = 230;
+
+  const pay = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/pay`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      payments: [
+        { method: 'cash', amount: cashTender },
+        { method: 'card', amount: cardTender, cardLast4: '4242' },
+      ],
+      tendered: 100,
+    },
+  });
+  assert.equal(pay.statusCode, 200, pay.body);
+  const receipt = pay.json().receipt ?? pay.json().text;
+  assert.ok(receipt.includes('Cash: 60.00'), receipt);
+  assert.ok(receipt.includes('Card: 230.00'), receipt);
+
+  const members = await prisma.cheque.findMany({
+    where: { crossVenueGroupId: groupId },
+    include: { payments: true },
+    orderBy: { venueId: 'asc' },
+  });
+  assert.equal(members.length, 2);
+
+  const anchorMember = members.find((m) => m.venueId === ANCHOR_VENUE);
+  const targetMember = members.find((m) => m.venueId === TARGET_VENUE);
+  assert.equal(anchorMember.payments.length, 2);
+  assert.equal(targetMember.payments.length, 2);
+
+  const anchorCash = anchorMember.payments.find((p) => p.method === 'cash');
+  const anchorCard = anchorMember.payments.find((p) => p.method === 'card');
+  const targetCash = targetMember.payments.find((p) => p.method === 'cash');
+  const targetCard = targetMember.payments.find((p) => p.method === 'card');
+
+  assert.equal(Number(anchorCash.amount), 10.34);
+  assert.equal(Number(anchorCard.amount), 39.66);
+  assert.equal(Number(targetCash.amount), 49.66);
+  assert.equal(Number(targetCard.amount), 190.34);
+
+  const anchorSum = anchorMember.payments.reduce((s, p) => s + Number(p.amount), 0);
+  const targetSum = targetMember.payments.reduce((s, p) => s + Number(p.amount), 0);
+  assert.equal(Number(anchorSum.toFixed(2)), 50);
+  assert.equal(Number(targetSum.toFixed(2)), 240);
+
+  const methodTotals = members.flatMap((m) => m.payments).reduce(
+    (acc, p) => {
+      acc[p.method] = (acc[p.method] ?? 0) + Number(p.amount);
+      return acc;
+    },
+    {},
+  );
+  assert.equal(Number(methodTotals.cash.toFixed(2)), cashTender);
+  assert.equal(Number(methodTotals.card.toFixed(2)), cardTender);
+  assert.equal(Number((methodTotals.cash + methodTotals.card).toFixed(2)), combinedTotal);
 });

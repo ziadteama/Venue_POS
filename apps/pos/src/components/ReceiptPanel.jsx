@@ -159,7 +159,10 @@ export function ReceiptPanel({
   const payButtonAmount = isCrossVenue
     ? Number(crossVenueGroup?.combinedTotal ?? 0)
     : Number(cheque?.total ?? 0);
-  const discountAmount = Number(cheque?.discountAmount ?? 0);
+  const discountAmount = isCrossVenue
+    ? Number(crossVenueGroup?.groupDiscountTotal ?? 0)
+    : Number(cheque?.discountAmount ?? 0);
+  const groupDiscountPercent = crossVenueGroup?.groupDiscountPercent ?? null;
 
   if (!cheque) {
     return (
@@ -290,7 +293,11 @@ export function ReceiptPanel({
               onClick={onEditDiscount}
               className="flex w-full justify-between rounded-lg px-1 py-0.5 text-amber-800 hover:bg-amber-50"
             >
-              <span>{t('pos.discountApplied')}</span>
+              <span>
+                {isCrossVenue && groupDiscountPercent != null
+                  ? t('crossVenue.discountApplied', { percent: groupDiscountPercent })
+                  : t('pos.discountApplied')}
+              </span>
               <span>
                 -{discountAmount.toFixed(2)} {t('pos.currency')}
               </span>

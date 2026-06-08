@@ -123,14 +123,12 @@ export async function payCheque(
       { payments, method, amount },
       group.combinedTotal,
     );
-    const primary = paymentLines[0];
     const result = await payCrossVenueGroup({
       groupId: cheque.crossVenueGroupId,
       anchorVenueId: venueId,
       anchorTerminalId: terminalId,
       cashierId,
-      method: primary?.method ?? method ?? 'cash',
-      cardLast4: primary?.cardLast4,
+      payments: paymentLines,
       tendered,
       managerPin,
     });

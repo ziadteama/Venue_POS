@@ -15,6 +15,7 @@ import {
 import {
   BILLABLE_ORDER_STATUSES,
   chequeInclude,
+  computeChequeSubtotal,
   computeChequeTotal,
   findDraftOrder,
   itemLineTotal,
@@ -25,6 +26,8 @@ import {
 } from './cheque-shared.js';
 import { appendAuditLog } from './audit-log-service.js';
 import { serializeOrder } from '../utils/serialize.js';
+import { getCheque } from './cheque-lifecycle.js';
+import { resolveDiscountAmount } from './cheque-discount.js';
 
 function ensureFeatureEnabled() {
   if (!config.featureCrossVenueBilling) {
@@ -177,6 +180,14 @@ export function serializeCrossVenueGroup(groupId, anchorVenueId, members) {
     }
   }
 
+  const anchorMember = members.find((m) => m.venueId === anchorVenueId) ?? members[0];
+  const latestDiscountAudit = anchorMember?.discountAudits?.[0];
+  const groupDiscountPercent =
+    latestDiscountAudit?.percent != null ? Number(latestDiscountAudit.percent) : null;
+  const groupDiscountTotal = Number(
+    cheques.reduce((sum, c) => sum + Number(c.discountAmount ?? 0), 0).toFixed(2),
+  );
+
   return {
     groupId,
     anchorVenueId,
@@ -185,6 +196,8 @@ export function serializeCrossVenueGroup(groupId, anchorVenueId, members) {
     combinedTotal,
     pendingTotal,
     displayTotal,
+    groupDiscountPercent,
+    groupDiscountTotal,
     cheques,
     venues: [...venueMap.values()],
   };
@@ -667,7 +680,275 @@ export async function cancelCrossVenueGroup(groupId, anchorVenueId, { cashierId 
   return { groupId, cancelled: true };
 }
 
-function buildCrossVenueReceipt(members, { tendered, change, method }) {
+function assertGroupDiscountAllowed(members) {
+  if (!config.featureDiscountsEnabled) {
+    throw validationError('Discounts are not enabled for this venue');
+  }
+  for (const member of members) {
+    if (member.status !== 'open') {
+      throw validationError('Discounts apply only to open cheques');
+    }
+    const draft = findDraftOrder(member);
+    if (draft?.items?.length) {
+      throw validationError('Send or clear the current round before applying a discount');
+    }
+  }
+}
+
+function groupDiscountAuditData({
+  chequeId,
+  cashierId,
+  initiatorId,
+  approverId,
+  action,
+  amount,
+  previousAmount = null,
+  percent = null,
+  reason,
+}) {
+  return {
+    chequeId,
+    cashierId,
+    initiatorId,
+    approverId,
+    action,
+    amount,
+    previousAmount,
+    percent,
+    reason: reason.trim(),
+  };
+}
+
+function membersWithDiscountableSubtotal(members) {
+  return members.filter((member) => computeChequeSubtotal(member) > 0);
+}
+
+/** Split customer tender lines proportionally by each venue's share of combinedTotal. */
+export function allocateProportionalPayments(paymentLines, memberTotals) {
+  const combined = Number(memberTotals.reduce((sum, m) => sum + m.total, 0).toFixed(2));
+  if (combined <= 0) {
+    return memberTotals.map(({ member }) => ({ member, payments: [] }));
+  }
+
+  const methods = [...new Set(paymentLines.map((l) => l.method))];
+  const methodAmounts = Object.fromEntries(
+    methods.map((method) => [
+      method,
+      Number(
+        paymentLines
+          .filter((l) => l.method === method)
+          .reduce((sum, l) => sum + Number(l.amount), 0)
+          .toFixed(2),
+      ),
+    ]),
+  );
+  const allocatedByMethod = Object.fromEntries(methods.map((m) => [m, 0]));
+
+  return memberTotals.map(({ member, total }, index) => {
+    const isLast = index === memberTotals.length - 1;
+    const owed = Number(total.toFixed(2));
+    const payments = [];
+
+    if (isLast) {
+      for (const method of methods) {
+        const amt = Number((methodAmounts[method] - allocatedByMethod[method]).toFixed(2));
+        if (amt > 0) {
+          const line = paymentLines.find((l) => l.method === method);
+          payments.push({
+            method,
+            amount: amt,
+            cardLast4: method === 'card' ? (line?.cardLast4 ?? null) : null,
+          });
+        }
+      }
+    } else {
+      const weight = owed / combined;
+      for (const method of methods) {
+        const amt = Number((methodAmounts[method] * weight).toFixed(2));
+        allocatedByMethod[method] += amt;
+        if (amt > 0) {
+          const line = paymentLines.find((l) => l.method === method);
+          payments.push({
+            method,
+            amount: amt,
+            cardLast4: method === 'card' ? (line?.cardLast4 ?? null) : null,
+          });
+        }
+      }
+    }
+
+    return { member, payments };
+  });
+}
+
+export async function applyCrossVenueGroupDiscount({
+  anchorChequeId,
+  anchorVenueId,
+  percent,
+  reason,
+  initiatorId,
+  approverId,
+  cashierId,
+}) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) {
+    throw validationError('Cheque is not part of a cross-venue group');
+  }
+  if (percent == null) throw validationError('Cross-venue discounts must use percent only');
+
+  const members = await loadGroupMembers(anchorCheque.crossVenueGroupId);
+  assertGroupDiscountAllowed(members);
+  if (members.some((m) => Number(m.discountAmount ?? 0) > 0)) {
+    throw validationError('Discount already applied — edit or remove it first');
+  }
+
+  const targets = membersWithDiscountableSubtotal(members);
+  if (!targets.length) throw validationError('Nothing to discount on this group');
+
+  const resolvedCashierId = cashierId ?? anchorCheque.cashierId;
+
+  await prisma.$transaction(async (tx) => {
+    for (const member of targets) {
+      const { discountAmount, percent: pct } = resolveDiscountAmount(member, { percent });
+      await tx.chequeDiscountAudit.create({
+        data: groupDiscountAuditData({
+          chequeId: member.id,
+          cashierId: resolvedCashierId,
+          initiatorId,
+          approverId,
+          action: 'apply',
+          amount: discountAmount,
+          percent: pct,
+          reason,
+        }),
+      });
+      await tx.cheque.update({
+        where: { id: member.id },
+        data: { discountAmount },
+      });
+    }
+  });
+
+  return getCheque(anchorChequeId, anchorVenueId);
+}
+
+export async function updateCrossVenueGroupDiscount({
+  anchorChequeId,
+  anchorVenueId,
+  percent,
+  reason,
+  initiatorId,
+  approverId,
+  cashierId,
+}) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) {
+    throw validationError('Cheque is not part of a cross-venue group');
+  }
+  if (percent == null) throw validationError('Cross-venue discounts must use percent only');
+
+  const members = await loadGroupMembers(anchorCheque.crossVenueGroupId);
+  assertGroupDiscountAllowed(members);
+  if (!members.some((m) => Number(m.discountAmount ?? 0) > 0)) {
+    throw validationError('No discount on this cheque');
+  }
+
+  const targets = membersWithDiscountableSubtotal(members);
+  const resolvedCashierId = cashierId ?? anchorCheque.cashierId;
+
+  await prisma.$transaction(async (tx) => {
+    for (const member of targets) {
+      const previousAmount = Number(member.discountAmount ?? 0);
+      const { discountAmount, percent: pct } = resolveDiscountAmount(member, { percent });
+      await tx.chequeDiscountAudit.create({
+        data: groupDiscountAuditData({
+          chequeId: member.id,
+          cashierId: resolvedCashierId,
+          initiatorId,
+          approverId,
+          action: 'change',
+          amount: discountAmount,
+          previousAmount,
+          percent: pct,
+          reason,
+        }),
+      });
+      await tx.cheque.update({
+        where: { id: member.id },
+        data: { discountAmount },
+      });
+    }
+    for (const member of members.filter((m) => !targets.some((t) => t.id === m.id))) {
+      if (Number(member.discountAmount ?? 0) > 0) {
+        await tx.cheque.update({
+          where: { id: member.id },
+          data: { discountAmount: 0 },
+        });
+      }
+    }
+  });
+
+  return getCheque(anchorChequeId, anchorVenueId);
+}
+
+export async function removeCrossVenueGroupDiscount({
+  anchorChequeId,
+  anchorVenueId,
+  reason,
+  initiatorId,
+  approverId,
+  cashierId,
+}) {
+  ensureFeatureEnabled();
+  const anchorCheque = await loadCheque(anchorChequeId);
+  if (anchorCheque.venueId !== anchorVenueId) {
+    throw validationError('Cheque not found for this terminal');
+  }
+  if (!anchorCheque.crossVenueGroupId) {
+    throw validationError('Cheque is not part of a cross-venue group');
+  }
+
+  const members = await loadGroupMembers(anchorCheque.crossVenueGroupId);
+  assertGroupDiscountAllowed(members);
+  const withDiscount = members.filter((m) => Number(m.discountAmount ?? 0) > 0);
+  if (!withDiscount.length) throw validationError('No discount on this cheque');
+
+  const resolvedCashierId = cashierId ?? anchorCheque.cashierId;
+
+  await prisma.$transaction(async (tx) => {
+    for (const member of withDiscount) {
+      const removedAmount = Number(member.discountAmount);
+      await tx.chequeDiscountAudit.create({
+        data: groupDiscountAuditData({
+          chequeId: member.id,
+          cashierId: resolvedCashierId,
+          initiatorId,
+          approverId,
+          action: 'remove',
+          amount: removedAmount,
+          previousAmount: removedAmount,
+          reason,
+        }),
+      });
+      await tx.cheque.update({
+        where: { id: member.id },
+        data: { discountAmount: 0 },
+      });
+    }
+  });
+
+  return getCheque(anchorChequeId, anchorVenueId);
+}
+
+function buildCrossVenueReceipt(members, { tendered, change, paymentLines = [] }) {
   const lines = ['CROSS-VENUE SETTLEMENT', '==='];
   let grand = 0;
   for (const member of members) {
@@ -677,7 +958,17 @@ function buildCrossVenueReceipt(members, { tendered, change, method }) {
     lines.push(`${member.venue?.nameEn ?? 'Venue'} — Cheque #${serialized.chequeNumber}`);
     lines.push(`  Table ${serialized.tableLabel ?? '—'}: ${total.toFixed(2)}`);
   }
-  lines.push('---', `Total: ${grand.toFixed(2)}`, `Method: ${method}`);
+  lines.push('---', `Total: ${grand.toFixed(2)}`);
+  if (paymentLines.length) {
+    const byMethod = paymentLines.reduce((acc, line) => {
+      acc[line.method] = (acc[line.method] ?? 0) + Number(line.amount);
+      return acc;
+    }, {});
+    for (const [method, amount] of Object.entries(byMethod)) {
+      const label = method.charAt(0).toUpperCase() + method.slice(1);
+      lines.push(`${label}: ${Number(amount).toFixed(2)}`);
+    }
+  }
   if (tendered != null) lines.push(`Tendered: ${Number(tendered).toFixed(2)}`);
   if (change != null) lines.push(`Change: ${Number(change).toFixed(2)}`);
   return lines.join('\n');
@@ -694,6 +985,7 @@ export async function payCrossVenueGroup({
   anchorVenueId,
   anchorTerminalId,
   cashierId,
+  payments,
   method = 'cash',
   cardLast4,
   tendered,
@@ -722,47 +1014,64 @@ export async function payCrossVenueGroup({
   );
   if (combinedTotal <= 0) throw validationError('Nothing to settle');
 
-  if (cardLast4 && method !== 'card') {
-    throw validationError('Card last-4 is only valid for card payments');
-  }
-  if (cardLast4 && !/^\d{4}$/.test(cardLast4)) {
-    throw validationError('Card last-4 must be exactly 4 digits');
+  const paymentLines =
+    payments?.length > 0
+      ? payments
+      : [{ method: method ?? 'cash', amount: combinedTotal, cardLast4: cardLast4 ?? null }];
+
+  for (const line of paymentLines) {
+    if (line.cardLast4 && line.method !== 'card') {
+      throw validationError('Card last-4 is only valid for card payments');
+    }
+    if (line.cardLast4 && !/^\d{4}$/.test(line.cardLast4)) {
+      throw validationError('Card last-4 must be exactly 4 digits');
+    }
   }
 
-  await assertManualCardPaymentsAllowed(
-    [{ method, amount: combinedTotal, cardLast4: cardLast4 ?? null }],
-    {
-      manualCardEnabled: config.featureManualCardEnabled,
-      approvalThreshold: config.manualCardApprovalThreshold,
-      managerPin,
-      venueId: anchorVenueId,
-    },
-  );
+  const paySum = Number(paymentLines.reduce((s, p) => s + Number(p.amount), 0).toFixed(2));
+  if (Math.abs(paySum - combinedTotal) > 0.009) {
+    throw validationError('Payment total must match cheque total');
+  }
+
+  await assertManualCardPaymentsAllowed(paymentLines, {
+    manualCardEnabled: config.featureManualCardEnabled,
+    approvalThreshold: config.manualCardApprovalThreshold,
+    managerPin,
+    venueId: anchorVenueId,
+  });
+
+  const cashTotal = paymentLines
+    .filter((p) => p.method === 'cash')
+    .reduce((s, p) => s + Number(p.amount), 0);
 
   let change = null;
   if (tendered != null) {
-    if (method === 'cash' && tendered < combinedTotal) {
-      throw validationError('Tendered amount is less than amount due');
+    if (cashTotal > 0 && tendered < cashTotal) {
+      throw validationError('Tendered amount is less than cash due');
     }
-    change = Number((tendered - combinedTotal).toFixed(2));
+    change = Number((tendered - cashTotal).toFixed(2));
   }
 
   const activeShift = anchorTerminalId
     ? await requireActiveShift(cashierId, anchorTerminalId, anchorVenueId)
     : null;
 
+  const allocated = allocateProportionalPayments(paymentLines, memberTotals);
+
   await prisma.$transaction(async (tx) => {
-    for (const { member, total } of memberTotals) {
-      await tx.payment.create({
-        data: {
-          chequeId: member.id,
-          cashierId,
-          shiftId: activeShift?.id ?? null,
-          method,
-          amount: total,
-          cardLast4: method === 'card' ? (cardLast4 ?? null) : null,
-        },
-      });
+    for (const { member, payments: memberPayments } of allocated) {
+      for (const line of memberPayments) {
+        await tx.payment.create({
+          data: {
+            chequeId: member.id,
+            cashierId,
+            shiftId: activeShift?.id ?? null,
+            method: line.method,
+            amount: line.amount,
+            cardLast4: line.method === 'card' ? (line.cardLast4 ?? null) : null,
+          },
+        });
+      }
 
       const billableOrders = ordersFromCheque(member).filter((o) =>
         BILLABLE_ORDER_STATUSES.includes(o.status),
@@ -801,7 +1110,7 @@ export async function payCrossVenueGroup({
   });
 
   const paidMembers = await loadGroupMembers(groupId);
-  const receipt = buildCrossVenueReceipt(paidMembers, { tendered, change, method });
+  const receipt = buildCrossVenueReceipt(paidMembers, { tendered, change, paymentLines });
 
   await appendAuditLog({
     venueId: anchorVenueId,
@@ -811,7 +1120,7 @@ export async function payCrossVenueGroup({
     entityId: groupId,
     summary: `Cross-venue settlement paid: ${combinedTotal.toFixed(2)} across ${openMembers.length} venue(s)`,
     details: {
-      method,
+      payments: paymentLines,
       combinedTotal,
       members: memberTotals.map((m) => ({
         chequeId: m.member.id,
