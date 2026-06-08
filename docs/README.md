@@ -37,7 +37,7 @@
 |-------|--------|-------|
 | 0–3 | ✅ Done | Monorepo, POS, kitchen, cheques, payments, shifts |
 | 5 (Epic 8) | ✅ Done | Hub manager dashboard — menus, analytics, orders, cheques, shifts/EOD, staff, settings, audit, health |
-| **4** | **Next** | Cross-venue billing — `venue_billing_config`, anchor POS workflow |
-| 6 | Deferred | Offline SQLite sync |
+| **4** | ✅ Done | Cross-sell on anchor POS — billing matrix, per-venue cheques, combined pay |
+| **6** | **Next** | Offline SQLite sync; cross-venue requires online until then |
 
-**KDS is optional** (`FEATURE_KDS_ENABLED`). Full chronology: [TEAM_LOG.md](TEAM_LOG.md).
+**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix. Roadmap + loose ends: [TEAM_LOG.md](TEAM_LOG.md) § Roadmap.

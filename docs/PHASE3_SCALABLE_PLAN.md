@@ -18,7 +18,7 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 
 **Venue manager** (`venue_manager`) executes discount, void, comp, line transfer directly. **Refunds** require hub approval (request → approve).
 
-**General manager** (`hub_manager`) approves refund requests on **Approvals** (`/approvals`), can force-refund from Cheques, and has read-only **Activity log** review.
+**General manager** (`hub_manager`) force-refunds from **Cheques** (Approvals nav removed 2026-06; `/approvals` API optional). **Activity log** for audit review.
 
 - Unified feed: discounts, refunds, voids, comps, transfers
 - `GET /api/v1/manager/activity`

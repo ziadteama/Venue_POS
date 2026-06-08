@@ -16,7 +16,7 @@ npm run seed
 | Role | Where | What they do |
 |------|-------|--------------|
 | **Cashier** | POS | Orders, payments, daily service |
-| **Hub manager** | Web dashboard | **All operations** — menus, staff, cheques, orders, shifts, approvals, audit, health |
+| **Hub manager** | Web dashboard | **All operations** — menus, staff, cheques, orders, shifts, audit, health (refunds via Cheques) |
 | **CEO** | Web dashboard | **Monitoring only** — live KPIs + revenue analytics |
 
 Cashiers do **not** use the web dashboard.
@@ -59,7 +59,7 @@ CEO has **no** access to cheques, orders, menus, staff, approvals, or other oper
 | Cheques | `/cheques` | Open + paid investigation |
 | Orders | `/orders` | Order explorer — all venues, CSV |
 | Shifts | `/shifts` | All venues, EOD reconciliation |
-| Approvals | `/approvals` | Refund requests from POS |
+| ~~Approvals~~ | `/approvals` | **Nav removed** — API + page remain; use **Cheques → Force refund** |
 | Staff | `/users` | Cashiers, kitchen, shift managers |
 | Venue settings | `/settings` | Tax, service charge, printers |
 | Activity | `/activity` | Audit log — filters + CSV |

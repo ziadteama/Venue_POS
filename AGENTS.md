@@ -32,7 +32,7 @@ packages/ shared, i18n
 | Role | Surface | Responsibility |
 |------|---------|----------------|
 | **Cashier** | POS only | Orders, payments, daily service |
-| **Hub manager** | Web dashboard | **All operations** — menus, staff, permissions, settings, cheques, orders, shifts/EOD, approvals, audit, health |
+| **Hub manager** | Web dashboard | **All operations** — menus, staff, permissions, settings, cheques, orders, shifts/EOD, audit, health |
 | **CEO** | Web dashboard | **Monitoring only** — live KPIs + revenue analytics (read-only, no operations) |
 
 **No web login for cashiers.** POS uses PIN + terminal headers.
@@ -58,7 +58,9 @@ How multi-unit restaurant platforms (Toast, Lightspeed, Square) typically split 
 | Back office / GM | Hub manager (dashboard) | Store admin — menu, roster, refunds, EOD, audit |
 | Owner / investor | CEO (dashboard) | Corporate reporting portal — revenue dashboards only |
 
-**Service flow:** cashier rings sale → **manager PIN on POS** for discount/void/refund request → **hub manager** approves refunds and runs the business on dashboard → **CEO** reviews revenue trends without touching operations.
+**Service flow:** cashier rings sale → **manager PIN on POS** for discount/void/refund request → **hub manager** force-refunds from **Cheques** (or direct `/approvals` URL if re-enabled) → **CEO** reviews revenue trends without touching operations.
+
+**Cross-sell (Phase 4):** anchor POS only — **Standard / Cross-sell** toggle above menu; lazy `crossVenueGroupId` on current table; one cheque per venue; single tender at pay. Online-only (`FEATURE_CROSS_VENUE_BILLING`).
 
 ### Dashboard page split
 
@@ -66,7 +68,7 @@ How multi-unit restaurant platforms (Toast, Lightspeed, Square) typically split 
 |------|-----|-------------|
 | Overview / Analytics | Yes (read-only) | No |
 | Menus / Staff / Settings | No | Yes |
-| Cheques / Orders / Shifts / Approvals | No | Yes |
+| Cheques / Orders / Shifts | No | Yes |
 | Activity / Health | No | Yes |
 
 Login redirect: CEO → `/` · hub manager → `/menus`.
@@ -108,7 +110,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phase 5 complete** (Epic 8 admin dashboard). **Next: Phase 4** — cross-venue billing (US-4.x, US-8.6). See `docs/TEAM_LOG.md`.
+**Phases 0–3, 5, and 4 complete.** Cross-venue billing shipped as integrated **cross-sell** on the main POS (US-4.1–4.3, US-8.6). **Next: Phase 6** — offline SQLite sync + cross-venue offline guard. Loose ends and deferred items: `docs/TEAM_LOG.md` § Roadmap.
 
 ## POS app layout (`apps/pos`)
 
@@ -120,7 +122,8 @@ Keep Electron thin — hooks + `PosModals.jsx`, not inline modal spaghetti in `A
 |--------|---------------|-------------|-------|
 | Orders & payments | Cashier | — | POS |
 | Discount / void / comp | Cashier + manager PIN | — (audit) | POS |
-| Refund request | Manager PIN on POS | Hub manager approves | Dashboard `/approvals` |
+| Refund request | Manager PIN on POS | Hub manager force-refund | Dashboard `/cheques` |
+| Cross-sell order | Cashier (anchor) | — | POS **Cross-sell** toggle + venue tabs |
 | Menus, staff, permissions | Hub manager | — | Dashboard |
 | Revenue review | CEO | — | Dashboard `/`, `/analytics` |
 | EOD / shifts / cheques | Hub manager | — | Dashboard |
