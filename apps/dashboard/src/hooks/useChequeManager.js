@@ -37,6 +37,7 @@ export function useChequeManager({ user }) {
       setSelectedId(list[0]?.id ?? null);
       setDetail(null);
     }
+    return list;
   }, [listQuery, venueId, selectedId]);
 
   const loadDetail = useCallback(
@@ -59,26 +60,34 @@ export function useChequeManager({ user }) {
 
   const runAction = useCallback(
     async (body) => {
-      const path = managerActionPath(actionTarget);
+      const target = actionTarget;
+      const path = managerActionPath(target);
       if (!path) return;
 
       setBusy(true);
       setError('');
       try {
         await apiFetch(`${path}${venueQuery}`, {
-          method: managerActionMethod(actionTarget),
+          method: managerActionMethod(target),
           body: JSON.stringify(body),
         });
         setActionTarget(null);
-        await load();
-        if (selectedId) await loadDetail(selectedId);
+        const list = await load();
+        const actedId = target.chequeId;
+        if (actedId && list.some((c) => c.id === actedId)) {
+          await loadDetail(actedId);
+        } else {
+          const nextId = list[0]?.id ?? null;
+          if (nextId) await loadDetail(nextId);
+          else setDetail(null);
+        }
       } catch (e) {
         setError(friendlyError(e));
       } finally {
         setBusy(false);
       }
     },
-    [actionTarget, venueQuery, load, loadDetail, selectedId],
+    [actionTarget, venueQuery, load, loadDetail],
   );
 
   const openDiscountRequest = useCallback((cheque, actionType = 'discount') => {

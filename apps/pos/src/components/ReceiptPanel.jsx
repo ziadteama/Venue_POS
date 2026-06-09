@@ -172,15 +172,11 @@ export function ReceiptPanel({
 
   if (!cheque) {
     return (
-      <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200 bg-white">
+      <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200/70 bg-white">
         <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
           <p className="text-lg font-semibold text-slate-900">{t('pos.noTableSelected')}</p>
-          <p className="mt-2 text-sm text-secondary">{t('pos.noTableSelectedHint')}</p>
-          <button
-            type="button"
-            onClick={onPickTable}
-            className="mt-5 rounded-xl bg-primary-gradient px-5 py-3 text-sm font-semibold text-white hover:opacity-90"
-          >
+          <p className="mt-2 text-sm text-slate-500">{t('pos.noTableSelectedHint')}</p>
+          <button type="button" onClick={onPickTable} className="btn-accent mt-5 px-5 py-3">
             {t('pos.chooseTable')}
           </button>
         </div>
@@ -189,7 +185,7 @@ export function ReceiptPanel({
   }
 
   return (
-    <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200 bg-white">
+    <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200/70 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
         <div className="flex items-start justify-between gap-2">
           <div>
@@ -368,7 +364,7 @@ export function ReceiptPanel({
                 type="button"
                 onClick={onPay}
                 disabled={paying || payDisabled}
-                className="min-w-0 flex-1 rounded-xl bg-emerald-600 py-3.5 text-base font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                className="min-w-0 flex-1 rounded-xl bg-accent-gradient py-3.5 text-base font-bold text-white shadow-sm transition duration-200 ease-premium hover:shadow-card-hover hover:brightness-[1.04] disabled:opacity-60"
               >
                 {paying
                   ? t('common.loading')
