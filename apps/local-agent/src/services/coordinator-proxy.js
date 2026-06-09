@@ -7,10 +7,11 @@ export async function proxyToLeader(leaderHost, path, { lanPort, lanSecret, ...o
 
 export async function proxyToCoordinator(ctx, path, options = {}) {
   const cluster = ctx.getClusterState?.() ?? {};
+  const coordinatorHost = ctx.getCoordinatorLanHost?.() ?? ctx.coordinatorLanHost ?? '';
   const host =
     cluster.mode === CLUSTER_MODES.FOLLOWER && cluster.leaderHost
       ? cluster.leaderHost
-      : ctx.coordinatorLanHost;
+      : coordinatorHost;
   if (!host) throw new Error('No LAN leader/coordinator host configured');
   return lanFetch(host, path, {
     lanPort: ctx.lanPort ?? 3456,

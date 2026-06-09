@@ -4,6 +4,21 @@ import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
+import { PageHeader } from '../components/dashboard/PageHeader.jsx';
+import { StatCard } from '../components/dashboard/StatCard.jsx';
+import { StatCardSkeleton, TableSkeleton } from '../components/dashboard/Skeleton.jsx';
+import { SectionCard } from '../components/ui/Card.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { Select } from '../components/ui/Field.jsx';
+import { DataTable } from '../components/ui/DataTable.jsx';
+import { StatusBadge } from '../components/ui/Badge.jsx';
+import {
+  DownloadIcon,
+  PowerIcon,
+  RefreshIcon,
+  HealthIcon,
+  AlertIcon,
+} from '../components/dashboard/icons.jsx';
 
 export function HealthPage() {
   const { t, i18n } = useTranslation();
@@ -15,6 +30,7 @@ export function HealthPage() {
   const [loading, setLoading] = useState(true);
 
   const canPickVenue = isHubStaff(user?.role);
+  const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-GB';
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,71 +72,134 @@ export function HealthPage() {
     URL.revokeObjectURL(url);
   }
 
+  const columns = [
+    {
+      key: 'name',
+      header: t('health.terminal'),
+      render: (term) => <span className="font-medium text-slate-900">{term.name ?? term.id}</span>,
+    },
+    {
+      key: 'venue',
+      header: t('health.venue'),
+      render: (term) => (i18n.language === 'ar' ? term.venueNameAr : term.venueNameEn),
+    },
+    {
+      key: 'status',
+      header: t('health.status'),
+      render: (term) => (
+        <StatusBadge
+          status={term.online ? 'online' : 'offline'}
+          label={term.online ? t('health.online') : t('health.offline')}
+        />
+      ),
+    },
+    {
+      key: 'lastSeen',
+      header: t('health.lastSeen'),
+      render: (term) => (
+        <span className="text-slate-500">
+          {term.lastSeenAt ? new Date(term.lastSeenAt).toLocaleString(locale) : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'syncQueue',
+      header: t('health.syncQueue'),
+      numeric: true,
+      render: (term) => (
+        <span className={term.syncQueueDepth > 0 ? 'font-semibold text-amber-700' : 'text-slate-700'}>
+          {term.syncQueueDepth}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">{t('health.title')}</h2>
-          <p className="mt-1 text-sm text-secondary">{t('health.subtitle')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
-        >
-          {t('health.exportCsv')}
-        </button>
-      </div>
-
-      {canPickVenue && venues.length > 0 ? (
-        <select
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          value={venueId}
-          onChange={(e) => setVenueId(e.target.value)}
-        >
-          <option value="">{t('orders.allVenues')}</option>
-          {venues.map((v) => (
-            <option key={v.id} value={v.id}>
-              {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
-            </option>
-          ))}
-        </select>
-      ) : null}
+      <PageHeader
+        title={t('health.title')}
+        subtitle={t('health.subtitle')}
+        meta={
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-500 animate-pulse" />
+            {t('health.autoRefresh')}
+          </span>
+        }
+        actions={
+          <>
+            {canPickVenue && venues.length > 0 ? (
+              <Select className="w-auto py-2" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
+                <option value="">{t('orders.allVenues')}</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <Button variant="secondary" onClick={() => load()}>
+              <RefreshIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {t('common.retry')}
+            </Button>
+            <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
+              <DownloadIcon className="h-4 w-4" />
+              {t('health.exportCsv')}
+            </Button>
+          </>
+        }
+      />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <AlertIcon className="h-5 w-5 shrink-0" />
+          {error}
+        </div>
       ) : null}
 
       {loading && !snapshot ? (
-        <p className="text-secondary">{t('common.loading')}</p>
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <StatCardSkeleton key={i} />
+            ))}
+          </div>
+          <TableSkeleton rows={6} cols={5} />
+        </>
       ) : snapshot ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-secondary">{t('health.onlineTerminals')}</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-700">
-                {snapshot.summary.onlineCount}/{snapshot.summary.terminalCount}
-              </p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-secondary">{t('health.pendingSync')}</p>
-              <p className="mt-1 text-2xl font-bold text-slate-800">{snapshot.summary.pendingSyncTotal}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-secondary">{t('health.wsConnections')}</p>
-              <p className="mt-1 text-2xl font-bold text-slate-800">{snapshot.summary.wsConnections.total}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-wide text-secondary">{t('health.memory')}</p>
-              <p className="mt-1 text-2xl font-bold text-slate-800">
-                {snapshot.server.memoryUsedPercent}%
-              </p>
-            </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label={t('health.onlineTerminals')}
+              value={`${snapshot.summary.onlineCount}/${snapshot.summary.terminalCount}`}
+              icon={PowerIcon}
+              tone={snapshot.summary.onlineCount < snapshot.summary.terminalCount ? 'amber' : 'emerald'}
+            />
+            <StatCard
+              label={t('health.pendingSync')}
+              value={snapshot.summary.pendingSyncTotal}
+              icon={RefreshIcon}
+              tone="blue"
+            />
+            <StatCard
+              label={t('health.wsConnections')}
+              value={snapshot.summary.wsConnections.total}
+              icon={HealthIcon}
+              tone="violet"
+            />
+            <StatCard
+              label={t('health.memory')}
+              value={`${snapshot.server.memoryUsedPercent}%`}
+              icon={HealthIcon}
+              tone={snapshot.server.memoryUsedPercent > 85 ? 'amber' : 'emerald'}
+            />
           </div>
 
           {snapshot.alerts?.length > 0 ? (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <h3 className="font-semibold text-amber-900">{t('health.alerts')}</h3>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <h3 className="flex items-center gap-2 font-semibold text-amber-900">
+                <AlertIcon className="h-5 w-5" />
+                {t('health.alerts')}
+              </h3>
               <ul className="mt-2 space-y-1 text-sm text-amber-800">
                 {snapshot.alerts.map((a) => (
                   <li key={a.terminalId}>{a.message}</li>
@@ -129,40 +208,9 @@ export function HealthPage() {
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="min-w-full text-sm">
-              <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-secondary">
-                <tr>
-                  <th className="px-4 py-3">{t('health.terminal')}</th>
-                  <th className="px-4 py-3">{t('health.venue')}</th>
-                  <th className="px-4 py-3">{t('health.status')}</th>
-                  <th className="px-4 py-3">{t('health.lastSeen')}</th>
-                  <th className="px-4 py-3">{t('health.syncQueue')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snapshot.terminals.map((term) => (
-                  <tr key={term.id} className="border-b border-slate-100 last:border-0">
-                    <td className="px-4 py-3 font-medium">{term.name ?? term.id}</td>
-                    <td className="px-4 py-3">
-                      {i18n.language === 'ar' ? term.venueNameAr : term.venueNameEn}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={term.online ? 'text-emerald-700' : 'text-red-600'}>
-                        {term.online ? t('health.online') : t('health.offline')}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-secondary">
-                      {term.lastSeenAt
-                        ? new Date(term.lastSeenAt).toLocaleString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB')
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3">{term.syncQueueDepth}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SectionCard title={t('health.terminal')} flush>
+            <DataTable columns={columns} rows={snapshot.terminals} rowKey={(term) => term.id} />
+          </SectionCard>
         </>
       ) : null}
     </div>

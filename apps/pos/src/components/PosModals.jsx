@@ -1,4 +1,5 @@
-﻿import { DiscountModal } from './DiscountModal.jsx';
+import { useCallback } from 'react';
+import { DiscountModal } from './DiscountModal.jsx';
 import { ModifierModal } from './ModifierModal.jsx';
 import { PaidChequePickerModal } from './PaidChequePickerModal.jsx';
 import { PayModal } from './PayModal.jsx';
@@ -7,9 +8,11 @@ import { ShiftCloseModal } from './ShiftCloseModal.jsx';
 import { ShiftOpenModal } from './ShiftOpenModal.jsx';
 import { SplitAmountModal } from './SplitAmountModal.jsx';
 import { SplitBillModal } from './SplitBillModal.jsx';
+import { SplitPrintModal } from './SplitPrintModal.jsx';
 import { ChequeActionsSheet } from './ChequeActionsSheet.jsx';
 import { TableFloorModal } from './TableFloorModal.jsx';
 import { TransferModal } from './TransferModal.jsx';
+import { parentPayableTotal } from '../utils/cheque.js';
 
 /**
  * All POS overlays in one place. App.jsx passes session + modal state only.
@@ -31,6 +34,8 @@ export function PosModals({
   modals,
   error,
   onAddItemWithModifiers,
+  refreshOpenCheques,
+  refreshFloor,
 }) {
   const {
     modifierItem,
@@ -41,6 +46,10 @@ export function PosModals({
     setShowSplitModal,
     showSplitAmountModal,
     setShowSplitAmountModal,
+    showSplitPrintModal,
+    setShowSplitPrintModal,
+    splitPrinting,
+    handleSplitPrint,
     setShowTransferModal,
     showTransferModal,
     openRefundFlow,
@@ -57,6 +66,7 @@ export function PosModals({
     showRefundModal,
     showPayModal,
     setShowPayModal,
+    payTarget,
     onConfirmSplit,
     onConfirmSplitAmount,
     onConfirmTransfer,
@@ -86,9 +96,15 @@ export function PosModals({
 
   const { navigateToTable, deleteTable } = tableSession;
 
-  async function handleSelectTable(label) {
-    return navigateToTable(label);
-  }
+  const handleSelectTable = useCallback(
+    (label) => navigateToTable(label),
+    [navigateToTable],
+  );
+
+  const refreshTableState = useCallback(async () => {
+    await refreshOpenCheques?.();
+    await refreshFloor?.();
+  }, [refreshOpenCheques, refreshFloor]);
 
   return (
     <>
@@ -115,6 +131,7 @@ export function PosModals({
         <TableFloorModal
           venueTables={features.tables}
           openCheques={openCheques}
+          currentCheque={cheque}
           currentChequeId={cheque?.id}
           currentTable={tableLabel}
           floorByLabel={floorByLabel}
@@ -122,6 +139,7 @@ export function PosModals({
           onClose={() => setShowTableModal(false)}
           onSelectTable={handleSelectTable}
           onDeleteCheque={deleteTable}
+          onRefreshOpenCheques={refreshTableState}
         />
       )}
 
@@ -141,6 +159,12 @@ export function PosModals({
           onEditDiscount={() => runFromActions(() => openDiscountModal('edit'))}
           onRemoveDiscount={() => runFromActions(() => openDiscountModal('remove'))}
           onRefund={() => runFromActions(openRefundFlow)}
+          onRemoveTable={() =>
+            runFromActions(async () => {
+              const result = await deleteTable(cheque);
+              if (result?.ok !== false) setShowActionsSheet(false);
+            })
+          }
         />
       )}
 
@@ -189,10 +213,20 @@ export function PosModals({
         />
       )}
 
+      {showSplitPrintModal && cheque && (
+        <SplitPrintModal
+          t={t}
+          printing={splitPrinting}
+          onPrintFull={() => handleSplitPrint('full')}
+          onPrintSeparate={() => handleSplitPrint('separate')}
+          onContinue={() => setShowSplitPrintModal(false)}
+        />
+      )}
+
       {showPayModal && cheque && (
         <PayModal
-          cheque={cheque}
-          payTotal={crossVenueGroup?.combinedTotal}
+          cheque={payTarget ?? cheque}
+          payTotal={payTarget?.total ?? crossVenueGroup?.combinedTotal ?? parentPayableTotal(cheque)}
           t={t}
           error={error}
           manualCardEnabled={features.manualCardPayment}

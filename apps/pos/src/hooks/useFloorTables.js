@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { POS_FLOOR_POLL_OFFLINE_MS } from '@venue-pos/shared';
 import { callAgent } from '../api/agent.js';
 
-const POLL_MS = 8000;
-
-export function useFloorTables({ enabled, coordinatorActive }) {
+export function useFloorTables({ enabled, coordinatorActive, online = false }) {
   const [floorByLabel, setFloorByLabel] = useState(new Map());
   const [coordinatorUnreachable, setCoordinatorUnreachable] = useState(false);
 
@@ -30,9 +29,10 @@ export function useFloorTables({ enabled, coordinatorActive }) {
   useEffect(() => {
     refresh();
     if (!enabled) return undefined;
-    const timer = setInterval(refresh, POLL_MS);
+    if (online) return undefined;
+    const timer = setInterval(refresh, POS_FLOOR_POLL_OFFLINE_MS);
     return () => clearInterval(timer);
-  }, [refresh, enabled]);
+  }, [refresh, enabled, online]);
 
   return { floorByLabel, refreshFloor: refresh, coordinatorUnreachable };
 }

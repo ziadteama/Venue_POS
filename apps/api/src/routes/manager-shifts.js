@@ -1,5 +1,6 @@
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
+import { forbidden } from '../utils/errors.js';
 import {
   listManagerShifts,
   getManagerShiftDetail,
@@ -8,6 +9,13 @@ import {
   getEodReconciliation,
   eodReconciliationToCsv,
 } from '../services/manager-shift-service.js';
+import { requestCanSeeFinancials } from '../middleware/auth.js';
+import {
+  redactEodFinancials,
+  redactShiftListFinancials,
+  redactShiftRowFinancials,
+  redactAuditFinancials,
+} from '../services/financial-redact.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
@@ -32,6 +40,9 @@ export async function managerShiftsRoutes(app) {
       });
 
       if (request.query?.format === 'csv') {
+        if (!(await requestCanSeeFinancials(request))) {
+          throw forbidden('Financial export is restricted to the owner account');
+        }
         reply.header('Content-Type', 'text/csv; charset=utf-8');
         reply.header(
           'Content-Disposition',
@@ -40,7 +51,7 @@ export async function managerShiftsRoutes(app) {
         return shiftsListToCsv(result);
       }
 
-      return result;
+      return (await requestCanSeeFinancials(request)) ? result : redactShiftListFinancials(result);
     },
   );
 
@@ -55,11 +66,14 @@ export async function managerShiftsRoutes(app) {
       });
 
       if (request.query?.format === 'csv') {
+        if (!(await requestCanSeeFinancials(request))) {
+          throw forbidden('Financial export is restricted to the owner account');
+        }
         reply.header('Content-Type', 'text/csv; charset=utf-8');
         reply.header('Content-Disposition', 'attachment; filename="eod-reconciliation.csv"');
         return eodReconciliationToCsv(result);
       }
-      return result;
+      return (await requestCanSeeFinancials(request)) ? result : redactEodFinancials(result);
     },
   );
 
@@ -68,7 +82,8 @@ export async function managerShiftsRoutes(app) {
     { preHandler: hubManagerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
-      return getManagerShiftDetail(request.params.id, venueId);
+      const detail = await getManagerShiftDetail(request.params.id, venueId);
+      return (await requestCanSeeFinancials(request)) ? detail : redactShiftRowFinancials(detail);
     },
   );
 

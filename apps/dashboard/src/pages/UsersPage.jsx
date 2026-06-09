@@ -2,8 +2,25 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
+import { PageHeader } from '../components/dashboard/PageHeader.jsx';
+import { FilterBar, SearchInput } from '../components/ui/FilterBar.jsx';
+import { Field, Input, Select } from '../components/ui/Field.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { DataTable } from '../components/ui/DataTable.jsx';
+import { Drawer } from '../components/ui/Drawer.jsx';
+import { Modal } from '../components/ui/Modal.jsx';
+import { Badge, StatusBadge } from '../components/ui/Badge.jsx';
+import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { TableSkeleton } from '../components/dashboard/Skeleton.jsx';
+import { UsersIcon, PlusIcon, KeyIcon, PowerIcon, AlertIcon } from '../components/dashboard/icons.jsx';
 
 const emptyForm = { username: '', role: 'cashier', pin: '', cardUid: '', venueId: '' };
+
+const ROLE_TONES = {
+  venue_manager: 'indigo',
+  cashier: 'blue',
+  kitchen_staff: 'violet',
+};
 
 function venueQuery(venueId) {
   return venueId ? `?venueId=${encodeURIComponent(venueId)}` : '';
@@ -19,8 +36,10 @@ export function UsersPage() {
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [form, setForm] = useState(null);
+  const [formError, setFormError] = useState('');
   const [pinUser, setPinUser] = useState(null);
   const [newPin, setNewPin] = useState('');
+  const [pinError, setPinError] = useState('');
 
   useEffect(() => {
     apiFetch('/api/v1/venues')
@@ -55,7 +74,7 @@ export function UsersPage() {
     e.preventDefault();
     const targetVenueId = form.venueId || venueId;
     if (!targetVenueId) return;
-    setError('');
+    setFormError('');
     try {
       await apiFetch(`/api/v1/manager/users${venueQuery(targetVenueId)}`, {
         method: 'POST',
@@ -73,14 +92,14 @@ export function UsersPage() {
         await load();
       }
     } catch (err) {
-      setError(friendlyError(err));
+      setFormError(friendlyError(err));
     }
   }
 
   async function submitPin(e) {
     e.preventDefault();
     if (!venueId) return;
-    setError('');
+    setPinError('');
     try {
       await apiFetch(`/api/v1/manager/users/${pinUser.id}/pin${venueQuery(venueId)}`, {
         method: 'POST',
@@ -89,7 +108,7 @@ export function UsersPage() {
       setPinUser(null);
       setNewPin('');
     } catch (err) {
-      setError(friendlyError(err));
+      setPinError(friendlyError(err));
     }
   }
 
@@ -111,126 +130,150 @@ export function UsersPage() {
     return i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn;
   }
 
+  const columns = [
+    {
+      key: 'username',
+      header: t('users.username'),
+      render: (u) => <span className="font-medium text-slate-900">{u.username}</span>,
+    },
+    {
+      key: 'role',
+      header: t('users.role'),
+      render: (u) => <Badge tone={ROLE_TONES[u.role] ?? 'neutral'}>{t(`users.role.${u.role}`)}</Badge>,
+    },
+    {
+      key: 'cardUid',
+      header: t('users.cardUid'),
+      render: (u) => <span className="text-slate-500">{u.cardUid || '—'}</span>,
+    },
+    {
+      key: 'status',
+      header: t('users.status'),
+      render: (u) => (
+        <StatusBadge
+          status={u.isActive ? 'active' : 'inactive'}
+          label={u.isActive ? t('users.active') : t('users.inactive')}
+        />
+      ),
+    },
+    {
+      key: 'actions',
+      header: t('users.actions'),
+      align: 'end',
+      render: (u) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            variant="subtle"
+            size="sm"
+            onClick={() => {
+              setPinUser(u);
+              setNewPin('');
+              setPinError('');
+            }}
+          >
+            <KeyIcon className="h-4 w-4" />
+            {t('users.resetPin')}
+          </Button>
+          <Button variant="subtle" size="sm" onClick={() => toggleActive(u)}>
+            <PowerIcon className="h-4 w-4" />
+            {u.isActive ? t('users.deactivate') : t('users.reactivate')}
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">{t('users.title')}</h2>
-          <p className="mt-1 text-sm text-secondary">{t('users.subtitleHub')}</p>
-        </div>
-        <button
-          type="button"
-          disabled={!venueId}
-          onClick={() => setForm({ ...emptyForm, venueId })}
-          className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {t('users.addStaff')}
-        </button>
-      </div>
+      <PageHeader
+        title={t('users.title')}
+        subtitle={t('users.subtitleHub')}
+        actions={
+          <Button variant="primary" disabled={!venueId} onClick={() => setForm({ ...emptyForm, venueId })}>
+            <PlusIcon className="h-4 w-4" />
+            {t('users.addStaff')}
+          </Button>
+        }
+      />
 
-      <label className="block max-w-xs text-sm">
-        <span className="mb-1 block text-secondary">{t('users.venue')}</span>
-        <select
-          className="w-full rounded-lg border border-slate-200 px-3 py-2"
-          value={venueId}
-          onChange={(e) => setVenueId(e.target.value)}
-        >
-          {venues.map((v) => (
-            <option key={v.id} value={v.id}>
-              {labelVenue(v)}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="flex flex-wrap gap-3">
-        <input
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          placeholder={t('users.searchPlaceholder')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <label className="flex items-center gap-2 text-sm text-secondary">
-          <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-          />
-          {t('users.showInactive')}
-        </label>
-      </div>
+      <FilterBar
+        primary={
+          <>
+            <Select className="w-auto py-2" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {labelVenue(v)}
+                </option>
+              ))}
+            </Select>
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder={t('users.searchPlaceholder')}
+              className="w-full sm:w-64"
+            />
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500/30"
+                checked={showInactive}
+                onChange={(e) => setShowInactive(e.target.checked)}
+              />
+              {t('users.showInactive')}
+            </label>
+          </>
+        }
+      />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <AlertIcon className="h-5 w-5 shrink-0" />
+          {error}
+        </div>
       ) : null}
 
       {loading ? (
-        <p className="text-secondary">{t('common.loading')}</p>
+        <TableSkeleton rows={6} cols={5} />
       ) : users.length === 0 ? (
-        <p className="text-secondary">{t('users.empty')}</p>
+        <div className="surface-card">
+          <EmptyState icon={UsersIcon} title={t('users.empty')} className="py-16" />
+        </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table className="min-w-full text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs uppercase tracking-wide text-secondary">
-              <tr>
-                <th className="px-4 py-3">{t('users.username')}</th>
-                <th className="px-4 py-3">{t('users.role')}</th>
-                <th className="px-4 py-3">{t('users.cardUid')}</th>
-                <th className="px-4 py-3">{t('users.status')}</th>
-                <th className="px-4 py-3">{t('users.actions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3 font-medium">{u.username}</td>
-                  <td className="px-4 py-3">{t(`users.role.${u.role}`)}</td>
-                  <td className="px-4 py-3 text-secondary">{u.cardUid || '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={u.isActive ? 'text-emerald-700' : 'text-red-600'}>
-                      {u.isActive ? t('users.active') : t('users.inactive')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-primary-from hover:underline"
-                        onClick={() => {
-                          setPinUser(u);
-                          setNewPin('');
-                        }}
-                      >
-                        {t('users.resetPin')}
-                      </button>
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-secondary hover:underline"
-                        onClick={() => toggleActive(u)}
-                      >
-                        {u.isActive ? t('users.deactivate') : t('users.reactivate')}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="surface-card overflow-hidden">
+          <DataTable columns={columns} rows={users} rowKey={(u) => u.id} />
         </div>
       )}
 
-      {form ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form
-            onSubmit={submitCreate}
-            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold">{t('users.addStaff')}</h3>
-            <label className="mt-4 block text-sm">
-              <span className="text-secondary">{t('users.assignVenue')}</span>
-              <select
+      <Drawer
+        open={Boolean(form)}
+        onClose={() => setForm(null)}
+        size="md"
+        icon={UsersIcon}
+        title={t('users.addStaff')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setForm(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" form="user-create-form" variant="primary">
+              {t('common.save')}
+            </Button>
+          </>
+        }
+      >
+        {form ? (
+          <form id="user-create-form" onSubmit={submitCreate} className="space-y-4">
+            {formError ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-medium text-red-700">
+                {formError}
+              </div>
+            ) : null}
+            <Field
+              label={t('users.assignVenue')}
+              hint={form.role === 'cashier' ? t('users.assignVenueCashierHint') : t('users.assignVenueHint')}
+            >
+              <Select
                 required
-                className="mt-1 w-full rounded-lg border px-3 py-2"
                 value={form.venueId}
                 onChange={(e) => setForm({ ...form, venueId: e.target.value })}
               >
@@ -239,92 +282,70 @@ export function UsersPage() {
                     {labelVenue(v)}
                   </option>
                 ))}
-              </select>
-              <p className="mt-1 text-xs text-secondary">
-                {form.role === 'cashier'
-                  ? t('users.assignVenueCashierHint')
-                  : t('users.assignVenueHint')}
-              </p>
-            </label>
-            <label className="mt-3 block text-sm">
-              <span className="text-secondary">{t('users.username')}</span>
-              <input
+              </Select>
+            </Field>
+            <Field label={t('users.username')}>
+              <Input
                 required
-                className="mt-1 w-full rounded-lg border px-3 py-2"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
               />
-            </label>
-            <label className="mt-3 block text-sm">
-              <span className="text-secondary">{t('users.role')}</span>
-              <select
-                className="mt-1 w-full rounded-lg border px-3 py-2"
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-              >
+            </Field>
+            <Field label={t('users.role')}>
+              <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
                 <option value="cashier">{t('users.role.cashier')}</option>
                 <option value="venue_manager">{t('users.role.venue_manager')}</option>
                 <option value="kitchen_staff">{t('users.role.kitchen_staff')}</option>
-              </select>
-            </label>
-            <label className="mt-3 block text-sm">
-              <span className="text-secondary">{t('users.pin')}</span>
-              <input
+              </Select>
+            </Field>
+            <Field label={t('users.pin')}>
+              <Input
                 required
                 type="password"
                 inputMode="numeric"
                 maxLength={6}
-                className="mt-1 w-full rounded-lg border px-3 py-2"
                 value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value })}
               />
-            </label>
-            <label className="mt-3 block text-sm">
-              <span className="text-secondary">{t('users.cardUid')}</span>
-              <input
-                className="mt-1 w-full rounded-lg border px-3 py-2"
-                value={form.cardUid}
-                onChange={(e) => setForm({ ...form, cardUid: e.target.value })}
-              />
-            </label>
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setForm(null)} className="rounded-lg border px-4 py-2 text-sm">
-                {t('common.cancel')}
-              </button>
-              <button type="submit" className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white">
-                {t('common.save')}
-              </button>
-            </div>
+            </Field>
+            <Field label={t('users.cardUid')}>
+              <Input value={form.cardUid} onChange={(e) => setForm({ ...form, cardUid: e.target.value })} />
+            </Field>
           </form>
-        </div>
-      ) : null}
+        ) : null}
+      </Drawer>
 
       {pinUser ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form
-            onSubmit={submitPin}
-            className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
-          >
-            <h3 className="text-lg font-semibold">{t('users.resetPinTitle', { name: pinUser.username })}</h3>
-            <input
-              required
-              type="password"
-              inputMode="numeric"
-              maxLength={6}
-              className="mt-4 w-full rounded-lg border px-3 py-2"
-              value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-            />
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setPinUser(null)} className="rounded-lg border px-4 py-2 text-sm">
+        <Modal
+          onClose={() => setPinUser(null)}
+          size="sm"
+          icon={KeyIcon}
+          title={t('users.resetPinTitle', { name: pinUser.username })}
+          error={pinError}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setPinUser(null)}>
                 {t('common.cancel')}
-              </button>
-              <button type="submit" className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white">
+              </Button>
+              <Button type="submit" form="reset-pin-form" variant="primary">
                 {t('users.resetPin')}
-              </button>
-            </div>
+              </Button>
+            </>
+          }
+        >
+          <form id="reset-pin-form" onSubmit={submitPin}>
+            <Field label={t('users.pin')}>
+              <Input
+                required
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={newPin}
+                onChange={(e) => setNewPin(e.target.value)}
+              />
+            </Field>
           </form>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );

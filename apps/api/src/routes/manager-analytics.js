@@ -1,13 +1,12 @@
 import { z } from 'zod';
-import { ROLES } from '@venue-pos/shared';
-import { requireRoles } from '../middleware/auth.js';
+import { requireFinancialOwner } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
 import {
   buildRevenueAnalytics,
   revenueAnalyticsToCsv,
 } from '../services/analytics-service.js';
 
-const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
+const financialOwnerPreHandler = requireFinancialOwner();
 
 const presetSchema = z.enum([
   'today',
@@ -26,7 +25,7 @@ function resolveVenueFilter(request) {
 export async function managerAnalyticsRoutes(app) {
   app.get(
     '/api/v1/manager/analytics/revenue',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: financialOwnerPreHandler },
     async (request, reply) => {
       const preset = request.query?.preset ?? 'today';
       if (!presetSchema.safeParse(preset).success) {

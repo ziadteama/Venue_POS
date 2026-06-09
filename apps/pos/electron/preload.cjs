@@ -107,6 +107,11 @@ contextBridge.exposeInMainWorld('venuePos', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  printChequeReceipt: (chequeId, body) =>
+    agentFetch(`/v1/cheques/${chequeId}/print-receipt`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   splitCheque: (chequeId, body) =>
     agentFetch(`/v1/cheques/${chequeId}/split`, {
       method: 'POST',

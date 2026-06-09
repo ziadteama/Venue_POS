@@ -2,6 +2,7 @@ import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
 import { verifyManagerPin } from './auth-service.js';
 import { serializeOrder, buildReceiptText } from '../utils/serialize.js';
+import { resolveBusinessDate } from '../utils/business-date.js';
 
 const orderInclude = {
   items: {
@@ -22,25 +23,39 @@ function validateModifiers(selected, groups) {
   }
 }
 
-export async function createOrder({ id, venueId, terminalId, cashierId, tableLabel }) {
-  const venue = await prisma.venue.findUnique({ where: { id: venueId } });
-  if (!venue) throw notFound('Venue not found');
-
+export async function validateCashierForVenue(cashierId, venueId) {
   const cashier = await prisma.user.findFirst({
     where: { id: cashierId, venueId, role: 'cashier', isActive: true },
   });
   if (!cashier) throw validationError('Invalid cashier for venue');
+}
 
-  if (terminalId) {
-    const terminal = await prisma.terminal.findFirst({
-      where: { id: terminalId, venueId, isActive: true },
-    });
-    if (!terminal) throw validationError('Invalid terminal for venue');
+export async function createOrder({
+  id,
+  venueId,
+  terminalId,
+  cashierId,
+  tableLabel,
+  businessDate = resolveBusinessDate(),
+  skipValidation = false,
+}) {
+  if (!skipValidation) {
+    const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+    if (!venue) throw notFound('Venue not found');
+
+    await validateCashierForVenue(cashierId, venueId);
+
+    if (terminalId) {
+      const terminal = await prisma.terminal.findFirst({
+        where: { id: terminalId, venueId, isActive: true },
+      });
+      if (!terminal) throw validationError('Invalid terminal for venue');
+    }
   }
 
   const order = await prisma.$transaction(async (tx) => {
     const last = await tx.order.findFirst({
-      where: { venueId },
+      where: { venueId, businessDate },
       orderBy: { orderNumber: 'desc' },
       select: { orderNumber: true },
     });
@@ -53,6 +68,7 @@ export async function createOrder({ id, venueId, terminalId, cashierId, tableLab
         terminalId,
         cashierId,
         orderNumber,
+        businessDate,
         tableLabel,
         status: 'draft',
       },

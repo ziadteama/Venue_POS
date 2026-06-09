@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import {
-  canAccessDashboardPath,
-  defaultDashboardPath,
-} from '@venue-pos/shared';
+import { canAccessDashboardPath, canSeeFinancials, defaultDashboardPath } from '@venue-pos/shared';
 import { Sidebar } from './Sidebar.jsx';
 import { ErrorBoundary } from './ErrorBoundary.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
@@ -28,7 +25,7 @@ const SECTION_TITLES = {
 function GuardedOutlet() {
   const { user } = useAuth();
   const { pathname } = useLocation();
-  if (!canAccessDashboardPath(user?.role, pathname)) {
+  if (!canAccessDashboardPath(user?.role, pathname, user)) {
     return <Navigate to={defaultDashboardPath(user?.role)} replace />;
   }
   return <Outlet />;
@@ -53,7 +50,7 @@ export function Layout() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, token } = useAuth();
+  const { logout, token, user } = useAuth();
   const { notice, setNotice } = useHubNotifications(token);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -131,17 +128,26 @@ export function Layout() {
           <div className="mx-4 mt-4 flex items-start justify-between gap-3 rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800 shadow-card sm:mx-6 lg:mx-8">
             <span className="font-medium">
               {notice.payload.type === 'refund'
-                ? t('dashboard.refundAlert', {
-                    number: notice.payload.chequeNumber,
-                    amount: Number(notice.payload.amount ?? 0).toFixed(2),
-                    currency: t('pos.currency'),
-                    cashier: notice.payload.cashierName ?? notice.payload.managerName ?? '—',
-                  })
-                : t('dashboard.discountAlert', {
-                    number: notice.payload.chequeNumber,
-                    amount: Number(notice.payload.amount ?? 0).toFixed(2),
-                    currency: t('pos.currency'),
-                  })}
+                ? canSeeFinancials(user)
+                  ? t('dashboard.refundAlert', {
+                      number: notice.payload.chequeNumber,
+                      amount: Number(notice.payload.amount ?? 0).toFixed(2),
+                      currency: t('pos.currency'),
+                      cashier: notice.payload.cashierName ?? notice.payload.managerName ?? '—',
+                    })
+                  : t('dashboard.refundAlertOps', {
+                      number: notice.payload.chequeNumber,
+                      cashier: notice.payload.cashierName ?? notice.payload.managerName ?? '—',
+                    })
+                : canSeeFinancials(user)
+                  ? t('dashboard.discountAlert', {
+                      number: notice.payload.chequeNumber,
+                      amount: Number(notice.payload.amount ?? 0).toFixed(2),
+                      currency: t('pos.currency'),
+                    })
+                  : t('dashboard.discountAlertOps', {
+                      number: notice.payload.chequeNumber,
+                    })}
             </span>
             <button
               type="button"

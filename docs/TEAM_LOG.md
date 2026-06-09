@@ -1437,9 +1437,10 @@ API: `GET /api/v1/manager/dashboard/executive` · `GET /api/v1/manager/dashboard
 | LAN coordinator floor (legacy static override) | ✅ v1 |
 | Offline PIN + menu cache + reconnect handshake | ✅ v1 |
 | Cross-sell offline (Slice C) | 🟡 Stub — group shell + linked menus; full item/fire/pay offline **not** done |
-| Manager ops offline (void, split, transfer) | ❌ |
-| Failed-queue operator UI | ❌ Count in banner only |
-| Epic 7 PRD checkboxes | ❌ Update when P0 handoff items closed |
+| Manager ops offline (void, split, transfer) | 🟡 Order void offline ✅; split/transfer/comp still cloud-only |
+| Failed-queue operator UI | ✅ Review modal + retry/dismiss (`SyncFailedModal`, `/v1/sync/failed`) |
+| Order void offline replay | ✅ `ORDER_VOID` sync + agent route |
+| Epic 7 PRD checkboxes | ❌ Update when Slice C + remaining manager ops closed |
 
 **Continue from:** § **2026-06-10 — Phase 6 handoff** above (manager ops + Slice C remain).
 
@@ -1480,6 +1481,40 @@ FEATURE_MANUAL_CARD_PAYMENT=true   # card + split pay on POS
 # POS: anchor terminal only (Demo Cafe POS-1 in dev seed)
 npm run test -w @venue-pos/api   # includes cross-venue.test.js
 ```
+
+### 2026-06-10 — Phase 6 completion pass (polling, failed-sync UI, void replay)
+
+**Phase:** 6 · **Partner handoff**
+
+**What:**
+- **Reduced request volume:** POS agent status 15s (25s when idle); floor poll only when offline (WS when online); printer health 30s; agent gossip 15s; hydration 90s; heartbeat 45s. Shared constants in `packages/shared/src/sync.js`.
+- **Failed sync operator UI:** `GET /v1/sync/failed`, retry/dismiss endpoints; POS `SyncFailedModal` with Review button on banner.
+- **Sync progress:** Reconnect drain exposes `drainDone` / `drainTotal` in `/v1/status`; banner shows “Syncing N of M…”.
+- **Manager ops (partial):** `ORDER_VOID` offline queue + API replay; `POST /v1/orders/:id/void` on local-agent.
+- **Dev UX:** `npm run db:seed` alias added (same as `npm run seed`); owner credentials `owner` / `owner123`.
+- **Financial access:** Only username `owner` sees revenue/P&L (dashboard + API redaction).
+
+**Still open for Phase 6:**
+- Cross-sell Slice C (full offline item/fire/group pay)
+- Cheque split / transfer / comp offline
+- Multi-POS open-cheque LAN cache + LAN floor push
+- Split-brain latch when cloud flaps
+- Multi-terminal E2E test harness
+
+**Files:** `packages/shared/src/sync.js`, `financial-access.js`, `sync-processor.js`, `routes/sync.js`, `routes/orders.js`, `reconnect.js`, `apps/api/src/routes/sync.js`, `useAgentStatus.js`, `useFloorTables.js`, `usePrinterHealth.js`, `SyncFailedModal.jsx`, `PosWorkspace.jsx`, i18n, `package.json` (db:seed)
+
+**Verify:**
+```bash
+npm run migrate
+npm run seed          # or npm run db:seed
+npm run test -w @venue-pos/api
+npm run lint:i18n
+node --test apps/local-agent/src/services/sync-processor.test.js
+```
+
+**Smoke:** Stop API → pay on POS → restart API → queue drains. Force a failed row (bad payload) → banner Review → retry/dismiss.
+
+---
 
 ### 2026-06-09 — Documentation sync (Phase 6 v1.1 + dashboard v2 + refund flow)
 

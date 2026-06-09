@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { apiFetch } from '../services/api-fetch.js';
+import { isCloudOnline } from '../services/cloud-health.js';
 import { enqueueSync } from '../services/sync-processor.js';
 import {
   createLocalOrder,
@@ -10,6 +13,7 @@ import {
   sendLocalOrder,
   abandonLocalDraft,
   syncOrderAction,
+  voidLocalOrder,
 } from '../services/orders.js';
 import { printKitchenTicket } from '../services/kitchen-printer.js';
 
@@ -270,5 +274,42 @@ export function registerOrderRoutes(
     const order = getLocalOrder(db, request.params.id);
     if (!order) return reply.status(404).send({ error: 'Order not found' });
     return order;
+  });
+
+  app.post('/v1/orders/:id/void', async (request, reply) => {
+    const { cashierId, managerPin, reason } = request.body ?? {};
+    if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    if (!managerPin) return reply.status(400).send({ error: 'managerPin required' });
+    if (!reason?.trim()) return reply.status(400).send({ error: 'reason required' });
+    const syncId = randomUUID();
+    const voidBody = { cashierId, managerPin, reason: reason.trim() };
+
+    try {
+      return await syncOrderAction({
+        db,
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        orderId: request.params.id,
+        action: 'void',
+        body: voidBody,
+      });
+    } catch (err) {
+      if (isCloudOnline()) {
+        return reply.status(err.statusCode ?? 500).send({ error: err.message ?? 'Void failed' });
+      }
+      try {
+        voidLocalOrder(db, request.params.id);
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.ORDER_VOID,
+          { orderId: request.params.id, ...voidBody },
+          syncId,
+        );
+        return getLocalOrder(db, request.params.id);
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
   });
 }

@@ -27,7 +27,7 @@ export async function buildAgentServer({ db, config }) {
     autoReceiptPrint,
     isCoordinator,
     coordinatorMode,
-    coordinatorLanHost = '',
+    getCoordinatorLanHost,
     coordinatorFallback = false,
     getClusterState,
     clusterManager,
@@ -35,6 +35,7 @@ export async function buildAgentServer({ db, config }) {
     getDeviceProfile,
     lanPort = 3456,
     lanSecret = '',
+    buildRelayOptions,
   } = config;
 
   await app.register(cors, {
@@ -53,7 +54,7 @@ export async function buildAgentServer({ db, config }) {
     autoReceiptPrint,
     isCoordinator,
     coordinatorMode,
-    coordinatorLanHost,
+    getCoordinatorLanHost,
     coordinatorFallback,
     getClusterState,
     getDeviceProfile,

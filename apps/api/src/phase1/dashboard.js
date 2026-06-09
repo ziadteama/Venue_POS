@@ -360,17 +360,16 @@ test('GET /api/v1/manager/shifts/:id returns detail with report', async () => {
   assert.equal(detail.id, first.id);
   assert.ok(detail.report);
   assert.ok(detail.paymentsByMethod);
+  assert.equal(detail.totalRevenue, null);
 });
 
-test('GET /api/v1/manager/shifts supports CSV export', async () => {
+test('GET /api/v1/manager/shifts CSV export is owner account only', async () => {
   const res = await fx.app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts?venueId=${VENUE_ID}&format=csv`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
   });
-  assert.equal(res.statusCode, 200);
-  assert.match(res.headers['content-type'], /text\/csv/);
-  assert.ok(res.body.includes('cashier,terminal,venue'));
+  assert.equal(res.statusCode, 403);
 });
 
 test('POST /api/v1/manager/shifts/:id/force-close closes open shift', async () => {

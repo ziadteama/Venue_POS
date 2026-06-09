@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { itemName } from '../utils/orderLine.js';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function ModifierModal({ item, language, onConfirm, onCancel, t }) {
   const [selected, setSelected] = useState({});
@@ -49,7 +50,7 @@ export function ModifierModal({ item, language, onConfirm, onCancel, t }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
         <h3 className="mb-4 text-xl font-bold text-slate-900">{itemName(item, language)}</h3>
         {(item.modifierGroups ?? []).map((group) => (
@@ -94,6 +95,6 @@ export function ModifierModal({ item, language, onConfirm, onCancel, t }) {
           </button>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

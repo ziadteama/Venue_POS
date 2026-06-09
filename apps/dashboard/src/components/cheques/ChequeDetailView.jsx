@@ -1,6 +1,10 @@
 import { isHubManager } from '@venue-pos/shared';
 import { billableOrders } from '../../utils/chequeActions.js';
 import { CrossVenueBadge, CrossVenueGroupPanel } from '../CrossVenueBadge.jsx';
+import { Button } from '../ui/Button.jsx';
+import { StatusBadge } from '../ui/Badge.jsx';
+import { EmptyState } from '../ui/EmptyState.jsx';
+import { ChequeIcon } from '../dashboard/icons.jsx';
 
 function formatMoney(value, locale) {
   return new Intl.NumberFormat(locale, {
@@ -11,26 +15,29 @@ function formatMoney(value, locale) {
 
 function ChequeDetailHeader({ detail, t }) {
   return (
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4">
       <div>
-        <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold">
+        <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-900">
           {t('cheque.number', { number: detail.chequeNumber })}
+          <StatusBadge
+            status={detail.status === 'paid' ? 'paid' : 'open'}
+            label={detail.status === 'paid' ? t('cheque.statusPaid') : t('cheque.statusOpen')}
+          />
           {detail.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
         </h3>
-        <p className="text-sm text-secondary">
+        <p className="mt-1 text-sm text-slate-500">
           {t('cheque.table', { label: detail.tableLabel })}
-          {detail.splitLabel ? ` · ${detail.splitLabel}` : ''} ·{' '}
-          {detail.status === 'paid' ? t('cheque.statusPaid') : t('cheque.statusOpen')}
+          {detail.splitLabel ? ` · ${detail.splitLabel}` : ''}
         </p>
         {detail.parentCheque && (
-          <p className="text-xs text-secondary">
+          <p className="text-xs text-slate-400">
             {t('cheque.splitFrom', { number: detail.parentCheque.chequeNumber })}
           </p>
         )}
       </div>
       <div className="text-end">
-        <p className="text-sm text-secondary">{t('cheque.total')}</p>
-        <p className="text-2xl font-bold text-primary-to">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('cheque.total')}</p>
+        <p className="text-2xl font-bold tabular-nums text-accent-700">
           {detail.total.toFixed(2)} {t('pos.currency')}
         </p>
       </div>
@@ -236,9 +243,14 @@ function ChequeActionToolbar({
 
   return (
     <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+      {canRefund && (
+        <Button variant="secondary" disabled={busy} onClick={() => onRefund(detail)}>
+          {t('cheque.processRefund')}
+        </Button>
+      )}
       {isOpenTab && (
-        <button
-          type="button"
+        <Button
+          variant="danger-soft"
           disabled={busy}
           onClick={() =>
             onAction({
@@ -247,20 +259,9 @@ function ChequeActionToolbar({
               chequeNumber: detail.chequeNumber,
             })
           }
-          className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
         >
           {t('cheque.voidCheque')}
-        </button>
-      )}
-      {canRefund && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => onRefund(detail)}
-          className="rounded-lg border border-amber-300 px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50"
-        >
-          {t('cheque.processRefund')}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -278,7 +279,7 @@ export function ChequeDetailView({
   onRefund,
 }) {
   if (!detail) {
-    return <p className="text-secondary">{t('cheque.selectCheque')}</p>;
+    return <EmptyState icon={ChequeIcon} title={t('cheque.selectCheque')} className="py-16" />;
   }
 
   const isOpenTab = statusTab === 'open';

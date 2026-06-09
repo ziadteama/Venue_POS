@@ -88,8 +88,9 @@ export async function transferChequeItems(
   )?.status;
 
   await prisma.$transaction(async (tx) => {
+    const businessDate = target.businessDate;
     const last = await tx.order.findFirst({
-      where: { venueId },
+      where: { venueId, businessDate },
       orderBy: { orderNumber: 'desc' },
       select: { orderNumber: true },
     });
@@ -101,6 +102,7 @@ export async function transferChequeItems(
         terminalId: target.terminalId ?? terminalId,
         cashierId,
         orderNumber,
+        businessDate,
         tableLabel: target.tableLabel,
         status: sourceOrderStatus ?? 'sent',
         sentAt: new Date(),

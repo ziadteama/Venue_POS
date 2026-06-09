@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useChequeSession } from './useChequeSession.js';
 import { useCashierSession } from './useCashierSession.js';
@@ -26,13 +26,15 @@ export function usePosWorkspace(cashier) {
   const [managerNotice, setManagerNotice] = useState(null);
   const [clock, setClock] = useState(() => new Date());
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showSyncFailedModal, setShowSyncFailedModal] = useState(false);
 
   const orderLookup = useOrderLookup();
   const printerOk = usePrinterHealth();
   const agentStatus = useAgentStatus();
   const { features, loading: featuresLoading } = useFeatures();
   const homeVenueId = features.anchorVenue?.id ?? null;
-  const floorEnabled = agentStatus.online || agentStatus.coordinatorActive;
+  const floorEnabled =
+    agentStatus.agentReachable && (agentStatus.online || agentStatus.coordinatorActive);
   const crossSell = useCrossSell(features, homeVenueId, {
     online: agentStatus.online,
     coordinatorActive: agentStatus.coordinatorActive,
@@ -40,6 +42,7 @@ export function usePosWorkspace(cashier) {
   const { floorByLabel, refreshFloor, coordinatorUnreachable } = useFloorTables({
     enabled: floorEnabled,
     coordinatorActive: agentStatus.coordinatorActive,
+    online: agentStatus.online,
   });
   useFloorSocket({
     enabled: agentStatus.online,
@@ -89,6 +92,7 @@ export function usePosWorkspace(cashier) {
     confirmSplit,
     confirmSplitAmount,
     confirmTransfer,
+    confirmMoveTable,
     confirmDiscount,
     confirmChangeDiscount,
     confirmRemoveDiscount,
@@ -96,10 +100,21 @@ export function usePosWorkspace(cashier) {
     loadPaidCheques,
     refreshCheque,
     confirmPay,
+    printChequeReceipt,
     navigateToTable,
     selectOpenCheque,
     deleteTable,
+    refreshOpenCheques,
   } = session;
+
+  const deleteTableAndRefresh = useCallback(
+    async (tab) => {
+      const result = await deleteTable(tab);
+      if (result?.ok !== false) await refreshFloor();
+      return result;
+    },
+    [deleteTable, refreshFloor],
+  );
 
   const groupLocked = Boolean(crossVenueGroup?.groupId);
   const { lockCrossSell } = crossSell;
@@ -132,14 +147,17 @@ export function usePosWorkspace(cashier) {
   const modals = usePosModals({
     refundCheque,
     setRefundCheque,
+    cheque,
     confirmSplit,
     confirmSplitAmount,
     confirmTransfer,
+    confirmMoveTable,
     confirmDiscount,
     confirmChangeDiscount,
     confirmRemoveDiscount,
     confirmRefund,
     confirmPay,
+    printChequeReceipt,
     loadPaidCheques,
     refreshShift,
     setKitchenWatch,
@@ -177,15 +195,27 @@ export function usePosWorkspace(cashier) {
     return () => clearTimeout(timer);
   }, [managerNotice]);
 
-  useEffect(() => {
-    if (!loading && !featuresLoading && shiftReady && !cheque && !shiftSession.showOpenModal) {
-      setShowTableModal(true);
-    }
-  }, [loading, featuresLoading, shiftReady, cheque, shiftSession.showOpenModal, setShowTableModal]);
+  const openTables = useCallback(async () => {
+    setShowTableModal(true);
+    await Promise.all([refreshOpenCheques(), refreshFloor()]);
+  }, [setShowTableModal, refreshOpenCheques, refreshFloor]);
+
+  const openTableCheque = useCallback(
+    async (targetTable) => {
+      const result = await navigateToTable(targetTable);
+      if (result?.ok !== false) {
+        setError('');
+        setShowTableModal(false);
+      }
+      return result;
+    },
+    [navigateToTable, setError, setShowTableModal],
+  );
 
   function handleTapItem(item) {
-    if (!cheque || !order) {
-      modals.setShowTableModal(true);
+    if (!cheque) {
+      setError('');
+      void openTables();
       return;
     }
 
@@ -218,13 +248,21 @@ export function usePosWorkspace(cashier) {
     if (sent && features.kdsEnabled) setKitchenWatch(sent);
   }
 
-  function onPay() {
+  function onPay(target = null) {
     if (!shiftReady) {
       setShiftError(t('pos.shiftRequiredBanner'));
       promptOpenModal();
       return;
     }
-    modals.setShowPayModal(true);
+    modals.openPayModal(target);
+  }
+
+  async function onPrintCheck(chequeId) {
+    await printChequeReceipt('single', { chequeId });
+  }
+
+  async function onPrintFullSplit() {
+    await printChequeReceipt('full');
   }
 
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
@@ -282,11 +320,16 @@ export function usePosWorkspace(cashier) {
     handleAddItemWithModifiers,
     onSend,
     onPay,
+    onPrintCheck,
+    onPrintFullSplit,
     handleClear,
     changeQty,
-    navigateToTable,
+    navigateToTable: openTableCheque,
     selectOpenCheque,
-    deleteTable,
+    deleteTable: deleteTableAndRefresh,
+    refreshOpenCheques,
+    refreshFloor,
+    openTables,
     menuForGrid,
     menuDisplayItems,
     gridCategoryId,
@@ -303,6 +346,8 @@ export function usePosWorkspace(cashier) {
     coordinatorUnreachable,
     managerNotice,
     setManagerNotice,
+    showSyncFailedModal,
+    setShowSyncFailedModal,
   };
 }
 

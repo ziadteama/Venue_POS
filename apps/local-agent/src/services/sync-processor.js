@@ -3,6 +3,7 @@ import { SYNC_EVENT_TYPES, SYNC_MAX_RETRIES } from '@venue-pos/shared';
 import { apiFetch } from './api-fetch.js';
 import { relaySyncEvents, relayApiCall } from './relay-client.js';
 import { linkLocalShiftServerId } from './shift-cache.js';
+import { setAgentMeta } from './terminal-cache.js';
 
 const CHEQUE_SYNC_TYPES = new Set([
   SYNC_EVENT_TYPES.CHEQUE_OPEN,
@@ -86,6 +87,21 @@ async function relayApiCallForJob(relay, terminalId, terminalSecret, job, payloa
       path: `/api/v1/orders/${payload.orderId}/items/${payload.itemId}`,
       method: 'PATCH',
       body: { quantity: payload.quantity, syncId },
+    });
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.ORDER_VOID) {
+    return relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: `/api/v1/orders/${payload.orderId}/void`,
+      method: 'POST',
+      body: {
+        cashierId: payload.cashierId,
+        managerPin: payload.managerPin,
+        reason: payload.reason,
+        syncId,
+      },
     });
   }
   if (job.event_type === SYNC_EVENT_TYPES.CHEQUE_OPEN) {
@@ -181,6 +197,17 @@ async function replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncI
         body: JSON.stringify({ quantity: payload.quantity, syncId }),
       },
     );
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.ORDER_VOID) {
+    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${payload.orderId}/void`, {
+      method: 'POST',
+      body: JSON.stringify({
+        cashierId: payload.cashierId,
+        managerPin: payload.managerPin,
+        reason: payload.reason,
+        syncId,
+      }),
+    });
   }
   if (job.event_type === SYNC_EVENT_TYPES.CHEQUE_OPEN) {
     const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
@@ -367,10 +394,75 @@ export function getSyncProgress(db) {
   const failed = getFailedSyncCount(db);
   const syncing = db.prepare(`SELECT value FROM agent_meta WHERE key = 'sync_in_progress'`).get()
     ?.value;
+  const drainTotal = Number(
+    db.prepare(`SELECT value FROM agent_meta WHERE key = 'sync_drain_total'`).get()?.value ?? 0,
+  );
+  const drainDone = Number(
+    db.prepare(`SELECT value FROM agent_meta WHERE key = 'sync_drain_done'`).get()?.value ?? 0,
+  );
   return {
     pending,
     failed,
     syncing: syncing === 'true',
+    drainTotal: drainTotal || null,
+    drainDone: drainDone || null,
     lastDrained: db.prepare(`SELECT value FROM agent_meta WHERE key = 'last_sync_at'`).get()?.value,
   };
+}
+
+export function setSyncDrainProgress(db, { total, done } = {}) {
+  if (total != null) setAgentMeta(db, 'sync_drain_total', String(total));
+  if (done != null) setAgentMeta(db, 'sync_drain_done', String(done));
+}
+
+export function clearSyncDrainProgress(db) {
+  setAgentMeta(db, 'sync_drain_total', '0');
+  setAgentMeta(db, 'sync_drain_done', '0');
+}
+
+export function listFailedSyncJobs(db, { limit = 50 } = {}) {
+  return db
+    .prepare(
+      `SELECT id, event_type, payload_json, retry_count, created_at
+       FROM sync_queue WHERE status = 'failed'
+       ORDER BY created_at ASC LIMIT ?`,
+    )
+    .all(limit)
+    .map((row) => {
+      let payload = {};
+      try {
+        payload = JSON.parse(row.payload_json);
+      } catch {
+        payload = {};
+      }
+      return {
+        id: row.id,
+        eventType: row.event_type,
+        retryCount: row.retry_count,
+        createdAt: row.created_at,
+        summary: summarizeSyncPayload(row.event_type, payload),
+        payload,
+      };
+    });
+}
+
+function summarizeSyncPayload(eventType, payload) {
+  if (payload.tableLabel) return `${eventType} · ${payload.tableLabel}`;
+  if (payload.chequeId) return `${eventType} · cheque ${String(payload.chequeId).slice(0, 8)}`;
+  if (payload.orderId) return `${eventType} · order ${String(payload.orderId).slice(0, 8)}`;
+  return eventType;
+}
+
+export function retryFailedSyncJob(db, jobId) {
+  const row = db.prepare(`SELECT id FROM sync_queue WHERE id = ? AND status = 'failed'`).get(jobId);
+  if (!row) return false;
+  db.prepare(
+    `UPDATE sync_queue SET status = 'pending', retry_count = 0 WHERE id = ?`,
+  ).run(jobId);
+  return true;
+}
+
+export function dismissFailedSyncJob(db, jobId) {
+  const result = db.prepare(`DELETE FROM sync_queue WHERE id = ? AND status = 'failed'`).run(jobId);
+  return result.changes > 0;
 }

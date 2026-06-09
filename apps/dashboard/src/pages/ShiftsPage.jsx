@@ -1,9 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isHubStaff } from '@venue-pos/shared';
+import { isHubStaff, canSeeFinancials } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
+import { PageHeader } from '../components/dashboard/PageHeader.jsx';
+import { StatCard } from '../components/dashboard/StatCard.jsx';
+import { SectionCard } from '../components/ui/Card.jsx';
+import { FilterBar, SearchInput } from '../components/ui/FilterBar.jsx';
+import { Field, Input, Select } from '../components/ui/Field.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { DataTable } from '../components/ui/DataTable.jsx';
+import { Drawer } from '../components/ui/Drawer.jsx';
+import { Modal } from '../components/ui/Modal.jsx';
+import { StatusBadge } from '../components/ui/Badge.jsx';
+import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { TableSkeleton } from '../components/dashboard/Skeleton.jsx';
+import {
+  DownloadIcon,
+  ShiftIcon,
+  RevenueIcon,
+  PowerIcon,
+  AlertIcon,
+} from '../components/dashboard/icons.jsx';
 
 const PAGE_SIZE = 50;
 
@@ -41,12 +60,12 @@ function overShortClass(amount) {
 function MethodBreakdown({ title, methods, t, locale }) {
   return (
     <div>
-      <h4 className="text-xs font-semibold uppercase tracking-wide text-secondary">{title}</h4>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{title}</h4>
       <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-3">
-        {(['cash', 'card', 'voucher']).map((method) => (
+        {['cash', 'card', 'voucher'].map((method) => (
           <div key={method}>
-            <dt className="text-xs text-secondary">{t(`orders.method.${method}`)}</dt>
-            <dd className="font-medium text-slate-800">
+            <dt className="text-xs text-slate-500">{t(`orders.method.${method}`)}</dt>
+            <dd className="font-medium tabular-nums text-slate-800">
               {formatMoney(methods?.[method] ?? 0, locale)} {t('pos.currency')}
             </dd>
           </div>
@@ -56,90 +75,82 @@ function MethodBreakdown({ title, methods, t, locale }) {
   );
 }
 
+function DetailRow({ label, children }) {
+  return (
+    <div>
+      <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
+      <dd className="font-medium tabular-nums text-slate-800">{children}</dd>
+    </div>
+  );
+}
+
 function ForceCloseModal({ shift, t, locale, onClose, onSuccess, setError }) {
   const [closeFloat, setCloseFloat] = useState('');
   const [managerPin, setManagerPin] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   async function submit(e) {
     e.preventDefault();
     setSubmitting(true);
+    setLocalError('');
     setError('');
     try {
       await apiFetch(`/api/v1/manager/shifts/${shift.id}/force-close`, {
         method: 'POST',
-        body: JSON.stringify({
-          closeFloat: Number(closeFloat),
-          managerPin,
-        }),
+        body: JSON.stringify({ closeFloat: Number(closeFloat), managerPin }),
       });
       onSuccess();
       onClose();
     } catch (err) {
-      setError(friendlyError(err));
+      setLocalError(friendlyError(err));
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <form
-        onSubmit={submit}
-        className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
-      >
-        <h3 className="text-lg font-semibold text-slate-900">{t('shifts.forceCloseTitle')}</h3>
-        <p className="mt-2 text-sm text-secondary">
-          {t('shifts.forceCloseHint', {
-            cashier: shift.cashierUsername,
-            expected: formatMoney(shift.expectedCash, locale),
-          })}
-        </p>
-        <label className="mt-4 block text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('shifts.closeFloat')}
-          </span>
-          <input
+    <Modal
+      onClose={submitting ? undefined : onClose}
+      title={t('shifts.forceCloseTitle')}
+      subtitle={t('shifts.forceCloseHint', {
+        cashier: shift.cashierUsername,
+        expected: formatMoney(shift.expectedCash, locale),
+      })}
+      error={localError}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={submitting}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" form="force-close-form" variant="danger" loading={submitting}>
+            {t('shifts.forceClose')}
+          </Button>
+        </>
+      }
+    >
+      <form id="force-close-form" onSubmit={submit} className="space-y-3">
+        <Field label={t('shifts.closeFloat')}>
+          <Input
             type="number"
             min="0"
             step="0.01"
             required
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
             value={closeFloat}
             onChange={(e) => setCloseFloat(e.target.value)}
           />
-        </label>
-        <label className="mt-3 block text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('shifts.managerPin')}
-          </span>
-          <input
+        </Field>
+        <Field label={t('shifts.managerPin')}>
+          <Input
             type="password"
             inputMode="numeric"
             required
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
             value={managerPin}
             onChange={(e) => setManagerPin(e.target.value)}
           />
-        </label>
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
-          >
-            {t('common.cancel')}
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-          >
-            {submitting ? t('common.loading') : t('shifts.forceClose')}
-          </button>
-        </div>
+        </Field>
       </form>
-    </div>
+    </Modal>
   );
 }
 
@@ -160,13 +171,12 @@ export function ShiftsPage() {
   const [eod, setEod] = useState(null);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
+  const currencyLabel = t('pos.currency');
   const canPickVenue = isHubStaff(user?.role);
+  const showFinancials = canSeeFinancials(user);
 
   const query = useMemo(() => {
-    const params = new URLSearchParams({
-      page: String(page),
-      limit: String(PAGE_SIZE),
-    });
+    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
     const scopedVenue = canPickVenue ? venueId : user?.venueId;
     if (scopedVenue) params.set('venueId', scopedVenue);
     if (filters.status) params.set('status', filters.status);
@@ -198,6 +208,10 @@ export function ShiftsPage() {
   }, [load]);
 
   useEffect(() => {
+    if (!showFinancials) {
+      setEod(null);
+      return undefined;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -213,7 +227,7 @@ export function ShiftsPage() {
     return () => {
       cancelled = true;
     };
-  }, [eodDate, canPickVenue, venueId, user?.venueId]);
+  }, [eodDate, canPickVenue, venueId, user?.venueId, showFinancials]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -266,259 +280,221 @@ export function ShiftsPage() {
     setPage(1);
   }
 
+  const columns = [
+    {
+      key: 'cashier',
+      header: t('shifts.cashier'),
+      render: (row) => <span className="font-medium text-slate-900">{row.cashierUsername}</span>,
+    },
+    ...(canPickVenue
+      ? [{ key: 'venue', header: t('shifts.venue'), render: (row) => labelVenue(row, i18n.language) }]
+      : []),
+    { key: 'terminal', header: t('shifts.terminal'), render: (row) => row.terminalName },
+    {
+      key: 'status',
+      header: t('shifts.status'),
+      render: (row) => (
+        <StatusBadge
+          status={row.status === 'open' ? 'open' : 'closed'}
+          label={row.status === 'open' ? t('shifts.statusOpen') : t('shifts.statusClosed')}
+        />
+      ),
+    },
+    {
+      key: 'openFloat',
+      header: t('shifts.openFloat'),
+      numeric: true,
+      render: (row) => `${formatMoney(row.openFloat, locale)} ${currencyLabel}`,
+    },
+    {
+      key: 'expected',
+      header: t('shifts.expected'),
+      numeric: true,
+      render: (row) => `${formatMoney(row.expectedCash, locale)} ${currencyLabel}`,
+    },
+    {
+      key: 'overShort',
+      header: t('shifts.overShort'),
+      numeric: true,
+      render: (row) => (
+        <span className={`font-medium ${overShortClass(row.overShortAmount)}`}>
+          {row.overShortAmount != null
+            ? `${formatMoney(row.overShortAmount, locale)} ${currencyLabel}`
+            : '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'openedAt',
+      header: t('shifts.openedAt'),
+      render: (row) => <span className="text-slate-500">{formatDate(row.openedAt, locale)}</span>,
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">{t('shifts.title')}</h2>
-          <p className="mt-1 text-sm text-secondary">{t('shifts.subtitle')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
+      <PageHeader
+        title={t('shifts.title')}
+        subtitle={t('shifts.subtitle')}
+        actions={
+          showFinancials ? (
+            <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
+              <DownloadIcon className="h-4 w-4" />
+              {t('shifts.exportCsv')}
+            </Button>
+          ) : null
+        }
+      />
+
+      {showFinancials ? (
+        <SectionCard
+          title={t('shifts.eodTitle')}
+          hint={t('shifts.eodSubtitle')}
+          action={
+            <Input
+              type="date"
+              className="w-auto py-2"
+              value={eodDate}
+              onChange={(e) => setEodDate(e.target.value)}
+            />
+          }
         >
-          {t('shifts.exportCsv')}
-        </button>
-      </div>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h3 className="font-semibold text-slate-900">{t('shifts.eodTitle')}</h3>
-            <p className="mt-1 text-sm text-secondary">{t('shifts.eodSubtitle')}</p>
-          </div>
-          <input
-            type="date"
-            className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-            value={eodDate}
-            onChange={(e) => setEodDate(e.target.value)}
-          />
-        </div>
-        {eod ? (
-          <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.eodNetRevenue')}</dt>
-              <dd className="text-xl font-bold text-primary-to">
-                {formatMoney(eod.netRevenue, locale)} {t('pos.currency')}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.totalRevenue')}</dt>
-              <dd className="text-lg font-semibold">{formatMoney(eod.totalRevenue, locale)}</dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.refundCount')}</dt>
-              <dd className="text-lg font-semibold">
+          {eod ? (
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-400">
+                  {t('shifts.eodNetRevenue')}
+                </dt>
+                <dd className="text-xl font-bold tabular-nums text-accent-700">
+                  {formatMoney(eod.netRevenue, locale)} {currencyLabel}
+                </dd>
+              </div>
+              <DetailRow label={t('shifts.totalRevenue')}>{formatMoney(eod.totalRevenue, locale)}</DetailRow>
+              <DetailRow label={t('shifts.refundCount')}>
                 {formatMoney(eod.totalRefunds, locale)} ({eod.refundCount})
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.discountCount')}</dt>
-              <dd className="text-lg font-semibold">
+              </DetailRow>
+              <DetailRow label={t('shifts.discountCount')}>
                 {formatMoney(eod.discountTotal, locale)} ({eod.discountCount})
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.pageOverShort')}</dt>
-              <dd className={`text-lg font-semibold ${overShortClass(eod.totalOverShort)}`}>
-                {formatMoney(eod.totalOverShort, locale)}
-              </dd>
-            </div>
-          </dl>
-        ) : null}
-      </section>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-secondary">{t('shifts.openCount')}</p>
-          <p className="mt-1 text-2xl font-bold text-amber-700">{summary.open}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-secondary">{t('shifts.closedCount')}</p>
-          <p className="mt-1 text-2xl font-bold text-slate-800">{summary.closed}</p>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs uppercase tracking-wide text-secondary">{t('shifts.pageOverShort')}</p>
-          <p className={`mt-1 text-2xl font-bold ${overShortClass(summary.totalOverShort)}`}>
-            {formatMoney(summary.totalOverShort, locale)} {t('pos.currency')}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        {canPickVenue && venues.length > 0 ? (
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-              {t('shifts.venue')}
-            </span>
-            <select
-              className="min-w-[12rem] rounded-lg border border-slate-200 px-3 py-2"
-              value={venueId}
-              onChange={(e) => {
-                setVenueId(e.target.value);
-                setPage(1);
-                setSelectedId(null);
-              }}
-            >
-              <option value="">{t('orders.allVenues')}</option>
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('shifts.status')}
-          </span>
-          <select
-            className="min-w-[8rem] rounded-lg border border-slate-200 px-3 py-2"
-            value={filters.status}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, status: e.target.value }));
-              setPage(1);
-            }}
-          >
-            <option value="">{t('shifts.allStatuses')}</option>
-            <option value="open">{t('shifts.statusOpen')}</option>
-            <option value="closed">{t('shifts.statusClosed')}</option>
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('shifts.cashier')}
-          </span>
-          <input
-            type="search"
-            className="min-w-[10rem] rounded-lg border border-slate-200 px-3 py-2"
-            placeholder={t('shifts.cashierPlaceholder')}
-            value={filters.cashier}
-            onChange={(e) => setFilters((f) => ({ ...f, cashier: e.target.value }))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') setPage(1);
-            }}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('shifts.from')}
-          </span>
-          <input
-            type="date"
-            className="rounded-lg border border-slate-200 px-3 py-2"
-            value={filters.from}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, from: e.target.value }));
-              setPage(1);
-            }}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('shifts.to')}
-          </span>
-          <input
-            type="date"
-            className="rounded-lg border border-slate-200 px-3 py-2"
-            value={filters.to}
-            onChange={(e) => {
-              setFilters((f) => ({ ...f, to: e.target.value }));
-              setPage(1);
-            }}
-          />
-        </label>
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
-          >
-            {t('shifts.resetFilters')}
-          </button>
-        </div>
-      </div>
-
-      {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {error}
-        </p>
+              </DetailRow>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-400">
+                  {t('shifts.pageOverShort')}
+                </dt>
+                <dd className={`text-lg font-semibold tabular-nums ${overShortClass(eod.totalOverShort)}`}>
+                  {formatMoney(eod.totalOverShort, locale)}
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="text-sm text-slate-500">{t('analytics.noData')}</p>
+          )}
+        </SectionCard>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <div className="lg:col-span-3">
-          {loading ? (
-            <p className="text-secondary">{t('common.loading')}</p>
-          ) : !result?.shifts?.length ? (
-            <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
-              {t('shifts.empty')}
-            </p>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-full text-sm">
-                <thead className="border-b border-slate-200 bg-slate-50 text-start">
-                  <tr>
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.cashier')}</th>
-                    {canPickVenue ? (
-                      <th className="px-3 py-2 font-medium text-secondary">{t('shifts.venue')}</th>
-                    ) : null}
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.terminal')}</th>
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.status')}</th>
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.openFloat')}</th>
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.expected')}</th>
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.overShort')}</th>
-                    <th className="px-3 py-2 font-medium text-secondary">{t('shifts.openedAt')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.shifts.map((row) => (
-                    <tr
-                      key={row.id}
-                      onClick={() => setSelectedId(row.id)}
-                      className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${
-                        selectedId === row.id ? 'bg-blue-50' : ''
-                      }`}
-                    >
-                      <td className="px-3 py-2 font-medium">{row.cashierUsername}</td>
-                      {canPickVenue ? (
-                        <td className="px-3 py-2">{labelVenue(row, i18n.language)}</td>
-                      ) : null}
-                      <td className="px-3 py-2">{row.terminalName}</td>
-                      <td className="px-3 py-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            row.status === 'open'
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-slate-100 text-slate-700'
-                          }`}
-                        >
-                          {row.status === 'open' ? t('shifts.statusOpen') : t('shifts.statusClosed')}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        {formatMoney(row.openFloat, locale)} {t('pos.currency')}
-                      </td>
-                      <td className="px-3 py-2">
-                        {formatMoney(row.expectedCash, locale)} {t('pos.currency')}
-                      </td>
-                      <td className={`px-3 py-2 font-medium ${overShortClass(row.overShortAmount)}`}>
-                        {row.overShortAmount != null
-                          ? `${formatMoney(row.overShortAmount, locale)} ${t('pos.currency')}`
-                          : '—'}
-                      </td>
-                      <td className="px-3 py-2 text-secondary">{formatDate(row.openedAt, locale)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      <section className="grid gap-4 sm:grid-cols-3">
+        <StatCard label={t('shifts.openCount')} value={summary.open} icon={ShiftIcon} tone="amber" />
+        <StatCard label={t('shifts.closedCount')} value={summary.closed} icon={PowerIcon} tone="blue" />
+        <StatCard
+          label={t('shifts.pageOverShort')}
+          value={`${formatMoney(summary.totalOverShort, locale)} ${currencyLabel}`}
+          icon={RevenueIcon}
+          tone={summary.totalOverShort < 0 ? 'amber' : 'emerald'}
+        />
+      </section>
 
-          {result && result.totalPages > 1 ? (
-            <div className="mt-4 flex items-center justify-between text-sm">
-              <p className="text-secondary">
+      <FilterBar
+        onReset={resetFilters}
+        resetLabel={t('shifts.resetFilters')}
+        primary={
+          <>
+            <SearchInput
+              value={filters.cashier}
+              onChange={(v) => {
+                setFilters((f) => ({ ...f, cashier: v }));
+                setPage(1);
+              }}
+              placeholder={t('shifts.cashierPlaceholder')}
+              className="w-full sm:w-56"
+            />
+            <Select
+              className="w-auto py-2"
+              value={filters.status}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, status: e.target.value }));
+                setPage(1);
+              }}
+            >
+              <option value="">{t('shifts.allStatuses')}</option>
+              <option value="open">{t('shifts.statusOpen')}</option>
+              <option value="closed">{t('shifts.statusClosed')}</option>
+            </Select>
+            {canPickVenue && venues.length > 0 ? (
+              <Select
+                className="w-auto py-2"
+                value={venueId}
+                onChange={(e) => {
+                  setVenueId(e.target.value);
+                  setPage(1);
+                  setSelectedId(null);
+                }}
+              >
+                <option value="">{t('orders.allVenues')}</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <Input
+              type="date"
+              className="w-auto py-2"
+              value={filters.from}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, from: e.target.value }));
+                setPage(1);
+              }}
+            />
+            <Input
+              type="date"
+              className="w-auto py-2"
+              value={filters.to}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, to: e.target.value }));
+                setPage(1);
+              }}
+            />
+          </>
+        }
+      />
+
+      {error ? (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <AlertIcon className="h-5 w-5 shrink-0" />
+          {error}
+        </div>
+      ) : null}
+
+      {loading && !result ? (
+        <TableSkeleton rows={8} cols={canPickVenue ? 8 : 7} />
+      ) : !result?.shifts?.length ? (
+        <div className="surface-card">
+          <EmptyState icon={ShiftIcon} title={t('shifts.empty')} className="py-16" />
+        </div>
+      ) : (
+        <>
+          <div className="surface-card overflow-hidden">
+            <DataTable
+              columns={columns}
+              rows={result.shifts}
+              rowKey={(row) => row.id}
+              onRowClick={(row) => setSelectedId(row.id)}
+              isRowActive={(row) => selectedId === row.id}
+            />
+          </div>
+          {result.totalPages > 1 ? (
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+              <p className="text-slate-500">
                 {t('shifts.pageInfo', {
                   page: result.page,
                   totalPages: result.totalPages,
@@ -526,136 +502,111 @@ export function ShiftsPage() {
                 })}
               </p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => p - 1)}
-                  className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
-                >
+                <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                   {t('shifts.prev')}
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={page >= result.totalPages}
                   onClick={() => setPage((p) => p + 1)}
-                  className="rounded border border-slate-300 px-3 py-1 disabled:opacity-40"
                 >
                   {t('shifts.next')}
-                </button>
+                </Button>
               </div>
             </div>
           ) : null}
-        </div>
+        </>
+      )}
 
-        <div className="lg:col-span-2">
-          {!detail ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
-              {t('shifts.selectShift')}
-            </div>
-          ) : (
-            <div className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h3 className="text-lg font-semibold">{detail.cashierUsername}</h3>
-                  <p className="text-sm text-secondary">
-                    {detail.terminalName}
-                    {canPickVenue ? ` · ${labelVenue(detail, i18n.language)}` : ''}
-                  </p>
-                </div>
-                {detail.status === 'open' ? (
-                  <button
-                    type="button"
-                    onClick={() => setForceCloseShift(detail)}
-                    className="shrink-0 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
-                  >
-                    {t('shifts.forceClose')}
-                  </button>
-                ) : null}
-              </div>
-
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.status')}</dt>
-                  <dd className="font-medium">
-                    {detail.status === 'open' ? t('shifts.statusOpen') : t('shifts.statusClosed')}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.openFloat')}</dt>
-                  <dd className="font-medium">
-                    {formatMoney(detail.openFloat, locale)} {t('pos.currency')}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.expected')}</dt>
-                  <dd className="font-medium">
-                    {formatMoney(detail.expectedCash, locale)} {t('pos.currency')}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.closeFloat')}</dt>
-                  <dd className="font-medium">
-                    {detail.closeFloat != null
-                      ? `${formatMoney(detail.closeFloat, locale)} ${t('pos.currency')}`
-                      : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.overShort')}</dt>
-                  <dd className={`font-medium ${overShortClass(detail.overShortAmount)}`}>
-                    {detail.overShortAmount != null
-                      ? `${formatMoney(detail.overShortAmount, locale)} ${t('pos.currency')}`
-                      : '—'}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.totalRevenue')}</dt>
-                  <dd className="font-medium">
-                    {formatMoney(detail.totalRevenue, locale)} {t('pos.currency')}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.openedAt')}</dt>
-                  <dd>{formatDate(detail.openedAt, locale)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.closedAt')}</dt>
-                  <dd>{formatDate(detail.closedAt, locale)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.paymentCount')}</dt>
-                  <dd>{detail.paymentCount}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.refundCount')}</dt>
-                  <dd>{detail.refundCount}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs uppercase tracking-wide text-secondary">{t('shifts.discountCount')}</dt>
-                  <dd>
-                    {formatMoney(detail.discountTotal, locale)} ({detail.discountCount})
-                  </dd>
-                </div>
-              </dl>
-
-              <MethodBreakdown
-                title={t('shifts.paymentsByMethod')}
-                methods={detail.paymentsByMethod}
-                t={t}
-                locale={locale}
+      <Drawer
+        open={Boolean(selectedId)}
+        onClose={() => setSelectedId(null)}
+        size="lg"
+        icon={ShiftIcon}
+        title={detail?.cashierUsername ?? t('shifts.selectShift')}
+        subtitle={
+          detail
+            ? `${detail.terminalName}${canPickVenue ? ` · ${labelVenue(detail, i18n.language)}` : ''}`
+            : undefined
+        }
+        footer={
+          detail?.status === 'open' ? (
+            <Button variant="danger" onClick={() => setForceCloseShift(detail)}>
+              {t('shifts.forceClose')}
+            </Button>
+          ) : null
+        }
+      >
+        {!detail ? (
+          <p className="text-sm text-slate-500">{t('common.loading')}</p>
+        ) : (
+          <div className="space-y-5">
+            <div className="flex items-center justify-between">
+              <StatusBadge
+                status={detail.status === 'open' ? 'open' : 'closed'}
+                label={detail.status === 'open' ? t('shifts.statusOpen') : t('shifts.statusClosed')}
               />
-              {detail.refundCount > 0 ? (
+            </div>
+            <dl className="grid gap-4 text-sm sm:grid-cols-2">
+              <DetailRow label={t('shifts.openFloat')}>
+                {formatMoney(detail.openFloat, locale)} {currencyLabel}
+              </DetailRow>
+              <DetailRow label={t('shifts.expected')}>
+                {formatMoney(detail.expectedCash, locale)} {currencyLabel}
+              </DetailRow>
+              <DetailRow label={t('shifts.closeFloat')}>
+                {detail.closeFloat != null
+                  ? `${formatMoney(detail.closeFloat, locale)} ${currencyLabel}`
+                  : '—'}
+              </DetailRow>
+              <div>
+                <dt className="text-xs uppercase tracking-wide text-slate-400">{t('shifts.overShort')}</dt>
+                <dd className={`font-medium tabular-nums ${overShortClass(detail.overShortAmount)}`}>
+                  {detail.overShortAmount != null
+                    ? `${formatMoney(detail.overShortAmount, locale)} ${currencyLabel}`
+                    : '—'}
+                </dd>
+              </div>
+              <DetailRow label={t('shifts.totalRevenue')}>
+                {showFinancials && detail.totalRevenue != null
+                  ? `${formatMoney(detail.totalRevenue, locale)} ${currencyLabel}`
+                  : '—'}
+              </DetailRow>
+              <DetailRow label={t('shifts.openedAt')}>{formatDate(detail.openedAt, locale)}</DetailRow>
+              <DetailRow label={t('shifts.closedAt')}>{formatDate(detail.closedAt, locale)}</DetailRow>
+              <DetailRow label={t('shifts.paymentCount')}>{detail.paymentCount}</DetailRow>
+              <DetailRow label={t('shifts.refundCount')}>{detail.refundCount}</DetailRow>
+              <DetailRow label={t('shifts.discountCount')}>
+                {showFinancials
+                  ? `${formatMoney(detail.discountTotal, locale)} (${detail.discountCount})`
+                  : detail.discountCount}
+              </DetailRow>
+            </dl>
+
+            {showFinancials ? (
+              <div className="rounded-xl border border-slate-100 bg-surface-overlay p-3">
+                <MethodBreakdown
+                  title={t('shifts.paymentsByMethod')}
+                  methods={detail.paymentsByMethod}
+                  t={t}
+                  locale={locale}
+                />
+              </div>
+            ) : null}
+            {showFinancials && detail.refundCount > 0 ? (
+              <div className="rounded-xl border border-red-100 bg-red-50/60 p-3">
                 <MethodBreakdown
                   title={t('shifts.refundsByMethod')}
                   methods={detail.refundsByMethod}
                   t={t}
                   locale={locale}
                 />
-              ) : null}
-            </div>
-          )}
-        </div>
-      </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Drawer>
 
       {forceCloseShift ? (
         <ForceCloseModal

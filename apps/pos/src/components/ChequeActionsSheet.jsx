@@ -1,4 +1,4 @@
-import { canSplitByAmount, splittableItems, transferableItems } from '../utils/cheque.js';
+import { canDeleteCheque, canSplitByAmount, hasOpenSplitChildren, splittableItems, transferableItems } from '../utils/cheque.js';
 import { ModalFrame } from './ModalFrame.jsx';
 
 import { CloseXIcon } from './icons.jsx';
@@ -42,12 +42,14 @@ export function ChequeActionsSheet({
   onEditDiscount,
   onRemoveDiscount,
   onRefund,
+  onRemoveTable,
 }) {
   const hasDraft = (order?.items?.length ?? 0) > 0;
   const canBillActions = !cheque?.parentChequeId && !hasDraft;
+  const showRemoveTable = canDeleteCheque(cheque);
   const discountAmount = Number(cheque?.discountAmount ?? 0);
-  const showSplit = canBillActions && splittableItems(cheque).length >= 2;
-  const showSplitAmount = canBillActions && canSplitByAmount(cheque);
+  const showSplit = canBillActions && splittableItems(cheque).length >= 2 && !hasOpenSplitChildren(cheque);
+  const showSplitAmount = canBillActions && canSplitByAmount(cheque) && !hasOpenSplitChildren(cheque);
   const showTransfer =
     canBillActions && lineTransferEnabled && transferableItems(cheque).length > 0;
   const showDiscountApply =
@@ -125,11 +127,33 @@ export function ChequeActionsSheet({
               <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-secondary">
                 {t('pos.actionsOther')}
               </p>
+              {showRemoveTable ? (
+                <ActionRow
+                  icon="X"
+                  label={t('pos.deleteTable')}
+                  hint={t('pos.deleteTableHint')}
+                  onClick={onRemoveTable}
+                  danger
+                />
+              ) : null}
               <ActionRow icon="Rf" label={t('pos.refundPaidCheque')} onClick={onRefund} danger />
+            </section>
+          ) : showRemoveTable ? (
+            <section>
+              <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-secondary">
+                {t('pos.actionsOther')}
+              </p>
+              <ActionRow
+                icon="X"
+                label={t('pos.deleteTable')}
+                hint={t('pos.deleteTableHint')}
+                onClick={onRemoveTable}
+                danger
+              />
             </section>
           ) : null}
 
-          {!billActions && !adjustActions && !refundsEnabled ? (
+          {!billActions && !adjustActions && !refundsEnabled && !showRemoveTable ? (
             <p className="px-4 py-6 text-center text-sm text-secondary">{t('pos.actionsEmpty')}</p>
           ) : null}
         </div>

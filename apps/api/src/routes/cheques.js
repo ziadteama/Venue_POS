@@ -7,6 +7,7 @@ import {
   listOpenCheques,
   getCheque,
   getChequeReceipt,
+  getSplitReceiptBundle,
   fireChequeRound,
   clearChequeDraft,
   payCheque,
@@ -15,6 +16,7 @@ import {
   transferChequeItems,
   listChequesForVenue,
   closeEmptyCheque,
+  moveChequeTable,
 } from '../services/cheque-service.js';
 import {
   applyChequeDiscount,
@@ -122,14 +124,31 @@ export async function chequeRoutes(app) {
   });
 
   app.delete('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
-    return closeEmptyCheque(request.params.id, request.terminal.venueId);
+    const result = await closeEmptyCheque(request.params.id, request.terminal.venueId);
+    if (result.tableLabel) {
+      await releaseFloorTable({
+        tableLabel: result.tableLabel,
+        chequeId: result.id,
+        io: request.server.io,
+      });
+    }
+    return result;
   });
 
   app.get(
     '/api/v1/cheques/:id/receipt',
     { preHandler: authenticateTerminal },
     async (request) => {
-      return getChequeReceipt(request.params.id, request.terminal.venueId);
+      const preview = request.query?.preview === 'true' || request.query?.preview === '1';
+      return getChequeReceipt(request.params.id, request.terminal.venueId, { preview });
+    },
+  );
+
+  app.get(
+    '/api/v1/cheques/:id/receipt-bundle',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      return getSplitReceiptBundle(request.params.id, request.terminal.venueId);
     },
   );
 
@@ -207,15 +226,34 @@ export async function chequeRoutes(app) {
           ),
       );
 
-      if (result?.cheque?.tableLabel) {
+      const rootId = result?.cheque?.parentChequeId ?? result?.cheque?.id ?? request.params.id;
+      if (result?.tableSettled && result?.cheque?.tableLabel) {
         await releaseFloorTable({
           tableLabel: result.cheque.tableLabel,
-          chequeId: request.params.id,
+          chequeId: rootId,
           io: request.server.io,
         });
       }
 
       return result;
+    },
+  );
+
+  app.patch(
+    '/api/v1/cheques/:id/table',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = z
+        .object({ targetTableLabel: z.string().min(1).max(50) })
+        .safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return moveChequeTable(
+        request.params.id,
+        { targetTableLabel: parsed.data.targetTableLabel },
+        request.terminal.venueId,
+        { terminalId: request.terminal.id, io: request.server.io },
+      );
     },
   );
 

@@ -1,8 +1,10 @@
+import { OverlayPortal } from './ModalFrame.jsx';
+
 export function LogoutConfirmModal({ t, reason, onCancel, onConfirm, onCloseShift }) {
   const blocked = Boolean(reason);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/50 p-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
         <h3 className="text-lg font-semibold text-slate-900">
           {blocked ? t('pos.logoutBlockedTitle') : t('pos.logoutConfirmTitle')}
@@ -38,6 +40,6 @@ export function LogoutConfirmModal({ t, reason, onCancel, onConfirm, onCloseShif
           ) : null}
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

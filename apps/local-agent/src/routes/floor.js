@@ -15,8 +15,9 @@ function isLeaderNode(ctx) {
 
 function getLeaderHost(ctx) {
   const cluster = ctx.getClusterState?.() ?? {};
+  const coordinatorHost = ctx.getCoordinatorLanHost?.() ?? ctx.coordinatorLanHost ?? '';
   if (cluster.mode === CLUSTER_MODES.FOLLOWER && cluster.leaderHost) return cluster.leaderHost;
-  if (ctx.coordinatorFallback && ctx.coordinatorLanHost) return ctx.coordinatorLanHost;
+  if (ctx.coordinatorFallback && coordinatorHost) return coordinatorHost;
   return null;
 }
 

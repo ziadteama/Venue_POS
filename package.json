@@ -25,6 +25,7 @@
     "migrate": "npm run migrate -w @venue-pos/api",
     "migrate:dev": "npm run migrate:dev -w @venue-pos/api",
     "db:generate": "node scripts/prisma-generate.mjs",
+    "db:seed": "npm run seed -w @venue-pos/api",
     "postinstall": "node scripts/prisma-generate.mjs",
     "seed": "npm run seed -w @venue-pos/api",
     "generate:jwt-keys": "node scripts/generate-jwt-keys.mjs",

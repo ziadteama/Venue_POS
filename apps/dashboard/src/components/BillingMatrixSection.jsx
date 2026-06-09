@@ -33,9 +33,11 @@ export function BillingMatrixSection({ anchorVenueId, anchorType }) {
 
   if (anchorType !== 'anchor') {
     return (
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h3 className="mb-2 text-lg font-semibold">{t('billing.title')}</h3>
-        <p className="text-sm text-secondary">{t('billing.anchorOnly')}</p>
+      <section className="surface-card overflow-hidden">
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h3 className="text-sm font-semibold text-slate-900">{t('billing.title')}</h3>
+        </div>
+        <p className="px-6 py-5 text-sm text-slate-500">{t('billing.anchorOnly')}</p>
       </section>
     );
   }
@@ -64,50 +66,53 @@ export function BillingMatrixSection({ anchorVenueId, anchorType }) {
   }
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="mb-1 text-lg font-semibold">{t('billing.title')}</h3>
-      <p className="mb-4 text-sm text-secondary">{t('billing.subtitle')}</p>
+    <section className="surface-card overflow-hidden">
+      <div className="border-b border-slate-100 px-6 py-4">
+        <h3 className="text-sm font-semibold text-slate-900">{t('billing.title')}</h3>
+        <p className="mt-0.5 text-xs text-slate-500">{t('billing.subtitle')}</p>
+      </div>
+      <div className="px-6 py-5">
+        {error ? (
+          <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-medium text-red-700">
+            {error}
+          </p>
+        ) : null}
 
-      {error ? (
-        <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
-          {error}
-        </p>
-      ) : null}
-
-      {loading ? (
-        <p className="text-sm text-secondary">{t('common.loading')}</p>
-      ) : targets.length === 0 ? (
-        <p className="text-sm text-secondary">{t('billing.noOtherVenues')}</p>
-      ) : (
-        <ul className="divide-y divide-slate-100">
-          {targets.map((venue) => {
-            const enabled = enabledSet.has(venue.id);
-            return (
-              <li key={venue.id} className="flex items-center justify-between py-3">
-                <span className="text-sm font-medium text-slate-800">
-                  {i18n.language === 'ar' ? venue.nameAr || venue.nameEn : venue.nameEn}
-                </span>
-                <button
-                  type="button"
-                  disabled={busyId === venue.id}
-                  onClick={() => toggle(venue.id, !enabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition disabled:opacity-50 ${
-                    enabled ? 'bg-primary-to' : 'bg-slate-300'
-                  }`}
-                  aria-pressed={enabled}
-                  title={enabled ? t('billing.enabled') : t('billing.disabled')}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
-                      enabled ? 'translate-x-6' : 'translate-x-1'
+        {loading ? (
+          <p className="text-sm text-slate-500">{t('common.loading')}</p>
+        ) : targets.length === 0 ? (
+          <p className="text-sm text-slate-500">{t('billing.noOtherVenues')}</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {targets.map((venue) => {
+              const enabled = enabledSet.has(venue.id);
+              return (
+                <li key={venue.id} className="flex items-center justify-between py-3">
+                  <span className="text-sm font-medium text-slate-800">
+                    {i18n.language === 'ar' ? venue.nameAr || venue.nameEn : venue.nameEn}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busyId === venue.id}
+                    onClick={() => toggle(venue.id, !enabled)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition disabled:opacity-50 ${
+                      enabled ? 'bg-accent-gradient' : 'bg-slate-300'
                     }`}
-                  />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                    aria-pressed={enabled}
+                    title={enabled ? t('billing.enabled') : t('billing.disabled')}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+                        enabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

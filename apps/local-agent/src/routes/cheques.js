@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
+import { SYNC_EVENT_TYPES, CHEQUE_HYDRATE_MIN_INTERVAL_MS } from '@venue-pos/shared';
 import { apiFetch, sendApiError } from '../services/api-fetch.js';
 import { enqueueSync } from '../services/sync-processor.js';
 import { isCloudOnline } from '../services/cloud-health.js';
@@ -37,14 +37,21 @@ export function registerChequeRoutes(app, routeCtx) {
     getPrinterConfig,
     autoReceiptPrint,
   } = routeCtx;
+
+  let lastChequeHydrateAt = 0;
+
   app.get('/v1/cheques/open', async () => {
     try {
       const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open');
       if (isCloudOnline()) {
-        try {
-          await hydrateOpenCheques({ db, apiUrl, venueId, terminalId, terminalSecret });
-        } catch (hydrateErr) {
-          app.log.warn({ hydrateErr }, 'Cheque hydration on list failed');
+        const now = Date.now();
+        if (now - lastChequeHydrateAt >= CHEQUE_HYDRATE_MIN_INTERVAL_MS) {
+          lastChequeHydrateAt = now;
+          try {
+            await hydrateOpenCheques({ db, apiUrl, venueId, terminalId, terminalSecret });
+          } catch (hydrateErr) {
+            app.log.warn({ hydrateErr }, 'Cheque hydration on list failed');
+          }
         }
       }
       return result;
@@ -176,16 +183,87 @@ export function registerChequeRoutes(app, routeCtx) {
 
   app.get('/v1/cheques/:id/receipt', async (request) => {
     try {
+      const preview = request.query?.preview === 'true' || request.query?.preview === '1';
+      const qs = preview ? '?preview=true' : '';
       return await apiFetch(
         apiUrl,
         terminalId,
         terminalSecret,
-        `/api/v1/cheques/${request.params.id}/receipt`,
+        `/api/v1/cheques/${request.params.id}/receipt${qs}`,
       );
     } catch {
       const cheque = getLocalChequeById(db, request.params.id);
       if (!cheque) throw new Error('Cheque not found');
       return { text: `OFFLINE\nTable ${cheque.tableLabel}\nTotal ${cheque.total}` };
+    }
+  });
+
+  app.get('/v1/cheques/:id/receipt-bundle', async (request) =>
+    apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${request.params.id}/receipt-bundle`,
+    ),
+  );
+
+  app.post('/v1/cheques/:id/print-receipt', async (request, reply) => {
+    const { mode = 'single', chequeId } = request.body ?? {};
+    const parentId = request.params.id;
+    const printers = getPrinterConfig();
+
+    try {
+      if (mode === 'full' || mode === 'separate') {
+        const bundle = await apiFetch(
+          apiUrl,
+          terminalId,
+          terminalSecret,
+          `/api/v1/cheques/${parentId}/receipt-bundle`,
+        );
+        const texts =
+          mode === 'full'
+            ? [bundle.full]
+            : (bundle.separate ?? []).map((row) => row.text);
+        for (const text of texts) {
+          if (!text) continue;
+          await printCustomerReceipt(text, {
+            host: printers.receiptPrinterHost,
+            port: printers.receiptPrinterPort,
+            log: app.log,
+          });
+        }
+        return { printed: texts.length, mode };
+      }
+
+      const targetId = chequeId ?? parentId;
+      const receipt = await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${targetId}/receipt?preview=true`,
+      );
+      await printCustomerReceipt(receipt.text, {
+        host: printers.receiptPrinterHost,
+        port: printers.receiptPrinterPort,
+        log: app.log,
+      });
+      return { printed: 1, mode: 'single' };
+    } catch (err) {
+      return sendApiError(reply, err);
+    }
+  });
+
+  app.patch('/v1/cheques/:id/table', async (request, reply) => {
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/table`,
+        { method: 'PATCH', body: JSON.stringify(request.body) },
+      );
+    } catch (err) {
+      return sendApiError(reply, err);
     }
   });
 
@@ -268,13 +346,20 @@ export function registerChequeRoutes(app, routeCtx) {
         receiptPrinterPort: printers.receiptPrinterPort,
         log: app.log,
       });
+      if (result.tableSettled && result.cheque?.tableLabel) {
+        const rootId = result.cheque.parentChequeId ?? result.cheque.id;
+        await releaseFloorUpstream(routeCtx, {
+          tableLabel: result.cheque.tableLabel,
+          chequeId: rootId,
+        }).catch((e) => app.log.warn({ e }, 'Floor release failed after pay'));
+      }
       return result;
     } catch (err) {
       if (isCloudOnline()) return sendApiError(reply, err);
       try {
         const result = payLocalCheque(db, request.params.id, { payments, method, amount });
         const cheque = getLocalChequeById(db, request.params.id);
-        if (cheque?.tableLabel) {
+        if (cheque?.tableLabel && result.tableSettled) {
           await releaseFloorUpstream(routeCtx, {
             tableLabel: cheque.tableLabel,
             chequeId: request.params.id,

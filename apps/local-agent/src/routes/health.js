@@ -22,7 +22,7 @@ export function registerHealthRoutes(
     venueId,
     isCoordinator,
     coordinatorMode,
-    coordinatorLanHost,
+    getCoordinatorLanHost,
     coordinatorFallback,
     clusterManager,
     getDeviceProfile,
@@ -30,6 +30,7 @@ export function registerHealthRoutes(
 ) {
   const clusterState = () => clusterManager?.getState?.() ?? {};
   const peerList = () => clusterManager?.getPeerList?.() ?? [];
+  const coordinatorHost = () => getCoordinatorLanHost?.() ?? '';
 
   function buildClusterLabels(cluster) {
     const peers = peerList();
@@ -40,7 +41,7 @@ export function registerHealthRoutes(
       }),
       leaderPeerLabel: findPeerLabel(peers, {
         terminalId: cluster.leaderId,
-        host: cluster.leaderHost ?? coordinatorLanHost,
+        host: cluster.leaderHost ?? coordinatorHost(),
       }),
     };
   }
@@ -63,7 +64,7 @@ export function registerHealthRoutes(
       cloudOnline: isCloudOnline(),
       isCoordinator,
       coordinatorMode: cluster.mode ?? coordinatorMode,
-      coordinatorLanHost: cluster.leaderHost ?? coordinatorLanHost ?? null,
+      coordinatorLanHost: cluster.leaderHost ?? coordinatorHost() ?? null,
       coordinatorFallback: Boolean(coordinatorFallback),
       clusterMode: cluster.mode ?? 'direct',
       leaderId: cluster.leaderId ?? null,

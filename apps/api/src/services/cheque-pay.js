@@ -2,7 +2,7 @@ import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
 import { assertManualCardPaymentsAllowed } from './payment-policy.js';
-import { buildChequeReceiptText } from '../utils/serialize.js';
+import { buildChequeReceiptText, buildFullSplitReceiptText } from '../utils/serialize.js';
 import {
   BILLABLE_ORDER_STATUSES,
   billingOrdersFromCheque,
@@ -96,16 +96,57 @@ async function maybeFinalizeSplitParent(tx, parentChequeId) {
   });
 }
 
-export async function getChequeReceipt(chequeId, venueId, { tendered, change } = {}) {
+export async function getChequeReceipt(chequeId, venueId, { tendered, change, preview } = {}) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
 
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   const serialized = serializeCheque(cheque);
   return {
-    text: buildChequeReceiptText(serialized, venue, { tendered, change }),
+    text: buildChequeReceiptText(serialized, venue, { tendered, change, preview }),
     cheque: serialized,
   };
+}
+
+export async function getSplitReceiptBundle(parentChequeId, venueId) {
+  const parent = await loadCheque(parentChequeId);
+  if (parent.venueId !== venueId) throw validationError('Cheque not found for this terminal');
+  if (parent.parentChequeId) throw validationError('Not a table cheque');
+
+  const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+  const serializedParent = serializeCheque(parent);
+  const childRows = parent.childCheques ?? [];
+
+  const separate = [];
+  for (const row of childRows) {
+    const child = await loadCheque(row.id);
+    const serialized = serializeCheque(child);
+    separate.push({
+      id: child.id,
+      splitLabel: child.splitLabel,
+      chequeNumber: child.chequeNumber,
+      total: serialized.total,
+      text: buildChequeReceiptText(serialized, venue, { preview: true }),
+    });
+  }
+
+  const childSerialized = await Promise.all(
+    childRows.map(async (row) => serializeCheque(await loadCheque(row.id))),
+  );
+
+  return {
+    full: buildFullSplitReceiptText(serializedParent, childSerialized, venue),
+    separate,
+    parentRemainder: buildChequeReceiptText(serializedParent, venue, { preview: true }),
+  };
+}
+
+export async function isTableFullySettled(chequeId, venueId) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) return false;
+  const rootId = cheque.parentChequeId ?? cheque.id;
+  const root = rootId === cheque.id ? cheque : await loadCheque(rootId);
+  return root.status === 'paid';
 }
 
 export async function payCheque(
@@ -138,6 +179,7 @@ export async function payCheque(
       change: result.change,
       crossVenueGroup: result.group,
       cheque: result.group.cheques.find((c) => c.id === chequeId) ?? result.group.cheques[0],
+      tableSettled: true,
     };
   }
 
@@ -252,6 +294,8 @@ export async function payCheque(
     tendered: tendered ?? undefined,
     change: change ?? undefined,
   });
+  const rootId = paid.parentChequeId ?? paid.id;
+  const tableSettled = await isTableFullySettled(rootId, venueId);
 
-  return { cheque: paid, receipt: receipt.text, change };
+  return { cheque: paid, receipt: receipt.text, change, tableSettled };
 }

@@ -1,6 +1,6 @@
 import { formatDateTime, formatMoney, itemLabel, lineItemTotal } from '../utils/format.js';
 import { parseApiError } from '../utils/apiError.js';
-import { MODAL_Z } from '@venue-pos/shared';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function OrderLookupModal({
   t,
@@ -33,10 +33,7 @@ export function OrderLookupModal({
   const chequeOrders = detail?.chequeOrders ?? (detail?.items ? [detail] : []);
 
   return (
-    <div
-      className="fixed inset-0 flex flex-col bg-slate-900/50 p-4"
-      style={{ zIndex: MODAL_Z.stacked }}
-    >
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex flex-col bg-slate-900/50 p-4">
       <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
         {error ? (
           <div
@@ -254,6 +251,6 @@ export function OrderLookupModal({
           </aside>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

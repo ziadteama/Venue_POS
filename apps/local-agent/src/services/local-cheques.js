@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { getLocalOrder, sendLocalOrder } from './orders.js';
+import { getLocalOrder, sendLocalOrder, createLocalOrder } from './orders.js';
 
 function nextLocalChequeNumber(db, venueId) {
   const row = db
@@ -114,14 +114,21 @@ export function fireLocalCheque(db, chequeId) {
   if (!cheque) throw new Error('Cheque not found');
   if (cheque.status !== 'open') throw new Error('Cheque is not open');
 
-  const draft = db
+  const draftRow = db
     .prepare(`SELECT id FROM orders WHERE cheque_id = ? AND status = 'draft' LIMIT 1`)
     .get(chequeId);
   let sentOrder = null;
-  if (draft) {
-    const order = getLocalOrder(db, draft.id);
+  if (draftRow) {
+    const order = getLocalOrder(db, draftRow.id);
     if (order?.items?.length) {
-      sentOrder = sendLocalOrder(db, draft.id);
+      sentOrder = sendLocalOrder(db, draftRow.id);
+      const nextDraft = createLocalOrder(db, {
+        venueId: cheque.venue_id,
+        cashierId: cheque.cashier_id,
+        terminalId: cheque.terminal_id,
+        tableLabel: cheque.table_label,
+      });
+      db.prepare(`UPDATE orders SET cheque_id = ? WHERE id = ?`).run(chequeId, nextDraft.id);
     }
   }
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CloseXIcon } from './icons.jsx';
-import { canDeleteCheque, parentOpenCheques } from '../utils/cheque.js';
+import { canDeleteCheque, displayChequeTotal, parentOpenCheques } from '../utils/cheque.js';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function TableSwitchModal({
   openCheques,
@@ -43,7 +44,10 @@ export function TableSwitchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
+    <OverlayPortal
+      layer="stacked"
+      className="fixed inset-0 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center"
+    >
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl">
         <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -89,7 +93,7 @@ export function TableSwitchModal({
                         {t('pos.chequeNumber', { number: tab.chequeNumber })}
                       </p>
                       <p className="mt-2 text-sm font-semibold text-primary-to">
-                        {tab.total.toFixed(0)} {t('pos.currency')}
+                        {displayChequeTotal(tab).toFixed(0)} {t('pos.currency')}
                       </p>
                     </button>
                     {deletable ? (
@@ -139,6 +143,6 @@ export function TableSwitchModal({
           </div>
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

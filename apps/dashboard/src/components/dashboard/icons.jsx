@@ -190,3 +190,102 @@ export const InboxIcon = (p) => (
     <path d="M5 5h14l2 8v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4l2-8Z" />
   </Svg>
 );
+
+export const SearchIcon = (p) => (
+  <Svg {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m21 21-4.3-4.3" />
+  </Svg>
+);
+
+export const FilterIcon = (p) => (
+  <Svg {...p}>
+    <path d="M3 5h18l-7 8v6l-4 2v-8L3 5Z" />
+  </Svg>
+);
+
+export const PlusIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Svg>
+);
+
+export const DownloadIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 3v12" />
+    <path d="m7 11 5 5 5-5" />
+    <path d="M5 21h14" />
+  </Svg>
+);
+
+export const CloseIcon = (p) => (
+  <Svg {...p}>
+    <path d="M6 6 18 18M18 6 6 18" />
+  </Svg>
+);
+
+export const ChevronDownIcon = (p) => (
+  <Svg {...p}>
+    <path d="m6 9 6 6 6-6" />
+  </Svg>
+);
+
+export const EditIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
+  </Svg>
+);
+
+export const KeyIcon = (p) => (
+  <Svg {...p}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="m10.8 12.2 7.2-7.2" />
+    <path d="m16 6 2 2M19 5l1.5 1.5" />
+  </Svg>
+);
+
+export const PrinterIcon = (p) => (
+  <Svg {...p}>
+    <path d="M6 9V3h12v6" />
+    <rect x="3" y="9" width="18" height="8" rx="2" />
+    <path d="M7 17h10v4H7z" />
+  </Svg>
+);
+
+export const PowerIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 4v8" />
+    <path d="M7.5 7a7 7 0 1 0 9 0" />
+  </Svg>
+);
+
+export const StoreIcon = (p) => (
+  <Svg {...p}>
+    <path d="M4 9h16l-1-4H5L4 9Z" />
+    <path d="M5 9v10h14V9" />
+    <path d="M9 19v-5h6v5" />
+  </Svg>
+);
+
+export const ReceiptIcon = (p) => (
+  <Svg {...p}>
+    <path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2V3Z" />
+    <path d="M8 8h8M8 12h8" />
+  </Svg>
+);
+
+export const ClockIcon = (p) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Svg>
+);
+
+export const RefundIcon = (p) => (
+  <Svg {...p}>
+    <path d="M3 9a9 9 0 1 1-1.5 5" />
+    <path d="M3 4v5h5" />
+    <path d="M12 8v4l3 1.5" />
+  </Svg>
+);

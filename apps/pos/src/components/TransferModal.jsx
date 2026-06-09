@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { transferableItems } from '../utils/cheque.js';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function TransferModal({ cheque, openCheques, language, onConfirm, onCancel, t }) {
   const items = transferableItems(cheque);
@@ -34,7 +35,7 @@ export function TransferModal({ cheque, openCheques, language, onConfirm, onCanc
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4">
       <form
         onSubmit={handleSubmit}
         className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
@@ -114,6 +115,6 @@ export function TransferModal({ cheque, openCheques, language, onConfirm, onCanc
           </button>
         </div>
       </form>
-    </div>
+    </OverlayPortal>
   );
 }

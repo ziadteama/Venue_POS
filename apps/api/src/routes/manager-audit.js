@@ -1,6 +1,8 @@
 import { ROLES } from '@venue-pos/shared';
-import { requireRoles } from '../middleware/auth.js';
+import { requireRoles, requestCanSeeFinancials } from '../middleware/auth.js';
+import { forbidden } from '../utils/errors.js';
 import { listFullAuditLog, auditLogToCsv } from '../services/audit-log-service.js';
+import { redactAuditFinancials } from '../services/financial-redact.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
@@ -26,11 +28,14 @@ export async function managerAuditRoutes(app) {
       });
 
       if (request.query?.format === 'csv') {
+        if (!(await requestCanSeeFinancials(request))) {
+          throw forbidden('Financial export is restricted to the owner account');
+        }
         reply.header('Content-Type', 'text/csv; charset=utf-8');
         reply.header('Content-Disposition', 'attachment; filename="audit-log.csv"');
         return auditLogToCsv(result);
       }
-      return result;
+      return (await requestCanSeeFinancials(request)) ? result : redactAuditFinancials(result);
     },
   );
 }

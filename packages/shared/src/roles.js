@@ -4,7 +4,7 @@ import { ROLES } from './constants.js';
  * Product roles (see AGENTS.md). Matches multi-unit F&B SaaS (Toast, Lightspeed, Square):
  * - Cashier: POS — ring orders, take payment
  * - Hub manager: back office — menus, staff, permissions, cheques, shifts, approvals, audit
- * - CEO (hub_owner): executive reporting only — live KPIs + revenue analytics (no operations)
+ * - CEO (hub_owner): executive overview; revenue/P&L only for the `owner` account (see financial-access.js)
  *
  * venue_manager / kitchen_staff are venue staff the hub manager provisions for POS/KDS.
  */

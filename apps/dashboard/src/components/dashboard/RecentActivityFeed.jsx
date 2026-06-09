@@ -22,7 +22,7 @@ function typeLabel(type, t) {
   return translated === key ? type.replace(/_/g, ' ') : translated;
 }
 
-export function RecentActivityFeed({ events, t, locale, currencyLabel, emptyLabel }) {
+export function RecentActivityFeed({ events, t, locale, currencyLabel, emptyLabel, hideAmounts = false }) {
   if (!events?.length) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 px-4 py-12 text-center">
@@ -47,7 +47,7 @@ export function RecentActivityFeed({ events, t, locale, currencyLabel, emptyLabe
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className={`chip ${style.chip}`}>{typeLabel(event.type, t)}</span>
-                {event.amount != null ? (
+                {event.amount != null && !hideAmounts ? (
                   <span className="text-xs font-semibold text-slate-700">
                     {formatMoney(event.amount, locale, currencyLabel)}
                   </span>

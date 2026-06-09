@@ -9,14 +9,17 @@ import { parseApiError } from '../utils/apiError.js';
 export function usePosModals({
   refundCheque,
   setRefundCheque,
+  cheque,
   confirmSplit,
   confirmSplitAmount,
   confirmTransfer,
+  confirmMoveTable,
   confirmDiscount,
   confirmChangeDiscount,
   confirmRemoveDiscount,
   confirmRefund,
   confirmPay,
+  printChequeReceipt,
   loadPaidCheques,
   refreshShift,
   setKitchenWatch,
@@ -26,6 +29,8 @@ export function usePosModals({
 }) {
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [showSplitAmountModal, setShowSplitAmountModal] = useState(false);
+  const [showSplitPrintModal, setShowSplitPrintModal] = useState(false);
+  const [splitPrinting, setSplitPrinting] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showTableModal, setShowTableModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
@@ -35,23 +40,37 @@ export function usePosModals({
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [payTarget, setPayTarget] = useState(null);
+  const [showMoveTableModal, setShowMoveTableModal] = useState(false);
   const [modifierItem, setModifierItem] = useState(null);
   const [paidCheques, setPaidCheques] = useState([]);
   const [loadingPaid, setLoadingPaid] = useState(false);
+  const [lastPayment, setLastPayment] = useState(null);
 
   async function onConfirmSplit(body) {
     const ok = await confirmSplit(body);
-    if (ok) setShowSplitModal(false);
+    if (ok) {
+      setShowSplitModal(false);
+      setShowSplitPrintModal(true);
+    }
   }
 
   async function onConfirmSplitAmount(body) {
     const ok = await confirmSplitAmount(body);
-    if (ok) setShowSplitAmountModal(false);
+    if (ok) {
+      setShowSplitAmountModal(false);
+      setShowSplitPrintModal(true);
+    }
   }
 
   async function onConfirmTransfer(body) {
     const ok = await confirmTransfer(body);
     if (ok) setShowTransferModal(false);
+  }
+
+  async function onConfirmMoveTable(body) {
+    const ok = await confirmMoveTable(body);
+    if (ok) setShowMoveTableModal(false);
   }
 
   function openDiscountModal(mode = 'apply') {
@@ -119,13 +138,38 @@ export function usePosModals({
     return result;
   }
 
+  function openPayModal(target = null) {
+    setPayTarget(target);
+    setShowPayModal(true);
+  }
+
   async function onConfirmPay(body) {
-    const ok = await confirmPay(body);
-    if (ok) {
+    const snapshot = payTarget ?? cheque;
+    const result = await confirmPay(body, payTarget?.id);
+    if (result?.ok) {
       setShowPayModal(false);
-      setKitchenWatch(null);
-      setShowTableModal(true);
-      await refreshShift();
+      setPayTarget(null);
+      if (result.settled) {
+        setKitchenWatch(null);
+        await refreshShift();
+        if (snapshot) {
+          setLastPayment({
+            tableLabel: snapshot.tableLabel,
+            chequeNumber: snapshot.chequeNumber,
+            total: snapshot.total,
+          });
+        }
+      }
+    }
+  }
+
+  async function handleSplitPrint(mode) {
+    if (!cheque?.id) return;
+    setSplitPrinting(true);
+    try {
+      await printChequeReceipt(mode);
+    } finally {
+      setSplitPrinting(false);
     }
   }
 
@@ -134,10 +178,15 @@ export function usePosModals({
     setModifierItem,
     paidCheques,
     loadingPaid,
+    lastPayment,
+    clearLastPayment: () => setLastPayment(null),
     showSplitModal,
     setShowSplitModal,
     showSplitAmountModal,
     setShowSplitAmountModal,
+    showSplitPrintModal,
+    setShowSplitPrintModal,
+    splitPrinting,
     showTransferModal,
     setShowTransferModal,
     showTableModal,
@@ -155,6 +204,11 @@ export function usePosModals({
     setShowRefundModal,
     showPayModal,
     setShowPayModal,
+    payTarget,
+    openPayModal,
+    showMoveTableModal,
+    setShowMoveTableModal,
+    onConfirmMoveTable,
     openRefundFlow,
     onConfirmSplit,
     onConfirmSplitAmount,
@@ -163,6 +217,8 @@ export function usePosModals({
     onPickRefundCheque,
     onConfirmRefund,
     onConfirmPay,
+    handleSplitPrint,
+    printChequeReceipt,
     refundSubmitting,
     closeRefundModal: () => {
       setShowRefundModal(false);
@@ -173,6 +229,7 @@ export function usePosModals({
     isAnyModalOpen:
       showSplitModal ||
       showSplitAmountModal ||
+      showSplitPrintModal ||
       showTransferModal ||
       showTableModal ||
       showDiscountModal ||
@@ -180,6 +237,7 @@ export function usePosModals({
       showRefundPicker ||
       showRefundModal ||
       showPayModal ||
+      showMoveTableModal ||
       Boolean(modifierItem),
   };
 }

@@ -79,6 +79,8 @@ cp apps/dashboard/.env.example apps/dashboard/.env
 
 npm run migrate
 npm run seed
+# alias:
+npm run db:seed
 ```
 
 ## Daily workflow
@@ -223,7 +225,9 @@ nvm use 20          # or 20.20.2 — match .nvmrc if present
 npm install         # runs postinstall → prisma generate
 npm run db:generate # only if install warned or API fails with Prisma client errors
 npm run migrate     # if migrations changed
-npm run seed        # optional, refresh dev data
+npm run seed
+# alias:
+npm run db:seed        # optional, refresh dev data
 ```
 
 If `npm install` fails on Prisma generate, **stop dev servers first**, then `npm run db:generate`, then `npm install` again.
@@ -237,7 +241,8 @@ If `npm install` fails on Prisma generate, **stop dev servers first**, then `npm
 | `npm run migrate:dev` | Prisma migration (dev) |
 | `npm run migrate` | Prisma deploy (CI/prod) |
 | `npm run db:generate` | Regenerate Prisma client |
-| `npm run seed` | Dev data |
+| `npm run seed` | Dev data (owner / owner123) |
+| `npm run db:seed` | Same as `npm run seed` |
 | `npm run test -w @venue-pos/api` | API tests |
 
 ## Prisma workflow
