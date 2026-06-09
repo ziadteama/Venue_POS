@@ -111,7 +111,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–3, 5, and 4 complete.** Cross-venue billing shipped as integrated **cross-sell** on the main POS (US-4.1–4.3, US-8.6). **Next: Phase 6** — offline SQLite sync + **designated POS as LAN coordinator** when cloud is down (star failover, **not** peer mesh). Plan: `docs/PHASE6_OFFLINE_PLAN.md`. Loose ends: `docs/TEAM_LOG.md` § Roadmap.
+**Phases 0–6 complete.** Cross-venue billing (Phase 4) + offline SQLite sync with **LAN coordinator POS** (Phase 6, US-7.1–7.5). Plan: `docs/PHASE6_OFFLINE_PLAN.md`. Loose ends: `docs/TEAM_LOG.md` § Roadmap.
 
 ## POS app layout (`apps/pos`)
 

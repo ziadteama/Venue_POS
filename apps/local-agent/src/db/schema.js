@@ -65,6 +65,30 @@ export function initSchema(db) {
       group_json TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    CREATE TABLE IF NOT EXISTS staff_cache (
+      id TEXT PRIMARY KEY,
+      username TEXT,
+      role TEXT NOT NULL,
+      pin_hash TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS features_cache (
+      venue_id TEXT PRIMARY KEY,
+      features_json TEXT NOT NULL,
+      synced_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS menu_publish_queue (
+      id TEXT PRIMARY KEY,
+      version_hash TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS linked_menu_cache (
+      venue_id TEXT PRIMARY KEY,
+      version_hash TEXT NOT NULL,
+      menu_json TEXT NOT NULL,
+      synced_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS order_items (
       id TEXT PRIMARY KEY,
       order_id TEXT NOT NULL,

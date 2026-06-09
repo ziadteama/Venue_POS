@@ -8,6 +8,8 @@ import {
   fireChequeRound,
   payCheque,
 } from '../services/cheque-service.js';
+import { executeChequeDiscount } from '../services/cheque-discount.js';
+import { verifyManagerPin } from '../services/auth-service.js';
 import { payCrossVenueGroup } from '../services/cross-venue-service.js';
 
 const eventSchema = z.object({
@@ -52,9 +54,25 @@ async function processSyncEvent(request, { syncId, eventType, payload }) {
       case SYNC_EVENT_TYPES.CHEQUE_PAY:
         return payCheque(
           payload.chequeId ?? payload.id,
-          { ...payload, terminalId },
+          { ...(payload.payBody ?? payload), terminalId },
           venueId,
         );
+      case SYNC_EVENT_TYPES.CHEQUE_DISCOUNT: {
+        const body = payload.body ?? payload;
+        const manager = await verifyManagerPin(venueId, body.restaurantManagerPin);
+        return executeChequeDiscount(
+          payload.chequeId ?? payload.id,
+          {
+            amount: body.amount,
+            percent: body.percent,
+            reason: body.reason,
+            cashierId: body.cashierId,
+            initiatorId: body.cashierId,
+            approverId: manager.id,
+          },
+          venueId,
+        );
+      }
       case SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_PAY:
         return payCrossVenueGroup({
           anchorChequeId: payload.anchorChequeId,

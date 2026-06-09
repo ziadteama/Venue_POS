@@ -7,6 +7,7 @@ export const SYNC_EVENT_TYPES = {
   CHEQUE_OPEN: 'cheque.open',
   CHEQUE_FIRE: 'cheque.fire',
   CHEQUE_PAY: 'cheque.pay',
+  CHEQUE_DISCOUNT: 'cheque.discount',
   CHEQUE_CLEAR: 'cheque.clear',
   PAYMENT_CREATE: 'payment.create',
   CROSS_VENUE_GROUP_PAY: 'cross_venue.group_pay',

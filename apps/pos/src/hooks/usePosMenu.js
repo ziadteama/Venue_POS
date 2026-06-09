@@ -7,18 +7,28 @@ export function usePosMenu() {
   const [activeCategoryId, setActiveCategoryId] = useState('all');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [menuError, setMenuError] = useState('');
 
   const loadMenu = useCallback(async () => {
     setLoading(true);
+    setMenuError('');
     try {
       let data = await callAgent('/v1/menu');
       if (!data.categories?.length) {
-        await callAgent('/v1/menu/sync', { method: 'POST' });
-        data = await callAgent('/v1/menu');
+        try {
+          await callAgent('/v1/menu/sync', { method: 'POST' });
+          data = await callAgent('/v1/menu');
+        } catch {
+          setMenuError('menuNotCached');
+        }
       }
-      setMenu(data);
+      if (!data.categories?.length) {
+        setMenuError('menuNotCached');
+      }
+      setMenu(data?.categories?.length ? data : null);
     } catch {
       setMenu(null);
+      setMenuError('menuNotCached');
     } finally {
       setLoading(false);
     }
@@ -51,6 +61,7 @@ export function usePosMenu() {
   return {
     menu,
     loading,
+    menuError,
     activeCategoryId,
     setActiveCategoryId,
     search,

@@ -29,6 +29,11 @@ export async function syncMenuFromServer({ db, apiUrl, venueId, terminalId, term
        synced_at = excluded.synced_at`,
   ).run(venueId, menu.versionHash, JSON.stringify(menu));
 
+  db.prepare(
+    `INSERT INTO agent_meta (key, value) VALUES ('menu_stale', 'false')
+     ON CONFLICT(key) DO UPDATE SET value = 'false'`,
+  ).run();
+
   return { updated: true, menu };
 }
 

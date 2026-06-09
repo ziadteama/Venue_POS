@@ -9,8 +9,11 @@ import {
   syncVenueConfigFromServer,
   resolvePrinterConfig,
 } from './services/venue-config-sync.js';
-import { probeCloudHealth, setCloudOnline } from './services/cloud-health.js';
+import { probeCloudHealth, setCloudOnline, isCloudOnline } from './services/cloud-health.js';
 import { sendTerminalHeartbeat } from './services/heartbeat.js';
+import { syncTerminalRosterFromServer } from './services/terminal-cache.js';
+import { runReconnectHandshake } from './services/reconnect.js';
+import { setAgentMeta } from './services/terminal-cache.js';
 
 const port = Number(process.env.PORT ?? 3456);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -73,8 +76,27 @@ async function withRetry(label, fn, { attempts = 12, delayMs = 1000 } = {}) {
 }
 
 async function refreshCloudStatus() {
+  const wasOnline = isCloudOnline();
   const { online } = await probeCloudHealth(cloudHealthUrl);
   setCloudOnline(online);
+  if (online && !wasOnline && venueId && terminalId && terminalSecret) {
+    setAgentMeta(db, 'sync_in_progress', 'true');
+    try {
+      const result = await runReconnectHandshake({
+        db,
+        apiUrl,
+        venueId,
+        terminalId,
+        terminalSecret,
+        log: app.log,
+      });
+      app.log.info(result, 'Reconnect handshake completed');
+    } catch (err) {
+      app.log.warn({ err }, 'Reconnect handshake failed');
+    } finally {
+      setAgentMeta(db, 'sync_in_progress', 'false');
+    }
+  }
   return online;
 }
 
@@ -95,13 +117,22 @@ if (venueId && terminalId && terminalSecret) {
       syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),
     );
     app.log.info({ updated: result.updated }, 'Menu cache synced on startup');
+    setAgentMeta(db, 'menu_stale', 'false');
   } catch (err) {
     app.log.warn({ err }, 'Menu sync on startup failed');
   }
 
   try {
+    await withRetry('Terminal roster sync on startup', () =>
+      syncTerminalRosterFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),
+    );
+  } catch (err) {
+    app.log.warn({ err }, 'Roster sync on startup failed');
+  }
+
+  try {
     await withRetry('Initial sync replay', () =>
-      processSyncQueue({ db, apiUrl, terminalId, terminalSecret }),
+      processSyncQueue({ db, apiUrl, terminalId, terminalSecret, useBatch: true }),
     );
   } catch (err) {
     app.log.warn({ err }, 'Initial sync replay failed');
@@ -119,16 +150,24 @@ if (venueId && terminalId && terminalSecret) {
   setInterval(async () => {
     const online = await refreshCloudStatus();
     if (online) {
-      await processSyncQueue({ db, apiUrl, terminalId, terminalSecret }).catch((err) => {
+      await processSyncQueue({
+        db,
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        useBatch: true,
+      }).catch((err) => {
         app.log.warn({ err }, 'Periodic sync replay failed');
       });
     }
-    await sendTerminalHeartbeat({
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      syncQueueDepth: getSyncQueueDepth(db),
-    }).catch(() => {});
+    if (online) {
+      await sendTerminalHeartbeat({
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        syncQueueDepth: getSyncQueueDepth(db),
+      }).catch(() => {});
+    }
   }, SYNC_WORKER_INTERVAL_MS);
 
   if (isCoordinator) {

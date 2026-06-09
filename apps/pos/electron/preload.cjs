@@ -110,17 +110,13 @@ contextBridge.exposeInMainWorld('venuePos', {
       body: JSON.stringify(body),
     }),
   loginPin: async (pin) => {
-    const res = await fetch(`${apiUrl}/api/v1/auth/pin`, {
+    const res = await fetch(`${agentUrl}/v1/auth/pin`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-terminal-id': terminalId,
-        'x-terminal-secret': terminalSecret,
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ pin }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message ?? 'PIN failed');
+    if (!res.ok) throw new Error(data.error?.message ?? data.error ?? 'PIN failed');
     return data;
   },
   platform: process.platform,
@@ -129,5 +125,11 @@ contextBridge.exposeInMainWorld('venuePos', {
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('order:item_status', listener);
     return () => socket.off('order:item_status', listener);
+  },
+  onFloorTableUpdated(handler) {
+    const socket = ensurePosSocket();
+    const listener = (msg) => handler(msg?.payload ?? msg);
+    socket.on('floor:table_updated', listener);
+    return () => socket.off('floor:table_updated', listener);
   },
 });

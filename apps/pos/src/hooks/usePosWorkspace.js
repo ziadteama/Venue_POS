@@ -13,6 +13,7 @@ import { usePrinterHealth } from './usePrinterHealth.js';
 import { useShiftSession } from './useShiftSession.js';
 import { useAgentStatus } from './useAgentStatus.js';
 import { useFloorTables } from './useFloorTables.js';
+import { useFloorSocket } from './useFloorSocket.js';
 
 /**
  * Composes POS session hooks, cross-sell menu wiring, and action handlers.
@@ -29,14 +30,31 @@ export function usePosWorkspace(cashier) {
   const agentStatus = useAgentStatus();
   const { features, loading: featuresLoading } = useFeatures();
   const homeVenueId = features.anchorVenue?.id ?? null;
-  const crossSell = useCrossSell(features, homeVenueId, { online: agentStatus.online });
-  const { floorByLabel } = useFloorTables({
+  const floorEnabled = agentStatus.online || agentStatus.coordinatorActive;
+  const crossSell = useCrossSell(features, homeVenueId, {
+    online: agentStatus.online,
+    coordinatorActive: agentStatus.coordinatorActive,
+  });
+  const { floorByLabel, refreshFloor, coordinatorUnreachable } = useFloorTables({
+    enabled: floorEnabled,
+    coordinatorActive: agentStatus.coordinatorActive,
+  });
+  useFloorSocket({
     enabled: agentStatus.online,
     online: agentStatus.online,
+    onFloorUpdate: refreshFloor,
   });
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket(features.kdsEnabled);
-  const { menu, loading, activeCategoryId, setActiveCategoryId, search, setSearch, displayItems } =
-    usePosMenu();
+  const {
+    menu,
+    loading,
+    menuError: menuCacheError,
+    activeCategoryId,
+    setActiveCategoryId,
+    search,
+    setSearch,
+    displayItems,
+  } = usePosMenu();
 
   const shiftSession = useShiftSession(cashier.id);
   const {
@@ -191,7 +209,12 @@ export function usePosWorkspace(cashier) {
     minute: '2-digit',
   });
 
-  const menuError = !loading && !menu?.categories?.length ? t('pos.menuLoadFailed') : '';
+  const menuError =
+    menuCacheError === 'menuNotCached'
+      ? t('pos.menuNotCached')
+      : !loading && !menu?.categories?.length
+        ? t('pos.menuLoadFailed')
+        : '';
   const bannerError = error || shiftError || menuError;
   const logoutBlocked = Boolean(shift);
 
@@ -253,6 +276,7 @@ export function usePosWorkspace(cashier) {
     openActionsSheet,
     agentStatus,
     floorByLabel,
+    coordinatorUnreachable,
   };
 }
 

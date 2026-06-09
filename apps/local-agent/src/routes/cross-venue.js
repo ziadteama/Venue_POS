@@ -1,7 +1,13 @@
 import { ERROR_CODES } from '@venue-pos/shared';
 import { apiFetch, sendApiError } from '../services/api-fetch.js';
 import { isCloudOnline } from '../services/cloud-health.js';
-import { getCoordinatorGroup } from '../services/coordinator-cross-venue.js';
+import {
+  getCoordinatorGroup,
+  saveCoordinatorGroup,
+  newGroupId,
+} from '../services/coordinator-cross-venue.js';
+import { getLinkedMenuCache } from '../services/linked-menu-sync.js';
+import { proxyToCoordinator } from '../services/coordinator-proxy.js';
 import { printCustomerReceipt } from '../services/kitchen-printer.js';
 
 function offlineCrossSell(reply) {
@@ -20,8 +26,28 @@ function offlineCrossSell(reply) {
  */
 export function registerCrossVenueRoutes(
   app,
-  { db, apiUrl, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint, isCoordinator },
+  {
+    db,
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    getPrinterConfig,
+    autoReceiptPrint,
+    isCoordinator,
+    coordinatorLanHost,
+    coordinatorFallback,
+  },
 ) {
+  const canCoordinatorOffline = () =>
+    !isCloudOnline() && (isCoordinator || (coordinatorFallback && coordinatorLanHost));
+
+  async function maybeProxy(path, options) {
+    if (!isCloudOnline() && coordinatorFallback && coordinatorLanHost && !isCoordinator) {
+      return proxyToCoordinator(coordinatorLanHost, path, options);
+    }
+    return null;
+  }
   app.get('/v1/cross-venue/cheques/:chequeId/group', async (request, reply) => {
     if (!isCloudOnline() && isCoordinator) {
       const row = db
@@ -93,6 +119,11 @@ export function registerCrossVenueRoutes(
   });
 
   app.get('/v1/cross-venue/menu/:venueId', async (request, reply) => {
+    if (!isCloudOnline()) {
+      const cached = getLinkedMenuCache(db, request.params.venueId);
+      if (cached) return cached;
+      if (isCoordinator) return reply.status(404).send({ error: 'Linked menu not cached' });
+    }
     try {
       return await apiFetch(
         apiUrl,
@@ -101,6 +132,8 @@ export function registerCrossVenueRoutes(
         `/api/v1/cross-venue/menu/${request.params.venueId}`,
       );
     } catch (err) {
+      const cached = getLinkedMenuCache(db, request.params.venueId);
+      if (cached) return cached;
       return sendApiError(reply, err);
     }
   });
@@ -108,17 +141,46 @@ export function registerCrossVenueRoutes(
   app.post('/v1/cross-venue/order', async (request, reply) => {
     const { cashierId } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const proxied = await maybeProxy('/v1/cross-venue/order', {
+      method: 'POST',
+      body: JSON.stringify(request.body),
+    });
+    if (proxied) return proxied;
+    if (canCoordinatorOffline() && isCoordinator) {
+      const groupId = newGroupId();
+      const group = {
+        groupId,
+        anchorVenueId: venueId,
+        cheques: [],
+        status: 'open',
+        offline: true,
+      };
+      saveCoordinatorGroup(db, {
+        groupId,
+        anchorChequeId: groupId,
+        anchorVenueId: venueId,
+        groupJson: group,
+      });
+      return group;
+    }
     try {
       return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cross-venue/order', {
         method: 'POST',
         body: JSON.stringify(request.body),
       });
     } catch (err) {
+      if (canCoordinatorOffline()) return offlineCrossSell(reply);
       return sendApiError(reply, err);
     }
   });
 
   app.get('/v1/cross-venue/order/:groupId', async (request, reply) => {
+    const proxied = await maybeProxy(`/v1/cross-venue/order/${request.params.groupId}`);
+    if (proxied) return proxied;
+    if (!isCloudOnline() && isCoordinator) {
+      const group = getCoordinatorGroup(db, request.params.groupId);
+      if (group) return group;
+    }
     try {
       return await apiFetch(
         apiUrl,

@@ -7,8 +7,12 @@ export function useAgentStatus() {
   const [status, setStatus] = useState({
     online: true,
     syncQueueDepth: 0,
+    syncFailedCount: 0,
+    syncProgress: null,
+    menuStale: false,
     isCoordinator: false,
     coordinatorMode: 'off',
+    coordinatorLanHost: null,
     loading: true,
   });
 
@@ -21,8 +25,12 @@ export function useAgentStatus() {
       setStatus({
         online: Boolean(agentStatus?.online),
         syncQueueDepth: Number(health?.syncQueueDepth ?? agentStatus?.syncQueueDepth ?? 0),
+        syncFailedCount: Number(health?.syncFailedCount ?? agentStatus?.syncFailedCount ?? 0),
+        syncProgress: health?.syncProgress ?? agentStatus?.syncProgress ?? null,
+        menuStale: Boolean(health?.menuStale ?? agentStatus?.menuStale),
         isCoordinator: Boolean(health?.isCoordinator ?? agentStatus?.isCoordinator),
         coordinatorMode: agentStatus?.coordinatorMode ?? 'off',
+        coordinatorLanHost: health?.coordinatorLanHost ?? null,
         loading: false,
       });
     } catch {
@@ -36,5 +44,9 @@ export function useAgentStatus() {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  return { ...status, refresh };
+  const coordinatorActive =
+    status.coordinatorMode === 'active' ||
+    (status.coordinatorMode === 'client' && Boolean(status.coordinatorLanHost));
+
+  return { ...status, coordinatorActive, refresh };
 }

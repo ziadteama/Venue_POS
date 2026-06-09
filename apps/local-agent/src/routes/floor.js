@@ -22,6 +22,55 @@ export function registerFloorRoutes(
       }
       return [];
     });
+
+    app.post('/v1/floor/tables/occupy', async (request, reply) => {
+      const { tableLabel, chequeId, venueId } = request.body ?? {};
+      if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
+      if (isCloudOnline()) {
+        return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/occupy', {
+          method: 'POST',
+          body: JSON.stringify({ tableLabel, chequeId }),
+        });
+      }
+      if (coordinatorFallback && coordinatorLanHost) {
+        try {
+          const res = await fetch(`http://${coordinatorLanHost}:3456/v1/floor/tables/occupy`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ tableLabel, chequeId, terminalId, venueId }),
+          });
+          if (!res.ok) {
+            const text = await res.text();
+            return reply.status(res.status).send({ error: text || 'Coordinator occupy failed' });
+          }
+          return res.json();
+        } catch (err) {
+          return reply.status(503).send({ error: 'Coordinator unreachable' });
+        }
+      }
+      return reply.status(503).send({ error: 'Floor sync unavailable offline' });
+    });
+
+    app.post('/v1/floor/tables/release', async (request, reply) => {
+      const { tableLabel, chequeId } = request.body ?? {};
+      if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
+      if (isCloudOnline()) {
+        return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/release', {
+          method: 'POST',
+          body: JSON.stringify({ tableLabel, chequeId }),
+        });
+      }
+      if (coordinatorFallback && coordinatorLanHost) {
+        const res = await fetch(`http://${coordinatorLanHost}:3456/v1/floor/tables/release`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ tableLabel, chequeId }),
+        });
+        if (!res.ok) return reply.status(res.status).send({ error: 'Coordinator release failed' });
+        return res.json();
+      }
+      return { tableLabel, isOccupied: false };
+    });
     return;
   }
 

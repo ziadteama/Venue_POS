@@ -10,6 +10,7 @@ import { registerShiftRoutes } from './routes/shifts.js';
 import { registerFeatureRoutes } from './routes/features.js';
 import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
 import { registerFloorRoutes } from './routes/floor.js';
+import { registerAuthRoutes } from './routes/auth.js';
 
 export async function buildAgentServer({ db, config }) {
   const app = Fastify({ logger: { level: 'info' } });
@@ -50,13 +51,14 @@ export async function buildAgentServer({ db, config }) {
   };
 
   registerHealthRoutes(app, routeCtx);
+  registerAuthRoutes(app, routeCtx);
   registerFloorRoutes(app, routeCtx);
   registerMenuRoutes(app, routeCtx);
   registerSyncRoutes(app, routeCtx);
   registerOrderRoutes(app, routeCtx);
   registerChequeRoutes(app, routeCtx);
   registerCrossVenueRoutes(app, routeCtx);
-  registerShiftRoutes(app, routeCtx);
+  registerShiftRoutes(app, { db, apiUrl, terminalId, terminalSecret });
   registerFeatureRoutes(app, routeCtx);
   registerOrderExplorerRoutes(app, routeCtx);
 

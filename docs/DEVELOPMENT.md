@@ -277,4 +277,46 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
 | 4 Cross-venue billing | ✅ Closed | Cross-sell, split pay, group % discount, itemized receipt — US-4.1–4.3, US-8.6 — [TEAM_LOG.md](TEAM_LOG.md) |
 | 5 Dashboard (Epic 8) | ✅ Done | Epic 8 complete (US-8.6 shipped in Phase 4) — [TEAM_LOG.md](TEAM_LOG.md) |
-| 6 Offline sync | **Next** | SQLite replay + LAN coordinator POS — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
+| 6 Offline sync | ✅ Done | SQLite replay, reconnect handshake, LAN coordinator — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
+
+## Phase 6 — offline sync & LAN coordinator
+
+See [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md). POS talks to `local-agent` only; agent caches menu, staff PINs, features, and replays `sync_queue` when cloud returns.
+
+### Coordinator env (`apps/local-agent/.env`)
+
+| Variable | Purpose |
+|----------|---------|
+| `CLOUD_HEALTH_URL` | WAN probe (default API `/health`) |
+| `COORDINATOR_TERMINAL_ID` | Hub-designated coordinator terminal UUID |
+| `COORDINATOR_LAN_HOST` | Fixed LAN IP/hostname of coordinator machine |
+| `COORDINATOR_FALLBACK_ENABLED` | `true` — route floor/coordination to coordinator when WAN down |
+| `IS_COORDINATOR` | `true` on the lead till running coordinator SQLite |
+
+Hub manager sets coordinator in **Settings → Terminals** (persists `isCoordinator` + `coordinatorLanHost`).
+
+### Windows service (coordinator till)
+
+Run the coordinator `local-agent` outside Electron so floor locks survive POS close:
+
+```powershell
+# From repo root — install deps once
+npm install -w @venue-pos/local-agent
+
+# Option A: NSSM (https://nssm.cc)
+nssm install VenuePosAgent "C:\Program Files\nodejs\node.exe" "Z:\Plegmo\Venue_POS\apps\local-agent\src\index.js"
+nssm set VenuePosAgent AppDirectory "Z:\Plegmo\Venue_POS\apps\local-agent"
+nssm set VenuePosAgent AppEnvironmentExtra "IS_COORDINATOR=true" "COORDINATOR_FALLBACK_ENABLED=true"
+nssm start VenuePosAgent
+
+# Option B: pm2
+npm i -g pm2
+cd apps/local-agent && pm2 start src/index.js --name venue-pos-agent
+```
+
+### Verify offline
+
+1. `npm run dev:agent` + POS with terminal env set.
+2. Stop API (`dev:api`) → PIN login (cached roster), open table, add items, cash pay.
+3. Start API → agent drains queue; one server cheque.
+4. `npm run test -w @venue-pos/api` (includes `phase6-offline.test.js`).

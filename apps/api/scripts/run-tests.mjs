@@ -37,6 +37,7 @@ const result = spawnSync(process.execPath, ['--test', ...testFiles], {
     FEATURE_MANUAL_CARD_PAYMENT: process.env.FEATURE_MANUAL_CARD_PAYMENT ?? 'true',
     FEATURE_LINE_TRANSFER: process.env.FEATURE_LINE_TRANSFER ?? 'true',
     FEATURE_CROSS_VENUE_BILLING: process.env.FEATURE_CROSS_VENUE_BILLING ?? 'true',
+    FEATURE_KDS_ENABLED: process.env.FEATURE_KDS_ENABLED ?? 'true',
   },
 });
 

@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callAgent } from '../api/agent.js';
 
-export function useFloorTables({ enabled, online }) {
+const POLL_MS = 8000;
+
+export function useFloorTables({ enabled, coordinatorActive }) {
   const [floorByLabel, setFloorByLabel] = useState(new Map());
+  const [coordinatorUnreachable, setCoordinatorUnreachable] = useState(false);
 
   const refresh = useCallback(async () => {
-    if (!enabled || !online) {
+    if (!enabled) {
       setFloorByLabel(new Map());
+      setCoordinatorUnreachable(false);
       return;
     }
     try {
@@ -16,14 +20,19 @@ export function useFloorTables({ enabled, online }) {
         map.set(row.tableLabel, row);
       }
       setFloorByLabel(map);
+      setCoordinatorUnreachable(false);
     } catch {
       setFloorByLabel(new Map());
+      if (coordinatorActive) setCoordinatorUnreachable(true);
     }
-  }, [enabled, online]);
+  }, [enabled, coordinatorActive]);
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+    if (!enabled) return undefined;
+    const timer = setInterval(refresh, POLL_MS);
+    return () => clearInterval(timer);
+  }, [refresh, enabled]);
 
-  return { floorByLabel, refreshFloor: refresh };
+  return { floorByLabel, refreshFloor: refresh, coordinatorUnreachable };
 }

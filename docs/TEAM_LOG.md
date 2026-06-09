@@ -1257,6 +1257,13 @@ sequenceDiagram
 **Verify:** Cross-sell → Send → Pay → reprint shows `1x …` lines per venue + `GRAND TOTAL`. Read PRD US-4.3 and TEAM_LOG § Roadmap.
 **Notes:** **Phase 4 signed off.** Remaining gaps are loose ends (offline, voucher, target POS refresh) — not blockers.
 
+### 2026-06-09 — Phase 6 complete: offline session, reconnect, coordinator, Slice C
+**Phase:** 6 · **Stories:** US-7.1–7.5
+**What:** Offline PIN + cached features/roster; floor occupy via cloud or LAN coordinator; reconnect handshake (`/terminals/reconnect`), menu stale gate, batch queue drain; failed-sync + progress UI; shift cache offline; linked-menu cache + coordinator cross-sell stub; POS `floor:table_updated` WS; `phase6-offline.test.js`; Windows service docs.
+**Files:** `terminal-roster-service.js`, `terminal-cache.js`, `floor-upstream.js`, `reconnect.js`, `menu-gate.js`, `linked-menu-sync.js`, `routes/auth.js`, `phase6-offline.test.js`, POS hooks, `DEVELOPMENT.md` § Phase 6
+**Verify:** `npm run test -w @venue-pos/api` · stop API → PIN (cached) → open table → pay → start API → single cheque · coordinator: `COORDINATOR_*` env + Settings → Terminals
+**Notes:** **Phase 6 signed off.** Integrated card offline still manual-only per plan.
+
 ### 2026-06-09 — Phase 6 kickoff: offline sync foundation + Slice B–D start
 **Phase:** 6 · **Stories:** US-7.1–7.5
 **What:** Branch `feature/phase6-offline-sync` — shared `SYNC_EVENT_TYPES` + `DUPLICATE_SYNC_ID`; Prisma `sync_events`, `floor_tables`, terminal coordinator fields; API sync batch + floor routes; local-agent cloud health probe, 5s worker, heartbeat, offline cheque SQLite + queue replay; POS offline/coordinator banners; dashboard LAN coordinator UI; coordinator floor locks + cross-venue group buffer stub.
@@ -1300,16 +1307,12 @@ sequenceDiagram
 | **Approvals nav** | Removed from dashboard nav; API + `ApprovalsPage.jsx` remain — use Cheques force-refund or re-add route |
 | **UAT flag** | `FEATURE_CROSS_VENUE_BILLING` defaults OFF in production config until hub enables matrix |
 
-### Recommended next — Phase 6 (offline sync + LAN coordinator)
+### Recommended next — post Phase 6 polish
 
-**Plan:** [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)
-
-1. **Slice A** — Designated **LAN coordinator POS** (star topology, **not** peer mesh): cloud health failover, hub-wide floor table locks when WAN down.
-2. **Slice B** — Standard single-venue offline: SQLite + `sync_queue` FIFO replay, idempotent `syncId` to cloud.
-3. **Slice C** — Cross-sell offline via coordinator (cached linked menus/printers, atomic group replay) — after A+B.
-4. **Slice D** (optional parallel) — Hub-scoped floor tables + WebSocket when WAN up (shared tables busy everywhere online).
-
-Cross-venue v1 guard until Slice C: disable Cross-sell with explicit “hub offline” banner.
+- Hub dashboard UI for cross-venue group discount (anchor POS path ships v1).
+- Re-enable Approvals nav or fold pending refunds into Cheques inbox.
+- Receipt PDF export.
+- Full cross-sell offline E2E on multi-terminal LAN (coordinator + anchor).
 
 ### Optional polish (any phase)
 

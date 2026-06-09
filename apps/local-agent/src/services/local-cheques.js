@@ -158,3 +158,25 @@ export function payLocalCheque(db, chequeId, { payments, method, amount }) {
 export function linkOrderToCheque(db, orderId, chequeId) {
   db.prepare(`UPDATE orders SET cheque_id = ? WHERE id = ?`).run(chequeId, orderId);
 }
+
+export function applyLocalChequeDiscount(db, chequeId, { amount, percent }) {
+  const cheque = db.prepare(`SELECT * FROM cheques WHERE id = ?`).get(chequeId);
+  if (!cheque || cheque.status !== 'open') throw new Error('Cheque is not open');
+
+  const totals = computeChequeTotals(db, chequeId);
+  let discount = 0;
+  if (percent != null) {
+    discount = Math.round(totals.subtotal * (Number(percent) / 100) * 100) / 100;
+  } else if (amount != null) {
+    discount = Number(amount);
+  }
+  discount = Math.min(discount, totals.subtotal);
+
+  db.prepare(`UPDATE cheques SET discount_amount = ? WHERE id = ?`).run(discount, chequeId);
+  return serializeLocalCheque(db, chequeId);
+}
+
+export function removeLocalChequeDiscount(db, chequeId) {
+  db.prepare(`UPDATE cheques SET discount_amount = 0 WHERE id = ?`).run(chequeId);
+  return serializeLocalCheque(db, chequeId);
+}

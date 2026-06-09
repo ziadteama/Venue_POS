@@ -86,10 +86,30 @@ export function PosWorkspace({ cashier, onLogout }) {
         <div className="shrink-0 border-b border-amber-300 bg-amber-100 px-5 py-2 text-center text-sm font-medium text-amber-900">
           {ws.agentStatus.isCoordinator
             ? ws.t('pos.offlineCoordinator')
-            : ws.t('pos.offline')}
+            : ws.agentStatus.coordinatorActive
+              ? ws.t('pos.offlineLanCoordinator')
+              : ws.t('pos.offline')}
           {ws.agentStatus.syncQueueDepth > 0
             ? ` · ${ws.t('pos.syncQueueDepth', { count: ws.agentStatus.syncQueueDepth })}`
             : null}
+          {ws.agentStatus.syncFailedCount > 0
+            ? ` · ${ws.t('pos.syncFailed', { count: ws.agentStatus.syncFailedCount })}`
+            : null}
+          {ws.agentStatus.syncProgress?.syncing
+            ? ` · ${ws.t('pos.syncInProgress')}`
+            : null}
+        </div>
+      ) : null}
+
+      {ws.coordinatorUnreachable ? (
+        <div className="shrink-0 border-b border-red-200 bg-red-50 px-5 py-2 text-center text-sm text-red-800">
+          {ws.t('pos.coordinatorUnreachable')}
+        </div>
+      ) : null}
+
+      {ws.agentStatus.menuStale && ws.agentStatus.online ? (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-center text-sm text-amber-900">
+          {ws.t('pos.menuStale')}
         </div>
       ) : null}
 

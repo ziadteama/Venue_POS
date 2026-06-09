@@ -9,7 +9,12 @@ import {
   getLocalChequeById,
   fireLocalCheque,
   payLocalCheque,
+  applyLocalChequeDiscount,
+  removeLocalChequeDiscount,
 } from '../services/local-cheques.js';
+import { assertMenuReadyForWrite } from '../services/menu-gate.js';
+import { occupyFloorUpstream, releaseFloorUpstream } from '../services/floor-upstream.js';
+import { verifyCachedManagerPin } from '../services/terminal-cache.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
 
 function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receiptPrinterPort, log }) {
@@ -21,10 +26,16 @@ function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receipt
   }).catch((err) => log.warn({ err }, 'Receipt print failed'));
 }
 
-export function registerChequeRoutes(
-  app,
-  { db, apiUrl, venueId, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint },
-) {
+export function registerChequeRoutes(app, routeCtx) {
+  const {
+    db,
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    getPrinterConfig,
+    autoReceiptPrint,
+  } = routeCtx;
   app.get('/v1/cheques/open', async () => {
     try {
       return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open');
@@ -48,13 +59,21 @@ export function registerChequeRoutes(
     const { cashierId, tableLabel } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
 
+    try {
+      assertMenuReadyForWrite(db, venueId);
+    } catch (gateErr) {
+      return reply.status(gateErr.statusCode ?? 409).send({ error: gateErr.message });
+    }
+
     const syncId = randomUUID();
     try {
-      return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
+      const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
         method: 'POST',
         body: JSON.stringify({ cashierId, tableLabel, syncId }),
       });
+      return result;
     } catch (err) {
+      if (isCloudOnline()) throw err;
       const cheque = openLocalCheque(db, {
         id: syncId,
         venueId,
@@ -62,6 +81,15 @@ export function registerChequeRoutes(
         cashierId,
         tableLabel,
       });
+      try {
+        await occupyFloorUpstream(routeCtx, {
+          tableLabel,
+          chequeId: cheque.id,
+          venueId,
+        });
+      } catch (floorErr) {
+        app.log.warn({ floorErr }, 'Floor occupy failed offline');
+      }
       enqueueSync(
         db,
         SYNC_EVENT_TYPES.CHEQUE_OPEN,
@@ -110,6 +138,7 @@ export function registerChequeRoutes(
       }
       return result;
     } catch (err) {
+      if (isCloudOnline()) throw err;
       const result = fireLocalCheque(db, request.params.id);
       enqueueSync(
         db,
@@ -152,15 +181,34 @@ export function registerChequeRoutes(
   });
 
   app.post('/v1/cheques/:id/split-amount', async (request, reply) => {
-    const { splits } = request.body ?? {};
-    if (!splits?.length) return reply.status(400).send({ error: 'splits required' });
-    return apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/split-amount`,
-      { method: 'POST', body: JSON.stringify({ splits }) },
-    );
+    const { splits, cashierId, payments } = request.body ?? {};
+    if (!splits?.length && !payments?.length) {
+      return reply.status(400).send({ error: 'splits or payments required' });
+    }
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/split-amount`,
+        { method: 'POST', body: JSON.stringify(request.body) },
+      );
+    } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
+      if (payments?.length && cashierId) {
+        const syncId = randomUUID();
+        const payBody = { cashierId, payments };
+        const result = payLocalCheque(db, request.params.id, { payments });
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_PAY,
+          { chequeId: request.params.id, payBody },
+          syncId,
+        );
+        return result;
+      }
+      return reply.status(503).send({ error: 'Split cheques require hub connection' });
+    }
   });
 
   app.post('/v1/cheques/:id/transfer', async (request, reply) => {
@@ -213,8 +261,16 @@ export function registerChequeRoutes(
       });
       return result;
     } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
       try {
         const result = payLocalCheque(db, request.params.id, { payments, method, amount });
+        const cheque = getLocalChequeById(db, request.params.id);
+        if (cheque?.tableLabel) {
+          await releaseFloorUpstream(routeCtx, {
+            tableLabel: cheque.tableLabel,
+            chequeId: request.params.id,
+          }).catch((e) => app.log.warn({ e }, 'Floor release failed offline'));
+        }
         enqueueSync(
           db,
           SYNC_EVENT_TYPES.CHEQUE_PAY,
@@ -239,16 +295,30 @@ export function registerChequeRoutes(
   app.post('/v1/cheques/:id/discount', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const syncId = randomUUID();
     try {
       return await apiFetch(
         apiUrl,
         terminalId,
         terminalSecret,
         `/api/v1/cheques/${request.params.id}/discount`,
-        { method: 'POST', body: JSON.stringify(body) },
+        { method: 'POST', body: JSON.stringify({ ...body, syncId }) },
       );
     } catch (err) {
-      return sendApiError(reply, err);
+      if (isCloudOnline()) return sendApiError(reply, err);
+      const manager = await verifyCachedManagerPin(db, body.restaurantManagerPin);
+      if (!manager) return reply.status(401).send({ error: 'Invalid manager PIN' });
+      const cheque = applyLocalChequeDiscount(db, request.params.id, {
+        amount: body.amount,
+        percent: body.percent,
+      });
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.CHEQUE_DISCOUNT,
+        { chequeId: request.params.id, body },
+        syncId,
+      );
+      return cheque;
     }
   });
 
