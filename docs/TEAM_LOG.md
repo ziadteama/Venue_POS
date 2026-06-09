@@ -1257,12 +1257,91 @@ sequenceDiagram
 **Verify:** Cross-sell → Send → Pay → reprint shows `1x …` lines per venue + `GRAND TOTAL`. Read PRD US-4.3 and TEAM_LOG § Roadmap.
 **Notes:** **Phase 4 signed off.** Remaining gaps are loose ends (offline, voucher, target POS refresh) — not blockers.
 
-### 2026-06-09 — Phase 6 complete: offline session, reconnect, coordinator, Slice C
-**Phase:** 6 · **Stories:** US-7.1–7.5
-**What:** Offline PIN + cached features/roster; floor occupy via cloud or LAN coordinator; reconnect handshake (`/terminals/reconnect`), menu stale gate, batch queue drain; failed-sync + progress UI; shift cache offline; linked-menu cache + coordinator cross-sell stub; POS `floor:table_updated` WS; `phase6-offline.test.js`; Windows service docs.
-**Files:** `terminal-roster-service.js`, `terminal-cache.js`, `floor-upstream.js`, `reconnect.js`, `menu-gate.js`, `linked-menu-sync.js`, `routes/auth.js`, `phase6-offline.test.js`, POS hooks, `DEVELOPMENT.md` § Phase 6
-**Verify:** `npm run test -w @venue-pos/api` · stop API → PIN (cached) → open table → pay → start API → single cheque · coordinator: `COORDINATOR_*` env + Settings → Terminals
-**Notes:** **Phase 6 signed off.** Integrated card offline still manual-only per plan.
+### 2026-06-09 — Phase 6 v1: offline session, reconnect, coordinator (handoff below)
+**Phase:** 6 · **Stories:** US-7.1–7.5 (partial — see § Phase 6 handoff)
+**What:** Offline PIN + cached features/roster; floor occupy via cloud or LAN coordinator; reconnect handshake (`/terminals/reconnect`), menu stale gate, batch queue drain; failed-sync count in banner; shift cache offline; linked-menu cache + coordinator cross-sell **stub**; POS `floor:table_updated` WS; `phase6-offline.test.js`; Windows service docs in `DEVELOPMENT.md`.
+**Files:** `terminal-roster-service.js`, `terminal-cache.js`, `floor-upstream.js`, `reconnect.js`, `menu-gate.js`, `linked-menu-sync.js`, `apps/local-agent/src/routes/{auth,floor,cheques,cross-venue}.js`, `phase6-offline.test.js`, `apps/pos/src/hooks/{useAgentStatus,useFloorTables,useFloorSocket}.js`, i18n
+**Verify:** `npm run test -w @venue-pos/api` (includes `phase6-offline.test.js`, `sync-idempotency.test.js`) · `npm run lint:i18n`
+**Notes:** **Phase 6 v1 shipped** for single-venue offline + coordinator floor. Cross-sell offline and several PRD items remain — **do not** treat Epic 7 checkboxes in `PRD.md` as done until handoff § below is closed.
+
+### 2026-06-10 — Phase 6 handoff: what’s done, what’s left, how to continue
+
+**Branch / context:** Work started on `feature/phase6-offline-sync` from `main`. Read `docs/PHASE6_OFFLINE_PLAN.md` and `.cursor/skills/offline-sync/SKILL.md` before coding.
+
+#### What’s done (usable today)
+
+| Slice | Delivered |
+|-------|-----------|
+| **Foundation** | `SYNC_EVENT_TYPES`, `sync_events` table, `POST /api/v1/sync/events`, `syncId` dedup (409 `DUPLICATE_SYNC_ID`) |
+| **Slice B — single venue** | Local-agent SQLite cheques; offline **open / fire / pay**; FIFO `sync_queue`; 5s worker; cloud health probe |
+| **Slice A — coordinator** | Dashboard **Settings → Terminals** (`isCoordinator`, `coordinatorLanHost`); coordinator `floor_locks`; non-coordinator **GET + occupy/release** proxy to `COORDINATOR_LAN_HOST` |
+| **Slice D — floor online** | Hub `floor_tables`; API occupy on cheque open; `floor:table_updated` WS; POS poll + WS refresh |
+| **Offline session** | `GET /api/v1/terminals/roster` + agent `/v1/auth/pin` (cached PIN hashes); cached `/v1/features`; menu gate before cheque open |
+| **Reconnect** | `POST /api/v1/terminals/reconnect`; agent `reconnect.js` on WAN recovery; menu sync if hash stale |
+| **POS UX** | Offline / LAN coordinator / coordinator-unreachable / menu-stale / sync-queue / failed-sync banners |
+| **Payments (partial)** | Cash + manual card lines offline; offline **discount** (manager PIN from cache); split-amount pay via `payments[]` |
+| **Tests** | `sync-idempotency.test.js`, `phase6-offline.test.js` (roster, reconnect, floor, duplicate syncId) |
+
+**Manual smoke (single terminal):**
+1. `npm run dev:agent` + POS with `VITE_TERMINAL_*` set.
+2. Log in once online (roster cache), then stop API.
+3. PIN → open table → add items → Send → Pay cash → restart API → one server cheque.
+
+**Coordinator smoke (two terminals):** Set on coordinator agent: `IS_COORDINATOR=true`, `COORDINATOR_FALLBACK_ENABLED=true`, `COORDINATOR_LAN_HOST=<coordinator LAN IP>`. Same on clients. Hub: Settings → Terminals → mark coordinator. Stop API; open Table 5 on POS A → POS B floor should show busy via coordinator.
+
+#### What’s left (priority order)
+
+| Priority | Item | Where to work |
+|----------|------|----------------|
+| **P0** | **Shift replay** — `shift.open` / `shift.close` queued in agent but not in `packages/shared/src/sync.js` or API replay | `shifts.js`, `sync-processor.js`, `routes/sync.js` or shift routes |
+| **P0** | **Manager ops offline** — void, comp, line transfer, cheque seat `/split`, transfer between cheques still cloud-only | `apps/local-agent/src/routes/cheques.js`, new sync event types |
+| **P0** | **Failed-queue operator UI** — banner shows count only; no inspect/retry/dismiss | POS modal + agent `GET /v1/sync/progress` or list failed rows |
+| **P1** | **Cross-sell Slice C** — coordinator can create/read group offline; **item add / fire / group pay** still hit cloud (`cross-venue.js` ~196+) | `coordinator-cross-venue.js`, `cross-venue.js`, atomic `CROSS_VENUE_GROUP_PAY` replay |
+| **P1** | **Conflict rules** — server price wins on menu; terminal wins on order edits (PRD US-7.3) | `menu-gate.js`, sync replay + menu reconcile service |
+| **P1** | **Sync progress UX** — “Syncing 3 of 12…” not just boolean `syncing` | `reconnect.js`, `useAgentStatus.js`, i18n |
+| **P2** | **Multi-terminal E2E tests** — coordinator floor between two agents | new test under `apps/api` or agent integration harness |
+| **Docs** | Check off `PRD.md` Epic 7 when above P0 closed | `docs/PRD.md` US-7.1–7.5 |
+
+**Explicit non-goals (Phase 6 v1):** peer mesh, mandatory edge appliance, CEO dashboard writes offline, integrated PDQ offline.
+
+#### How to carry on (recommended workflow)
+
+1. **Read first:** `AGENTS.md` → `docs/PHASE6_OFFLINE_PLAN.md` → this handoff → `apps/local-agent/src/index.js` (worker + reconnect).
+2. **Branch:** `feature/phase6-offline-sync` or `feature/phase6-<slice>-<short-desc>` from `main`.
+3. **Smallest vertical slice:** shared constant → agent enqueue → sync-processor replay → API handler (with `syncId`) → test → POS if needed.
+4. **Next slice suggestion:** **Shift replay** (self-contained, unblocks EOD offline) then **Cross-sell Slice C** (largest remaining product gap).
+5. **After each merge:** append a dated entry here; run `npm run test -w @venue-pos/api`, `npm run lint`, `npm run lint:i18n`.
+
+#### Key files map
+
+```
+packages/shared/src/sync.js          # event types — extend here first
+apps/api/src/routes/sync.js          # batch replay handlers
+apps/api/src/routes/terminals.js     # roster + reconnect
+apps/api/src/services/sync-idempotency.js
+apps/local-agent/src/services/sync-processor.js   # FIFO replay
+apps/local-agent/src/services/reconnect.js        # WAN-up handshake
+apps/local-agent/src/services/terminal-cache.js   # roster, features, staff PINs
+apps/local-agent/src/services/floor-upstream.js     # cloud vs coordinator floor
+apps/local-agent/src/routes/cheques.js            # offline write path
+apps/local-agent/src/routes/cross-venue.js        # Slice C gap
+apps/pos/src/hooks/useAgentStatus.js              # banners / sync state
+docs/DEVELOPMENT.md                               # § Phase 6 env + Windows service
+```
+
+#### Env checklist (Phase 6)
+
+```bash
+# apps/local-agent/.env (per terminal)
+CLOUD_HEALTH_URL=http://localhost:3000/health
+COORDINATOR_FALLBACK_ENABLED=true   # clients when hub down
+COORDINATOR_LAN_HOST=192.168.1.50   # coordinator machine IP
+IS_COORDINATOR=true                 # coordinator machine only
+
+# apps/api/.env — tests need KDS on or run-tests.mjs defaults FEATURE_KDS_ENABLED=true
+npm run migrate
+npm run test -w @venue-pos/api
+```
 
 ### 2026-06-09 — Phase 6 kickoff: offline sync foundation + Slice B–D start
 **Phase:** 6 · **Stories:** US-7.1–7.5
@@ -1279,7 +1358,7 @@ sequenceDiagram
 
 ---
 
-## Roadmap (as of 2026-06-08 — Phase 4 closed)
+## Roadmap (as of 2026-06-10 — Phase 6 v1 shipped, polish remains)
 
 ### Shipped — Phase 4 summary
 
@@ -1295,24 +1374,39 @@ sequenceDiagram
 
 **Dev demo (single terminal):** Cafe POS-1 PIN `1234` → Cross-sell → add from both venues → Send → optional % discount (PIN `7777`) → Pay (cash or split). See `docs/DEV_CREDENTIALS.md`.
 
-### Loose ends (not blocking Phase 4 sign-off)
+### Phase 6 status
+
+| Area | Status |
+|------|--------|
+| Single-venue offline (cheque open → pay → sync) | ✅ v1 |
+| LAN coordinator floor (shared tables, WAN down) | ✅ v1 |
+| Offline PIN + menu cache + reconnect handshake | ✅ v1 |
+| Cross-sell offline (Slice C) | 🟡 Stub — group shell + linked menus; full item/fire/pay offline **not** done |
+| Shift sync replay | ❌ Queued locally, not replayed to API |
+| Manager ops offline (void, split, transfer) | ❌ |
+| Failed-queue operator UI | ❌ Count in banner only |
+| Epic 7 PRD checkboxes | ❌ Update when P0 handoff items closed |
+
+**Continue from:** § **2026-06-10 — Phase 6 handoff** above.
+
+### Loose ends (cross-phase)
 
 | Item | Notes |
 |------|--------|
-| Cross-venue **offline** | Online-only today; Phase 6 — LAN coordinator POS or disable cross-sell ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
+| **Cross-venue offline (full)** | Guard + coordinator stub shipped; complete Slice C in `cross-venue.js` — see handoff |
 | **Target POS/KDS** | No live refresh when anchor pays; target kitchen already got tickets on Send |
 | **Cross-venue voucher** | Not in POS Pay modal for groups (cash/card/split shipped) |
-| **Cross-venue offline** | Phase 6 — coordinator POS or guard banner ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
 | **Discount Actions UX** | ⋮ menu uses anchor `cheque.total` — may hide group discount when anchor subtotal is 0 |
 | **Approvals nav** | Removed from dashboard nav; API + `ApprovalsPage.jsx` remain — use Cheques force-refund or re-add route |
 | **UAT flag** | `FEATURE_CROSS_VENUE_BILLING` defaults OFF in production config until hub enables matrix |
 
-### Recommended next — post Phase 6 polish
+### Recommended next — Phase 6 polish (in order)
 
-- Hub dashboard UI for cross-venue group discount (anchor POS path ships v1).
-- Re-enable Approvals nav or fold pending refunds into Cheques inbox.
-- Receipt PDF export.
-- Full cross-sell offline E2E on multi-terminal LAN (coordinator + anchor).
+1. Shift replay (`shift.open` / `shift.close` → API).
+2. Cross-sell Slice C offline (coordinator item/fire/pay + atomic group replay).
+3. Failed-queue operator UI on POS.
+4. Multi-terminal E2E test (coordinator floor).
+5. Check off `PRD.md` Epic 7.
 
 ### Optional polish (any phase)
 

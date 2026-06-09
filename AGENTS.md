@@ -111,7 +111,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–6 complete.** Cross-venue billing (Phase 4) + offline SQLite sync with **LAN coordinator POS** (Phase 6, US-7.1–7.5). Plan: `docs/PHASE6_OFFLINE_PLAN.md`. Loose ends: `docs/TEAM_LOG.md` § Roadmap.
+**Phases 0–5 and Phase 4 complete.** **Phase 6 v1 shipped** (single-venue offline + LAN coordinator floor). Remaining Epic 7 / Slice C work: `docs/TEAM_LOG.md` § **2026-06-10 — Phase 6 handoff**. Plan: `docs/PHASE6_OFFLINE_PLAN.md`.
 
 ## POS app layout (`apps/pos`)
 
