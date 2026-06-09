@@ -436,10 +436,6 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       const updated = await callAgent(`/v1/cheques/${parentId}`);
       applyChequePayload(updated);
       await refreshOpenCheques();
-      if (result.tableSettled) {
-        setCheque(null);
-        setCrossVenueGroup(null);
-      }
       return { ok: true, settled: Boolean(result.tableSettled) };
     } catch (err) {
       setError(fail(err, 'pos.payFailed'));
@@ -504,6 +500,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     confirmRefund,
     loadPaidCheques,
     refreshCheque,
+    resumeCheque,
     confirmPay,
     confirmMoveTable,
     printChequeReceipt,

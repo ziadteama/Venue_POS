@@ -12,6 +12,7 @@ import { SplitPrintModal } from './SplitPrintModal.jsx';
 import { ChequeActionsSheet } from './ChequeActionsSheet.jsx';
 import { TableFloorModal } from './TableFloorModal.jsx';
 import { TransferModal } from './TransferModal.jsx';
+import { MoveTableModal } from './MoveTableModal.jsx';
 import { parentPayableTotal } from '../utils/cheque.js';
 
 /**
@@ -52,6 +53,9 @@ export function PosModals({
     handleSplitPrint,
     setShowTransferModal,
     showTransferModal,
+    showMoveTableModal,
+    setShowMoveTableModal,
+    onConfirmMoveTable,
     openRefundFlow,
     showTableModal,
     setShowTableModal,
@@ -176,6 +180,17 @@ export function PosModals({
           t={t}
           onCancel={() => setShowTransferModal(false)}
           onConfirm={onConfirmTransfer}
+        />
+      )}
+
+      {showMoveTableModal && cheque && (
+        <MoveTableModal
+          cheque={cheque}
+          openCheques={openCheques}
+          venueTables={features.tables}
+          t={t}
+          onCancel={() => setShowMoveTableModal(false)}
+          onConfirm={onConfirmMoveTable}
         />
       )}
 

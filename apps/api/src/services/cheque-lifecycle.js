@@ -246,7 +246,7 @@ export async function moveChequeTable(chequeId, { targetTableLabel }, venueId, {
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
   if (cheque.parentChequeId) throw validationError('Cannot move a split sub-cheque');
-  if (cheque.tableLabelsMatch?.(cheque.tableLabel, trimmed) || cheque.tableLabel === trimmed) {
+  if (tableLabelsMatch(cheque.tableLabel, trimmed)) {
     return getCheque(chequeId, venueId);
   }
 

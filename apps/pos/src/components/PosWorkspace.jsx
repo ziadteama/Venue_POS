@@ -60,60 +60,6 @@ export function PosWorkspace({ cashier, onLogout }) {
         <OrderLookupModal t={ws.t} language={ws.i18n.language} lookup={ws.orderLookup} />
       ) : null}
 
-      {ws.modals.lastPayment ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-slate-100">
-            <div className="flex flex-col items-center gap-1 rounded-t-2xl bg-emerald-50 px-6 py-6 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              </div>
-              <h2 className="mt-3 text-xl font-bold text-emerald-800">
-                {ws.t('pos.paymentComplete')}
-              </h2>
-              <p className="text-sm font-medium text-emerald-700">
-                {ws.t('pos.paymentCompleteSubtitle', {
-                  number: ws.modals.lastPayment.chequeNumber,
-                  table: ws.modals.lastPayment.tableLabel,
-                })}
-              </p>
-              <p className="mt-0.5 text-sm text-emerald-600">
-                {ws.t('pos.paymentTotal', {
-                  amount: Number(ws.modals.lastPayment.total ?? 0).toFixed(2),
-                  currency: ws.t('pos.currency'),
-                })}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 px-6 py-5">
-              <button
-                type="button"
-                onClick={() => {
-                  const { tableLabel } = ws.modals.lastPayment;
-                  ws.modals.clearLastPayment();
-                  void ws.navigateToTable(tableLabel);
-                }}
-                className="w-full rounded-xl bg-primary-to px-4 py-3 text-sm font-semibold text-white shadow-sm hover:opacity-90 active:scale-95 transition-transform"
-              >
-                {ws.t('pos.newOrderSameTable', {
-                  table: ws.modals.lastPayment.tableLabel,
-                })}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  ws.modals.clearLastPayment();
-                  void ws.openTables();
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 active:scale-95 transition-transform"
-              >
-                {ws.t('pos.selectAnotherTable')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <PosModals
         t={ws.t}
         language={ws.i18n.language}
@@ -322,6 +268,8 @@ export function PosWorkspace({ cashier, onLogout }) {
           onPrintFullSplit={ws.onPrintFullSplit}
           printing={ws.modals.splitPrinting}
           onChangeQty={ws.changeQty}
+          onMoveTable={() => ws.modals.setShowMoveTableModal(true)}
+          onFreeTable={ws.freeTable}
         />
 
         <div className={`relative min-w-0 flex-1 ${!ws.cheque ? 'opacity-50' : ''}`}>

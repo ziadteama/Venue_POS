@@ -19,6 +19,7 @@ export function usePosModals({
   confirmRemoveDiscount,
   confirmRefund,
   confirmPay,
+  onPaySettled,
   printChequeReceipt,
   loadPaidCheques,
   refreshShift,
@@ -45,7 +46,6 @@ export function usePosModals({
   const [modifierItem, setModifierItem] = useState(null);
   const [paidCheques, setPaidCheques] = useState([]);
   const [loadingPaid, setLoadingPaid] = useState(false);
-  const [lastPayment, setLastPayment] = useState(null);
 
   async function onConfirmSplit(body) {
     const ok = await confirmSplit(body);
@@ -152,12 +152,8 @@ export function usePosModals({
       if (result.settled) {
         setKitchenWatch(null);
         await refreshShift();
-        if (snapshot) {
-          setLastPayment({
-            tableLabel: snapshot.tableLabel,
-            chequeNumber: snapshot.chequeNumber,
-            total: snapshot.total,
-          });
+        if (snapshot?.tableLabel) {
+          await onPaySettled?.(snapshot.tableLabel);
         }
       }
     }
@@ -178,8 +174,6 @@ export function usePosModals({
     setModifierItem,
     paidCheques,
     loadingPaid,
-    lastPayment,
-    clearLastPayment: () => setLastPayment(null),
     showSplitModal,
     setShowSplitModal,
     showSplitAmountModal,
