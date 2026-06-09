@@ -277,4 +277,4 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
 | 4 Cross-venue billing | ✅ Closed | Cross-sell, split pay, group % discount, itemized receipt — US-4.1–4.3, US-8.6 — [TEAM_LOG.md](TEAM_LOG.md) |
 | 5 Dashboard (Epic 8) | ✅ Done | Epic 8 complete (US-8.6 shipped in Phase 4) — [TEAM_LOG.md](TEAM_LOG.md) |
-| 6 Offline sync | **Next** | SQLite replay; cross-venue online-only until then — [PHASE3_SCALABLE_PLAN.md](PHASE3_SCALABLE_PLAN.md) |
+| 6 Offline sync | **Next** | SQLite replay + LAN coordinator POS — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |

@@ -11,6 +11,7 @@ Read this before writing code.
 | [docs/DEV_CREDENTIALS.md](docs/DEV_CREDENTIALS.md) | Dev logins, PINs, where to use each app |
 | [docs/TEAM_LOG.md](docs/TEAM_LOG.md) | What's built + roadmap — **update every feature** |
 | [docs/PHASE3_SCALABLE_PLAN.md](docs/PHASE3_SCALABLE_PLAN.md) | Deferred features + provider flags |
+| [docs/PHASE6_OFFLINE_PLAN.md](docs/PHASE6_OFFLINE_PLAN.md) | **Next** — offline sync + LAN coordinator POS |
 | [docs/PRD.md](docs/PRD.md) | User stories & acceptance criteria |
 | [docs/Technical_Proposal.md](docs/Technical_Proposal.md) | Architecture & phased delivery |
 | [docs/TechSpec.md](docs/TechSpec.md) | WebSocket contracts, security, deployment |
@@ -110,7 +111,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–3, 5, and 4 complete.** Cross-venue billing shipped as integrated **cross-sell** on the main POS (US-4.1–4.3, US-8.6). **Next: Phase 6** — offline SQLite sync + cross-venue offline guard. Loose ends and deferred items: `docs/TEAM_LOG.md` § Roadmap.
+**Phases 0–3, 5, and 4 complete.** Cross-venue billing shipped as integrated **cross-sell** on the main POS (US-4.1–4.3, US-8.6). **Next: Phase 6** — offline SQLite sync + **designated POS as LAN coordinator** when cloud is down (star failover, **not** peer mesh). Plan: `docs/PHASE6_OFFLINE_PLAN.md`. Loose ends: `docs/TEAM_LOG.md` § Roadmap.
 
 ## POS app layout (`apps/pos`)
 

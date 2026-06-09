@@ -42,7 +42,7 @@ Core F&B tab lifecycle shipped on `phase-3`. Venue manager executes; hub manager
 | **Integrated card** terminal | US-5.2 | PDQ SDK; `FEATURE_INTEGRATED_CARD_PAYMENT` |
 | **Receipt PDF** | US-10.2 | Digital/email receipt |
 | **Cross-venue** billing | Epic 4 / Phase 4 | ✅ **Shipped** — cross-sell on anchor POS; offline guard → Phase 6 |
-| **Offline** cheque sync | Phase 6 | SQLite replay |
+| **Offline** cheque sync | Phase 6 | SQLite replay + **LAN coordinator POS** — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
 | Cashier PIN login on POS | — | Demo uses fixed cashier ID today |
 | `venue_mgr` dashboard password | — | PIN-only on POS in default seed |
 

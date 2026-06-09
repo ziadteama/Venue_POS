@@ -1257,6 +1257,12 @@ sequenceDiagram
 **Verify:** Cross-sell → Send → Pay → reprint shows `1x …` lines per venue + `GRAND TOTAL`. Read PRD US-4.3 and TEAM_LOG § Roadmap.
 **Notes:** **Phase 4 signed off.** Remaining gaps are loose ends (offline, voucher, target POS refresh) — not blockers.
 
+### 2026-06-08 — Phase 6 plan: LAN coordinator POS (no peer mesh)
+**Phase:** 6 · **Docs**
+**What:** Documented offline architecture: designated POS `local-agent` as **LAN coordinator** (star failover when cloud down); phased slices for floor locks, standard sync, cross-sell offline; explicit rejection of agent peer mesh.
+**Files:** `docs/PHASE6_OFFLINE_PLAN.md`, `PRD.md` (US-7.5), `AGENTS.md`, `README.md`, `DEVELOPMENT.md`, `Technical_Proposal.md`, `PHASE3_SCALABLE_PLAN.md`, `.cursor/skills/offline-sync/SKILL.md`
+**Verify:** Read `PHASE6_OFFLINE_PLAN.md` — coordinator vs cloud vs mesh is consistent across docs.
+
 ---
 
 ## Roadmap (as of 2026-06-08 — Phase 4 closed)
@@ -1279,19 +1285,24 @@ sequenceDiagram
 
 | Item | Notes |
 |------|--------|
-| Cross-venue **offline** | Online-only today; needs Phase 6 sync + clear POS message when hub down |
+| Cross-venue **offline** | Online-only today; Phase 6 — LAN coordinator POS or disable cross-sell ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
 | **Target POS/KDS** | No live refresh when anchor pays; target kitchen already got tickets on Send |
 | **Cross-venue voucher** | Not in POS Pay modal for groups (cash/card/split shipped) |
-| **Cross-venue offline** | Online-only — Phase 6 |
+| **Cross-venue offline** | Phase 6 — coordinator POS or guard banner ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
 | **Discount Actions UX** | ⋮ menu uses anchor `cheque.total` — may hide group discount when anchor subtotal is 0 |
 | **Approvals nav** | Removed from dashboard nav; API + `ApprovalsPage.jsx` remain — use Cheques force-refund or re-add route |
 | **UAT flag** | `FEATURE_CROSS_VENUE_BILLING` defaults OFF in production config until hub enables matrix |
 
-### Recommended next — Phase 6 (offline sync)
+### Recommended next — Phase 6 (offline sync + LAN coordinator)
 
-1. SQLite cache + sync queue replay (existing local-agent foundation).
-2. Cross-venue guard: disable Cross-sell toggle with explicit “hub offline” banner.
-3. Conflict resolution for orders/cheques (see `docs/PHASE3_SCALABLE_PLAN.md`).
+**Plan:** [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)
+
+1. **Slice A** — Designated **LAN coordinator POS** (star topology, **not** peer mesh): cloud health failover, hub-wide floor table locks when WAN down.
+2. **Slice B** — Standard single-venue offline: SQLite + `sync_queue` FIFO replay, idempotent `syncId` to cloud.
+3. **Slice C** — Cross-sell offline via coordinator (cached linked menus/printers, atomic group replay) — after A+B.
+4. **Slice D** (optional parallel) — Hub-scoped floor tables + WebSocket when WAN up (shared tables busy everywhere online).
+
+Cross-venue v1 guard until Slice C: disable Cross-sell with explicit “hub offline” banner.
 
 ### Optional polish (any phase)
 

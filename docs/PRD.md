@@ -302,7 +302,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] **Send** fires every venue's draft round to its own kitchen (`order:created` per `order.venueId`)
 - [x] Combined cart shows items grouped by venue with per-venue subtotals
 - [x] Cross-venue group linked via `crossVenueGroupId` on each venue's cheque
-- [ ] Cross-venue disabled when offline with clear UI message — **deferred Phase 6**
+- [ ] Cross-venue when offline — coordinator-routed or disabled with clear UI — **Phase 6** ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md))
 
 **Priority:** P0 | **Effort:** 5 days · **Status:** Shipped v1 (integrated cross-sell)
 
@@ -528,6 +528,23 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [ ] Menu publish events queued if terminal offline at publish time
 
 **Priority:** P0 | **Effort:** 3 days
+
+#### US-7.5: LAN coordinator terminal (WAN failover)
+**As a** Hub Manager, **I want** to designate one POS as the **LAN coordinator** when the cloud API is unreachable, **so that** all terminals share floor/table state without peer-to-peer mesh.
+
+**Context:** Star topology — non-coordinator agents call the coordinator’s `local-agent` on a fixed LAN IP. **Not** agent-to-agent gossip. See `docs/PHASE6_OFFLINE_PLAN.md`.
+
+**Acceptance Criteria:**
+- [ ] Hub can mark one terminal as **coordinator** (Settings or terminal record)
+- [ ] All agents probe cloud health; on failure, failover to `COORDINATOR_LAN_HOST` for floor/coordination APIs
+- [ ] Coordinator agent exposes hub-wide **floor table locks** (one physical table = one occupancy state across anchors)
+- [ ] POS shows banner: offline mode + whether coordinator or cloud is active
+- [ ] Coordinator runs as a stable service where possible (survives Electron close on lead till)
+- [ ] v1: static coordinator IP — no peer mesh, no leader election
+- [ ] On WAN return: queued events replay to cloud with idempotent `syncId`; Postgres remains audit source of truth
+- [ ] Cross-sell: disabled or routed via coordinator per Phase 6 slice (documented in plan)
+
+**Priority:** P0 (Phase 6) | **Effort:** 8 days (with US-7.1–7.3)
 
 ---
 
