@@ -36,4 +36,8 @@ export const config = {
   featureRefundsEnabled: process.env.FEATURE_REFUNDS_ENABLED !== 'false',
   /** Auto-print customer receipt on checkout via local agent */
   featureAutoReceiptPrint: process.env.FEATURE_AUTO_RECEIPT_PRINT !== 'false',
+  /** Cross-venue billing — anchor terminal settles linked venues' orders (US-4.x) */
+  featureCrossVenueBilling: process.env.FEATURE_CROSS_VENUE_BILLING === 'true',
+  /** How long (ms) an anchor terminal holds a soft lock on a target order during assembly */
+  crossVenueLockTtlMs: Number(process.env.CROSS_VENUE_LOCK_TTL_MS ?? 30000),
 };

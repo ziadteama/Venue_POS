@@ -138,6 +138,7 @@ Not every hub needs every app. During **provider / client onboarding**, feature 
 | `discounts` | `FEATURE_DISCOUNTS_ENABLED=true` | **ON** | Cheque discount — manager PIN on POS; logged for CEO/hub review in Activity. |
 | `refunds` | `FEATURE_REFUNDS_ENABLED=true` | **ON** | Post-payment refund — manager PIN on POS; CEO approves on dashboard when required. |
 | `auto_receipt_print` | `FEATURE_AUTO_RECEIPT_PRINT=true` | **ON** | Local agent prints customer receipt on pay/refund when `KITCHEN_PRINTER_HOST` is set. |
+| `cross_venue_billing` | `FEATURE_CROSS_VENUE_BILLING=false` | **OFF** | Anchor POS **Cross-sell** toggle; lazy `crossVenueGroupId`; group fire/pay. Hub enables pairs in Settings. |
 | Kitchen printer | (venue config) | varies | Primary ticket path when KDS is OFF |
 
 **Developing Phase 2:** Build KDS against `FEATURE_KDS_ENABLED=true` locally, but gate UI/routes/WS subscriptions so printer-only venues are unaffected. Core order send + `order:created` emit stay useful for printer integration either way.
@@ -150,7 +151,7 @@ See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US fe
 
 **POS manager PIN** (discount, refund, void, comp, line transfer): staff with manager permissions — hub manager creates them in **Staff**. Dev seed uses `venue_mgr` / PIN `7777` for testing.
 
-**CEO** reviews revenue on `/analytics`, `/shifts`, and refund **Approvals**. **Hub manager** runs menus, staff, and venue settings.
+**CEO** reviews revenue on `/` and `/analytics` only (read-only). **Hub manager** runs menus, staff, venue settings, shifts, cheques/refunds, and audit.
 
 Full matrix: `AGENTS.md` § Manager workflows.
 
@@ -274,5 +275,6 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 1 Core POS | ✅ Done | Menu, modifiers, POS order flow, send to kitchen |
 | 2 Kitchen | ✅ Done (optional KDS) | Printer, item status, void — [TEAM_LOG.md](TEAM_LOG.md) |
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
-| 4 Cross-venue billing | Deferred | Client-driven — [PHASE3_SCALABLE_PLAN.md](PHASE3_SCALABLE_PLAN.md) |
-| 5 Dashboard analytics | In progress | US-8.1–8.4 done; next US-8.9 shifts dashboard — [TEAM_LOG.md](TEAM_LOG.md) |
+| 4 Cross-venue billing | ✅ Closed | Cross-sell, split pay, group % discount, itemized receipt — US-4.1–4.3, US-8.6 — [TEAM_LOG.md](TEAM_LOG.md) |
+| 5 Dashboard (Epic 8) | ✅ Done | Epic 8 complete (US-8.6 shipped in Phase 4) — [TEAM_LOG.md](TEAM_LOG.md) |
+| 6 Offline sync | **Next** | SQLite replay + LAN coordinator POS — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |

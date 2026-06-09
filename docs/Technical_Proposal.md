@@ -381,7 +381,8 @@ The POS application must function fully during internet or server outages. The L
 
 - Menus: functional indefinitely offline (using cached version).
 - Orders & payments: functional indefinitely. All data is queued.
-- Cross-venue cheques: disabled when offline (server coordination required). Cashier is informed with a clear UI message.
+- Cross-venue cheques: disabled or routed via **LAN coordinator** when offline (see `docs/PHASE6_OFFLINE_PLAN.md`). No agent peer mesh.
+- **LAN coordinator:** one designated POS `local-agent` on the LAN acts as star hub for floor locks and optional group buffer when cloud API is unreachable.
 - Admin dashboard: read-only mode using last-known data if server is down. Write operations are blocked.
 
 # **7\. Real-Time Communication**

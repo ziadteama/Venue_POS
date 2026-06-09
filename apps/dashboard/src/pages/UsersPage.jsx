@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 
-const emptyForm = { username: '', role: 'cashier', pin: '', cardUid: '' };
+const emptyForm = { username: '', role: 'cashier', pin: '', cardUid: '', venueId: '' };
 
 function venueQuery(venueId) {
   return venueId ? `?venueId=${encodeURIComponent(venueId)}` : '';
@@ -52,15 +52,25 @@ export function UsersPage() {
 
   async function submitCreate(e) {
     e.preventDefault();
-    if (!venueId) return;
+    const targetVenueId = form.venueId || venueId;
+    if (!targetVenueId) return;
     setError('');
     try {
-      await apiFetch(`/api/v1/manager/users${venueQuery(venueId)}`, {
+      await apiFetch(`/api/v1/manager/users${venueQuery(targetVenueId)}`, {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          username: form.username,
+          role: form.role,
+          pin: form.pin,
+          cardUid: form.cardUid,
+        }),
       });
       setForm(null);
-      await load();
+      if (targetVenueId !== venueId) {
+        setVenueId(targetVenueId);
+      } else {
+        await load();
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -110,7 +120,7 @@ export function UsersPage() {
         <button
           type="button"
           disabled={!venueId}
-          onClick={() => setForm({ ...emptyForm })}
+          onClick={() => setForm({ ...emptyForm, venueId })}
           className="rounded-lg bg-primary-gradient px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {t('users.addStaff')}
@@ -216,6 +226,26 @@ export function UsersPage() {
           >
             <h3 className="text-lg font-semibold">{t('users.addStaff')}</h3>
             <label className="mt-4 block text-sm">
+              <span className="text-secondary">{t('users.assignVenue')}</span>
+              <select
+                required
+                className="mt-1 w-full rounded-lg border px-3 py-2"
+                value={form.venueId}
+                onChange={(e) => setForm({ ...form, venueId: e.target.value })}
+              >
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {labelVenue(v)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-secondary">
+                {form.role === 'cashier'
+                  ? t('users.assignVenueCashierHint')
+                  : t('users.assignVenueHint')}
+              </p>
+            </label>
+            <label className="mt-3 block text-sm">
               <span className="text-secondary">{t('users.username')}</span>
               <input
                 required

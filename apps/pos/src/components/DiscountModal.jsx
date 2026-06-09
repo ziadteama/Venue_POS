@@ -1,22 +1,46 @@
-import { useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 
-export function DiscountModal({ cheque, mode = 'apply', onConfirm, onCancel, t }) {
+export function DiscountModal({
+  cheque,
+  crossVenueGroup = null,
+  mode = 'apply',
+  onConfirm,
+  onCancel,
+  t,
+}) {
+  const isCrossVenue = Boolean(crossVenueGroup?.groupId);
   const subtotal = cheque?.subtotalBeforeDiscount ?? cheque?.total ?? 0;
-  const currentDiscount = Number(cheque?.discountAmount ?? 0);
+  const groupSubtotal = useMemo(() => {
+    if (!isCrossVenue) return subtotal;
+    return (crossVenueGroup.cheques ?? []).reduce(
+      (sum, c) => sum + Number(c.subtotalBeforeDiscount ?? c.firedSubtotal ?? 0),
+      0,
+    );
+  }, [isCrossVenue, crossVenueGroup, subtotal]);
+
+  const currentDiscount = isCrossVenue
+    ? Number(crossVenueGroup?.groupDiscountTotal ?? 0)
+    : Number(cheque?.discountAmount ?? 0);
+
   const isRemove = mode === 'remove';
   const isEdit = mode === 'edit';
 
-  const [discountMode, setDiscountMode] = useState('amount');
-  const [amount, setAmount] = useState(isEdit && currentDiscount > 0 ? String(currentDiscount) : '');
-  const [percent, setPercent] = useState('');
+  const [discountMode, setDiscountMode] = useState(isCrossVenue ? 'percent' : 'amount');
+  const [amount, setAmount] = useState(isEdit && !isCrossVenue && currentDiscount > 0 ? String(currentDiscount) : '');
+  const [percent, setPercent] = useState(
+    isEdit && isCrossVenue && crossVenueGroup?.groupDiscountPercent
+      ? String(crossVenueGroup.groupDiscountPercent)
+      : '',
+  );
   const [reason, setReason] = useState('');
   const [restaurantManagerPin, setRestaurantManagerPin] = useState('');
 
   const amountNum = Number(amount) || 0;
   const percentNum = Number(percent) || 0;
+  const previewBase = isCrossVenue ? groupSubtotal : subtotal;
   const preview =
-    discountMode === 'percent'
-      ? Number(((subtotal * percentNum) / 100).toFixed(2))
+    discountMode === 'percent' || isCrossVenue
+      ? Number(((previewBase * percentNum) / 100).toFixed(2))
       : amountNum;
 
   const title = isRemove
@@ -26,10 +50,19 @@ export function DiscountModal({ cheque, mode = 'apply', onConfirm, onCancel, t }
       : t('pos.discountTitle');
 
   const hint = isRemove
-    ? t('pos.discountRemoveHint', { amount: currentDiscount.toFixed(2) })
+    ? isCrossVenue
+      ? t('crossVenue.discountRemoveHint', { amount: currentDiscount.toFixed(2) })
+      : t('pos.discountRemoveHint', { amount: currentDiscount.toFixed(2) })
     : isEdit
-      ? t('pos.discountEditHint', { amount: currentDiscount.toFixed(2) })
-      : t('pos.discountApplyHint');
+      ? isCrossVenue
+        ? t('crossVenue.discountEditHint', {
+            percent: crossVenueGroup?.groupDiscountPercent ?? 'ΓÇö',
+            amount: currentDiscount.toFixed(2),
+          })
+        : t('pos.discountEditHint', { amount: currentDiscount.toFixed(2) })
+      : isCrossVenue
+        ? t('crossVenue.discountApplyHint')
+        : t('pos.discountApplyHint');
 
   const submitLabel = isRemove
     ? t('pos.discountRemoveSubmit')
@@ -46,7 +79,7 @@ export function DiscountModal({ cheque, mode = 'apply', onConfirm, onCancel, t }
       return;
     }
 
-    if (discountMode === 'percent') {
+    if (discountMode === 'percent' || isCrossVenue) {
       if (percentNum <= 0 || percentNum > 100) return;
       onConfirm({
         percent: percentNum,
@@ -74,28 +107,34 @@ export function DiscountModal({ cheque, mode = 'apply', onConfirm, onCancel, t }
 
         {!isRemove && (
           <>
-            <div className="mb-3 flex gap-2 text-sm">
-              <button
-                type="button"
-                onClick={() => setDiscountMode('amount')}
-                className={`flex-1 rounded-lg border px-3 py-2 ${
-                  discountMode === 'amount' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
-                }`}
-              >
-                {t('pos.discountAmount')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setDiscountMode('percent')}
-                className={`flex-1 rounded-lg border px-3 py-2 ${
-                  discountMode === 'percent' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
-                }`}
-              >
-                {t('pos.discountPercent')}
-              </button>
-            </div>
+            {!isCrossVenue ? (
+              <div className="mb-3 flex gap-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setDiscountMode('amount')}
+                  className={`flex-1 rounded-lg border px-3 py-2 ${
+                    discountMode === 'amount' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
+                  }`}
+                >
+                  {t('pos.discountAmount')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDiscountMode('percent')}
+                  className={`flex-1 rounded-lg border px-3 py-2 ${
+                    discountMode === 'percent' ? 'border-primary-to bg-primary-from/5 font-medium' : ''
+                  }`}
+                >
+                  {t('pos.discountPercent')}
+                </button>
+              </div>
+            ) : (
+              <p className="mb-3 text-xs font-medium text-amber-800">
+                {t('crossVenue.discountPercentOnly')}
+              </p>
+            )}
 
-            {discountMode === 'amount' ? (
+            {discountMode === 'amount' && !isCrossVenue ? (
               <label className="mb-3 block text-sm">
                 <span className="mb-1 block text-secondary">{t('pos.discountAmount')}</span>
                 <input
@@ -127,7 +166,9 @@ export function DiscountModal({ cheque, mode = 'apply', onConfirm, onCancel, t }
 
             {preview > 0 && (
               <p className="mb-3 text-sm font-medium text-emerald-700">
-                {t('pos.discountPreview', { amount: preview.toFixed(2) })}
+                {isCrossVenue
+                  ? t('crossVenue.discountGroupPreview', { amount: preview.toFixed(2) })
+                  : t('pos.discountPreview', { amount: preview.toFixed(2) })}
               </p>
             )}
           </>

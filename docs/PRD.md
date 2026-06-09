@@ -278,47 +278,51 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Hub Manager, **I want** to configure which venues can be included in cross-venue cheques, **so that** the Cafe can bill for other restaurants.
 
 **Acceptance Criteria:**
-- [ ] Venue type: standard or anchor configurable per venue
-- [ ] Billing rules matrix in admin dashboard
-- [ ] Toggle allowed pairs (anchor → target venue)
-- [ ] Changes take effect immediately via WebSocket (venue:config_updated)
-- [ ] Standard restaurants cannot initiate cross-venue cheques
-- [ ] Configuration stored in venue_billing_config table
-- [ ] Audit log captures all configuration changes
+- [x] Venue type: standard or anchor configurable per venue (hub Settings)
+- [x] Billing rules matrix in admin dashboard (`BillingMatrixSection`)
+- [x] Toggle allowed pairs (anchor → target venue)
+- [x] Changes take effect immediately via WebSocket (`venue:config_updated`)
+- [x] Standard restaurants cannot initiate cross-venue (anchor terminal + `features.crossVenueBilling`)
+- [x] Configuration stored in `venue_billing_config` table
+- [x] Audit log captures all configuration changes
 
-**Priority:** P0 | **Effort:** 3 days
+**Priority:** P0 | **Effort:** 3 days · **Status:** Shipped (Phase 4)
 
 #### US-4.2: Create Cross-Venue Cheque
-**As a** Cashier at an Anchor Venue, **I want** to create a cheque combining orders from multiple venues, **so that** customers can pay in one transaction.
+**As a** Cashier at an Anchor Venue, **I want** to build one order spanning multiple linked venues from the anchor POS, **so that** customers can order from Cafe and Restaurant menus and pay in one transaction.
+
+**Workflow (implemented):** Open a table as usual → toggle **Standard / Cross-sell** above the menu → switch venue tabs → add items. First linked-venue item **lazily** stamps `crossVenueGroupId` on the current anchor cheque and creates sibling venue cheques. Same Send / Clear / Pay buttons as standard service.
 
 **Acceptance Criteria:**
-- [ ] Cashier selects "New Cheque" → "Cross-Venue" option
-- [ ] POS queries server for permitted venues (venue_billing_config)
-- [ ] Cashier selects which venues to include from permitted list
-- [ ] POS fetches open, unbilled orders from selected venues
-- [ ] Cashier selects specific orders or items to include
-- [ ] Server creates cheque record, links to orders via cheque_orders junction
-- [ ] Linked orders locked from being billed elsewhere (cheque:lock_acquired event)
-- [ ] All linked venues receive real-time notification of locked status
-- [ ] Cross-venue cheques disabled when offline (clear UI message)
-- [ ] Server-side lock with 30-second timeout prevents double-billing
+- [x] Anchor cashier uses **Cross-sell** mode on main POS (online-only; hub unreachable surfaces agent error)
+- [x] POS shows venue tabs (anchor home + `venue_billing_config` targets)
+- [x] Each tab loads that venue's published menu from the server
+- [x] Adding an item creates/uses a real cheque + draft order for that venue (`cheque.venueId` / `order.venueId` = item's venue)
+- [x] Server rejects menu items that do not belong to the selected venue tab
+- [x] **Send** fires every venue's draft round to its own kitchen (`order:created` per `order.venueId`)
+- [x] Combined cart shows items grouped by venue with per-venue subtotals
+- [x] Cross-venue group linked via `crossVenueGroupId` on each venue's cheque
+- [ ] Cross-venue when offline — coordinator-routed or disabled with clear UI — **Phase 6** ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md))
 
-**Priority:** P0 | **Effort:** 5 days
+**Priority:** P0 | **Effort:** 5 days · **Status:** Shipped v1 (integrated cross-sell)
 
 #### US-4.3: Pay Cross-Venue Cheque
 **As a** Cashier at an Anchor Venue, **I want** to process payment for a cross-venue cheque, **so that** the transaction is completed.
 
 **Acceptance Criteria:**
-- [ ] Payment processed at anchor venue's terminal
-- [ ] All payment methods available (cash, card, voucher, split)
-- [ ] Server updates cheque status: open → paid
-- [ ] WebSocket event cheque:cross_billed broadcast to all linked venues
-- [ ] Linked orders status updated to closed
-- [ ] Revenue attribution: each venue receives credit for their items
-- [ ] KDS/POS at linked venues reflects closed status
-- [ ] Digital receipt includes all venue items with attribution
+- [x] Payment processed at anchor venue's terminal (same Pay modal as standard)
+- [x] Cash payment with tender/change
+- [x] Card and split cash+card on cross-venue group — proportional allocation per venue (`FEATURE_MANUAL_CARD_PAYMENT=true`)
+- [ ] Voucher tender on cross-venue group — **deferred** (cash/card/split shipped)
+- [x] Server updates every member cheque: open → paid
+- [x] WebSocket `cheque:cross_billed` broadcast after group pay
+- [x] Linked orders status updated to closed
+- [x] Revenue attribution: one or more `Payment` rows per venue cheque (`cheque.venueId`)
+- [x] Group percent discount at anchor — applies to each open venue cheque (manager PIN)
+- [ ] KDS at linked venues auto-refreshes on cross-billed — **loose** (no dedicated listener on target POS)
+- [x] Customer receipt: combined slip with **itemized lines per venue**, venue totals, grand total, tender breakdown
 
-**Priority:** P0 | **Effort:** 4 days
+**Priority:** P0 | **Effort:** 4 days · **Status:** Shipped (Phase 4 complete)
 
 ---
 
@@ -397,7 +401,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 
 **Workflow (implemented):**
 - **Venue manager** (`venue_manager`) **requests** a refund from POS (PIN) or dashboard Cheques — creates a pending `ManagerApprovalRequest`.
-- **Hub manager** (`hub_manager`) **approves or rejects** on dashboard **Approvals** (`/approvals`), or **force-refunds** immediately from Cheques without a prior request.
+- **Hub manager** (`hub_manager`) **force-refunds** from dashboard **Cheques** (Approvals nav removed; `/approvals` API + page code remain for optional re-enable).
 - On approval or force-refund, the refund is executed, audited, and receipt printed (when printer configured).
 
 **Acceptance Criteria:**
@@ -525,6 +529,23 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 
 **Priority:** P0 | **Effort:** 3 days
 
+#### US-7.5: LAN coordinator terminal (WAN failover)
+**As a** Hub Manager, **I want** to designate one POS as the **LAN coordinator** when the cloud API is unreachable, **so that** all terminals share floor/table state without peer-to-peer mesh.
+
+**Context:** Star topology — non-coordinator agents call the coordinator’s `local-agent` on a fixed LAN IP. **Not** agent-to-agent gossip. See `docs/PHASE6_OFFLINE_PLAN.md`.
+
+**Acceptance Criteria:**
+- [ ] Hub can mark one terminal as **coordinator** (Settings or terminal record)
+- [ ] All agents probe cloud health; on failure, failover to `COORDINATOR_LAN_HOST` for floor/coordination APIs
+- [ ] Coordinator agent exposes hub-wide **floor table locks** (one physical table = one occupancy state across anchors)
+- [ ] POS shows banner: offline mode + whether coordinator or cloud is active
+- [ ] Coordinator runs as a stable service where possible (survives Electron close on lead till)
+- [ ] v1: static coordinator IP — no peer mesh, no leader election
+- [ ] On WAN return: queued events replay to cloud with idempotent `syncId`; Postgres remains audit source of truth
+- [ ] Cross-sell: disabled or routed via coordinator per Phase 6 slice (documented in plan)
+
+**Priority:** P0 (Phase 6) | **Effort:** 8 days (with US-7.1–7.3)
+
 ---
 
 ### Epic 8: Admin Dashboard
@@ -558,7 +579,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **Priority:** P1 | **Effort:** 4 days · **Status:** Shipped
 
 #### US-8.3: Order Explorer
-**As a** Venue Manager, **I want** to search and view orders for my venue, **so that** I can investigate issues. *(Hub manager uses Analytics, Activity, and Approvals; order explorer is scoped to venue managers per product decision.)*
+**As a** Venue Manager, **I want** to search and view orders for my venue, **so that** I can investigate issues. *(Hub manager uses Orders explorer, Activity, and Cheques for refunds; order explorer is scoped to venue managers per product decision.)*
 
 **Acceptance Criteria:**
 - [x] Search by: order number, cheque number, table, cashier, date range, status
@@ -566,7 +587,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Drill down to line items, modifiers, payment details (grouped by shift → cheque → orders)
 - [x] Reprint order/cheque receipt
 - [x] View voided orders with reason (via status filter)
-- [ ] View cross-venue cheque linkage — Phase 4
+- [x] View cross-venue cheque linkage — Phase 4
 - [x] Pagination: 50 per page
 - [x] Export filtered results to CSV
 
@@ -606,14 +627,14 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Hub Manager, **I want** to configure cross-venue billing rules, **so that** anchor venues can bill correctly.
 
 **Acceptance Criteria:**
-- [ ] Visual matrix: anchor venues × target venues
-- [ ] Toggle per pair (enabled/disabled)
-- [ ] Changes take effect immediately
-- [ ] WebSocket propagation to affected terminals
-- [ ] Audit log captures rule changes
-- [ ] Visual indicator of current configuration state
+- [x] Visual matrix: anchor venues × target venues (Settings → Cross-venue billing)
+- [x] Toggle per pair (enabled/disabled)
+- [x] Changes take effect immediately
+- [x] WebSocket propagation to affected terminals (`venue:config_updated`)
+- [x] Audit log captures rule changes
+- [x] Visual indicator of current configuration state (enabled/disabled per pair)
 
-**Priority:** P0 | **Effort:** 2 days
+**Priority:** P0 | **Effort:** 2 days · **Status:** Shipped (Phase 4)
 
 #### US-8.7: User Management
 **As a** Hub Manager, **I want** to manage staff accounts, **so that** the right people have access.

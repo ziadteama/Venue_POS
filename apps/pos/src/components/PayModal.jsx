@@ -1,19 +1,24 @@
 import { useMemo, useState } from 'react';
 
+function formatSplitPart(amount) {
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  return String(Number(amount.toFixed(2)));
+}
+
 export function PayModal({
   cheque,
+  payTotal,
   onConfirm,
   onCancel,
   t,
   manualCardEnabled = false,
   manualCardThreshold = 500,
 }) {
-  const total = cheque?.total ?? 0;
+  const total = payTotal ?? cheque?.total ?? 0;
   const [mode, setMode] = useState('cash');
   const [tendered, setTendered] = useState(String(total || ''));
   const [cashPart, setCashPart] = useState('');
   const [cardPart, setCardPart] = useState('');
-  const [cardLast4, setCardLast4] = useState('');
   const [managerPin, setManagerPin] = useState('');
 
   const tenderNum = Number(tendered) || 0;
@@ -39,6 +44,28 @@ export function PayModal({
     return list;
   }, [manualCardEnabled, t]);
 
+  function handleCashPartChange(raw) {
+    setCashPart(raw);
+    if (raw === '' || raw === '.') {
+      setCardPart('');
+      return;
+    }
+    const cash = Number(raw);
+    if (!Number.isFinite(cash)) return;
+    setCardPart(formatSplitPart(total - cash));
+  }
+
+  function handleCardPartChange(raw) {
+    setCardPart(raw);
+    if (raw === '' || raw === '.') {
+      setCashPart('');
+      return;
+    }
+    const card = Number(raw);
+    if (!Number.isFinite(card)) return;
+    setCashPart(formatSplitPart(total - card));
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     if (needsManagerPin && managerPin.length < 4) return;
@@ -53,15 +80,8 @@ export function PayModal({
     }
 
     if (mode === 'card') {
-      const last4 = cardLast4.trim();
       onConfirm({
-        payments: [
-          {
-            method: 'card',
-            amount: total,
-            cardLast4: /^\d{4}$/.test(last4) ? last4 : undefined,
-          },
-        ],
+        payments: [{ method: 'card', amount: total }],
         managerPin: needsManagerPin ? managerPin : undefined,
       });
       return;
@@ -70,14 +90,7 @@ export function PayModal({
     if (Math.abs(splitRemaining) > 0.009 || cashNum + cardNum <= 0) return;
     const payments = [];
     if (cashNum > 0) payments.push({ method: 'cash', amount: cashNum });
-    if (cardNum > 0) {
-      const last4 = cardLast4.trim();
-      payments.push({
-        method: 'card',
-        amount: cardNum,
-        cardLast4: /^\d{4}$/.test(last4) ? last4 : undefined,
-      });
-    }
+    if (cardNum > 0) payments.push({ method: 'card', amount: cardNum });
     onConfirm({
       payments,
       tendered: cashNum > 0 ? cashNum : undefined,
@@ -91,6 +104,8 @@ export function PayModal({
       : mode === 'card'
         ? needsManagerPin && managerPin.length < 4
         : Math.abs(splitRemaining) > 0.009 || cashNum + cardNum <= 0 || (needsManagerPin && managerPin.length < 4);
+
+  const splitBalanced = Math.abs(splitRemaining) < 0.01 && cashNum + cardNum > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
@@ -144,40 +159,26 @@ export function PayModal({
         ) : null}
 
         {mode === 'card' ? (
-          <>
-            <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              {t('pos.payCardManualHint')}
-            </p>
-            <p className="mb-3 text-sm text-secondary">
-              {t('pos.payCardAmount', { amount: total.toFixed(2) })}
-            </p>
-            <label className="mb-3 block text-sm">
-              <span className="mb-1 block text-secondary">{t('pos.cardLast4')}</span>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={4}
-                value={cardLast4}
-                onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="4242"
-                className="w-full rounded border px-3 py-2 tracking-widest"
-              />
-            </label>
-          </>
+          <p className="mb-4 text-sm text-secondary">
+            {t('pos.payCardAmount', { amount: total.toFixed(2) })}
+          </p>
         ) : null}
 
         {mode === 'split' ? (
           <>
+            <p className="mb-3 text-xs text-secondary">{t('pos.paySplitHint')}</p>
             <label className="mb-3 block text-sm">
               <span className="mb-1 block text-secondary">{t('pos.payCash')}</span>
               <input
                 type="number"
                 min="0"
+                max={total}
                 step="0.01"
                 value={cashPart}
-                onChange={(e) => setCashPart(e.target.value)}
+                onChange={(e) => handleCashPartChange(e.target.value)}
                 className="w-full rounded border px-3 py-2"
                 placeholder="0.00"
+                autoFocus
               />
             </label>
             <label className="mb-3 block text-sm">
@@ -185,33 +186,22 @@ export function PayModal({
               <input
                 type="number"
                 min="0"
+                max={total}
                 step="0.01"
                 value={cardPart}
-                onChange={(e) => setCardPart(e.target.value)}
+                onChange={(e) => handleCardPartChange(e.target.value)}
                 className="w-full rounded border px-3 py-2"
                 placeholder="0.00"
               />
             </label>
-            {cardNum > 0 && (
-              <label className="mb-3 block text-sm">
-                <span className="mb-1 block text-secondary">{t('pos.cardLast4')}</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={4}
-                  value={cardLast4}
-                  onChange={(e) => setCardLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="4242"
-                  className="w-full rounded border px-3 py-2 tracking-widest"
-                />
-              </label>
-            )}
             <p
               className={`mb-4 text-sm font-medium ${
-                Math.abs(splitRemaining) < 0.01 ? 'text-emerald-700' : 'text-red-600'
+                splitBalanced ? 'text-emerald-700' : 'text-red-600'
               }`}
             >
-              {t('pos.remaining')}: {splitRemaining.toFixed(2)} {t('pos.currency')}
+              {splitBalanced
+                ? t('pos.paySplitBalanced', { total: total.toFixed(2) })
+                : `${t('pos.remaining')}: ${splitRemaining.toFixed(2)} ${t('pos.currency')}`}
             </p>
           </>
         ) : null}

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubStaff } from '@venue-pos/shared';
-import { apiFetch, getToken } from '../api/client.js';
+import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { useAuth } from '../hooks/useAuth.js';
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export function HealthPage() {
   const { t, i18n } = useTranslation();
@@ -45,15 +43,10 @@ export function HealthPage() {
   }, [load]);
 
   async function exportCsv() {
-    const token = getToken();
     const params = new URLSearchParams({ format: 'csv' });
     const scoped = canPickVenue ? venueId : user?.venueId;
     if (scoped) params.set('venueId', scoped);
-    const res = await fetch(`${API_URL}/api/v1/manager/health?${params}`, {
-      headers: token ? { authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error(t('health.exportFailed'));
-    const blob = await res.blob();
+    const blob = await apiFetchBlob(`/api/v1/manager/health?${params}`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

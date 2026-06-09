@@ -197,6 +197,102 @@ async function seed() {
   const { publishMenuTemplate } = await import('../services/menu-service.js');
   await publishMenuTemplate(menuTemplate.id);
 
+  // --- Phase 4: second venue for cross-venue billing -----------------------
+  const DEMO_VENUE_2_ID = '00000000-0000-4000-8000-000000000020';
+  const restaurant = await prisma.venue.upsert({
+    where: { id: DEMO_VENUE_2_ID },
+    update: {
+      nameEn: 'Demo Restaurant',
+      nameAr: 'مطعم تجريبي',
+      type: 'standard',
+      tables: ['R1', 'R2', 'R3', 'R4', 'R5', 'R6'],
+    },
+    create: {
+      id: DEMO_VENUE_2_ID,
+      nameEn: 'Demo Restaurant',
+      nameAr: 'مطعم تجريبي',
+      type: 'standard',
+      tables: ['R1', 'R2', 'R3', 'R4', 'R5', 'R6'],
+    },
+  });
+
+  const DEMO_CASHIER_2_ID = '00000000-0000-4000-8000-000000000021';
+  const cashier2PinHash = await bcrypt.hash('2345', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { id: DEMO_CASHIER_2_ID },
+    update: {
+      username: 'cashier2',
+      pinHash: cashier2PinHash,
+      role: 'cashier',
+      venueId: restaurant.id,
+      isActive: true,
+    },
+    create: {
+      id: DEMO_CASHIER_2_ID,
+      username: 'cashier2',
+      pinHash: cashier2PinHash,
+      role: 'cashier',
+      venueId: restaurant.id,
+    },
+  });
+
+  const terminal2 = await prisma.terminal.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000002' },
+    update: { secretHash, venueId: restaurant.id, name: 'POS-2', isActive: true },
+    create: {
+      id: '00000000-0000-4000-8000-000000000002',
+      venueId: restaurant.id,
+      name: 'POS-2',
+      secretHash,
+    },
+  });
+
+  let restaurantMenu = await prisma.menuTemplate.findFirst({
+    where: { nameEn: 'Demo Dinner Menu' },
+  });
+  if (!restaurantMenu) {
+    restaurantMenu = await prisma.menuTemplate.create({
+      data: {
+        nameEn: 'Demo Dinner Menu',
+        nameAr: 'قائمة العشاء التجريبية',
+        venues: { create: [{ venueId: restaurant.id }] },
+        categories: {
+          create: [
+            {
+              nameEn: 'Mains',
+              nameAr: 'أطباق رئيسية',
+              sortOrder: 0,
+              items: {
+                create: [
+                  { nameEn: 'Grilled Chicken', nameAr: 'دجاج مشوي', price: 150, sortOrder: 0 },
+                  { nameEn: 'Beef Burger', nameAr: 'برجر لحم', price: 130, sortOrder: 1 },
+                ],
+              },
+            },
+            {
+              nameEn: 'Sides',
+              nameAr: 'أطباق جانبية',
+              sortOrder: 1,
+              items: {
+                create: [{ nameEn: 'Fries', nameAr: 'بطاطس', price: 40, sortOrder: 0 }],
+              },
+            },
+          ],
+        },
+      },
+    });
+  }
+  await publishMenuTemplate(restaurantMenu.id);
+
+  // Enable cross-venue billing: Demo Cafe (anchor) may settle Demo Restaurant orders.
+  await prisma.venueBillingConfig.upsert({
+    where: {
+      anchorVenueId_targetVenueId: { anchorVenueId: venue.id, targetVenueId: restaurant.id },
+    },
+    update: { enabled: true },
+    create: { anchorVenueId: venue.id, targetVenueId: restaurant.id, enabled: true },
+  });
+
   console.log('Seed complete');
   console.log('  Hub manager: admin / admin123 (PIN 9999 for shift/card policy)');
   console.log('  Venue manager: venue_mgr / venue123 (PIN 7777 for refund/discount/void on POS)');
@@ -206,6 +302,11 @@ async function seed() {
   console.log(`  Terminal ID: ${terminal.id}`);
   console.log(`  Terminal secret: ${devTerminalSecret}`);
   console.log('  Menu: Demo Lunch Menu (published)');
+  console.log('  --- Cross-venue (Phase 4) ---');
+  console.log(`  Venue 2 (anchor target): Demo Restaurant ${restaurant.id}`);
+  console.log(`  Terminal 2 ID: ${terminal2.id} (same secret)`);
+  console.log('  Cashier 2 PIN: 2345 (Demo Restaurant)');
+  console.log('  Billing: Demo Cafe (anchor) → Demo Restaurant (enabled)');
 }
 
 seed()

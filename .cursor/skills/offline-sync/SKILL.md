@@ -44,7 +44,9 @@ Worker polls every 5s when online. FIFO order. Failed items stay queued; show op
 
 ## Offline limitations
 
-- Cross-venue billing: **disabled** — return `OFFLINE_MODE` / UI banner
+- Cross-venue billing: **disabled** or **coordinator-routed** per Phase 6 slice — see `docs/PHASE6_OFFLINE_PLAN.md`
+- **LAN coordinator:** designated POS `local-agent` is star hub when cloud down — **not** peer mesh between agents
+- Hub-wide floor locks: coordinator authoritative while offline (shared physical tables)
 - Manager dashboard writes: blocked
 - Integrated card terminal: manual card only
 

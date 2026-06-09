@@ -1,4 +1,4 @@
-import { DiscountModal } from './DiscountModal.jsx';
+﻿import { DiscountModal } from './DiscountModal.jsx';
 import { ModifierModal } from './ModifierModal.jsx';
 import { PaidChequePickerModal } from './PaidChequePickerModal.jsx';
 import { PayModal } from './PayModal.jsx';
@@ -18,6 +18,7 @@ export function PosModals({
   t,
   language,
   cheque,
+  crossVenueGroup,
   order,
   refundCheque,
   openCheques,
@@ -153,6 +154,7 @@ export function PosModals({
       {showDiscountModal && cheque && (
         <DiscountModal
           cheque={cheque}
+          crossVenueGroup={crossVenueGroup}
           mode={discountModalMode}
           t={t}
           onCancel={() => setShowDiscountModal(false)}
@@ -182,6 +184,7 @@ export function PosModals({
       {showPayModal && cheque && (
         <PayModal
           cheque={cheque}
+          payTotal={crossVenueGroup?.combinedTotal}
           t={t}
           manualCardEnabled={features.manualCardPayment}
           manualCardThreshold={features.manualCardApprovalThreshold}

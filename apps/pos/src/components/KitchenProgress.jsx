@@ -1,7 +1,7 @@
 import { itemName } from '../utils/orderLine.js';
 
-export function KitchenProgress({ kitchenWatch, language, t }) {
-  if (!kitchenWatch) return null;
+export function KitchenProgress({ kitchenWatch, language, t, enabled = true }) {
+  if (!enabled || !kitchenWatch) return null;
 
   return (
     <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-5 py-3">

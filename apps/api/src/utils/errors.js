@@ -23,3 +23,7 @@ export function forbidden(message = 'Insufficient permissions') {
 export function validationError(message, details) {
   return apiError(ERROR_CODES.VALIDATION_ERROR, message, 400, details);
 }
+
+export function conflict(message = 'Resource conflict') {
+  return apiError(ERROR_CODES.CONFLICT, message, 409);
+}

@@ -1,5 +1,6 @@
 import { ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
+import { config } from '../config.js';
 import { forbidden, validationError } from '../utils/errors.js';
 import { verifyManagerPin } from './auth-service.js';
 export { forceHubRefund as forceChequeRefund } from './approval-request-service.js';
@@ -11,6 +12,11 @@ import {
   resolveDiscountAmount,
   updateChequeDiscount,
 } from './cheque-discount.js';
+import {
+  applyCrossVenueGroupDiscount,
+  removeCrossVenueGroupDiscount,
+  updateCrossVenueGroupDiscount,
+} from './cross-venue-service.js';
 import { assertRefundAllowed, executeRefund, listRefundAudits } from './cheque-refund.js';
 import { listTransferAudits } from './cheque-transfer.js';
 import { loadCheque } from './cheque-shared.js';
@@ -35,9 +41,23 @@ export async function applyChequeDiscount(
 ) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found');
-  assertDiscountAllowed(cheque);
   if (!reason?.trim()) throw validationError('Discount reason is required');
 
+  if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
+    if (amount != null) throw validationError('Cross-venue discounts must use percent only');
+    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    return applyCrossVenueGroupDiscount({
+      anchorChequeId: chequeId,
+      anchorVenueId: venueId,
+      percent,
+      reason,
+      initiatorId: manager.id,
+      approverId: manager.id,
+      cashierId: cashierId ?? cheque.cashierId,
+    });
+  }
+
+  assertDiscountAllowed(cheque);
   resolveDiscountAmount(cheque, { amount, percent });
   const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
 
@@ -62,9 +82,23 @@ export async function changeChequeDiscount(
 ) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found');
-  assertDiscountAllowed(cheque);
   if (!reason?.trim()) throw validationError('Discount reason is required');
 
+  if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
+    if (amount != null) throw validationError('Cross-venue discounts must use percent only');
+    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    return updateCrossVenueGroupDiscount({
+      anchorChequeId: chequeId,
+      anchorVenueId: venueId,
+      percent,
+      reason,
+      initiatorId: manager.id,
+      approverId: manager.id,
+      cashierId: cashierId ?? cheque.cashierId,
+    });
+  }
+
+  assertDiscountAllowed(cheque);
   resolveDiscountAmount(cheque, { amount, percent });
   const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
 
@@ -89,9 +123,21 @@ export async function removeAppliedChequeDiscount(
 ) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found');
-  assertDiscountAllowed(cheque);
   if (!reason?.trim()) throw validationError('Discount reason is required');
 
+  if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
+    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    return removeCrossVenueGroupDiscount({
+      anchorChequeId: chequeId,
+      anchorVenueId: venueId,
+      reason,
+      initiatorId: manager.id,
+      approverId: manager.id,
+      cashierId: cashierId ?? cheque.cashierId,
+    });
+  }
+
+  assertDiscountAllowed(cheque);
   const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
 
   return removeChequeDiscount(

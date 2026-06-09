@@ -153,6 +153,64 @@ export function emitVenueConfigUpdated(io, { venueId, changes, config }) {
   });
 }
 
+export function emitBillingConfigUpdated(io, { anchorVenueId, targetVenueId, enabled }) {
+  const payload = {
+    anchorVenueId,
+    targetVenueId,
+    enabled,
+    updatedAt: new Date().toISOString(),
+  };
+  // Anchor terminals refresh their permitted cross-venue targets.
+  io.to(`venue:${anchorVenueId}:pos`).emit('venue:config_updated', {
+    event: 'venue:config_updated',
+    payload,
+  });
+  io.to(`venue:${targetVenueId}:pos`).emit('venue:config_updated', {
+    event: 'venue:config_updated',
+    payload,
+  });
+  io.to('dashboard:hub').emit('venue:config_updated', {
+    event: 'venue:config_updated',
+    payload,
+  });
+}
+
+export function emitCrossVenueLock(io, { groupId, anchorVenueId, cheques }) {
+  const payload = { groupId, anchorVenueId, cheques, at: new Date().toISOString() };
+  const venueIds = new Set([anchorVenueId, ...cheques.map((c) => c.venueId)]);
+  for (const venueId of venueIds) {
+    io.to(`venue:${venueId}:pos`).emit('cheque:lock_acquired', {
+      event: 'cheque:lock_acquired',
+      payload,
+    });
+  }
+  io.to('dashboard:hub').emit('cheque:lock_acquired', {
+    event: 'cheque:lock_acquired',
+    payload,
+  });
+}
+
+export function emitCrossVenueBilled(io, { groupId, anchorVenueId, cheques, combinedTotal }) {
+  const payload = {
+    groupId,
+    anchorVenueId,
+    combinedTotal,
+    cheques,
+    at: new Date().toISOString(),
+  };
+  const venueIds = new Set([anchorVenueId, ...cheques.map((c) => c.venueId)]);
+  for (const venueId of venueIds) {
+    io.to(`venue:${venueId}:pos`).emit('cheque:cross_billed', {
+      event: 'cheque:cross_billed',
+      payload,
+    });
+  }
+  io.to('dashboard:hub').emit('cheque:cross_billed', {
+    event: 'cheque:cross_billed',
+    payload,
+  });
+}
+
 export function emitOrderItemStatus(io, { order, itemId, kitchenStatus, updatedBy }) {
   const payload = {
     orderId: order.id,

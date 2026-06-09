@@ -146,7 +146,10 @@ export async function chequeRoutes(app) {
     async (request) => {
       const result = await fireChequeRound(request.params.id, request.terminal.venueId);
       if (request.server.io) {
-        emitOrderCreated(request.server.io, result.sentOrder);
+        const sent = result.sentOrders?.length ? result.sentOrders : [result.sentOrder].filter(Boolean);
+        for (const order of sent) {
+          emitOrderCreated(request.server.io, order);
+        }
       }
       return result;
     },

@@ -15,6 +15,7 @@ import {
   serializeCheque,
 } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
+import { getCrossVenueGroup, payCrossVenueGroup } from './cross-venue-service.js';
 import { requireActiveShift } from './shift-service.js';
 
 function normalizePayments({ payments, method, amount }, total) {
@@ -115,6 +116,30 @@ export async function payCheque(
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
+
+  if (cheque.crossVenueGroupId && config.featureCrossVenueBilling && !cheque.parentChequeId) {
+    const group = await getCrossVenueGroup(cheque.crossVenueGroupId, venueId);
+    const paymentLines = normalizePayments(
+      { payments, method, amount },
+      group.combinedTotal,
+    );
+    const result = await payCrossVenueGroup({
+      groupId: cheque.crossVenueGroupId,
+      anchorVenueId: venueId,
+      anchorTerminalId: terminalId,
+      cashierId,
+      payments: paymentLines,
+      tendered,
+      managerPin,
+    });
+    return {
+      text: result.receipt,
+      receipt: result.receipt,
+      change: result.change,
+      crossVenueGroup: result.group,
+      cheque: result.group.cheques.find((c) => c.id === chequeId) ?? result.group.cheques[0],
+    };
+  }
 
   const draft = cheque.parentChequeId ? null : findDraftOrder(cheque);
   if (draft?.items?.length) {

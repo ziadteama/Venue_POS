@@ -10,7 +10,6 @@ const NAV_ITEMS = [
   { to: '/cheques', labelKey: 'nav.cheques', roles: [ROLES.HUB_MANAGER] },
   { to: '/shifts', labelKey: 'nav.shifts', roles: [ROLES.HUB_MANAGER] },
   { to: '/orders', labelKey: 'nav.orders', roles: [ROLES.HUB_MANAGER] },
-  { to: '/approvals', labelKey: 'nav.approvals', roles: [ROLES.HUB_MANAGER] },
   { to: '/users', labelKey: 'nav.users', roles: [ROLES.HUB_MANAGER] },
   { to: '/settings', labelKey: 'nav.settings', roles: [ROLES.HUB_MANAGER] },
   { to: '/activity', labelKey: 'nav.activity', roles: [ROLES.HUB_MANAGER] },

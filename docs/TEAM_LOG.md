@@ -946,14 +946,14 @@ npm run dev:dashboard
 | US-8.3 Order explorer | ✅ | Venue manager only; shift → cheque → orders |
 | US-8.4 Menu manager | ✅ (core) | Auto-translate API deferred |
 | US-8.5 Venue configuration | ✅ | Tax, printers, WS sync, audit |
-| US-8.6 Billing rules | ⬜ | Phase 4 / cross-venue |
+| US-8.6 Billing rules | ✅ | Shipped Phase 4 — `BillingMatrixSection` on Settings |
 | US-8.7 User management | ✅ | Venue manager staff CRUD, PIN/RFID, CSV |
 | US-8.8 Inventory | ❌ | Out of scope — not planned |
 | US-8.9 Shift management (dashboard) | ✅ | List, detail, EOD reconciliation, force-close, CSV |
 | US-8.10 System health | ✅ | Terminals, sync queue, server memory, WS |
 | US-8.11 Audit log (full) | ✅ | Unified feed, filters, CSV export |
 
-**Recommended next:** Phase 4 cross-venue (US-8.6) or Phase 6 offline sync.
+**Phase 4 (US-8.6) shipped 2026-06-08** — see § Roadmap below for next steps.
 
 ---
 
@@ -1069,7 +1069,7 @@ npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
 | Role | Surface | Scope |
 |------|---------|-------|
 | Cashier | POS | Service + payments |
-| Hub manager | Dashboard | **All operations** — menus, staff, cheques, orders, shifts, approvals, audit, health |
+| Hub manager | Dashboard | **All operations** — menus, staff, cheques, orders, shifts, audit, health |
 | CEO | Dashboard | **Monitoring only** — overview + analytics (no operational pages) |
 
 **Implementation notes (not extra product roles):**
@@ -1079,7 +1079,7 @@ npm run test -w @venue-pos/api   # includes venue_manager 403 on menu-templates
 - Kitchen = `kitchen_staff` — KDS only, created in Staff
 - Dev `venue_mgr` / `7777` = seeded shift manager for POS tests
 
-**Code:** `packages/shared/src/roles.js` + `hub-access.js`. CEO paths: `/`, `/analytics` only. Hub manager: all ops routes + API. Approvals/refunds: hub manager. POS manager PIN unchanged on cashier terminal.
+**Code:** `packages/shared/src/roles.js` + `hub-access.js`. CEO paths: `/`, `/analytics` only. Hub manager: all ops routes + API. Refunds: hub manager via Cheques force-refund. POS manager PIN unchanged on cashier terminal.
 
 **Verify:**
 ```bash
@@ -1105,10 +1105,223 @@ npm run migrate && npm run seed
 **Suggested branch names:** `feature/US-8.9-eod-reconciliation` or `feature/US-8.7-user-management`
 
 **Before merge checklist:**
-- [ ] Include migration `apps/api/prisma/migrations/20260615120000_venue_config/`
 - [ ] `npm run migrate` on clean DB
-- [ ] `npm run test -w @venue-pos/api` + `npm run lint:i18n`
-- [ ] Smoke: CEO (`owner` — analytics, cheques, shifts) + hub manager (`admin` — menus, staff, settings) + cashier on POS
+- [ ] `npm run test -w @venue-pos/api` + `npm run lint` + `npm run lint:i18n`
+- [ ] Smoke: CEO (`owner` — `/`, `/analytics` only) + hub manager (`admin` — all ops tabs) + cashier on POS
+
+---
+
+## Phase 5 close + pre–Phase 4 polish (2026-06)
+
+**Shipped (not logged above):**
+- Hub manager cheque actions (discount apply/change/remove, void, comp, refund) + Activity audit types
+- POS UX: `ChequeActionsSheet`, cleaner pay footer, manager-assigned table floor (`venues.tables`)
+- KDS hidden on POS when `FEATURE_KDS_ENABLED=false`
+- Shifts/EOD: group by **shift open day** (not close day)
+- Dashboard crash fixes (`isHubStaff`, ErrorBoundary on Orders/Shifts/Health/Analytics)
+- ESLint cleanup across API tests + POS hooks
+
+**Phase 5 status:** ✅ Complete. Only US-8.6 (billing rules) moves to Phase 4.
+
+**Next (historical):** Phase 4 — cross-venue billing — **now complete**; see § Roadmap for Phase 6.
+
+---
+
+## Phase 4 — Cross-venue billing (complete)
+
+> **Final UX (2026-06-08):** Integrated **cross-sell** on the main POS screen. The interim “combine open cheques” modal flow and `/cross-venue/billable` API were removed. See § Roadmap for loose ends and Phase 6.
+
+### 2026-06-08 — Cross-venue billing foundation + settlement (slices 4.1–4.5)
+**Phase:** 4 · **Story:** US-4.1, US-4.2, US-4.3, US-8.6  
+**Branch:** `feature/phase4-cross-venue-billing`  
+**What:** An **anchor** cashier adds linked-venue items on the main POS (**Standard / Cross-sell** toggle). First linked item lazily stamps `crossVenueGroupId` on the current table cheque and creates sibling venue cheques. **Send** fires each kitchen; **Pay** settles all venue cheques in one tender.
+
+**Key design decision — one cheque per venue, one group id.** Revenue stays on `cheque.venueId`; kitchen routing stays on `order.venueId`. Cross-sell never moves items between venues — it creates parallel draft orders per venue under the same `crossVenueGroupId`. This means:
+- Each venue's payment lands on its own cheque → analytics/EOD/metrics unchanged.
+- Items added from a linked venue tab create orders for that venue → kitchen tickets route to the correct kitchen.
+- Group pay delegates from `/cheques/:id/pay` when `crossVenueGroupId` is set.
+
+**Files:**
+- Schema: `VenueBillingConfig` model + `Cheque.isCrossVenue` + `Cheque.crossVenueGroupId`; migrations `20260620120000_phase4_cross_venue_billing`, `20260620130000_cross_venue_group`
+- API services: `billing-config-service.js`, `cross-venue-service.js`
+- API routes: `manager-billing.js` (`GET/PUT /api/v1/manager/billing-config`), `cross-venue.js` (`/menu`, `/cheques/:id/items`, `/cheques/:id/group`, group fire/clear via cheque lifecycle)
+- Features: `routes/features.js` returns `crossVenueBilling`, `isAnchor`, `crossVenueTargets`
+- Sockets: `venue:config_updated` (billing), `cheque:cross_billed`
+- Local agent: `routes/cross-venue.js` (online-only proxy)
+- POS (superseded): `useCrossVenue.js`, `CrossVenueModal.jsx` — replaced by `useCrossSell.js`, `CrossSellBar.jsx`
+- Dashboard: `components/BillingMatrixSection.jsx` on **Settings** (anchor × target toggles)
+- Seed: **Demo Restaurant** venue + `POS-2` terminal + `cashier2` (PIN 2345) + dinner menu; Cafe→Restaurant pair enabled
+- Tests: `apps/api/src/cross-venue.test.js` — config guards, lazy attach, group fire/pay, per-venue attribution
+- Flags: `FEATURE_CROSS_VENUE_BILLING` (default OFF)
+
+**Verify:**
+```bash
+npm run migrate && npm run seed
+FEATURE_CROSS_VENUE_BILLING=true npm run test -w @venue-pos/api
+# Hub: Settings (Demo Cafe) → Cross-venue billing → Demo Restaurant ON
+# Demo Cafe anchor POS-1: open table → Cross-sell → Restaurant tab → add items → Send → Pay
+# Hub: Orders/Cheques show cross-venue badge; analytics attribute per venue
+```
+
+**Notes:** Online-only. Anchor-only initiation. Superseded combine-cheques flow removed in follow-up entries below. Split pay + group discount + itemized receipt added in later Phase 4 entries.
+
+---
+
+### Original plan (superseded — kept for history)
+
+Early slices targeted **combine open cheques** from other venues (`/billable`, order locks, separate modal). **Shipped UX** is integrated **cross-sell** (lazy attach on current table). See entries below and § Roadmap.
+
+| Slice | Shipped as |
+|-------|------------|
+| **4.1** US-4.1 + US-8.6 | Billing matrix on Settings ✅ |
+| **4.2** US-4.2 API | Lazy attach `/cross-venue/cheques/:id/items`, group by anchor cheque ✅ |
+| **4.3** US-4.2 POS | Standard / Cross-sell toggle + venue tabs (not separate modal) ✅ |
+| **4.4** US-4.3 | Group pay via `/cheques/:id/pay`; combined receipt with per-venue subtotals ✅ |
+| **4.5** US-8.3 ext | Dashboard badges on Orders/Cheques ✅ |
+
+### End-to-end flow (shipped)
+
+```mermaid
+sequenceDiagram
+  participant HM as Hub manager
+  participant CFG as Billing config API
+  participant POS as Anchor POS
+  participant API as API
+  participant K as Linked venue kitchen
+
+  HM->>CFG: Enable anchor Cafe → Restaurant
+  CFG-->>POS: venue:config_updated
+  POS->>API: Open table cheque (standard)
+  POS->>API: Cross-sell tab → add Restaurant item (lazy group attach)
+  POS->>API: POST /cheques/:id/fire
+  API-->>K: Kitchen ticket per venue order
+  POS->>API: POST /cheques/:id/pay (group delegate)
+  API-->>API: cheque:cross_billed + per-venue payments
+```
+
+### 2026-06-08 — Global unique staff PIN enforcement
+**Phase:** 4 · **Story:** staff ops
+**What:** `assertPinUniqueGlobally()` blocks duplicate PINs on staff create and PIN reset — checked against every user with a `pinHash`, any venue/role.
+**Files:** `auth-service.js`, `manager-user-service.js`, `manager-user-service.test.js`, `DEV_CREDENTIALS.md`
+**Verify:** `npm run test -w @venue-pos/api` — duplicate PIN rejected same venue and cross-venue; same user can keep PIN on reset.
+
+### 2026-06-08 — Cross-venue dashboard badges + POS header/PIN UX
+**Phase:** 4 · **Story:** US-8.3 ext, US-4.x polish
+**What:** Orders/Cheques show cross-venue badge + linked settlement panel; PIN login accepts keyboard + keypad; POS header consolidates tools/account into dropdowns.
+**Files:** `CrossVenueBadge.jsx`, `ChequesSidebar.jsx`, `ChequeDetailView.jsx`, `OrdersPage.jsx`, `cheque-shared.js`, `order-explorer-service.js`, `cross-venue-service.js`, `PinLoginScreen.jsx`, `PosHeader.jsx`, i18n
+**Verify:** Pay cross-venue group → hub `/cheques` and `/orders` show badge + linked cheques list. POS: type PIN with keyboard; header Tools ▾ / Account ▾ menus.
+**Notes:** `serializeCheque` exposes `isCrossVenue` + `crossVenueGroupId`; `getCrossVenueGroupSummary()` loads sibling cheques.
+
+### 2026-06-08 — Cross-sell integrated into main POS screen
+**Phase:** 4 · **Story:** US-4.2, US-4.3
+**What:** Cross-venue ordering is an add-on on the normal POS screen: **Standard / Cross-sell** toggle + venue tabs above MenuGrid. Lazy attach stamps `crossVenueGroupId` on the current table cheque when the first linked-venue item is added. Same Send/Pay/Clear/actions as standard; receipt groups lines by venue. Removed separate `CrossVenueModal` page.
+**Files:** `cross-venue-service.js`, `cheque-lifecycle.js`, `cheque-pay.js`, `useCrossSell.js`, `CrossSellBar.jsx`, `useChequeSession.js`, `ReceiptPanel.jsx`, `App.jsx`, agent routes, `cross-venue.test.js`, i18n
+**Verify:** Cafe POS-1 PIN `1234` → open table → toggle Cross-sell → Restaurant tab → add items → Send → Pay. Table persists if you switch away; no separate modal session.
+**Notes:** `FEATURE_CROSS_VENUE_BILLING=true`; billing matrix Cafe→Restaurant ON.
+
+### 2026-06-08 — Cross-venue unified ordering (replaces combine-cheques flow)
+**Phase:** 4 · **Story:** US-4.2, US-4.3
+**What:** Anchor cashier builds one multi-venue order: one cheque+order per venue under `crossVenueGroupId`; removed billable/combine-cheques API.
+**Files:** `cross-venue-service.js`, `routes/cross-venue.js`, `cross-venue.test.js`, `PRD.md`, `DEV_CREDENTIALS.md`
+**Notes:** Superseded by integrated cross-sell UX above; API cheque-scoped routes retained.
+
+### 2026-06-08 — POS cashier logout + shift discount stats
+**Phase:** 4 · **Story:** POS ops / US-8.x shifts
+**What:** Cashiers sign in with PIN (session persists per tab); logout blocked while shift is open; hub Shifts board shows discount count and total per shift and EOD.
+**Files:** `apps/pos/src/App.jsx`, `PinLoginScreen.jsx`, `LogoutConfirmModal.jsx`, `useCashierSession.js`, `useShiftSession.js`, `useChequeSession.js`, `apps/api/src/services/shift-service.js`, `manager-shift-service.js`, `apps/dashboard/src/pages/ShiftsPage.jsx`, `packages/i18n/locales/{en,ar}.json`
+**Verify:** POS PIN `1234` (Cafe) / `2345` (Restaurant) → header shows cashier + Logout; logout with open shift prompts close first. Dashboard `/shifts` → shift detail + EOD show discount totals.
+**Notes:** Replaces hardcoded `DEMO_CASHIER_ID` at runtime; `sessionStorage` key `venue_pos_cashier`.
+
+### 2026-06-08 — Staff create modal: explicit venue assignment
+**Phase:** 4 · **Story:** US-8.7 polish
+**What:** Add-staff modal includes **Assign to venue** dropdown (cashiers bound to that venue's POS terminals). Approvals tab removed from hub nav (refunds via Cheques force-refund).
+**Files:** `UsersPage.jsx`, `DashboardNav.jsx`, `App.jsx`, i18n
+**Verify:** Dashboard `/users` → Add staff → pick Demo Restaurant → cashier only works on Restaurant POS.
+
+### 2026-06-08 — Documentation sync (Phase 4 close-out)
+**Phase:** 4 · **Docs**
+**What:** Synced `AGENTS.md`, `PRD.md` Epic 4 + US-8.6, `README.md`, `DEVELOPMENT.md`, and § Roadmap below to match shipped cross-sell UX (replaces combine-cheques + separate modal).
+**Verify:** Read § Roadmap — next phase, loose ends, and env flags match repo.
+
+### 2026-06-08 — Cross-venue split pay + group percent discount
+**Phase:** 4 · **Story:** US-4.x polish
+**What:** Proportional cash+card split across venue cheques on group pay; percent-only group discount (apply/edit/remove) on all open members; POS percent-only `DiscountModal` + receipt group discount display; receipt tender breakdown by method.
+**Files:** `cross-venue-service.js`, `cheque-pay.js`, `manager-action-service.js`, `DiscountModal.jsx`, `ReceiptPanel.jsx`, `PosModals.jsx`, `cross-venue.test.js`, i18n
+**Verify:** `FEATURE_CROSS_VENUE_BILLING=true FEATURE_MANUAL_CARD_PAYMENT=true npm run test -w @venue-pos/api -- cross-venue.test.js` · Cafe POS Cross-sell → discount % → split pay cash+card
+**Notes:** Requires `FEATURE_MANUAL_CARD_PAYMENT=true` for card lines on group pay. Standard single-cheque discounts unchanged.
+
+### 2026-06-08 — Cross-venue itemized receipt + Phase 4 doc close-out
+**Phase:** 4 · **Story:** US-4.3 polish
+**What:** Combined cross-venue customer slip lists itemized lines per venue (rounds, subtotals, discounts) + grand total; standard post-pay receipt also shows paid items. Synced `AGENTS.md`, `PRD.md`, `README.md`, `DEVELOPMENT.md`, `PHASE3_SCALABLE_PLAN.md` for Phase 4 close.
+**Files:** `serialize.js`, `cross-venue-service.js`, `cross-venue.test.js`, docs above
+**Verify:** Cross-sell → Send → Pay → reprint shows `1x …` lines per venue + `GRAND TOTAL`. Read PRD US-4.3 and TEAM_LOG § Roadmap.
+**Notes:** **Phase 4 signed off.** Remaining gaps are loose ends (offline, voucher, target POS refresh) — not blockers.
+
+### 2026-06-08 — Phase 6 plan: LAN coordinator POS (no peer mesh)
+**Phase:** 6 · **Docs**
+**What:** Documented offline architecture: designated POS `local-agent` as **LAN coordinator** (star failover when cloud down); phased slices for floor locks, standard sync, cross-sell offline; explicit rejection of agent peer mesh.
+**Files:** `docs/PHASE6_OFFLINE_PLAN.md`, `PRD.md` (US-7.5), `AGENTS.md`, `README.md`, `DEVELOPMENT.md`, `Technical_Proposal.md`, `PHASE3_SCALABLE_PLAN.md`, `.cursor/skills/offline-sync/SKILL.md`
+**Verify:** Read `PHASE6_OFFLINE_PLAN.md` — coordinator vs cloud vs mesh is consistent across docs.
+
+---
+
+## Roadmap (as of 2026-06-08 — Phase 4 closed)
+
+### Shipped — Phase 4 summary
+
+| Area | What works |
+|------|------------|
+| **Hub** | Settings billing matrix (anchor × target); cross-venue badges on Orders/Cheques |
+| **API** | `venue_billing_config`, `crossVenueGroupId`, lazy attach, group fire/pay, proportional split pay, group % discount |
+| **POS** | **Standard / Cross-sell** toggle + venue tabs; itemized combined cart; one Send / one Pay; split cash+card; group discount (%) |
+| **Receipt** | Itemized lines per venue + grand total + tender breakdown on combined slip |
+| **Revenue** | `Payment` rows per venue cheque (multiple methods per venue when split); analytics/EOD unchanged |
+| **Staff** | Cashiers assigned to venue at create; globally unique PINs |
+| **Flags** | `FEATURE_CROSS_VENUE_BILLING=true`; `FEATURE_MANUAL_CARD_PAYMENT=true` for card/split |
+
+**Dev demo (single terminal):** Cafe POS-1 PIN `1234` → Cross-sell → add from both venues → Send → optional % discount (PIN `7777`) → Pay (cash or split). See `docs/DEV_CREDENTIALS.md`.
+
+### Loose ends (not blocking Phase 4 sign-off)
+
+| Item | Notes |
+|------|--------|
+| Cross-venue **offline** | Online-only today; Phase 6 — LAN coordinator POS or disable cross-sell ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
+| **Target POS/KDS** | No live refresh when anchor pays; target kitchen already got tickets on Send |
+| **Cross-venue voucher** | Not in POS Pay modal for groups (cash/card/split shipped) |
+| **Cross-venue offline** | Phase 6 — coordinator POS or guard banner ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
+| **Discount Actions UX** | ⋮ menu uses anchor `cheque.total` — may hide group discount when anchor subtotal is 0 |
+| **Approvals nav** | Removed from dashboard nav; API + `ApprovalsPage.jsx` remain — use Cheques force-refund or re-add route |
+| **UAT flag** | `FEATURE_CROSS_VENUE_BILLING` defaults OFF in production config until hub enables matrix |
+
+### Recommended next — Phase 6 (offline sync + LAN coordinator)
+
+**Plan:** [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)
+
+1. **Slice A** — Designated **LAN coordinator POS** (star topology, **not** peer mesh): cloud health failover, hub-wide floor table locks when WAN down.
+2. **Slice B** — Standard single-venue offline: SQLite + `sync_queue` FIFO replay, idempotent `syncId` to cloud.
+3. **Slice C** — Cross-sell offline via coordinator (cached linked menus/printers, atomic group replay) — after A+B.
+4. **Slice D** (optional parallel) — Hub-scoped floor tables + WebSocket when WAN up (shared tables busy everywhere online).
+
+Cross-venue v1 guard until Slice C: disable Cross-sell with explicit “hub offline” banner.
+
+### Optional polish (any phase)
+
+- Hub dashboard UI for cross-venue group discount (anchor POS path ships v1).
+- Re-enable Approvals nav or fold pending refunds into Cheques inbox.
+- Menu auto-translate API (US-8.4 deferred).
+- Receipt PDF export.
+
+### Environment checklist (cross-venue)
+
+```bash
+# apps/api/.env
+FEATURE_CROSS_VENUE_BILLING=true
+FEATURE_MANUAL_CARD_PAYMENT=true   # card + split pay on POS
+
+# Hub: Settings → Cross-venue billing → Cafe → Restaurant ON
+# POS: anchor terminal only (Demo Cafe POS-1 in dev seed)
+npm run test -w @venue-pos/api   # includes cross-venue.test.js
+```
 
 ---
 

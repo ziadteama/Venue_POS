@@ -18,7 +18,7 @@ const shiftInclude = {
   venue: { select: { id: true, nameEn: true, nameAr: true } },
   cashier: { select: { id: true, username: true } },
   terminal: { select: { id: true, name: true } },
-  payments: true,
+  payments: { include: { cheque: { select: { discountAmount: true } } } },
   refunds: true,
 };
 
@@ -34,6 +34,8 @@ function serializeShiftListRow(shift) {
     terminalName: shift.terminal.name,
     paymentCount: report.paymentCount,
     refundCount: report.refundCount,
+    discountCount: report.discountCount,
+    discountTotal: report.discountTotal,
     totalRevenue: report.totalRevenue,
     totalRefunds: report.totalRefunds,
     expectedCash:
@@ -190,6 +192,8 @@ function aggregateShiftRows(rows) {
     refundsByMethod: { cash: 0, card: 0, voucher: 0 },
     paymentCount: 0,
     refundCount: 0,
+    discountCount: 0,
+    discountTotal: 0,
   };
 
   for (const row of rows) {
@@ -197,6 +201,8 @@ function aggregateShiftRows(rows) {
     totals.totalRefunds += row.totalRefunds ?? 0;
     totals.paymentCount += row.paymentCount ?? 0;
     totals.refundCount += row.refundCount ?? 0;
+    totals.discountCount += row.discountCount ?? 0;
+    totals.discountTotal += row.discountTotal ?? 0;
     if (row.overShortAmount != null) totals.totalOverShort += row.overShortAmount;
     for (const method of ['cash', 'card', 'voucher']) {
       totals.paymentsByMethod[method] += row.paymentsByMethod?.[method] ?? 0;
@@ -207,6 +213,7 @@ function aggregateShiftRows(rows) {
   totals.netRevenue = Number((totals.totalRevenue - totals.totalRefunds).toFixed(2));
   totals.totalRevenue = Number(totals.totalRevenue.toFixed(2));
   totals.totalRefunds = Number(totals.totalRefunds.toFixed(2));
+  totals.discountTotal = Number(totals.discountTotal.toFixed(2));
   totals.totalOverShort = Number(totals.totalOverShort.toFixed(2));
   for (const method of ['cash', 'card', 'voucher']) {
     totals.paymentsByMethod[method] = Number(totals.paymentsByMethod[method].toFixed(2));

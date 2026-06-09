@@ -4,6 +4,27 @@ import { verifyManagerPin } from './auth-service.js';
 
 export const OVER_SHORT_THRESHOLD = 50;
 
+export const shiftRelationsInclude = {
+  payments: { include: { cheque: { select: { discountAmount: true } } } },
+  refunds: true,
+};
+
+export function discountStatsFromPayments(payments) {
+  let discountCount = 0;
+  let discountTotal = 0;
+  for (const p of payments) {
+    const amt = Number(p.cheque?.discountAmount ?? 0);
+    if (amt > 0) {
+      discountCount += 1;
+      discountTotal += amt;
+    }
+  }
+  return {
+    discountCount,
+    discountTotal: Number(discountTotal.toFixed(2)),
+  };
+}
+
 export function serializeShift(shift) {
   return {
     id: shift.id,
@@ -53,6 +74,7 @@ export function buildShiftReport(shift, payments, refunds = []) {
     payments,
     refunds,
   );
+  const { discountCount, discountTotal } = discountStatsFromPayments(payments);
   const openFloat = Number(shift.openFloat);
   const cashIn = (byMethod.cash ?? 0) - (refundsByMethod.cash ?? 0);
   const expectedCash = Number((openFloat + cashIn).toFixed(2));
@@ -61,6 +83,8 @@ export function buildShiftReport(shift, payments, refunds = []) {
     shift: serializeShift(shift),
     paymentCount: count,
     refundCount,
+    discountCount,
+    discountTotal,
     totalRevenue: Number(total.toFixed(2)),
     totalRefunds: Number(refundTotal.toFixed(2)),
     paymentsByMethod: {
@@ -85,7 +109,7 @@ export async function getActiveShift(cashierId, terminalId, venueId) {
       venueId,
       status: 'open',
     },
-    include: { payments: true, refunds: true },
+    include: shiftRelationsInclude,
   });
   if (!shift) return null;
   return {
@@ -126,7 +150,7 @@ export async function openShift({ cashierId, terminalId, venueId, openFloat }) {
 
   const existing = await prisma.shift.findFirst({
     where: { cashierId, status: 'open' },
-    include: { payments: true, refunds: true },
+    include: shiftRelationsInclude,
   });
   if (existing) {
     if (existing.terminalId !== terminalId) {
@@ -183,7 +207,7 @@ export async function closeShift(
 
   const shift = await prisma.shift.findFirst({
     where: { cashierId, terminalId, venueId, status: 'open' },
-    include: { payments: true, refunds: true },
+    include: shiftRelationsInclude,
   });
   if (!shift) throw validationError('No open shift for this cashier');
 
@@ -256,7 +280,7 @@ export async function forceCloseShiftById(
 
   const shift = await prisma.shift.findUnique({
     where: { id: shiftId },
-    include: { payments: true, refunds: true },
+    include: shiftRelationsInclude,
   });
   if (!shift) throw notFound('Shift not found');
   if (venueScopeId && shift.venueId !== venueScopeId) throw notFound('Shift not found');

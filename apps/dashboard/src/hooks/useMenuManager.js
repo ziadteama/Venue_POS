@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiFetch } from '../api/client.js';
+import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { countMissingTranslations } from '../utils/menuTranslations.js';
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 export function useMenuManager({ canEdit, enabled = true }) {
   const [templates, setTemplates] = useState([]);
@@ -154,16 +152,7 @@ export function useMenuManager({ canEdit, enabled = true }) {
   );
 
   const exportCsv = useCallback(async () => {
-    const token = sessionStorage.getItem('token');
-    const res = await fetch(
-      `${API_URL}/api/v1/menu-templates/${selectedId}/translations/export`,
-      { headers: token ? { authorization: `Bearer ${token}` } : {} },
-    );
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error?.message ?? 'Export failed');
-    }
-    const blob = await res.blob();
+    const blob = await apiFetchBlob(`/api/v1/menu-templates/${selectedId}/translations/export`);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

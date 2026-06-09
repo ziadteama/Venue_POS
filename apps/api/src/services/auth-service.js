@@ -174,3 +174,26 @@ async function validateTerminal(terminalId, terminalSecret) {
 export async function hashSecret(plain) {
   return bcrypt.hash(plain, config.bcryptRounds);
 }
+
+/**
+ * Every staff PIN must be unique system-wide (cashiers, kitchen, shift managers,
+ * hub manager policy PIN). PINs are stored hashed — compare in application code.
+ */
+export async function assertPinUniqueGlobally(pin, { excludeUserId } = {}) {
+  if (!pin) return;
+  const users = await prisma.user.findMany({
+    where: {
+      pinHash: { not: null },
+      ...(excludeUserId ? { NOT: { id: excludeUserId } } : {}),
+    },
+    select: { id: true, username: true, pinHash: true },
+  });
+
+  for (const user of users) {
+    if (await bcrypt.compare(pin, user.pinHash)) {
+      throw validationError(
+        'This PIN is already assigned to another staff member. Choose a different PIN.',
+      );
+    }
+  }
+}

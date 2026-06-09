@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+import { API_URL, invalidateAuthSession, isAuthFailure } from '../api/client.js';
 
 export function useMetricsSocket(token, onTick) {
   useEffect(() => {
@@ -15,6 +14,10 @@ export function useMetricsSocket(token, onTick) {
 
     socket.on('dashboard:metrics_tick', (msg) => {
       onTick(msg?.payload ?? msg);
+    });
+
+    socket.on('connect_error', (err) => {
+      if (isAuthFailure(err?.message)) invalidateAuthSession();
     });
 
     return () => {

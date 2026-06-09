@@ -127,11 +127,12 @@ after(async () => {
 
 test('hub manager can create and list staff for a venue', async () => {
   const username = `cashier_${Date.now()}`;
+  const pin = `9${String(Date.now()).slice(-3)}`;
   const create = await app.inject({
     method: 'POST',
     url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
     headers: { authorization: `Bearer ${hubToken}` },
-    payload: { username, role: 'cashier', pin: '4321' },
+    payload: { username, role: 'cashier', pin },
   });
   assert.equal(create.statusCode, 200);
   assert.equal(create.json().username, username);

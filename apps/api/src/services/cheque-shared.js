@@ -187,6 +187,8 @@ export function serializeCheque(cheque) {
     serviceAmount: fees.serviceAmount,
     taxAmount: fees.taxAmount,
     parentChequeId: cheque.parentChequeId ?? null,
+    isCrossVenue: Boolean(cheque.isCrossVenue),
+    crossVenueGroupId: cheque.crossVenueGroupId ?? null,
     status: cheque.status,
     openedAt: cheque.openedAt,
     closedAt: cheque.closedAt ?? null,

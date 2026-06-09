@@ -18,7 +18,7 @@ Items **not** in the current sprint. Use for onboarding and roadmap; implement w
 
 **Venue manager** (`venue_manager`) executes discount, void, comp, line transfer directly. **Refunds** require hub approval (request → approve).
 
-**General manager** (`hub_manager`) approves refund requests on **Approvals** (`/approvals`), can force-refund from Cheques, and has read-only **Activity log** review.
+**General manager** (`hub_manager`) force-refunds from **Cheques** (Approvals nav removed 2026-06; `/approvals` API optional). **Activity log** for audit review.
 
 - Unified feed: discounts, refunds, voids, comps, transfers
 - `GET /api/v1/manager/activity`
@@ -41,8 +41,8 @@ Core F&B tab lifecycle shipped on `phase-3`. Venue manager executes; hub manager
 | **Vouchers / promos** | US-5.5 | Code validation, one-time use |
 | **Integrated card** terminal | US-5.2 | PDQ SDK; `FEATURE_INTEGRATED_CARD_PAYMENT` |
 | **Receipt PDF** | US-10.2 | Digital/email receipt |
-| **Cross-venue** billing | Epic 4 | Multi-hub |
-| **Offline** cheque sync | Phase 6 | SQLite replay |
+| **Cross-venue** billing | Epic 4 / Phase 4 | ✅ **Shipped** — cross-sell on anchor POS; offline guard → Phase 6 |
+| **Offline** cheque sync | Phase 6 | SQLite replay + **LAN coordinator POS** — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
 | Cashier PIN login on POS | — | Demo uses fixed cashier ID today |
 | `venue_mgr` dashboard password | — | PIN-only on POS in default seed |
 
