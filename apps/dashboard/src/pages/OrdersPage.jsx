@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ORDER_STATUSES, isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { CrossVenueBadge, CrossVenueGroupPanel } from '../components/CrossVenueBadge.jsx';
 
@@ -146,7 +147,7 @@ export function OrdersPage() {
       setResult(data);
       if (canPickVenue) setVenues(venueList);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -170,13 +171,13 @@ export function OrdersPage() {
       const orderId = selectedKey.replace('orphan:', '');
       apiFetch(`/api/v1/manager/orders/${orderId}${venueQuery}`)
         .then(setDetail)
-        .catch((err) => setError(err.message));
+        .catch((err) => setError(friendlyError(err)));
       return;
     }
 
     apiFetch(`/api/v1/manager/orders/by-cheque/${selectedKey}${venueQuery}`)
       .then(setDetail)
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(friendlyError(err)));
   }, [selectedKey, venueId, canPickVenue, user?.venueId]);
 
   function updateFilter(key, value) {
@@ -235,7 +236,7 @@ export function OrdersPage() {
         </div>
         <button
           type="button"
-          onClick={() => exportCsv().catch((e) => setError(e.message))}
+          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
         >
           {t('orders.exportCsv')}
@@ -630,7 +631,7 @@ export function OrdersPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => reprintOrder(chequeOrder.id).catch((e) => setError(e.message))}
+                        onClick={() => reprintOrder(chequeOrder.id).catch((e) => setError(friendlyError(e)))}
                         className="mt-2 text-xs text-primary-to hover:underline"
                       >
                         {t('orders.reprintOrder')}
@@ -643,7 +644,7 @@ export function OrdersPage() {
               {detail.cheque?.id ? (
                 <button
                   type="button"
-                  onClick={() => reprintCheque().catch((e) => setError(e.message))}
+                  onClick={() => reprintCheque().catch((e) => setError(friendlyError(e)))}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
                 >
                   {t('orders.reprintCheque')}

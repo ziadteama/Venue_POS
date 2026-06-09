@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubManager } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 const TYPE_FILTERS = [
@@ -88,7 +89,10 @@ function ActivityRow({ ev, t, locale, currencyLabel }) {
             {ev.chequeNumber != null ? (
               <p className="mt-1 text-sm text-secondary">
                 {t('activity.cheque')} #{ev.chequeNumber}
+                {ev.venueName ? ` · ${ev.venueName}` : ''}
               </p>
+            ) : ev.venueName ? (
+              <p className="mt-1 text-sm text-secondary">{ev.venueName}</p>
             ) : null}
             {ev.reason ? (
               <p className="mt-1 text-sm text-secondary">
@@ -119,7 +123,7 @@ export function ActivityPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState('');
+  const [venueId, setVenueId] = useState('all');
   const [events, setEvents] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('');
@@ -151,7 +155,7 @@ export function ActivityPage() {
       setEvents(data.events ?? []);
       setVenues(venueList);
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e));
     } finally {
       setLoading(false);
     }
@@ -162,9 +166,9 @@ export function ActivityPage() {
     apiFetch('/api/v1/venues')
       .then((list) => {
         setVenues(list);
-        if (!venueId && list[0]?.id) setVenueId(list[0].id);
+        if (!venueId && list[0]?.id) setVenueId('all');
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(friendlyError(e)));
   }, [user?.role, venueId]);
 
   useEffect(() => {
@@ -207,7 +211,7 @@ export function ActivityPage() {
         </div>
         <button
           type="button"
-          onClick={() => exportCsv().catch((e) => setError(e.message))}
+          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
         >
           {t('activity.exportCsv')}
@@ -225,6 +229,7 @@ export function ActivityPage() {
               value={venueId}
               onChange={(e) => setVenueId(e.target.value)}
             >
+              <option value="all">{t('activity.allVenues')}</option>
               {venues.map((v) => (
                 <option key={v.id} value={v.id}>
                   {i18n.language === 'ar' ? v.nameAr : v.nameEn}

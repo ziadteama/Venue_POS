@@ -1,5 +1,6 @@
 import { KitchenProgress } from './KitchenProgress.jsx';
 import { MenuGrid } from './MenuGrid.jsx';
+import { PosErrorToast } from './PosErrorToast.jsx';
 import { PosHeader } from './PosHeader.jsx';
 import { PosModals } from './PosModals.jsx';
 import { ReceiptPanel } from './ReceiptPanel.jsx';
@@ -10,6 +11,22 @@ import { usePosWorkspace } from '../hooks/usePosWorkspace.js';
 
 export function PosWorkspace({ cashier, onLogout }) {
   const ws = usePosWorkspace(cashier);
+
+  const overlayOpen =
+    ws.modals.isAnyModalOpen ||
+    ws.showLogoutModal ||
+    ws.orderLookup.open ||
+    ws.showOpenModal ||
+    ws.shiftSession.showCloseModal;
+
+  const modalShowsInlineError =
+    Boolean(ws.error) &&
+    (ws.modals.showRefundModal ||
+      ws.modals.showDiscountModal ||
+      ws.modals.showRefundPicker ||
+      ws.modals.showPayModal);
+
+  const showErrorToast = Boolean(ws.bannerError) && overlayOpen && !modalShowsInlineError;
 
   return (
     <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
@@ -52,6 +69,7 @@ export function PosWorkspace({ cashier, onLogout }) {
         }}
         floorByLabel={ws.floorByLabel}
         modals={ws.modals}
+        error={ws.error}
         onAddItemWithModifiers={ws.handleAddItemWithModifiers}
       />
 
@@ -100,14 +118,44 @@ export function PosWorkspace({ cashier, onLogout }) {
                     ? ws.t('pos.offlineLanCoordinator')
                     : ws.t('pos.offline')}
           {ws.agentStatus.syncQueueDepth > 0
-            ? ` · ${ws.t('pos.syncQueueDepth', { count: ws.agentStatus.syncQueueDepth })}`
+            ? ` | ${ws.t('pos.syncQueueDepth', { count: ws.agentStatus.syncQueueDepth })}`
             : null}
           {ws.agentStatus.syncFailedCount > 0
-            ? ` · ${ws.t('pos.syncFailed', { count: ws.agentStatus.syncFailedCount })}`
+            ? ` | ${ws.t('pos.syncFailed', { count: ws.agentStatus.syncFailedCount })}`
             : null}
           {ws.agentStatus.syncProgress?.syncing
-            ? ` · ${ws.t('pos.syncInProgress')}`
+            ? ` | ${ws.t('pos.syncInProgress')}`
             : null}
+        </div>
+      ) : null}
+
+      {ws.managerNotice ? (
+        <div className="flex shrink-0 items-center justify-center gap-3 border-b border-blue-200 bg-blue-50 px-5 py-2 text-center text-sm text-blue-900">
+          <span>
+            {ws.managerNotice.self
+              ? ws.t('pos.refundSuccess', {
+                  number: ws.managerNotice.payload.chequeNumber,
+                  amount: Number(ws.managerNotice.payload.amount ?? 0).toFixed(2),
+                  currency: ws.t('pos.currency'),
+                  method: ws.managerNotice.payload.method ?? 'cash',
+                })
+              : ws.t('pos.refundNotification', {
+                  number: ws.managerNotice.payload.chequeNumber,
+                  amount: Number(ws.managerNotice.payload.amount ?? 0).toFixed(2),
+                  method: ws.managerNotice.payload.method ?? 'cash',
+                  manager:
+                    ws.managerNotice.payload.managerName ??
+                    ws.managerNotice.payload.cashierName ??
+                    ws.t('pos.floorManager'),
+                })}
+          </span>
+          <button
+            type="button"
+            onClick={() => ws.setManagerNotice(null)}
+            className="shrink-0 rounded border border-blue-300 px-2 py-0.5 text-xs font-medium hover:bg-blue-100"
+          >
+            {ws.t('pos.dismissNotification')}
+          </button>
         </div>
       ) : null}
 
@@ -129,7 +177,18 @@ export function PosWorkspace({ cashier, onLogout }) {
         </div>
       ) : null}
 
-      {ws.bannerError ? (
+      {showErrorToast ? (
+        <PosErrorToast
+          message={ws.bannerError}
+          onDismiss={() => {
+            ws.setError('');
+            ws.shiftSession.setError('');
+          }}
+          t={ws.t}
+        />
+      ) : null}
+
+      {ws.bannerError && !overlayOpen ? (
         <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-center text-sm font-medium text-amber-800">
           {ws.bannerError}
         </div>

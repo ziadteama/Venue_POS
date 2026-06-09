@@ -136,6 +136,15 @@ v1: **static coordinator** — no leader election. Optional manual backup IP lat
 - CEO dashboard writes while WAN down.
 - Integrated card terminal auth offline (manual card only).
 
+## Related product changes (same release train)
+
+| Area | Doc / surface |
+|------|----------------|
+| **Terminals UI** | Hub **Settings → Terminals** — till name, coordinator flag, reported LAN IP/mode from agent heartbeat |
+| **Floor manager PIN** | POS discount/refund — `venue_manager` PIN only; see [DEV_CREDENTIALS.md](DEV_CREDENTIALS.md) |
+| **Refund notifications** | WebSocket `manager:notification` → all POS at venue after any refund |
+| **Dashboard v2** | CEO `/` executive · hub `/` operations — [TEAM_LOG.md](TEAM_LOG.md) § Dashboard v2 |
+
 ## Related docs
 
 | Doc | Topic |

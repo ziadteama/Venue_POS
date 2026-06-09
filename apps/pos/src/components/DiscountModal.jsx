@@ -1,4 +1,5 @@
 ﻿import { useMemo, useState } from 'react';
+import { ModalErrorAlert, ModalFrame, ModalPanel } from './ModalFrame.jsx';
 
 export function DiscountModal({
   cheque,
@@ -7,6 +8,8 @@ export function DiscountModal({
   onConfirm,
   onCancel,
   t,
+  error,
+  submitting = false,
 }) {
   const isCrossVenue = Boolean(crossVenueGroup?.groupId);
   const subtotal = cheque?.subtotalBeforeDiscount ?? cheque?.total ?? 0;
@@ -34,6 +37,7 @@ export function DiscountModal({
   );
   const [reason, setReason] = useState('');
   const [restaurantManagerPin, setRestaurantManagerPin] = useState('');
+  const [formError, setFormError] = useState('');
 
   const amountNum = Number(amount) || 0;
   const percentNum = Number(percent) || 0;
@@ -56,7 +60,7 @@ export function DiscountModal({
     : isEdit
       ? isCrossVenue
         ? t('crossVenue.discountEditHint', {
-            percent: crossVenueGroup?.groupDiscountPercent ?? 'ΓÇö',
+            percent: crossVenueGroup?.groupDiscountPercent ?? '\u2014',
             amount: currentDiscount.toFixed(2),
           })
         : t('pos.discountEditHint', { amount: currentDiscount.toFixed(2) })
@@ -70,40 +74,63 @@ export function DiscountModal({
       ? t('pos.discountEditSubmit')
       : t('pos.discountApplySubmit');
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!reason.trim() || restaurantManagerPin.length < 4) return;
+    if (!reason.trim()) {
+      setFormError(t('pos.discountReasonRequired'));
+      return;
+    }
+
+    const pinBody =
+      restaurantManagerPin.length >= 4 ? { restaurantManagerPin } : {};
 
     if (isRemove) {
-      onConfirm({ reason: reason.trim(), restaurantManagerPin });
+      setFormError('');
+      await onConfirm({ reason: reason.trim(), ...pinBody });
       return;
     }
 
     if (discountMode === 'percent' || isCrossVenue) {
-      if (percentNum <= 0 || percentNum > 100) return;
-      onConfirm({
+      if (percentNum <= 0 || percentNum > 100) {
+        setFormError(t('pos.discountPercentInvalid'));
+        return;
+      }
+      setFormError('');
+      await onConfirm({
         percent: percentNum,
         reason: reason.trim(),
-        restaurantManagerPin,
+        ...pinBody,
       });
       return;
     }
-    if (amountNum <= 0 || amountNum > subtotal) return;
-    onConfirm({
+    if (amountNum <= 0 || amountNum > subtotal) {
+      setFormError(t('pos.discountAmountInvalid'));
+      return;
+    }
+    setFormError('');
+    await onConfirm({
       amount: amountNum,
       reason: reason.trim(),
-      restaurantManagerPin,
+      ...pinBody,
     });
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
-      >
-        <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
-        <p className="mb-4 text-sm text-secondary">{hint}</p>
+    <ModalFrame layer="stacked">
+      <ModalPanel>
+        <form onSubmit={handleSubmit}>
+          <ModalErrorAlert error={error} />
+          {formError ? (
+            <div
+              role="alert"
+              className="relative z-20 mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm font-medium text-amber-900"
+            >
+              {formError}
+            </div>
+          ) : null}
+
+          <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
+          <p className="mb-4 text-sm text-secondary">{hint}</p>
 
         {!isRemove && (
           <>
@@ -186,13 +213,14 @@ export function DiscountModal({
         </label>
 
         <label className="mb-4 block text-sm">
-          <span className="mb-1 block text-secondary">{t('pos.restaurantManagerPin')}</span>
+          <span className="mb-1 block text-secondary">{t('pos.floorManagerPin')}</span>
+          <p className="mb-2 text-xs text-secondary">{t('pos.discountPinOptional')}</p>
           <input
             type="password"
             inputMode="numeric"
             maxLength={6}
             value={restaurantManagerPin}
-            onChange={(e) => setRestaurantManagerPin(e.target.value)}
+            onChange={(e) => setRestaurantManagerPin(e.target.value.replace(/\D/g, ''))}
             className="w-full rounded border px-3 py-2"
           />
         </label>
@@ -200,21 +228,24 @@ export function DiscountModal({
         <div className="flex gap-3">
           <button
             type="submit"
-            className={`rounded-lg px-4 py-2 font-medium text-white ${
+            disabled={submitting}
+            className={`rounded-lg px-4 py-2 font-medium text-white disabled:opacity-50 ${
               isRemove ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
             }`}
           >
-            {submitLabel}
+            {submitting ? t('common.loading') : submitLabel}
           </button>
           <button
             type="button"
             onClick={onCancel}
+            disabled={submitting}
             className="rounded-lg border border-slate-300 px-4 py-2 text-secondary hover:bg-slate-50"
           >
             {t('common.cancel')}
           </button>
         </div>
-      </form>
-    </div>
+        </form>
+      </ModalPanel>
+    </ModalFrame>
   );
 }

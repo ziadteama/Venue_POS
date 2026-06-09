@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
-import { emitManagerAction, emitOrderVoided } from '../plugins/socket.js';
+import { emitManagerAction, emitOrderVoided, emitRefundNotification } from '../plugins/socket.js';
 import {
   applyChequeDiscount,
   applyChequeRefund,
@@ -40,7 +40,7 @@ const removeDiscountSchema = z.object({
 });
 
 const refundSchema = z.object({
-  amount: z.number().positive(),
+  amount: z.coerce.number().positive(),
   method: z.enum(['cash', 'card', 'voucher']).optional(),
   reason: z.string().min(1).max(500),
 });
@@ -304,6 +304,15 @@ export async function managerChequeRoutes(app) {
         venueId,
       );
       if (request.server.io) {
+        emitRefundNotification(request.server.io, {
+          venueId,
+          chequeNumber: result.cheque?.chequeNumber,
+          amount: result.refund?.amount,
+          method: result.refund?.method,
+          reason: parsed.data.reason,
+          managerName: result.manager?.username ?? request.user?.username,
+          source: 'dashboard',
+        });
         emitManagerAction(request.server.io, {
           venueId,
           type: 'refund',

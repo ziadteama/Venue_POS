@@ -21,6 +21,37 @@ const apiUrl = process.env.VITE_API_URL ?? 'http://localhost:3000';
 const terminalId = process.env.VITE_TERMINAL_ID ?? '00000000-0000-4000-8000-000000000001';
 const terminalSecret = process.env.VITE_TERMINAL_SECRET ?? 'dev-terminal-secret';
 
+function parseApiError(raw, fallback = 'Request failed') {
+  if (!raw) return fallback;
+  const text = String(raw);
+  const pinMsg = text.match(/Invalid (?:venue |floor )?manager PIN[^"]*/i)?.[0];
+  if (pinMsg) return pinMsg;
+  const nestedMessages = [...text.matchAll(/"message"\s*:\s*"((?:\\.|[^"\\])*)"/g)].map((m) =>
+    m[1].replace(/\\"/g, '"'),
+  );
+  const friendly = nestedMessages.find((m) => m && !m.startsWith('API /api/'));
+  if (friendly) return friendly;
+  try {
+    const json = JSON.parse(text);
+    if (json.error?.message) return json.error.message;
+    if (typeof json.message === 'string' && !json.message.startsWith('API /api/')) {
+      return json.message;
+    }
+  } catch {
+    // ignore
+  }
+  const wrapped = text.match(/failed \(\d+\):\s*(\{[\s\S]+\})\s*$/)?.[1];
+  if (wrapped) {
+    try {
+      const inner = JSON.parse(wrapped);
+      if (inner.error?.message) return inner.error.message;
+    } catch {
+      // ignore
+    }
+  }
+  return text.length > 160 ? `${text.slice(0, 160)}…` : text;
+}
+
 async function agentFetch(path, options = {}) {
   const method = options.method ?? 'GET';
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
@@ -31,7 +62,7 @@ async function agentFetch(path, options = {}) {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || res.statusText);
+    throw new Error(parseApiError(text, text || res.statusText));
   }
   return res.json();
 }
@@ -131,5 +162,11 @@ contextBridge.exposeInMainWorld('venuePos', {
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('floor:table_updated', listener);
     return () => socket.off('floor:table_updated', listener);
+  },
+  onManagerNotification(handler) {
+    const socket = ensurePosSocket();
+    const listener = (msg) => handler(msg?.payload ?? msg);
+    socket.on('manager:notification', listener);
+    return () => socket.off('manager:notification', listener);
   },
 });

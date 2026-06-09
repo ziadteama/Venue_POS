@@ -1,3 +1,5 @@
+import { parseApiError } from '../utils/apiError.js';
+
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
 let onAuthInvalid = null;
@@ -42,6 +44,10 @@ function maybeInvalidateAuth(res) {
   if (res.status === 401) invalidateAuthSession();
 }
 
+function readApiError(data, fallback = 'Request failed') {
+  return parseApiError(data?.error?.message ?? data?.message ?? data, fallback);
+}
+
 export async function apiFetch(path, options = {}) {
   const token = getToken();
   const method = options.method ?? 'GET';
@@ -57,7 +63,7 @@ export async function apiFetch(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
   maybeInvalidateAuth(res);
-  if (!res.ok) throw new Error(data.error?.message ?? 'Request failed');
+  if (!res.ok) throw new Error(readApiError(data, 'Request failed'));
   return data;
 }
 
@@ -72,7 +78,7 @@ export async function apiFetchBlob(path, options = {}) {
   maybeInvalidateAuth(res);
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error?.message ?? 'Request failed');
+    throw new Error(readApiError(data, 'Request failed'));
   }
   return res.blob();
 }

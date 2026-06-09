@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { loginWithPin } from '../api/auth.js';
+import { parseApiError } from '../utils/apiError.js';
 import {
   clearCashierSession,
   readCashierSession,
@@ -27,7 +28,7 @@ export function useCashierSession() {
       setCashier(session);
       return true;
     } catch (err) {
-      setError(err.message || 'Invalid PIN');
+      setError(parseApiError(err?.message ?? err, 'Invalid PIN'));
       return false;
     } finally {
       setLoading(false);

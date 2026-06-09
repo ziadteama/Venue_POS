@@ -5,7 +5,9 @@ import { listFullAuditLog, auditLogToCsv } from '../services/audit-log-service.j
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
 function resolveVenueId(request) {
-  return request.query?.venueId ?? request.user.venue_id ?? undefined;
+  const queryVenue = request.query?.venueId;
+  if (queryVenue === 'all') return null;
+  return queryVenue ?? request.user.venue_id ?? undefined;
 }
 
 export async function managerAuditRoutes(app) {

@@ -151,9 +151,28 @@ See `docs/Technical_Proposal.md` §15.6 (feature flags) and `docs/PRD.md` (US fe
 
 **POS manager PIN** (discount, refund, void, comp, line transfer): staff with manager permissions — hub manager creates them in **Staff**. Dev seed uses `venue_mgr` / PIN `7777` for testing.
 
-**CEO** reviews revenue on `/` and `/analytics` only (read-only). **Hub manager** runs menus, staff, venue settings, shifts, cheques/refunds, and audit.
+**CEO** reviews revenue on `/` (executive overview) and `/analytics` (read-only). **Hub manager** lands on `/` (operations overview), then menus, staff, venue settings, shifts, cheques/refunds, and audit.
 
-Full matrix: `AGENTS.md` § Manager workflows.
+### Dashboard (June 2026 refresh)
+
+| Role | Default after login | Key pages |
+|------|---------------------|-----------|
+| CEO | `/` | Executive overview, `/analytics` |
+| Hub manager | `/` | Operations overview, `/menus`, `/cheques`, `/shifts`, `/orders`, `/activity`, `/health` |
+
+Shared UI: KPI cards with period comparison, 7-day net-sales chart, recent business changes (last 3 days). See `apps/dashboard/src/components/dashboard/`.
+
+API summary endpoints: `GET /api/v1/manager/dashboard/executive` (CEO) · `GET /api/v1/manager/dashboard/operations` (hub manager).
+
+### POS floor manager (shift manager)
+
+**Floor manager** = DB role `venue_manager` (dev seed `venue_mgr`, PIN `7777`). On POS only — not a web login.
+
+- **Discount** apply/edit/remove — floor manager PIN required (offline supported for apply/edit/remove when WAN down)
+- **Refund** on paid cheque — floor manager PIN only; hub manager PIN `9999` does **not** work on POS
+- After any refund, all POS at the venue show a notification banner naming cheque, amount, and authorizing manager
+
+Hub manager still processes refunds from **Cheques** on the dashboard (JWT login, no PIN on web).
 
 ## Dev credentials (after seed)
 

@@ -11,7 +11,7 @@ Read this before writing code.
 | [docs/DEV_CREDENTIALS.md](docs/DEV_CREDENTIALS.md) | Dev logins, PINs, where to use each app |
 | [docs/TEAM_LOG.md](docs/TEAM_LOG.md) | What's built + roadmap — **update every feature** |
 | [docs/PHASE3_SCALABLE_PLAN.md](docs/PHASE3_SCALABLE_PLAN.md) | Deferred features + provider flags |
-| [docs/PHASE6_OFFLINE_PLAN.md](docs/PHASE6_OFFLINE_PLAN.md) | **Next** — offline sync + LAN coordinator POS |
+| [docs/PHASE6_OFFLINE_PLAN.md](docs/PHASE6_OFFLINE_PLAN.md) | Offline sync + LAN cluster — **v1.1 shipped**; remaining P0 in TEAM_LOG |
 | [docs/PRD.md](docs/PRD.md) | User stories & acceptance criteria |
 | [docs/Technical_Proposal.md](docs/Technical_Proposal.md) | Architecture & phased delivery |
 | [docs/TechSpec.md](docs/TechSpec.md) | WebSocket contracts, security, deployment |
@@ -59,31 +59,34 @@ How multi-unit restaurant platforms (Toast, Lightspeed, Square) typically split 
 | Back office / GM | Hub manager (dashboard) | Store admin — menu, roster, refunds, EOD, audit |
 | Owner / investor | CEO (dashboard) | Corporate reporting portal — revenue dashboards only |
 
-**Service flow:** cashier rings sale → **manager PIN on POS** for discount/void/refund request → **hub manager** force-refunds from **Cheques** (or direct `/approvals` URL if re-enabled) → **CEO** reviews revenue trends without touching operations.
+**Service flow:** cashier rings sale → **floor manager PIN on POS** for discount/refund (shift manager `venue_manager`, not hub PIN) → refund notification on all POS at venue → **hub manager** can also refund from dashboard **Cheques** → **CEO** reviews executive overview + analytics.
 
-**Cross-sell (Phase 4):** anchor POS only — **Standard / Cross-sell** toggle above menu; lazy `crossVenueGroupId` on current table; one cheque per venue; **one Pay** settles the group (cash, card, or split cash+card — proportional per venue). **Group discount:** percent only at anchor (manager PIN). Combined receipt: itemized lines per venue. Online-only (`FEATURE_CROSS_VENUE_BILLING`); card/split need `FEATURE_MANUAL_CARD_PAYMENT=true`.
+**Cross-sell (Phase 4):** anchor POS only — **Standard / Cross-sell** toggle above menu; lazy `crossVenueGroupId` on current table; one cheque per venue; **one Pay** settles the group (cash, card, or split cash+card — proportional per venue). **Group discount:** percent only at anchor (floor manager PIN). Combined receipt: itemized lines per venue. Online-only (`FEATURE_CROSS_VENUE_BILLING`); card/split need `FEATURE_MANUAL_CARD_PAYMENT=true`.
 
-### Dashboard page split
+### Dashboard page split (v2 — June 2026)
 
 | Page | CEO | Hub manager |
 |------|-----|-------------|
-| Overview / Analytics | Yes (read-only) | No |
+| Overview (`/`) | Executive — net sales, 7-day trend, venue table, recent changes | Operations — today EOD, refunds, open cheques/shifts, terminals, recent changes |
+| Analytics (`/analytics`) | Revenue drill-down, CSV | — |
 | Menus / Staff / Settings | No | Yes |
 | Cheques / Orders / Shifts | No | Yes |
 | Activity / Health | No | Yes |
 
-Login redirect: CEO → `/` · hub manager → `/menus`.
+Login redirect: **both roles → `/`** (CEO = executive, hub manager = operations).
 
-### POS manager PIN
+API: `GET /api/v1/manager/dashboard/executive` (CEO) · `GET /api/v1/manager/dashboard/operations` (hub manager) · existing `metrics/live`, `analytics/revenue`.
 
-Discount, void, comp, transfer, shift close — **manager PIN on the POS**, not a web login. Hub manager creates shift managers and cashiers in **Staff** (`/users`). Dev seed: `venue_mgr` / PIN `7777`.
+### POS floor manager PIN
+
+Discount, refund, void, comp, transfer, shift close — **floor manager PIN on the POS** (`venue_manager`), not hub manager PIN. Hub manager creates shift managers in **Staff** (`/users`). Dev seed: `venue_mgr` / PIN `7777`. Hub manager PIN `9999` works on dashboard web login only — **not** for POS terminal discount/refund.
 
 ## Hard rules
 
 - POS renderer → local-agent IPC only (no direct DB)
 - Offline-first: SQLite → sync queue → idempotent sync
 - Menu read-only on POS; **hub manager** publishes from dashboard only
-- CEO API access limited to `manager/metrics` and `manager/analytics` only
+- CEO API access limited to `manager/metrics`, `manager/analytics`, and `manager/dashboard/executive`
 - Bilingual UI via `@venue-pos/i18n`; DB uses `nameEn`/`nameAr` with `@map`
 - Prisma for all server DB access
 - **KDS is optional** — behind `FEATURE_KDS_ENABLED`
@@ -111,7 +114,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–5 and Phase 4 complete.** **Phase 6 v1.1 shipped** (dynamic LAN cluster, cheque hydration, shift replay, device profile). Remaining Epic 7 / Slice C work: `docs/TEAM_LOG.md` § **Roadmap**. Plan: `docs/PHASE6_OFFLINE_PLAN.md`.
+**Phases 0–5 and Phase 4 complete.** **Phase 6 v1.1 shipped** (dynamic LAN cluster, cheque hydration, shift replay, device profile). **Dashboard v2** (executive + operations overview). Floor manager PIN for POS discount/refund + venue-wide refund notifications. Remaining Epic 7 / Slice C: `docs/TEAM_LOG.md` § **Roadmap**. Plan: `docs/PHASE6_OFFLINE_PLAN.md`.
 
 ## POS app layout (`apps/pos`)
 
@@ -122,12 +125,12 @@ Keep Electron thin — hooks + `PosModals.jsx`, not inline modal spaghetti in `A
 | Action | Who initiates | Who handles | Where |
 |--------|---------------|-------------|-------|
 | Orders & payments | Cashier | — | POS |
-| Discount / void / comp | Cashier + manager PIN | — (audit) | POS |
-| Refund request | Manager PIN on POS | Hub manager force-refund | Dashboard `/cheques` |
+| Discount / void / comp | Cashier + floor manager PIN | — (audit + Activity) | POS |
+| Refund (paid cheque) | Floor manager PIN on POS | Hub manager via Cheques | POS + notification on all tills |
 | Cross-sell order | Cashier (anchor) | — | POS **Cross-sell** toggle + venue tabs |
 | Menus, staff, permissions | Hub manager | — | Dashboard |
 | Revenue review | CEO | — | Dashboard `/`, `/analytics` |
-| EOD / shifts / cheques | Hub manager | — | Dashboard |
+| Daily ops / EOD | Hub manager | — | Dashboard `/` then Shifts, Cheques, Activity |
 
 ## Prompt tip
 

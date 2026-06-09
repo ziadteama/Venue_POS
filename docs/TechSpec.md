@@ -379,6 +379,22 @@ LOG_MAX_FILES=5
   },
   room: "venue:{venueId}:pos"
 }
+
+// manager:notification — Refund and other manager alerts to POS
+{
+  event: "manager:notification",
+  payload: {
+    type: "refund",
+    chequeNumber: "string",
+    amount: "decimal",
+    method: "cash|card|voucher",
+    reason: "string",
+    managerName: "string",
+    source: "pos|dashboard|approval",
+    terminalId: "uuid|null"
+  },
+  room: "venue:{venueId}:pos"
+}
 ```
 
 ### 8.2 Client → Server Events
@@ -429,6 +445,17 @@ dashboard:venue:{venueId}      — Venue manager dashboard
 terminal:{terminalId}          — Specific terminal
 cheque:{chequeId}              — Cross-venue cheque participants
 ```
+
+### 8.4 Dashboard summary REST (June 2026)
+
+| Method | Path | Role | Purpose |
+|--------|------|------|---------|
+| GET | `/api/v1/manager/dashboard/executive` | `hub_owner` (CEO) | Executive overview KPIs, 7-day trend, venue table, recent changes |
+| GET | `/api/v1/manager/dashboard/operations` | `hub_manager` | Operations overview — EOD stats, refunds, open cheques/shifts, terminals |
+| GET | `/api/v1/manager/analytics/revenue` | CEO + hub | Revenue drill-down (existing) |
+| GET | `/api/v1/manager/metrics/live` | Hub | Live counters + WebSocket `dashboard:metrics_tick` (existing) |
+
+Query: `?venueId={uuid}` optional on operations endpoint to scope one venue.
 
 ---
 

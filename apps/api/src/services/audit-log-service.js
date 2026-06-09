@@ -216,16 +216,37 @@ export async function listFullAuditLog(venueId, filters = {}) {
   const page = Math.max(1, Number(filters.page ?? 1));
   const limit = Math.min(PAGE_SIZE, Math.max(1, Number(filters.limit ?? PAGE_SIZE)));
 
-  const [logRows, domainRows, configRows, shiftRows] = await Promise.all([
-    fetchAuditLogRows(venueId, filters),
-    venueId ? fetchDomainActivity(venueId, filters) : [],
-    venueId ? fetchConfigAudits(venueId, filters) : [],
-    venueId ? fetchShiftEvents(venueId, filters) : [],
-  ]);
+  let merged;
+  if (!venueId) {
+    const venues = await prisma.venue.findMany({
+      select: { id: true, nameEn: true },
+      orderBy: { nameEn: 'asc' },
+    });
+    const batches = await Promise.all(
+      venues.map(async (venue) => {
+        const [logRows, domainRows, configRows, shiftRows] = await Promise.all([
+          fetchAuditLogRows(venue.id, filters),
+          fetchDomainActivity(venue.id, filters),
+          fetchConfigAudits(venue.id, filters),
+          fetchShiftEvents(venue.id, filters),
+        ]);
+        const tagVenue = (rows) =>
+          rows.map((row) => ({ ...row, venueId: row.venueId ?? venue.id, venueName: venue.nameEn }));
+        return [...tagVenue(logRows), ...tagVenue(domainRows), ...tagVenue(configRows), ...tagVenue(shiftRows)];
+      }),
+    );
+    merged = batches.flat();
+  } else {
+    const [logRows, domainRows, configRows, shiftRows] = await Promise.all([
+      fetchAuditLogRows(venueId, filters),
+      fetchDomainActivity(venueId, filters),
+      fetchConfigAudits(venueId, filters),
+      fetchShiftEvents(venueId, filters),
+    ]);
+    merged = [...logRows, ...domainRows, ...configRows, ...shiftRows];
+  }
 
-  const merged = [...logRows, ...domainRows, ...configRows, ...shiftRows].sort(
-    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
-  );
+  merged.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 
   const seen = new Set();
   const unique = merged.filter((ev) => {

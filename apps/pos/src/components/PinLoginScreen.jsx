@@ -108,7 +108,7 @@ export function PinLoginScreen({ t, onLogin, loading, error }) {
               value={pin}
               onChange={handleInputChange}
               disabled={loading}
-              placeholder="••••"
+              placeholder="PIN"
               className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 text-center text-2xl font-semibold tracking-[0.4em] text-slate-900 placeholder:tracking-normal placeholder:text-slate-400 focus:border-primary-to focus:outline-none focus:ring-2 focus:ring-primary-to/20 disabled:opacity-50"
               aria-label={t('pos.pinLoginTitle')}
             />
@@ -150,7 +150,7 @@ export function PinLoginScreen({ t, onLogin, loading, error }) {
                     : 'bg-slate-50 text-slate-900 ring-1 ring-slate-200 hover:bg-slate-100'
                 }`}
               >
-                {key === 'clear' ? t('pos.pinClear') : key === 'back' ? '⌫' : key}
+                {key === 'clear' ? t('pos.pinClear') : key === 'back' ? 'Del' : key}
               </button>
             ))}
           </div>

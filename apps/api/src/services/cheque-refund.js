@@ -4,7 +4,6 @@ import { validationError } from '../utils/errors.js';
 import { buildRefundReceiptText } from '../utils/serialize.js';
 import { loadCheque, serializeCheque } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
-import { requireActiveShift } from './shift-service.js';
 
 function paymentTotalsByMethod(payments) {
   const byMethod = { cash: 0, card: 0, voucher: 0 };
@@ -84,7 +83,14 @@ export async function executeRefund(
 
   const activeShift =
     terminalId && refundMethod === 'cash'
-      ? await requireActiveShift(resolvedCashierId, terminalId, venueId)
+      ? await prisma.shift.findFirst({
+          where: {
+            cashierId: resolvedCashierId,
+            terminalId,
+            venueId,
+            status: 'open',
+          },
+        })
       : null;
 
   const refund = await prisma.refund.create({

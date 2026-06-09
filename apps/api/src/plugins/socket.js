@@ -114,6 +114,84 @@ export function emitOrderVoided(io, { orderId, venueId, reason, voidedBy }) {
   io.to(`venue:${venueId}:pos`).emit('order:voided', { event: 'order:voided', payload });
 }
 
+export function emitManagerNotification(io, { venueId, type, payload }) {
+  if (!io) return;
+  const message = {
+    type,
+    venueId,
+    ...payload,
+    at: new Date().toISOString(),
+  };
+  io.to(`venue:${venueId}:pos`).emit('manager:notification', {
+    event: 'manager:notification',
+    payload: message,
+  });
+  io.to('dashboard:hub').emit('manager:notification', {
+    event: 'manager:notification',
+    payload: message,
+  });
+}
+
+export function emitRefundNotification(
+  io,
+  {
+    venueId,
+    terminalId,
+    chequeNumber,
+    amount,
+    method,
+    reason,
+    managerName,
+    cashierName,
+    source = 'pos',
+  },
+) {
+  emitManagerNotification(io, {
+    venueId,
+    type: 'refund',
+    payload: {
+      chequeNumber,
+      amount,
+      method,
+      reason,
+      managerName,
+      cashierName,
+      source,
+      terminalId: terminalId ?? null,
+    },
+  });
+}
+
+export function emitDiscountNotification(
+  io,
+  {
+    venueId,
+    terminalId,
+    chequeNumber,
+    action = 'discount',
+    amount,
+    reason,
+    cashierName,
+    managerName,
+    source = 'pos',
+  },
+) {
+  emitManagerNotification(io, {
+    venueId,
+    type: 'discount',
+    payload: {
+      action,
+      chequeNumber,
+      amount,
+      reason,
+      cashierName,
+      managerName,
+      source,
+      terminalId: terminalId ?? null,
+    },
+  });
+}
+
 export function emitManagerAction(io, { venueId, terminalId, type, chequeId, result }) {
   const payload = { type, chequeId, result, at: new Date().toISOString() };
   io.to('dashboard:hub').emit('manager:action', {

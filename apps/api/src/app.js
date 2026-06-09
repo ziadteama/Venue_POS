@@ -27,6 +27,7 @@ import { terminalRoutes } from './routes/terminals.js';
 import { terminalOrderExplorerRoutes } from './routes/terminal-order-explorer.js';
 import { syncRoutes } from './routes/sync.js';
 import { floorRoutes } from './routes/floor.js';
+import { managerDashboardRoutes } from './routes/manager-dashboard.js';
 import { managerTerminalRoutes } from './routes/manager-terminals.js';
 
 export async function buildApp() {
@@ -69,6 +70,7 @@ export async function buildApp() {
   await app.register(terminalOrderExplorerRoutes);
   await app.register(syncRoutes);
   await app.register(floorRoutes);
+  await app.register(managerDashboardRoutes);
   await app.register(managerTerminalRoutes);
 
   return app;

@@ -1,6 +1,6 @@
 ﻿import { firedOrders } from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
-import { ClearIcon, PrinterIcon } from './icons.jsx';
+import { ClearIcon, KebabMenuIcon, PrinterIcon } from './icons.jsx';
 
 function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId }) {
   return (
@@ -27,20 +27,26 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId 
               type="button"
               onClick={() => onChangeQty(line.id, line.quantity - 1, { venueId })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
+              aria-label="-"
             >
-              ΓêÆ
+              -
             </button>
             <span className="min-w-[1.25rem] text-center text-sm font-medium">{line.quantity}</span>
             <button
               type="button"
               onClick={() => onChangeQty(line.id, line.quantity + 1, { venueId })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
+              aria-label="+"
             >
               +
             </button>
           </div>
         )}
-        {readOnly && <p className="mt-1 text-xs text-secondary">├ù {line.quantity}</p>}
+        {readOnly && (
+          <p className="mt-1 text-xs text-secondary">
+            {line.quantity}x
+          </p>
+        )}
       </div>
     </li>
   );
@@ -195,16 +201,16 @@ export function ReceiptPanel({
               onClick={onPickTable}
               className="mt-1 text-sm font-medium text-primary-to hover:underline"
             >
-              {t('pos.tableActive', { table: tableLabel || 'ΓÇö' })}
+              {t('pos.tableActive', { table: tableLabel || '\u2014' })}
             </button>
             {isCrossVenue ? (
               <p className="mt-1 text-xs font-medium text-primary-to">{t('crossVenue.badge')}</p>
             ) : null}
           </div>
           <div className="text-end text-xs text-secondary">
-            <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? 'ΓÇö' })}</p>
+            <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? '\u2014' })}</p>
             {order ? (
-              <p>{t('pos.orderNumber', { number: order.orderNumber ?? 'ΓÇö' })}</p>
+              <p>{t('pos.orderNumber', { number: order.orderNumber ?? '\u2014' })}</p>
             ) : null}
           </div>
         </div>
@@ -376,10 +382,10 @@ export function ReceiptPanel({
             <button
               type="button"
               onClick={onOpenActions}
-              className="shrink-0 rounded-xl border border-slate-300 px-4 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="flex shrink-0 items-center justify-center rounded-xl border border-slate-300 px-4 py-3.5 text-slate-700 hover:bg-slate-50"
               aria-label={t('pos.actionsTitle')}
             >
-              ┬╖┬╖┬╖
+              <KebabMenuIcon />
             </button>
           </div>
         )}

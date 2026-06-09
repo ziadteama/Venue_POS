@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubStaff } from '@venue-pos/shared';
+import { apiFetch, apiFetchBlob } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
+import { useAuth } from '../hooks/useAuth.js';
+import { PageHeader } from '../components/dashboard/PageHeader.jsx';
+import { StatCard } from '../components/dashboard/StatCard.jsx';
+import { formatMoney } from '../utils/dashboardFormat.js';
 import {
   Bar,
   BarChart,
@@ -10,17 +16,8 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { apiFetch, apiFetchBlob } from '../api/client.js';
-import { useAuth } from '../hooks/useAuth.js';
 
 const PRESETS = ['today', 'yesterday', 'week', 'last_week', 'month', 'last_month', 'custom'];
-
-function formatMoney(value, locale) {
-  return new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(Number(value ?? 0));
-}
 
 function labelEntity(row, language) {
   return language === 'ar' ? row.nameAr || row.nameEn : row.nameEn;
@@ -29,32 +26,31 @@ function labelEntity(row, language) {
 export function AnalyticsPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
-  const [preset, setPreset] = useState('today');
+  const [preset, setPreset] = useState('week');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState(user?.venueId ?? '');
+  const [venueId, setVenueId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [report, setReport] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
+  const currencyLabel = t('pos.currency');
   const canPickVenue = isHubStaff(user?.role);
 
   const query = useMemo(() => {
     if (preset === 'custom' && (!customFrom || !customTo)) return null;
-
     const params = new URLSearchParams({ preset });
     if (preset === 'custom') {
       params.set('from', customFrom);
       params.set('to', customTo);
     }
-    const scopedVenue = canPickVenue ? venueId : user?.venueId;
-    if (scopedVenue) params.set('venueId', scopedVenue);
+    if (venueId) params.set('venueId', venueId);
     if (categoryId) params.set('categoryId', categoryId);
     return params.toString();
-  }, [preset, customFrom, customTo, venueId, categoryId, canPickVenue, user?.venueId]);
+  }, [preset, customFrom, customTo, venueId, categoryId]);
 
   const customRangeReady = preset !== 'custom' || (customFrom && customTo);
 
@@ -72,9 +68,9 @@ export function AnalyticsPage() {
         canPickVenue ? apiFetch('/api/v1/venues') : Promise.resolve([]),
       ]);
       setReport(data);
-      if (canPickVenue) setVenues(venueList);
+      if (canPickVenue) setVenues(Array.isArray(venueList) ? venueList : []);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -87,14 +83,14 @@ export function AnalyticsPage() {
   const chartData = useMemo(() => {
     if (!report) return [];
     if (categoryId && report.items?.length) {
-      return report.items.map((row) => ({
+      return report.items.slice(0, 12).map((row) => ({
         id: row.menuItemId,
         name: labelEntity(row, i18n.language),
         revenue: row.revenue,
       }));
     }
     if (report.categories?.length && report.drillVenueId) {
-      return report.categories.map((row) => ({
+      return report.categories.slice(0, 12).map((row) => ({
         id: row.categoryId,
         name: labelEntity(row, i18n.language),
         revenue: row.revenue,
@@ -119,176 +115,179 @@ export function AnalyticsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const suffix =
-      preset === 'custom' ? `${customFrom}-to-${customTo}` : preset;
+    const suffix = preset === 'custom' ? `${customFrom}-to-${customTo}` : preset;
     a.download = `revenue-${suffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  function formatRangeLabel(from, to) {
-    if (!from || !to) return null;
-    const fmt = new Intl.DateTimeFormat(locale, { dateStyle: 'medium' });
-    return t('analytics.rangeLabel', {
-      from: fmt.format(new Date(from)),
-      to: fmt.format(new Date(to)),
-    });
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">{t('analytics.title')}</h2>
-          <p className="text-sm text-secondary">{t('analytics.subtitle')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => exportCsv().catch((e) => setError(e.message))}
-          disabled={!customRangeReady}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {t('analytics.exportCsv')}
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {PRESETS.map((key) => (
+    <div className="space-y-8">
+      <PageHeader
+        title={t('analytics.title')}
+        subtitle={t('analytics.subtitle')}
+        actions={
           <button
-            key={key}
             type="button"
-            onClick={() => {
-              setPreset(key);
-              setCategoryId('');
-            }}
-            className={`rounded-full px-3 py-1.5 text-sm ${
-              preset === key
-                ? 'bg-primary-to text-white'
-                : 'border border-slate-300 text-secondary hover:bg-slate-50'
-            }`}
+            onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
+            disabled={!customRangeReady || !report}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {t(`analytics.preset.${key}`)}
+            {t('analytics.exportCsv')}
           </button>
-        ))}
-      </div>
+        }
+      />
 
-      {preset === 'custom' ? (
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-              {t('analytics.from')}
-            </span>
-            <input
-              type="date"
-              className="rounded-lg border border-slate-200 px-3 py-2"
-              value={customFrom}
-              max={customTo || undefined}
-              onChange={(e) => setCustomFrom(e.target.value)}
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-              {t('analytics.to')}
-            </span>
-            <input
-              type="date"
-              className="rounded-lg border border-slate-200 px-3 py-2"
-              value={customTo}
-              min={customFrom || undefined}
-              onChange={(e) => setCustomTo(e.target.value)}
-            />
-          </label>
-          {!customRangeReady ? (
-            <p className="pb-2 text-sm text-secondary">{t('analytics.customHint')}</p>
+      <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setPreset(key);
+                setCategoryId('');
+              }}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                preset === key
+                  ? 'bg-slate-900 text-white'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {t(`analytics.preset.${key}`)}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          {preset === 'custom' ? (
+            <>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {t('analytics.from')}
+                </span>
+                <input
+                  type="date"
+                  className="rounded-lg border border-slate-200 px-3 py-2"
+                  value={customFrom}
+                  max={customTo || undefined}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {t('analytics.to')}
+                </span>
+                <input
+                  type="date"
+                  className="rounded-lg border border-slate-200 px-3 py-2"
+                  value={customTo}
+                  min={customFrom || undefined}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
+
+          {canPickVenue && venues.length > 1 ? (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                {t('analytics.filterVenue')}
+              </span>
+              <select
+                className="rounded-lg border border-slate-200 px-3 py-2"
+                value={venueId}
+                onChange={(e) => {
+                  setVenueId(e.target.value);
+                  setCategoryId('');
+                }}
+              >
+                <option value="">{t('analytics.allVenues')}</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {i18n.language === 'ar' ? v.nameAr : v.nameEn}
+                  </option>
+                ))}
+              </select>
+            </label>
           ) : null}
         </div>
-      ) : null}
-
-      {canPickVenue && venues.length > 1 && (
-        <label className="block text-sm">
-          <span className="mb-1 block text-secondary">{t('analytics.filterVenue')}</span>
-          <select
-            className="rounded border px-3 py-2"
-            value={venueId}
-            onChange={(e) => {
-              setVenueId(e.target.value);
-              setCategoryId('');
-            }}
-          >
-            <option value="">{t('analytics.allVenues')}</option>
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {i18n.language === 'ar' ? v.nameAr : v.nameEn}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      </section>
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
       ) : null}
 
       {loading && !report && customRangeReady ? (
-        <p className="text-secondary">{t('common.loading')}</p>
+        <p className="text-sm text-slate-500">{t('common.loading')}</p>
       ) : preset === 'custom' && !customRangeReady ? (
-        <p className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
+        <p className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
           {t('analytics.customHint')}
         </p>
       ) : report ? (
         <>
-          {report.range?.from && report.range?.to ? (
-            <p className="text-sm text-secondary">
-              {formatRangeLabel(report.range.from, report.range.to)}
-            </p>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-sm text-secondary">{t('analytics.totalRevenue')}</p>
-              <p className="mt-2 text-3xl font-bold text-slate-900">
-                {formatMoney(report.totalRevenue, locale)} {t('pos.currency')}
-              </p>
-            </div>
+          <section className="grid gap-4 sm:grid-cols-2">
+            <StatCard
+              label={t('analytics.totalRevenue')}
+              value={formatMoney(report.totalRevenue, locale, currencyLabel)}
+            />
             {report.comparison ? (
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <p className="text-sm text-secondary">{t('analytics.vsPrevious')}</p>
-                <p className="mt-2 text-2xl font-bold text-slate-900">
-                  {formatMoney(report.comparison.previous, locale)} {t('pos.currency')}
-                </p>
-                <p
-                  className={`mt-1 text-sm ${
-                    report.comparison.changeAmount >= 0 ? 'text-emerald-700' : 'text-red-700'
-                  }`}
-                >
-                  {t('analytics.change', {
-                    amount: formatMoney(report.comparison.changeAmount, locale),
-                    percent: report.comparison.changePercent,
-                  })}
-                </p>
-              </div>
+              <StatCard
+                label={t('analytics.vsPrevious')}
+                value={formatMoney(report.comparison.previous, locale, currencyLabel)}
+                trend={{
+                  changePercent: report.comparison.changePercent,
+                  changeAmount: report.comparison.changeAmount,
+                  locale,
+                  currencyLabel,
+                }}
+              />
             ) : null}
-          </div>
+          </section>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">{chartTitle}</h3>
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">{chartTitle}</h3>
+                {categoryId ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-sm text-primary-from hover:underline"
+                    onClick={() => setCategoryId('')}
+                  >
+                    {t('analytics.backToCategories')}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
             {chartData.length === 0 ? (
-              <p className="text-sm text-secondary">{t('analytics.noData')}</p>
+              <p className="text-sm text-slate-500">{t('analytics.noData')}</p>
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-20} textAnchor="end" height={70} />
-                    <YAxis tick={{ fontSize: 12 }} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis
+                      dataKey="name"
+                      tick={{ fontSize: 12, fill: '#64748b' }}
+                      interval={0}
+                      angle={-18}
+                      textAnchor="end"
+                      height={72}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <Tooltip
-                      formatter={(value) =>
-                        `${formatMoney(value, locale)} ${t('pos.currency')}`
-                      }
+                      formatter={(value) => formatMoney(value, locale, currencyLabel)}
+                      contentStyle={{ borderRadius: 12, borderColor: '#e2e8f0' }}
                     />
                     <Bar
                       dataKey="revenue"
-                      fill="#2563eb"
-                      radius={[4, 4, 0, 0]}
+                      fill="#0f172a"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={48}
                       onClick={(data) => {
                         if (!report.drillVenueId || categoryId) return;
                         if (data?.payload?.id) setCategoryId(data.payload.id);
@@ -298,73 +297,46 @@ export function AnalyticsPage() {
                 </ResponsiveContainer>
               </div>
             )}
-            {categoryId ? (
-              <button
-                type="button"
-                className="mt-3 text-sm text-primary-from hover:underline"
-                onClick={() => setCategoryId('')}
-              >
-                {t('analytics.backToCategories')}
-              </button>
-            ) : null}
-          </div>
+          </section>
 
-          {report.items?.length > 0 && categoryId ? (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-start">
-                  <tr>
-                    <th className="px-4 py-3">{t('analytics.item')}</th>
-                    <th className="px-4 py-3">{t('analytics.quantity')}</th>
-                    <th className="px-4 py-3">{t('analytics.revenue')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.items.map((row) => (
-                    <tr key={row.menuItemId} className="border-t border-slate-100">
-                      <td className="px-4 py-3">{labelEntity(row, i18n.language)}</td>
-                      <td className="px-4 py-3">{row.quantity}</td>
-                      <td className="px-4 py-3">
-                        {formatMoney(row.revenue, locale)} {t('pos.currency')}
-                      </td>
+          {!categoryId && report.categories?.length > 0 ? (
+            <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-6 py-4">
+                <h3 className="text-base font-semibold text-slate-900">{t('analytics.category')}</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-start text-xs uppercase tracking-wide text-slate-500">
+                      <th className="px-6 py-3 font-semibold">{t('analytics.category')}</th>
+                      <th className="px-6 py-3 font-semibold">{t('analytics.revenue')}</th>
+                      <th className="px-6 py-3 font-semibold" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-
-          {report.categories?.length > 0 && !categoryId ? (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-start">
-                  <tr>
-                    <th className="px-4 py-3">{t('analytics.category')}</th>
-                    <th className="px-4 py-3">{t('analytics.revenue')}</th>
-                    <th className="px-4 py-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.categories.map((row) => (
-                    <tr key={row.categoryId} className="border-t border-slate-100">
-                      <td className="px-4 py-3">{labelEntity(row, i18n.language)}</td>
-                      <td className="px-4 py-3">
-                        {formatMoney(row.revenue, locale)} {t('pos.currency')}
-                      </td>
-                      <td className="px-4 py-3 text-end">
-                        <button
-                          type="button"
-                          className="text-primary-from hover:underline"
-                          onClick={() => setCategoryId(row.categoryId)}
-                        >
-                          {t('analytics.drillDown')}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {report.categories.map((row) => (
+                      <tr key={row.categoryId} className="border-b border-slate-100 last:border-0">
+                        <td className="px-6 py-3 font-medium text-slate-900">
+                          {labelEntity(row, i18n.language)}
+                        </td>
+                        <td className="px-6 py-3 text-slate-700">
+                          {formatMoney(row.revenue, locale, currencyLabel)}
+                        </td>
+                        <td className="px-6 py-3 text-end">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-primary-from hover:underline"
+                            onClick={() => setCategoryId(row.categoryId)}
+                          >
+                            {t('analytics.drillDown')}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
           ) : null}
         </>
       ) : null}

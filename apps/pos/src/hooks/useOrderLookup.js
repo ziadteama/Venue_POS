@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { callAgent } from '../api/agent.js';
+import { parseApiError } from '../utils/apiError.js';
 
 export function useOrderLookup() {
   const [open, setOpen] = useState(false);
@@ -32,7 +33,7 @@ export function useOrderLookup() {
     try {
       setResult(await callAgent(`/v1/order-explorer?${buildQuery()}`));
     } catch (e) {
-      setError(e.message);
+      setError(parseApiError(e?.message ?? e, 'Could not load orders'));
     } finally {
       setLoading(false);
     }
@@ -54,7 +55,7 @@ export function useOrderLookup() {
       : `/v1/order-explorer/by-cheque/${selectedChequeId}`;
     callAgent(path)
       .then(setDetail)
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(parseApiError(e?.message ?? e, 'Could not load order detail')));
   }, [open, selectedChequeId]);
 
   function openLookup() {

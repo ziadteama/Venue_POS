@@ -22,7 +22,7 @@ import {
   changeChequeDiscount,
   removeAppliedChequeDiscount,
 } from '../services/manager-action-service.js';
-import { emitManagerAction } from '../plugins/socket.js';
+import { emitManagerAction, emitRefundNotification, emitDiscountNotification } from '../plugins/socket.js';
 import { withSyncIdempotency } from '../services/sync-idempotency.js';
 import { occupyFloorTable, releaseFloorTable } from '../services/floor-table-service.js';
 import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
@@ -87,7 +87,7 @@ const payChequeSchema = z.object({
 
 const discountSchema = z.object({
   cashierId: z.string().uuid(),
-  restaurantManagerPin: z.string().min(4).max(6),
+  restaurantManagerPin: z.string().min(4).max(6).optional(),
   reason: z.string().min(1).max(500),
   amount: z.number().positive().optional(),
   percent: z.number().positive().max(100).optional(),
@@ -95,15 +95,15 @@ const discountSchema = z.object({
 
 const removeDiscountSchema = z.object({
   cashierId: z.string().uuid(),
-  restaurantManagerPin: z.string().min(4).max(6),
+  restaurantManagerPin: z.string().min(4).max(6).optional(),
   reason: z.string().min(1).max(500),
 });
 
 const refundSchema = z.object({
   cashierId: z.string().uuid(),
-  restaurantManagerPin: z.string().min(4).max(6),
+  restaurantManagerPin: z.string().min(4).max(6).optional(),
   reason: z.string().min(1).max(500),
-  amount: z.number().positive(),
+  amount: z.coerce.number().positive(),
   method: z.enum(['cash', 'card', 'voucher']).optional(),
 });
 
@@ -283,17 +283,26 @@ export async function chequeRoutes(app) {
       }
 
       const venueId = request.terminal.venueId;
-      const cheque = await applyChequeDiscount(request.params.id, parsed.data, venueId);
+      const result = await applyChequeDiscount(request.params.id, parsed.data, venueId);
       if (request.server.io) {
+        emitDiscountNotification(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          chequeNumber: result.chequeNumber,
+          action: 'discount',
+          amount: result.discountAmount,
+          reason: parsed.data.reason,
+          source: 'pos',
+        });
         emitManagerAction(request.server.io, {
           venueId,
           terminalId: request.terminal.id,
           type: 'discount',
           chequeId: request.params.id,
-          result: cheque,
+          result,
         });
       }
-      return cheque;
+      return result;
     },
   );
 
@@ -308,17 +317,26 @@ export async function chequeRoutes(app) {
       }
 
       const venueId = request.terminal.venueId;
-      const cheque = await changeChequeDiscount(request.params.id, parsed.data, venueId);
+      const result = await changeChequeDiscount(request.params.id, parsed.data, venueId);
       if (request.server.io) {
+        emitDiscountNotification(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          chequeNumber: result.chequeNumber,
+          action: 'discount_change',
+          amount: result.discountAmount,
+          reason: parsed.data.reason,
+          source: 'pos',
+        });
         emitManagerAction(request.server.io, {
           venueId,
           terminalId: request.terminal.id,
           type: 'discount_change',
           chequeId: request.params.id,
-          result: cheque,
+          result,
         });
       }
-      return cheque;
+      return result;
     },
   );
 
@@ -330,17 +348,26 @@ export async function chequeRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = request.terminal.venueId;
-      const cheque = await removeAppliedChequeDiscount(request.params.id, parsed.data, venueId);
+      const result = await removeAppliedChequeDiscount(request.params.id, parsed.data, venueId);
       if (request.server.io) {
+        emitDiscountNotification(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          chequeNumber: result.chequeNumber,
+          action: 'discount_remove',
+          amount: result.discountAmount,
+          reason: parsed.data.reason,
+          source: 'pos',
+        });
         emitManagerAction(request.server.io, {
           venueId,
           terminalId: request.terminal.id,
           type: 'discount_remove',
           chequeId: request.params.id,
-          result: cheque,
+          result,
         });
       }
-      return cheque;
+      return result;
     },
   );
 
@@ -356,6 +383,17 @@ export async function chequeRoutes(app) {
         terminalId: request.terminal.id,
       });
       if (request.server.io) {
+        emitRefundNotification(request.server.io, {
+          venueId,
+          terminalId: request.terminal.id,
+          chequeNumber: result.cheque?.chequeNumber,
+          amount: result.refund?.amount,
+          method: result.refund?.method,
+          reason: parsed.data.reason,
+          managerName: result.manager?.username,
+          cashierName: result.cashier?.username,
+          source: 'pos',
+        });
         emitManagerAction(request.server.io, {
           venueId,
           terminalId: request.terminal.id,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 const PAGE_SIZE = 50;
@@ -75,7 +76,7 @@ function ForceCloseModal({ shift, t, locale, onClose, onSuccess, setError }) {
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSubmitting(false);
     }
@@ -186,7 +187,7 @@ export function ShiftsPage() {
       setResult(data);
       if (canPickVenue) setVenues(venueList);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -227,7 +228,7 @@ export function ShiftsPage() {
         const data = await apiFetch(`/api/v1/manager/shifts/${selectedId}${qs}`);
         if (!cancelled) setDetail(data);
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setError(friendlyError(err));
       }
     })();
     return () => {
@@ -274,7 +275,7 @@ export function ShiftsPage() {
         </div>
         <button
           type="button"
-          onClick={() => exportCsv().catch((e) => setError(e.message))}
+          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
         >
           {t('shifts.exportCsv')}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LanguageToggle } from '../components/LanguageToggle.jsx';
 import { defaultDashboardPath } from '@venue-pos/shared';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 export function LoginPage() {
@@ -22,7 +23,7 @@ export function LoginPage() {
       const loggedInUser = await login(username, password);
       navigate(defaultDashboardPath(loggedInUser.role));
     } catch (err) {
-      setError(err.message || t('auth.loginFailed'));
+      setError(friendlyError(err, t('auth.loginFailed')));
     } finally {
       setLoading(false);
     }

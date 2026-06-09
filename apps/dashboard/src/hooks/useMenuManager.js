@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { countMissingTranslations } from '../utils/menuTranslations.js';
 
 export function useMenuManager({ canEdit, enabled = true }) {
@@ -38,12 +39,12 @@ export function useMenuManager({ canEdit, enabled = true }) {
 
   useEffect(() => {
     if (!enabled) return;
-    load().catch((e) => setError(e.message));
+    load().catch((e) => setError(friendlyError(e)));
   }, [load, enabled]);
 
   useEffect(() => {
     if (!enabled || !selectedId) return;
-    loadDetail(selectedId).catch((e) => setError(e.message));
+    loadDetail(selectedId).catch((e) => setError(friendlyError(e)));
   }, [selectedId, loadDetail, enabled]);
 
   const run = useCallback(
@@ -55,7 +56,7 @@ export function useMenuManager({ canEdit, enabled = true }) {
         await load();
         if (selectedId) await loadDetail(selectedId);
       } catch (e) {
-        setError(e.message);
+        setError(friendlyError(e));
       } finally {
         setBusy(false);
       }
@@ -185,7 +186,7 @@ export function useMenuManager({ canEdit, enabled = true }) {
       );
       setShowAutoTranslate(true);
     } catch (e) {
-      setError(e.message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

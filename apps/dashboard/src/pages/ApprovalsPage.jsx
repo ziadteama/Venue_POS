@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubManager } from '@venue-pos/shared';
 import { apiFetch } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 function formatWhen(iso, locale) {
@@ -45,7 +46,7 @@ export function ApprovalsPage() {
       setRequests(list);
       setVenues(venueList);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -68,7 +69,7 @@ export function ApprovalsPage() {
       await apiFetch(`/api/v1/manager/approvals/${id}/approve`, { method: 'POST', body: '{}' });
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusyId(null);
     }
@@ -88,7 +89,7 @@ export function ApprovalsPage() {
       setRejectReason('');
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusyId(null);
     }

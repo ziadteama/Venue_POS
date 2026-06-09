@@ -1,4 +1,6 @@
 import { formatDateTime, formatMoney, itemLabel, lineItemTotal } from '../utils/format.js';
+import { parseApiError } from '../utils/apiError.js';
+import { MODAL_Z } from '@venue-pos/shared';
 
 export function OrderLookupModal({
   t,
@@ -31,8 +33,19 @@ export function OrderLookupModal({
   const chequeOrders = detail?.chequeOrders ?? (detail?.items ? [detail] : []);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/50 p-4">
+    <div
+      className="fixed inset-0 flex flex-col bg-slate-900/50 p-4"
+      style={{ zIndex: MODAL_Z.stacked }}
+    >
       <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+        {error ? (
+          <div
+            role="alert"
+            className="relative z-20 shrink-0 border-b border-red-300 bg-red-50 px-5 py-2.5 text-sm font-medium text-red-800"
+          >
+            {error}
+          </div>
+        ) : null}
         <header className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">{t('pos.orderLookupTitle')}</h2>
@@ -84,12 +97,6 @@ export function OrderLookupModal({
           </button>
         </div>
 
-        {error ? (
-          <div className="mx-5 mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-            {error}
-          </div>
-        ) : null}
-
         <div className="grid min-h-0 flex-1 gap-0 md:grid-cols-[1fr_20rem]">
           <section className="min-h-0 overflow-y-auto border-r border-slate-100">
             {loading && !result ? (
@@ -120,7 +127,7 @@ export function OrderLookupModal({
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-secondary">
-                            {group.tableLabel || '—'} · {group.orderCount}{' '}
+                            {group.tableLabel || '-'} | {group.orderCount}{' '}
                             {t('pos.orderLookupRounds')}
                           </p>
                         </button>
@@ -180,7 +187,7 @@ export function OrderLookupModal({
                     <ul className="mt-1 space-y-1 text-secondary">
                       {detail.cheque.payments.map((p) => (
                         <li key={p.id}>
-                          {p.method} — {formatMoney(p.amount, locale)} {t('pos.currency')}
+                          {p.method} - {formatMoney(p.amount, locale)} {t('pos.currency')}
                         </li>
                       ))}
                     </ul>
@@ -200,7 +207,7 @@ export function OrderLookupModal({
                         {order.items.map((item) => (
                           <li key={item.id} className="flex justify-between gap-2">
                             <span>
-                              {item.quantity}× {itemLabel(item, language)}
+                              {item.quantity}x {itemLabel(item, language)}
                             </span>
                             <span>
                               {formatMoney(lineItemTotal(item), locale)}
@@ -211,7 +218,9 @@ export function OrderLookupModal({
                       <button
                         type="button"
                         onClick={() =>
-                          reprintOrder(order.id).catch((e) => lookup.setError(e.message))
+                          reprintOrder(order.id).catch((e) =>
+                            lookup.setError(parseApiError(e?.message ?? e)),
+                          )
                         }
                         className="mt-2 text-xs text-primary-to hover:underline"
                       >
@@ -225,7 +234,9 @@ export function OrderLookupModal({
                   <button
                     type="button"
                     onClick={() =>
-                      reprintCheque(detail.cheque.id).catch((e) => lookup.setError(e.message))
+                      reprintCheque(detail.cheque.id).catch((e) =>
+                        lookup.setError(parseApiError(e?.message ?? e)),
+                      )
                     }
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50"
                   >

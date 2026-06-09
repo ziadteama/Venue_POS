@@ -1,4 +1,7 @@
 import { canSplitByAmount, splittableItems, transferableItems } from '../utils/cheque.js';
+import { ModalFrame } from './ModalFrame.jsx';
+
+import { CloseXIcon } from './icons.jsx';
 
 function ActionRow({ icon, label, hint, onClick, danger = false }) {
   return (
@@ -55,7 +58,7 @@ export function ChequeActionsSheet({
   const adjustActions = showDiscountApply || showDiscountEdit;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
+    <ModalFrame layer="base" align="bottom">
       <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div>
@@ -68,7 +71,7 @@ export function ChequeActionsSheet({
             className="rounded-lg p-1.5 text-secondary hover:bg-slate-100"
             aria-label={t('common.cancel')}
           >
-            ✕
+            <CloseXIcon className="h-5 w-5" />
           </button>
         </div>
 
@@ -79,13 +82,13 @@ export function ChequeActionsSheet({
                 {t('pos.actionsBill')}
               </p>
               {showSplit ? (
-                <ActionRow icon="⇄" label={t('pos.splitBill')} onClick={onSplit} />
+                <ActionRow icon="/" label={t('pos.splitBill')} onClick={onSplit} />
               ) : null}
               {showSplitAmount ? (
                 <ActionRow icon="%" label={t('pos.splitByAmount')} onClick={onSplitAmount} />
               ) : null}
               {showTransfer ? (
-                <ActionRow icon="→" label={t('pos.transferLines')} onClick={onTransfer} />
+                <ActionRow icon="->" label={t('pos.transferLines')} onClick={onTransfer} />
               ) : null}
             </section>
           ) : null}
@@ -101,13 +104,13 @@ export function ChequeActionsSheet({
               {showDiscountEdit ? (
                 <>
                   <ActionRow
-                    icon="✎"
+                    icon="Ed"
                     label={t('pos.editDiscount')}
                     hint={t('pos.discountCurrent', { amount: discountAmount.toFixed(2) })}
                     onClick={onEditDiscount}
                   />
                   <ActionRow
-                    icon="✕"
+                    icon="X"
                     label={t('pos.removeDiscount')}
                     onClick={onRemoveDiscount}
                     danger
@@ -122,7 +125,7 @@ export function ChequeActionsSheet({
               <p className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-secondary">
                 {t('pos.actionsOther')}
               </p>
-              <ActionRow icon="↩" label={t('pos.refundPaidCheque')} onClick={onRefund} danger />
+              <ActionRow icon="Rf" label={t('pos.refundPaidCheque')} onClick={onRefund} danger />
             </section>
           ) : null}
 
@@ -131,6 +134,6 @@ export function ChequeActionsSheet({
           ) : null}
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { callAgent } from '../api/agent.js';
+import { parseApiError } from '../utils/apiError.js';
 
 /**
  * Modal visibility + confirm handlers for POS overlays.
@@ -20,6 +21,7 @@ export function usePosModals({
   refreshShift,
   setKitchenWatch,
   setError,
+  onRefundSuccess,
   t,
 }) {
   const [showSplitModal, setShowSplitModal] = useState(false);
@@ -31,6 +33,7 @@ export function usePosModals({
   const [showActionsSheet, setShowActionsSheet] = useState(false);
   const [showRefundPicker, setShowRefundPicker] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
   const [modifierItem, setModifierItem] = useState(null);
   const [paidCheques, setPaidCheques] = useState([]);
@@ -77,6 +80,7 @@ export function usePosModals({
   }
 
   async function openRefundFlow() {
+    setError('');
     setLoadingPaid(true);
     setShowRefundPicker(true);
     const list = await loadPaidCheques();
@@ -86,24 +90,33 @@ export function usePosModals({
 
   async function onPickRefundCheque(tab) {
     try {
-      const detail = await callAgent(`/v1/cheques/${tab.id}`);
+      const detail =
+        tab?.payments?.length || tab?.refunds?.length
+          ? tab
+          : await callAgent(`/v1/cheques/${tab.id}`);
       setRefundCheque(detail);
       setShowRefundPicker(false);
       setShowRefundModal(true);
-    } catch {
-      setError(t('pos.refundLoadFailed'));
+    } catch (err) {
+      setError(parseApiError(err?.message, t('pos.refundLoadFailed')));
       setShowRefundPicker(false);
     }
   }
 
   async function onConfirmRefund(body) {
     if (!refundCheque) return;
-    const ok = await confirmRefund(refundCheque.id, body);
-    if (ok) {
+    setRefundSubmitting(true);
+    setError('');
+    const result = await confirmRefund(refundCheque.id, body);
+    setRefundSubmitting(false);
+    if (result?.ok) {
       setShowRefundModal(false);
       setRefundCheque(null);
       setError('');
+      onRefundSuccess?.(result);
+      return result;
     }
+    return result;
   }
 
   async function onConfirmPay(body) {
@@ -150,10 +163,23 @@ export function usePosModals({
     onPickRefundCheque,
     onConfirmRefund,
     onConfirmPay,
+    refundSubmitting,
     closeRefundModal: () => {
       setShowRefundModal(false);
       setRefundCheque(null);
+      setError('');
     },
     closeRefundPicker: () => setShowRefundPicker(false),
+    isAnyModalOpen:
+      showSplitModal ||
+      showSplitAmountModal ||
+      showTransferModal ||
+      showTableModal ||
+      showDiscountModal ||
+      showActionsSheet ||
+      showRefundPicker ||
+      showRefundModal ||
+      showPayModal ||
+      Boolean(modifierItem),
   };
 }

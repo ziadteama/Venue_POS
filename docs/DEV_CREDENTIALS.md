@@ -16,8 +16,8 @@ npm run seed
 | Role | Where | What they do |
 |------|-------|--------------|
 | **Cashier** | POS | Orders, payments, daily service |
-| **Hub manager** | Web dashboard | **All operations** — menus, staff, cheques, orders, shifts, audit, health (refunds via Cheques) |
-| **CEO** | Web dashboard | **Monitoring only** — live KPIs + revenue analytics |
+| **Hub manager** | Web dashboard | **All operations** — overview, menus, staff, cheques, orders, shifts, audit, health |
+| **CEO** | Web dashboard | **Monitoring only** — executive overview + revenue analytics |
 
 Cashiers do **not** use the web dashboard.
 
@@ -31,7 +31,9 @@ Cashiers do **not** use the web dashboard.
 | Hub manager | `admin` | `admin123` | `9999` | Web dashboard (full ops) |
 | Cashier | `cashier1` | — | `1234` | POS only |
 
-**Dev-only:** `venue_mgr` / PIN `7777` — shift manager on POS for void/discount/refund PIN tests. Hub manager creates real staff in **Staff** (`/users`).
+**Dev-only:** `venue_mgr` / PIN `7777` — **floor manager** (shift manager) on POS for discount/refund/void PIN tests. Hub manager creates real staff in **Staff** (`/users`).
+
+**PIN rule on POS:** discount and refund accept **floor manager PIN only** (`7777`). Hub manager PIN `9999` is for web login — it does **not** authorize POS terminal refunds.
 
 ---
 
@@ -40,30 +42,32 @@ Cashiers do **not** use the web dashboard.
 **Who can log in:** `owner` (CEO) or `admin` (hub manager).
 
 Login: **username + password** → `POST /api/v1/auth/login`  
-After login: CEO → `/` · hub manager → `/menus`
+After login: **both roles → `/`** (different content per role)
 
 ### CEO — `owner` / `owner123` (read-only monitoring)
 
 | Page | Path | Notes |
 |------|------|-------|
-| Overview (live KPIs) | `/` | Revenue today, open tables, orders/min |
-| Analytics | `/analytics` | Charts, presets, CSV export |
+| Executive overview | `/` | Net sales today/week, 7-day trend, venue performance, recent changes (3 days) |
+| Analytics | `/analytics` | Revenue drill-down, presets, CSV export |
 
-CEO has **no** access to cheques, orders, menus, staff, approvals, or other operational pages.
+CEO has **no** access to cheques, orders, menus, staff, or other operational pages.
 
 ### Hub manager — `admin` / `admin123` (full back office)
 
 | Page | Path | Notes |
 |------|------|-------|
+| Operations overview | `/` | Today net sales, refunds, open cheques/shifts, terminals, 7-day trend, recent changes |
 | Menus | `/menus` | Templates, publish, translations |
-| Cheques | `/cheques` | Open + paid investigation |
+| Cheques | `/cheques` | Open + paid; refunds from paid tab |
 | Orders | `/orders` | Order explorer — all venues, CSV |
 | Shifts | `/shifts` | All venues, EOD reconciliation |
-| ~~Approvals~~ | `/approvals` | **Nav removed** — API + page remain; use **Cheques → Force refund** |
 | Staff | `/users` | Cashiers, kitchen, shift managers |
-| Venue settings | `/settings` | Tax, service charge, printers |
-| Activity | `/activity` | Audit log — filters + CSV |
-| System health | `/health` | Terminals, sync queue |
+| Venue settings | `/settings` | Tax, service charge, printers, terminals |
+| Activity | `/activity` | Full audit log — filters + CSV |
+| System health | `/health` | Terminals, sync queue, LAN profile |
+
+~~Approvals~~ (`/approvals`) — nav removed; use **Cheques → refund** on paid cheques.
 
 ---
 
@@ -80,114 +84,111 @@ Set in `apps/pos/.env` (see `apps/pos/.env.example`):
 | `VITE_TERMINAL_ID` | `00000000-0000-4000-8000-000000000001` |
 | `VITE_TERMINAL_SECRET` | `dev-terminal-secret` |
 | `VITE_LOCAL_AGENT_URL` | `http://127.0.0.1:3456` |
+| `VITE_API_URL` | `http://localhost:3000` |
 
-Terminal name in DB: **POS-1** · Venue: **Demo Cafe** (anchor)
+Second demo till (Demo Restaurant): `VITE_TERMINAL_ID=00000000-0000-4000-8000-000000000002` (same secret).
 
-### Restaurant terminal (cross-venue demos)
+### Staff login (cashier)
 
-| Variable | Dev value |
-|----------|-----------|
-| `VITE_TERMINAL_ID` | `00000000-0000-4000-8000-000000000012` |
-| `VITE_TERMINAL_SECRET` | `dev-terminal-secret-restaurant` |
+| Username | PIN | Venue |
+|----------|-----|-------|
+| `cashier1` | `1234` | Demo Cafe (terminal 1) |
+| `cashier2` | `2345` | Demo Restaurant (terminal 2) |
 
-Terminal name in DB: **POS-2** · Venue: **Demo Restaurant**
+POS supports PIN-only login after roster cache (log in once while API is up).
 
-### Cashier — `cashier1` / PIN `1234` (Demo Cafe)
+### Manager override on POS (discount / refund / void)
 
-| Field | Dev value |
-|-------|-----------|
-| User | `cashier1` |
-| User ID | `00000000-0000-4000-8000-000000000011` |
-| PIN | `1234` |
+| Staff | PIN | Role | Notes |
+|-------|-----|------|-------|
+| `venue_mgr` | `7777` | `venue_manager` | **Floor manager** — required for POS discount, refund, void, comp, transfer |
+| — | `9999` | hub manager web PIN | **Not accepted** on POS terminal refund/discount routes |
 
-### Cashier — `cashier2` / PIN `2345` (Demo Restaurant)
+After any refund (POS, dashboard Cheques, or hub force-refund), all POS at the venue show a dismissible **refund notification** banner via WebSocket `manager:notification`.
 
-| Field | Dev value |
-|-------|-----------|
-| User | `cashier2` |
-| PIN | `2345` |
+Offline: discount apply/edit/remove works with cached floor manager PIN when WAN is down (local-agent).
 
-**Cross-sell (Phase 4):** only **POS-1 (Cafe anchor)** is required. In `apps/api/.env`: `FEATURE_CROSS_VENUE_BILLING=true`; for card/split pay also `FEATURE_MANUAL_CARD_PAYMENT=true`. Hub manager enables Cafe→Restaurant in **Settings → Cross-venue billing**, then on Cafe POS: open a table → toggle **Cross-sell** → add items from venue tabs → **Send** → optional group **% discount** (manager PIN `7777`) → **Pay** (cash, card, or split). First linked-venue item lazily attaches `crossVenueGroupId`. Combined receipt/print shows itemized lines per venue. POS-2 is optional for standalone Restaurant demos.
+### Cross-sell (dev seed)
 
-### Manager PIN on POS
-
-When the POS asks for a manager PIN (discount, void, refund, comp, transfer, shift close):
-
-| PIN | Dev account | Notes |
-|-----|-------------|-------|
-| `7777` | `venue_mgr` | Shift manager (dev seed) |
-| `9999` | `admin` | Hub manager policy PIN |
-
-### Order lookup (POS)
-
-Header button **Orders** — search past cheques; reprint receipts.
+- **Anchor:** Demo Cafe (`00000000-0000-4000-8000-000000000010`)
+- **Target:** Demo Restaurant (`00000000-0000-4000-8000-000000000020`)
+- Billing matrix enabled Cafe → Restaurant
+- Requires `FEATURE_CROSS_VENUE_BILLING=true` (+ `FEATURE_MANUAL_CARD_PAYMENT=true` for card/split)
 
 ---
 
-## Kitchen display — optional (`http://localhost:5175`)
+## Local agent (`http://127.0.0.1:3456`)
 
-Only if `FEATURE_KDS_ENABLED=true`. Kitchen users created by hub manager in Staff.
+Copy `apps/local-agent/.env.example` → `.env`. Key vars for Phase 6:
+
+| Variable | Example | Purpose |
+|----------|---------|---------|
+| `CLOUD_HEALTH_URL` | `http://localhost:3000/health` | WAN probe |
+| `AGENT_LAN_SECRET` | shared secret | LAN peer auth |
+| `AGENT_PEERS` | `192.168.1.22,192.168.1.23` | Static peer IPs for gossip |
+| `AGENT_DEVICE_LABEL` | `Cafe POS-1` | Till name in banners / hub health |
+
+See `docs/DEVELOPMENT.md` § Phase 6 and `docs/PHASE6_OFFLINE_PLAN.md` for full env table.
 
 ---
 
-## API / curl (direct testing)
+## API login (curl)
 
-Base URL: `http://localhost:3000`
-
-### Dashboard login
+**Dashboard / manager JWT:**
 
 ```bash
-# CEO — metrics/analytics only
 curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"owner","password":"owner123"}'
 
-# Hub manager — all ops routes
 curl -X POST http://localhost:3000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"admin123"}'
 ```
 
-### Cashier PIN + terminal
+**CEO executive overview** (Bearer token from owner login):
+
+```bash
+curl http://localhost:3000/api/v1/manager/dashboard/executive \
+  -H "Authorization: Bearer <token>"
+```
+
+**Hub operations overview:**
+
+```bash
+curl "http://localhost:3000/api/v1/manager/dashboard/operations" \
+  -H "Authorization: Bearer <token>"
+```
+
+Optional filter: `?venueId=00000000-0000-4000-8000-000000000010`
+
+**POS terminal PIN** (direct API — production uses local-agent):
 
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/pin \
   -H "Content-Type: application/json" \
-  -H "x-terminal-id: 00000000-0000-4000-8000-000000000001" \
-  -H "x-terminal-secret: dev-terminal-secret" \
+  -H "X-Terminal-ID: 00000000-0000-4000-8000-000000000001" \
+  -H "X-Terminal-Secret: dev-terminal-secret" \
   -d '{"pin":"1234"}'
 ```
 
 ---
 
-## Seed IDs (debugging / tests)
+## Seed IDs (curl / tests)
 
-| Entity | UUID |
-|--------|------|
-| Demo Cafe (venue, anchor) | `00000000-0000-4000-8000-000000000010` |
-| Demo Restaurant (venue) | `00000000-0000-4000-8000-000000000020` |
-| Terminal POS-1 (Cafe) | `00000000-0000-4000-8000-000000000001` |
-| Terminal POS-2 (Restaurant) | `00000000-0000-4000-8000-000000000012` |
-| Cashier `cashier1` | `00000000-0000-4000-8000-000000000011` |
-| Cashier `cashier2` | `00000000-0000-4000-8000-000000000012` |
-
----
-
-## Staff you create in the dashboard
-
-Hub manager adds staff at **Staff** (`/users`). **PINs must be unique across all staff in the system** (every venue and role — cashiers, kitchen, shift managers). The API rejects a PIN already used by anyone else.
-
-```csv
-username,role,pin,card_uid
-new_cashier,cashier,5678,
-shift_lead,venue_manager,4321,
-kitchen1,kitchen_staff,8765,RFID-ABC
-```
+| Resource | UUID |
+|----------|------|
+| Demo Cafe venue | `00000000-0000-4000-8000-000000000010` |
+| Demo Restaurant venue | `00000000-0000-4000-8000-000000000020` |
+| Terminal 1 (Cafe) | `00000000-0000-4000-8000-000000000001` |
+| Terminal 2 (Restaurant) | `00000000-0000-4000-8000-000000000002` |
+| Cashier 1 | `00000000-0000-4000-8000-000000000011` |
+| Cashier 2 | `00000000-0000-4000-8000-000000000021` |
 
 ---
 
-## Related docs
+## Other
 
-- [DEVELOPMENT.md](DEVELOPMENT.md) — ports, `npm run dev`, env files
-- [TEAM_LOG.md](TEAM_LOG.md) — role model and manager workflows
-- [AGENTS.md](../AGENTS.md) — agent guide and F&B role reference
+- **Hub manager PIN `9999`:** web dashboard login / legacy shift policy tests — not POS floor manager.
+- **Re-seed** resets all accounts above; update `apps/pos/.env` if you change terminal IDs in seed.
+- **Production:** rotate terminal secrets, disable seed accounts, use real staff from **Staff** (`/users`).

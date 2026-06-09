@@ -553,6 +553,54 @@ test('paid cheque refund: venue manager applies with PIN', async () => {
   assert.ok(audits.json().some((r) => r.chequeId === chequeId));
 });
 
+test('POS refund rejects hub manager PIN — floor manager only', async () => {
+  await ensureOpenShift();
+  const tableLabel = `RFHUB-${Date.now()}`;
+
+  const openRes = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel },
+  });
+  const chequeId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: { menuItemId: fx.menuItemId, quantity: 1 },
+  });
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+
+  const refundRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/refund`,
+    headers: terminalHeaders,
+    payload: {
+      cashierId: CASHIER_ID,
+      amount: 10,
+      method: 'cash',
+      reason: 'Hub PIN should fail',
+      restaurantManagerPin: '8888',
+    },
+  });
+  assert.equal(refundRes.statusCode, 401);
+});
+
 test('features endpoint exposes discounts and receipt print flags', async () => {
   const res = await fx.app.inject({
     method: 'GET',

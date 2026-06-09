@@ -26,9 +26,14 @@ function HeaderDropdown({ label, title, children, align = 'end' }) {
         aria-haspopup="menu"
       >
         {label}
-        <span className="text-[10px] text-white/70" aria-hidden="true">
-          Γû╛
-        </span>
+        <svg
+          className="h-3 w-3 shrink-0 text-white/70"
+          viewBox="0 0 12 12"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="M2.5 4.5 6 8l3.5-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
       </button>
       {open ? (
         <div
@@ -102,7 +107,7 @@ export function PosHeader({
           title={t('pos.tableLabel')}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-sm font-bold">
-            {tableLabel || 'ΓÇö'}
+            {tableLabel || '\u2014'}
           </span>
           <span className="hidden min-w-0 text-start md:block">
             <span className="block text-[10px] uppercase tracking-wide text-white/70">
