@@ -30,65 +30,76 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden flex-1 flex-col justify-between bg-primary-gradient p-10 text-white lg:flex">
-        <div>
-          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-2xl font-bold">
-            V
+    <div className="flex min-h-screen bg-surface-base">
+      {/* Brand panel */}
+      <aside className="relative hidden flex-1 flex-col justify-between overflow-hidden bg-ink-gradient p-12 text-white lg:flex">
+        <div className="absolute inset-0 bg-hero-glow opacity-80" aria-hidden="true" />
+        <div
+          className="absolute -bottom-24 -end-24 h-80 w-80 rounded-full bg-accent-500/20 blur-3xl"
+          aria-hidden="true"
+        />
+        <div className="relative">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-gradient text-2xl font-bold shadow-elevated">
+            {t('app.name')?.slice(0, 1) || 'V'}
           </div>
-          <h1 className="text-3xl font-bold">{t('app.name')}</h1>
-          <p className="mt-3 max-w-sm text-white/85">{t('app.tagline')}</p>
+          <h1 className="mt-8 text-4xl font-bold tracking-tight">{t('app.name')}</h1>
+          <p className="mt-4 max-w-sm text-base leading-relaxed text-slate-300">{t('app.tagline')}</p>
         </div>
-        <p className="text-sm text-white/60">{t('auth.loginSubtitle')}</p>
+        <div className="relative space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+            <p className="text-sm leading-relaxed text-slate-200">{t('dashboard.heroSubtitle')}</p>
+          </div>
+          <p className="text-sm text-slate-400">{t('auth.loginSubtitle')}</p>
+        </div>
       </aside>
 
-      <div className="flex flex-1 flex-col items-center justify-center bg-slate-50 p-6">
+      {/* Form panel */}
+      <div className="relative flex flex-1 flex-col items-center justify-center p-6">
         <div className="absolute end-6 top-6">
           <LanguageToggle />
         </div>
 
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-          <div className="mb-6 lg:hidden">
-            <h1 className="bg-primary-gradient bg-clip-text text-2xl font-bold text-transparent">
-              {t('app.name')}
-            </h1>
-            <p className="mt-1 text-secondary">{t('app.tagline')}</p>
+        <div className="w-full max-w-md animate-fade-up rounded-3xl border border-slate-200/70 bg-white p-8 shadow-card sm:p-10">
+          <div className="mb-8 lg:hidden">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-gradient text-xl font-bold text-white shadow-card">
+              {t('app.name')?.slice(0, 1) || 'V'}
+            </div>
           </div>
 
-          <h2 className="mb-1 text-xl font-semibold text-slate-900">{t('auth.login')}</h2>
-          <p className="mb-6 text-sm text-secondary">{t('auth.loginSubtitle')}</p>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900">{t('auth.login')}</h2>
+          <p className="mb-8 mt-1.5 text-sm text-slate-500">{t('auth.loginSubtitle')}</p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 {t('auth.username')}
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-lg border border-secondary/40 bg-slate-50 px-3 py-2.5 focus:border-primary-to focus:outline-none focus:ring-2 focus:ring-primary-to/20"
+                className="premium-input"
                 autoComplete="username"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 {t('auth.password')}
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-secondary/40 bg-slate-50 px-3 py-2.5 focus:border-primary-to focus:outline-none focus:ring-2 focus:ring-primary-to/20"
+                className="premium-input"
                 autoComplete="current-password"
               />
             </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-lg bg-primary-gradient py-3 font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
+            {error && (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-medium text-red-700">
+                {error}
+              </p>
+            )}
+            <button type="submit" disabled={loading} className="btn-accent w-full py-3 text-[0.95rem]">
               {loading ? t('auth.loggingIn') : t('auth.login')}
             </button>
           </form>

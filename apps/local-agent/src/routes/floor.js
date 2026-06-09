@@ -21,7 +21,7 @@ function getLeaderHost(ctx) {
 }
 
 export function registerFloorRoutes(app, routeCtx) {
-  const { db, isCoordinator, apiUrl, terminalId, terminalSecret } = routeCtx;
+  const { db, apiUrl, terminalId, terminalSecret } = routeCtx;
 
   if (!isLeaderNode(routeCtx)) {
     app.get('/v1/floor/tables', async () => {
