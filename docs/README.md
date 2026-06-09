@@ -37,7 +37,7 @@
 |-------|--------|-------|
 | 0–3 | ✅ Done | Monorepo, POS, kitchen, cheques, payments, shifts |
 | 5 (Epic 8) | ✅ Done | Hub manager dashboard — menus, analytics, orders, cheques, shifts/EOD, staff, settings, audit, health |
-| **4** | ✅ Done | Cross-sell on anchor POS — billing matrix, per-venue cheques, combined pay |
+| **4** | ✅ Done | Cross-sell on anchor POS — billing matrix, group fire/pay, split tender, group % discount, itemized receipt |
 | **6** | **Next** | Offline SQLite sync; cross-venue requires online until then |
 
-**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix. Roadmap + loose ends: [TEAM_LOG.md](TEAM_LOG.md) § Roadmap.
+**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix; card/split pay also needs `FEATURE_MANUAL_CARD_PAYMENT=true`. **Phase 4 closed** — loose ends (offline, voucher, target POS refresh): [TEAM_LOG.md](TEAM_LOG.md) § Roadmap.

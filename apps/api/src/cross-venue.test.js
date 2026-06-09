@@ -352,7 +352,11 @@ test('unified cross-venue ordering: lazy attach, per-venue cheques, fire, pay', 
     payload: { cashierId: ANCHOR_CASHIER, method: 'cash', tendered: 500 },
   });
   assert.equal(pay.statusCode, 200, pay.body);
-  assert.ok(pay.json().receipt?.includes('CROSS-VENUE') || pay.json().text?.includes('CROSS-VENUE'));
+  const receipt = pay.json().receipt ?? pay.json().text;
+  assert.ok(receipt.includes('CROSS-VENUE'), receipt);
+  assert.ok(receipt.includes('1x XCoffee'), receipt);
+  assert.ok(receipt.includes('2x XBurger'), receipt);
+  assert.ok(receipt.includes('Round subtotal:'), receipt);
 
   const anchorPayment = await prisma.payment.findFirst({
     where: { cheque: { venueId: ANCHOR_VENUE, crossVenueGroupId: groupId } },

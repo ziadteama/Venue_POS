@@ -25,7 +25,7 @@ import {
   serializeCheque,
 } from './cheque-shared.js';
 import { appendAuditLog } from './audit-log-service.js';
-import { serializeOrder } from '../utils/serialize.js';
+import { appendChequeReceiptItems, serializeOrder } from '../utils/serialize.js';
 import { getCheque } from './cheque-lifecycle.js';
 import { resolveDiscountAmount } from './cheque-discount.js';
 
@@ -956,9 +956,13 @@ function buildCrossVenueReceipt(members, { tendered, change, paymentLines = [] }
     const total = serialized.total;
     grand += total;
     lines.push(`${member.venue?.nameEn ?? 'Venue'} — Cheque #${serialized.chequeNumber}`);
-    lines.push(`  Table ${serialized.tableLabel ?? '—'}: ${total.toFixed(2)}`);
+    lines.push(`Table: ${serialized.tableLabel ?? '—'}`);
+    lines.push('---');
+    appendChequeReceiptItems(lines, serialized);
+    lines.push(`Venue total: ${total.toFixed(2)}`);
+    lines.push('');
   }
-  lines.push('---', `Total: ${grand.toFixed(2)}`);
+  lines.push('---', `GRAND TOTAL: ${grand.toFixed(2)}`);
   if (paymentLines.length) {
     const byMethod = paymentLines.reduce((acc, line) => {
       acc[line.method] = (acc[line.method] ?? 0) + Number(line.amount);

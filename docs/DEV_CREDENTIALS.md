@@ -107,7 +107,7 @@ Terminal name in DB: **POS-2** · Venue: **Demo Restaurant**
 | User | `cashier2` |
 | PIN | `2345` |
 
-**Cross-sell (v1):** only **POS-1 (Cafe anchor)** is required. Hub manager enables Cafe→Restaurant in **Settings → Cross-venue billing**, then on Cafe POS: open a table as usual → toggle **Cross-sell** above the menu → pick a linked venue tab → add items → **Send** → **Pay**. The first linked-venue item lazily attaches the group to the current cheque (no separate session). POS-2 is optional for standalone Restaurant demos.
+**Cross-sell (Phase 4):** only **POS-1 (Cafe anchor)** is required. In `apps/api/.env`: `FEATURE_CROSS_VENUE_BILLING=true`; for card/split pay also `FEATURE_MANUAL_CARD_PAYMENT=true`. Hub manager enables Cafe→Restaurant in **Settings → Cross-venue billing**, then on Cafe POS: open a table → toggle **Cross-sell** → add items from venue tabs → **Send** → optional group **% discount** (manager PIN `7777`) → **Pay** (cash, card, or split). First linked-venue item lazily attaches `crossVenueGroupId`. Combined receipt/print shows itemized lines per venue. POS-2 is optional for standalone Restaurant demos.
 
 ### Manager PIN on POS
 

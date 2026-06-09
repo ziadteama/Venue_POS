@@ -311,16 +311,18 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 
 **Acceptance Criteria:**
 - [x] Payment processed at anchor venue's terminal (same Pay modal as standard)
-- [x] Cash payment with tender/change (v1 single method for whole group)
-- [ ] Card / voucher / split tender on cross-venue group — **deferred** (standard single-cheque split still works)
+- [x] Cash payment with tender/change
+- [x] Card and split cash+card on cross-venue group — proportional allocation per venue (`FEATURE_MANUAL_CARD_PAYMENT=true`)
+- [ ] Voucher tender on cross-venue group — **deferred** (cash/card/split shipped)
 - [x] Server updates every member cheque: open → paid
 - [x] WebSocket `cheque:cross_billed` broadcast after group pay
 - [x] Linked orders status updated to closed
-- [x] Revenue attribution: one `Payment` row per venue cheque (`cheque.venueId`)
+- [x] Revenue attribution: one or more `Payment` rows per venue cheque (`cheque.venueId`)
+- [x] Group percent discount at anchor — applies to each open venue cheque (manager PIN)
 - [ ] KDS at linked venues auto-refreshes on cross-billed — **loose** (no dedicated listener on target POS)
-- [x] Customer receipt: one combined slip with per-venue subtotals (not itemized lines per venue)
+- [x] Customer receipt: combined slip with **itemized lines per venue**, venue totals, grand total, tender breakdown
 
-**Priority:** P0 | **Effort:** 4 days · **Status:** Shipped v1 (single-tender pay)
+**Priority:** P0 | **Effort:** 4 days · **Status:** Shipped (Phase 4 complete)
 
 ---
 

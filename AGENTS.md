@@ -60,7 +60,7 @@ How multi-unit restaurant platforms (Toast, Lightspeed, Square) typically split 
 
 **Service flow:** cashier rings sale → **manager PIN on POS** for discount/void/refund request → **hub manager** force-refunds from **Cheques** (or direct `/approvals` URL if re-enabled) → **CEO** reviews revenue trends without touching operations.
 
-**Cross-sell (Phase 4):** anchor POS only — **Standard / Cross-sell** toggle above menu; lazy `crossVenueGroupId` on current table; one cheque per venue; single tender at pay. Online-only (`FEATURE_CROSS_VENUE_BILLING`).
+**Cross-sell (Phase 4):** anchor POS only — **Standard / Cross-sell** toggle above menu; lazy `crossVenueGroupId` on current table; one cheque per venue; **one Pay** settles the group (cash, card, or split cash+card — proportional per venue). **Group discount:** percent only at anchor (manager PIN). Combined receipt: itemized lines per venue. Online-only (`FEATURE_CROSS_VENUE_BILLING`); card/split need `FEATURE_MANUAL_CARD_PAYMENT=true`.
 
 ### Dashboard page split
 

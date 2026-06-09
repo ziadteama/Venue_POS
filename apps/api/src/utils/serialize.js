@@ -137,24 +137,19 @@ export function buildReceiptText(order, venue) {
   return lines.join('\n');
 }
 
-export function buildChequeReceiptText(cheque, venue, { tendered, change } = {}) {
-  const lines = [
-    venue?.nameEn ?? 'Venue POS',
-    `Cheque #${cheque.chequeNumber}`,
-    `Table: ${cheque.tableLabel ?? '—'}`,
-    '---',
-  ];
-
+/** Itemized rounds + subtotal/discount for a serialized cheque (open or paid). */
+export function appendChequeReceiptItems(lines, cheque) {
   const rounds = (cheque.orders ?? []).filter(
     (o) => o.status !== 'draft' && o.status !== 'voided' && o.items?.length,
   );
 
   const chequeId = cheque.id;
   const isChild = Boolean(cheque.parentChequeId);
+  const showPaidItems = cheque.status === 'paid';
 
   for (const order of rounds) {
     const visibleItems = order.items.filter((item) => {
-      if (item.paidAt) return false;
+      if (!showPaidItems && item.paidAt) return false;
       if (isChild) return item.billingChequeId === chequeId;
       return !item.billingChequeId || item.billingChequeId === chequeId;
     });
@@ -174,10 +169,21 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
   }
 
   const subtotal = cheque.subtotalBeforeDiscount ?? cheque.total;
-  if (cheque.discountAmount > 0) {
-    lines.push(`Subtotal: ${subtotal.toFixed(2)}`);
-    lines.push(`Discount: -${cheque.discountAmount.toFixed(2)}`);
+  if (Number(cheque.discountAmount ?? 0) > 0) {
+    lines.push(`Subtotal: ${Number(subtotal).toFixed(2)}`);
+    lines.push(`Discount: -${Number(cheque.discountAmount).toFixed(2)}`);
   }
+}
+
+export function buildChequeReceiptText(cheque, venue, { tendered, change } = {}) {
+  const lines = [
+    venue?.nameEn ?? 'Venue POS',
+    `Cheque #${cheque.chequeNumber}`,
+    `Table: ${cheque.tableLabel ?? '—'}`,
+    '---',
+  ];
+
+  appendChequeReceiptItems(lines, cheque);
   lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`);
 
   if (cheque.payments?.length) {
