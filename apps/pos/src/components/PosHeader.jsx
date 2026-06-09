@@ -81,12 +81,12 @@ export function PosHeader({
   const hasTools = onOrderLookup || (shift && onCloseShift);
 
   return (
-    <header className="flex shrink-0 items-center gap-3 bg-primary-gradient px-4 py-2.5 text-white shadow-md sm:gap-4 sm:px-5 sm:py-3">
+    <header className="flex shrink-0 items-center gap-3 border-b border-white/5 bg-ink-gradient px-4 py-2.5 text-white shadow-card sm:gap-4 sm:px-5 sm:py-3">
       <div className="flex min-w-0 shrink-0 items-center gap-2.5">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/15 text-base font-bold sm:h-10 sm:w-10">
-          V
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent-gradient text-base font-bold shadow-card sm:h-10 sm:w-10">
+          {t('pos.title')?.slice(0, 1) || 'V'}
         </div>
-        <h1 className="hidden truncate text-base font-bold sm:block">{t('pos.title')}</h1>
+        <h1 className="hidden truncate text-base font-bold tracking-tight sm:block">{t('pos.title')}</h1>
       </div>
 
       <div className="min-w-0 flex-1">
@@ -95,7 +95,7 @@ export function PosHeader({
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={t('pos.searchMenu')}
-          className="w-full rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/60 focus:border-white/40 focus:outline-none sm:px-4"
+          className="w-full rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/55 transition focus:border-accent-400/60 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-accent-400/25 sm:px-4"
         />
       </div>
 

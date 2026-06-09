@@ -8,7 +8,7 @@ export function ModalFrame({ layer = 'stacked', children, className = '', align 
 
   return (
     <div
-      className={`fixed inset-0 flex bg-slate-900/40 p-4 backdrop-blur-[1px] ${alignClass} ${className}`}
+      className={`fixed inset-0 flex bg-ink-900/45 p-4 backdrop-blur-sm ${alignClass} ${className}`}
       style={{ zIndex: MODAL_Z[layer] ?? MODAL_Z.stacked }}
     >
       {children}
@@ -19,7 +19,7 @@ export function ModalFrame({ layer = 'stacked', children, className = '', align 
 export function ModalPanel({ children, className = '', wide = false }) {
   return (
     <div
-      className={`relative w-full rounded-xl border border-slate-200 bg-white p-6 shadow-xl ${
+      className={`relative w-full animate-fade-up rounded-2xl border border-slate-200/80 bg-white p-6 shadow-elevated ${
         wide ? 'max-w-lg' : 'max-w-md'
       } ${className}`}
     >

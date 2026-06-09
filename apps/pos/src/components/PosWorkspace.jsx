@@ -29,7 +29,7 @@ export function PosWorkspace({ cashier, onLogout }) {
   const showErrorToast = Boolean(ws.bannerError) && overlayOpen && !modalShowsInlineError;
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 text-slate-900">
+    <div className="flex h-screen flex-col bg-surface-base text-slate-900">
       {ws.showLogoutModal ? (
         <LogoutConfirmModal
           t={ws.t}
