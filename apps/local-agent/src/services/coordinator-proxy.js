@@ -1,14 +1,25 @@
-export async function proxyToCoordinator(coordinatorLanHost, path, options = {}) {
-  const url = `http://${coordinatorLanHost}:3456${path}`;
-  const res = await fetch(url, {
+import { CLUSTER_MODES } from '@venue-pos/shared';
+import { lanFetch } from './lan-fetch.js';
+
+export async function proxyToLeader(leaderHost, path, { lanPort, lanSecret, ...options } = {}) {
+  return lanFetch(leaderHost, path, { lanPort, lanSecret, ...options });
+}
+
+export async function proxyToCoordinator(ctx, path, options = {}) {
+  const cluster = ctx.getClusterState?.() ?? {};
+  const host =
+    cluster.mode === CLUSTER_MODES.FOLLOWER && cluster.leaderHost
+      ? cluster.leaderHost
+      : ctx.coordinatorLanHost;
+  if (!host) throw new Error('No LAN leader/coordinator host configured');
+  return lanFetch(host, path, {
+    lanPort: ctx.lanPort ?? 3456,
+    lanSecret: ctx.lanSecret ?? '',
     ...options,
-    headers: { 'content-type': 'application/json', ...options.headers },
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const err = new Error(`Coordinator proxy ${path} failed (${res.status}): ${text}`);
-    err.statusCode = res.status;
-    throw err;
-  }
-  return res.status === 204 ? null : res.json();
+}
+
+/** @deprecated use proxyToCoordinator */
+export async function proxyToCoordinatorLegacy(coordinatorLanHost, path, options = {}) {
+  return lanFetch(coordinatorLanHost, path, { lanPort: 3456, ...options });
 }

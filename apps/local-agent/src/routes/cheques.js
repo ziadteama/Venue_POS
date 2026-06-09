@@ -12,6 +12,7 @@ import {
   applyLocalChequeDiscount,
   removeLocalChequeDiscount,
 } from '../services/local-cheques.js';
+import { hydrateOpenCheques } from '../services/cheque-hydration.js';
 import { assertMenuReadyForWrite } from '../services/menu-gate.js';
 import { occupyFloorUpstream, releaseFloorUpstream } from '../services/floor-upstream.js';
 import { verifyCachedManagerPin } from '../services/terminal-cache.js';
@@ -38,7 +39,15 @@ export function registerChequeRoutes(app, routeCtx) {
   } = routeCtx;
   app.get('/v1/cheques/open', async () => {
     try {
-      return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open');
+      const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open');
+      if (isCloudOnline()) {
+        try {
+          await hydrateOpenCheques({ db, apiUrl, venueId, terminalId, terminalSecret });
+        } catch (hydrateErr) {
+          app.log.warn({ hydrateErr }, 'Cheque hydration on list failed');
+        }
+      }
+      return result;
     } catch (err) {
       if (isCloudOnline()) throw err;
       return listLocalOpenCheques(db, venueId);

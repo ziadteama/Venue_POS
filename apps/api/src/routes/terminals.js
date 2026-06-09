@@ -12,14 +12,42 @@ const reconnectSchema = z.object({
   menuVersionHash: z.string().optional(),
 });
 
+const heartbeatSchema = z.object({
+  syncQueueDepth: z.coerce.number().int().min(0).optional(),
+  deviceLabel: z.string().max(100).optional(),
+  lanHost: z.string().max(255).optional(),
+  lanPort: z.coerce.number().int().min(1).max(65535).optional(),
+  agentPriority: z.coerce.number().int().optional(),
+  clusterMode: z.string().max(32).optional(),
+});
+
 export async function terminalRoutes(app) {
   app.post(
     '/api/v1/terminals/heartbeat',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const depth = request.body?.syncQueueDepth ?? request.headers['x-sync-queue-depth'];
-      await touchTerminalSeen(request.terminal.id, { syncQueueDepth: depth });
-      return { ok: true, terminalId: request.terminal.id };
+      const parsed = heartbeatSchema.safeParse(request.body ?? {});
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      const depth =
+        parsed.data.syncQueueDepth ??
+        request.body?.syncQueueDepth ??
+        request.headers['x-sync-queue-depth'];
+
+      await touchTerminalSeen(request.terminal.id, {
+        syncQueueDepth: depth,
+        deviceLabel: parsed.data.deviceLabel,
+        lanHost: parsed.data.lanHost,
+        lanPort: parsed.data.lanPort,
+        agentPriority: parsed.data.agentPriority,
+        clusterMode: parsed.data.clusterMode,
+      });
+
+      return {
+        ok: true,
+        terminalId: request.terminal.id,
+        deviceLabel: request.terminal.name ?? parsed.data.deviceLabel ?? null,
+      };
     },
   );
 
@@ -27,7 +55,7 @@ export async function terminalRoutes(app) {
     '/api/v1/terminals/roster',
     { preHandler: authenticateTerminal },
     async (request) => {
-      const roster = await getTerminalRoster(request.terminal.venueId);
+      const roster = await getTerminalRoster(request.terminal.venueId, request.terminal.id);
       if (!roster) throw validationError('Venue not found');
       return roster;
     },
@@ -39,7 +67,7 @@ export async function terminalRoutes(app) {
     async (request) => {
       const parsed = reconnectSchema.safeParse(request.body ?? {});
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return terminalReconnectHandshake(request.terminal.venueId, parsed.data);
+      return terminalReconnectHandshake(request.terminal.venueId, request.terminal.id, parsed.data);
     },
   );
 }

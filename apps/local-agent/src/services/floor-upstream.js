@@ -1,37 +1,49 @@
+import { CLUSTER_MODES } from '@venue-pos/shared';
 import { apiFetch } from './api-fetch.js';
 import { isCloudOnline } from './cloud-health.js';
 import { occupyFloorLock, releaseFloorLock } from './floor-locks.js';
+import { lanFetch } from './lan-fetch.js';
+import { relayFloorAction } from './relay-client.js';
 
-async function coordinatorFetch(coordinatorLanHost, path, options = {}) {
-  const url = `http://${coordinatorLanHost}:3456${path}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: { 'content-type': 'application/json', ...options.headers },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const err = new Error(`Coordinator ${path} failed (${res.status}): ${text}`);
-    err.statusCode = res.status;
-    throw err;
-  }
-  return res.status === 204 ? null : res.json();
+function getCluster(ctx) {
+  return ctx.getClusterState?.() ?? {};
 }
 
-/** Occupy hub floor table via cloud API or LAN coordinator. */
-export async function occupyFloorUpstream(
-  ctx,
-  { tableLabel, chequeId, venueId },
-) {
-  const { db, apiUrl, terminalId, terminalSecret, isCoordinator, coordinatorLanHost, coordinatorFallback } =
-    ctx;
+function getLanOpts(ctx) {
+  return {
+    lanPort: ctx.lanPort ?? 3456,
+    lanSecret: ctx.lanSecret ?? '',
+  };
+}
 
-  if (isCoordinator || (isCloudOnline() === false && coordinatorFallback && coordinatorLanHost)) {
-    if (isCoordinator) {
-      return occupyFloorLock(db, { tableLabel, chequeId, terminalId, venueId });
-    }
-    return coordinatorFetch(coordinatorLanHost, '/v1/floor/tables/occupy', {
+async function leaderFetch(leaderHost, path, ctx, options = {}) {
+  return lanFetch(leaderHost, path, { ...getLanOpts(ctx), ...options });
+}
+
+/** Occupy hub floor table via cloud API, relay peer, or LAN leader. */
+export async function occupyFloorUpstream(ctx, { tableLabel, chequeId, venueId }) {
+  const { db, apiUrl, terminalId, terminalSecret } = ctx;
+  const cluster = getCluster(ctx);
+
+  if (cluster.mode === CLUSTER_MODES.LEADER || ctx.isCoordinator) {
+    return occupyFloorLock(db, { tableLabel, chequeId, terminalId, venueId });
+  }
+
+  if (cluster.mode === CLUSTER_MODES.FOLLOWER && cluster.leaderHost) {
+    return leaderFetch(cluster.leaderHost, '/v1/floor/tables/occupy', ctx, {
       method: 'POST',
-      body: JSON.stringify({ tableLabel, chequeId, terminalId, venueId }),
+      body: { tableLabel, chequeId, terminalId, venueId },
+    });
+  }
+
+  if (cluster.mode === CLUSTER_MODES.RELAY && cluster.relayHost) {
+    return relayFloorAction({
+      relayHost: cluster.relayHost,
+      ...getLanOpts(ctx),
+      terminalId,
+      terminalSecret,
+      action: 'occupy',
+      body: { tableLabel, chequeId },
     });
   }
 
@@ -42,20 +54,39 @@ export async function occupyFloorUpstream(
     });
   }
 
+  if (ctx.coordinatorFallback && ctx.coordinatorLanHost) {
+    return leaderFetch(ctx.coordinatorLanHost, '/v1/floor/tables/occupy', ctx, {
+      method: 'POST',
+      body: { tableLabel, chequeId, terminalId, venueId },
+    });
+  }
+
   return null;
 }
 
 export async function releaseFloorUpstream(ctx, { tableLabel, chequeId }) {
-  const { db, apiUrl, terminalId, terminalSecret, isCoordinator, coordinatorLanHost, coordinatorFallback } =
-    ctx;
+  const { db, apiUrl, terminalId, terminalSecret } = ctx;
+  const cluster = getCluster(ctx);
 
-  if (isCoordinator || (isCloudOnline() === false && coordinatorFallback && coordinatorLanHost)) {
-    if (isCoordinator) {
-      return releaseFloorLock(db, { tableLabel, chequeId });
-    }
-    return coordinatorFetch(coordinatorLanHost, '/v1/floor/tables/release', {
+  if (cluster.mode === CLUSTER_MODES.LEADER || ctx.isCoordinator) {
+    return releaseFloorLock(db, { tableLabel, chequeId });
+  }
+
+  if (cluster.mode === CLUSTER_MODES.FOLLOWER && cluster.leaderHost) {
+    return leaderFetch(cluster.leaderHost, '/v1/floor/tables/release', ctx, {
       method: 'POST',
-      body: JSON.stringify({ tableLabel, chequeId }),
+      body: { tableLabel, chequeId },
+    });
+  }
+
+  if (cluster.mode === CLUSTER_MODES.RELAY && cluster.relayHost) {
+    return relayFloorAction({
+      relayHost: cluster.relayHost,
+      ...getLanOpts(ctx),
+      terminalId,
+      terminalSecret,
+      action: 'release',
+      body: { tableLabel, chequeId },
     });
   }
 
@@ -63,6 +94,13 @@ export async function releaseFloorUpstream(ctx, { tableLabel, chequeId }) {
     return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/release', {
       method: 'POST',
       body: JSON.stringify({ tableLabel, chequeId }),
+    });
+  }
+
+  if (ctx.coordinatorFallback && ctx.coordinatorLanHost) {
+    return leaderFetch(ctx.coordinatorLanHost, '/v1/floor/tables/release', ctx, {
+      method: 'POST',
+      body: { tableLabel, chequeId },
     });
   }
 

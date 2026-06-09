@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { apiFetch, sendApiError } from '../services/api-fetch.js';
 import { isCloudOnline } from '../services/cloud-health.js';
 import { cacheActiveShift, getCachedShift, clearCachedShift } from '../services/shift-cache.js';
@@ -72,7 +73,12 @@ export function registerShiftRoutes(app, { db, apiUrl, terminalId, terminalSecre
         offline: true,
       };
       cacheActiveShift(db, cashierId, localShift);
-      enqueueSync(db, 'shift.open', { cashierId, openFloat, shiftId: localShift.id });
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.SHIFT_OPEN,
+        { cashierId, openFloat, shiftId: localShift.id },
+        randomUUID(),
+      );
       return localShift;
     }
   });
@@ -90,7 +96,12 @@ export function registerShiftRoutes(app, { db, apiUrl, terminalId, terminalSecre
     } catch (err) {
       if (isCloudOnline()) return sendApiError(reply, err);
       clearCachedShift(db, cashierId);
-      enqueueSync(db, 'shift.close', { cashierId, closeFloat, managerPin });
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.SHIFT_CLOSE,
+        { cashierId, closeFloat, managerPin },
+        randomUUID(),
+      );
       return { closed: true, offline: true };
     }
   });

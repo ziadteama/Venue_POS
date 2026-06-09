@@ -1,5 +1,12 @@
 import 'dotenv/config';
-import { SYNC_WORKER_INTERVAL_MS } from '@venue-pos/shared';
+import os from 'node:os';
+import {
+  SYNC_WORKER_INTERVAL_MS,
+  CHEQUE_HYDRATION_INTERVAL_MS,
+  PEER_GOSSIP_INTERVAL_MS,
+  DEFAULT_AGENT_LAN_PORT,
+  CLUSTER_MODES,
+} from '@venue-pos/shared';
 import { createDatabase } from './db/sqlite.js';
 import { buildAgentServer } from './server.js';
 import { syncMenuFromServer } from './services/menu-sync.js';
@@ -10,35 +17,108 @@ import {
   resolvePrinterConfig,
 } from './services/venue-config-sync.js';
 import { probeCloudHealth, setCloudOnline, isCloudOnline } from './services/cloud-health.js';
-import { sendTerminalHeartbeat } from './services/heartbeat.js';
-import { syncTerminalRosterFromServer } from './services/terminal-cache.js';
+import { sendDeviceRegistration } from './services/heartbeat.js';
+import { syncTerminalRosterFromServer, setAgentMeta } from './services/terminal-cache.js';
 import { runReconnectHandshake } from './services/reconnect.js';
-import { setAgentMeta } from './services/terminal-cache.js';
+import { hydrateOpenCheques } from './services/cheque-hydration.js';
+import { createClusterManager, attachQueueDepth } from './services/cluster-manager.js';
+import {
+  buildDeviceProfile,
+  resolveDeviceLabel,
+  setLocalDeviceLabel,
+} from './services/device-profile.js';
 
-const port = Number(process.env.PORT ?? 3456);
+const port = Number(process.env.PORT ?? DEFAULT_AGENT_LAN_PORT);
 const host = process.env.HOST ?? '127.0.0.1';
+const lanPort = Number(process.env.AGENT_LAN_PORT ?? port);
+const lanSecret = process.env.AGENT_LAN_SECRET ?? '';
 const dbPath = process.env.SQLITE_PATH ?? './data/local.db';
 const apiUrl = process.env.SERVER_API_URL ?? 'http://localhost:3000';
 const cloudHealthUrl = process.env.CLOUD_HEALTH_URL ?? `${apiUrl}/health`;
 const venueId = process.env.VENUE_ID ?? '';
 const terminalId = process.env.TERMINAL_ID ?? '';
 const terminalSecret = process.env.TERMINAL_SECRET ?? '';
+const agentPriority = Number(process.env.AGENT_PRIORITY ?? 50);
+const agentPeers = (process.env.AGENT_PEERS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 const coordinatorTerminalId = process.env.COORDINATOR_TERMINAL_ID ?? '';
 const coordinatorLanHost = process.env.COORDINATOR_LAN_HOST ?? '';
 const coordinatorFallback = process.env.COORDINATOR_FALLBACK_ENABLED === 'true';
 const isCoordinator =
-  process.env.IS_COORDINATOR === 'true' || (coordinatorTerminalId && coordinatorTerminalId === terminalId);
-const coordinatorMode = isCoordinator ? 'active' : coordinatorFallback ? 'client' : 'off';
+  process.env.IS_COORDINATOR === 'true' ||
+  (coordinatorTerminalId && coordinatorTerminalId === terminalId);
 const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5174').split(',');
 const kitchenPrinterHost = process.env.KITCHEN_PRINTER_HOST ?? '';
 const kitchenPrinterPort = Number(process.env.KITCHEN_PRINTER_PORT ?? 9100);
 const autoReceiptPrint = process.env.FEATURE_AUTO_RECEIPT_PRINT !== 'false';
+const agentDeviceLabel = process.env.AGENT_DEVICE_LABEL ?? '';
+const advertiseHost = process.env.AGENT_LAN_HOST ?? pickLanAddress();
+
+function pickLanAddress() {
+  const nets = os.networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] ?? []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return '127.0.0.1';
+}
 
 const db = createDatabase(dbPath);
+if (agentDeviceLabel) setLocalDeviceLabel(db, agentDeviceLabel);
 const envPrinterDefaults = {
   kitchenPrinterHost,
   kitchenPrinterPort,
 };
+
+const clusterManager = createClusterManager({
+  terminalId,
+  agentPriority,
+  lanPort,
+  lanSecret,
+  forcedLeaderTerminalId: coordinatorTerminalId,
+  forcedLeaderHost: coordinatorLanHost,
+  isForcedLeader: isCoordinator,
+  staticPeerHosts: agentPeers,
+  getOwnLanHost: () => advertiseHost,
+  getLanPort: () => lanPort,
+  getDeviceLabel: () => resolveDeviceLabel(db, { envLabel: agentDeviceLabel, terminalId }),
+});
+attachQueueDepth(clusterManager, db);
+
+function buildHeartbeatProfile() {
+  const cluster = getClusterState();
+  return buildDeviceProfile({
+    db,
+    terminalId,
+    lanHost: advertiseHost,
+    lanPort,
+    agentPriority,
+    clusterMode: cluster.mode,
+    envLabel: agentDeviceLabel,
+    syncQueueDepth: getSyncQueueDepth(db),
+  });
+}
+
+async function registerDeviceWithCloud(log) {
+  if (!isCloudOnline() || !venueId || !terminalId || !terminalSecret) return;
+  const profile = buildHeartbeatProfile();
+  await sendDeviceRegistration({ apiUrl, terminalId, terminalSecret, profile });
+  log?.info?.({ profile }, 'Device profile registered with cloud');
+}
+
+function getClusterState() {
+  clusterManager.recompute();
+  return clusterManager.getState();
+}
+
+function buildRelayOptions() {
+  const cluster = getClusterState();
+  if (cluster.mode !== CLUSTER_MODES.RELAY || !cluster.relayHost) return null;
+  return { relayHost: cluster.relayHost, lanPort, lanSecret };
+}
 
 const app = await buildAgentServer({
   db,
@@ -52,10 +132,16 @@ const app = await buildAgentServer({
     corsOrigins,
     autoReceiptPrint,
     isCoordinator,
-    coordinatorMode,
+    coordinatorMode: getClusterState().mode,
     coordinatorLanHost,
     coordinatorFallback,
     getPrinterConfig: () => resolvePrinterConfig(envPrinterDefaults),
+    getClusterState,
+    clusterManager,
+    getOwnLanHost: () => advertiseHost,
+    getDeviceProfile: buildHeartbeatProfile,
+    lanPort,
+    lanSecret,
   },
 });
 
@@ -79,6 +165,7 @@ async function refreshCloudStatus() {
   const wasOnline = isCloudOnline();
   const { online } = await probeCloudHealth(cloudHealthUrl);
   setCloudOnline(online);
+  clusterManager.recompute();
   if (online && !wasOnline && venueId && terminalId && terminalSecret) {
     setAgentMeta(db, 'sync_in_progress', 'true');
     try {
@@ -126,8 +213,20 @@ if (venueId && terminalId && terminalSecret) {
     await withRetry('Terminal roster sync on startup', () =>
       syncTerminalRosterFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),
     );
+    await registerDeviceWithCloud(app.log).catch((err) =>
+      app.log.warn({ err }, 'Device registration on startup failed'),
+    );
   } catch (err) {
     app.log.warn({ err }, 'Roster sync on startup failed');
+  }
+
+  if (isCloudOnline()) {
+    try {
+      const hydration = await hydrateOpenCheques({ db, apiUrl, venueId, terminalId, terminalSecret });
+      app.log.info(hydration, 'Open cheques hydrated on startup');
+    } catch (err) {
+      app.log.warn({ err }, 'Cheque hydration on startup failed');
+    }
   }
 
   try {
@@ -149,6 +248,11 @@ if (venueId && terminalId && terminalSecret) {
 
   setInterval(async () => {
     const online = await refreshCloudStatus();
+    clusterManager.runGossip().catch((err) => app.log.warn({ err }, 'Peer gossip failed'));
+
+    const relay = buildRelayOptions();
+    const cluster = getClusterState();
+
     if (online) {
       await processSyncQueue({
         db,
@@ -159,22 +263,53 @@ if (venueId && terminalId && terminalSecret) {
       }).catch((err) => {
         app.log.warn({ err }, 'Periodic sync replay failed');
       });
-    }
-    if (online) {
-      await sendTerminalHeartbeat({
+    } else if (cluster.mode === CLUSTER_MODES.RELAY && relay) {
+      await processSyncQueue({
+        db,
         apiUrl,
         terminalId,
         terminalSecret,
-        syncQueueDepth: getSyncQueueDepth(db),
+        useBatch: true,
+        relay,
+      }).catch((err) => {
+        app.log.warn({ err }, 'Relay sync replay failed');
+      });
+    }
+
+    if (online) {
+      await sendDeviceRegistration({
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        profile: buildHeartbeatProfile(),
       }).catch(() => {});
     }
   }, SYNC_WORKER_INTERVAL_MS);
 
-  if (isCoordinator) {
-    app.log.info({ coordinatorLanHost }, 'LAN coordinator mode active');
-  } else if (coordinatorFallback && coordinatorLanHost) {
-    app.log.info({ coordinatorLanHost }, 'Coordinator failover client enabled');
-  }
+  setInterval(async () => {
+    if (!isCloudOnline()) return;
+    try {
+      await hydrateOpenCheques({ db, apiUrl, venueId, terminalId, terminalSecret });
+    } catch (err) {
+      app.log.warn({ err }, 'Periodic cheque hydration failed');
+    }
+  }, CHEQUE_HYDRATION_INTERVAL_MS);
+
+  setInterval(() => {
+    clusterManager.runGossip().catch((err) => app.log.warn({ err }, 'Peer gossip failed'));
+  }, PEER_GOSSIP_INTERVAL_MS);
+
+  app.log.info(
+    {
+      deviceLabel: resolveDeviceLabel(db, { envLabel: agentDeviceLabel, terminalId }),
+      advertiseHost,
+      lanPort,
+      agentPeers,
+      agentPriority,
+      clusterMode: getClusterState().mode,
+    },
+    'Dynamic offline sync enabled',
+  );
 } else {
   app.log.warn('TERMINAL_ID / TERMINAL_SECRET / VENUE_ID not set — sync disabled');
 }

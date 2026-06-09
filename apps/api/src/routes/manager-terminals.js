@@ -6,6 +6,7 @@ import { validationError, notFound } from '../utils/errors.js';
 import { emitVenueConfigUpdated } from '../plugins/socket.js';
 
 const patchSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
   isCoordinator: z.boolean().optional(),
   coordinatorLanHost: z.string().max(255).nullable().optional(),
 });
@@ -35,6 +36,10 @@ export async function managerTerminalRoutes(app) {
         coordinatorLanHost: t.coordinatorLanHost,
         lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
         syncQueueDepth: t.syncQueueDepth,
+        lastLanHost: t.lastLanHost,
+        lastLanPort: t.lastLanPort,
+        lastAgentPriority: t.lastAgentPriority,
+        lastClusterMode: t.lastClusterMode,
       }));
     },
   );
@@ -59,6 +64,7 @@ export async function managerTerminalRoutes(app) {
       const updated = await prisma.terminal.update({
         where: { id: terminal.id },
         data: {
+          ...(parsed.data.name != null ? { name: parsed.data.name } : {}),
           ...(parsed.data.isCoordinator != null
             ? { isCoordinator: parsed.data.isCoordinator }
             : {}),
@@ -81,6 +87,7 @@ export async function managerTerminalRoutes(app) {
 
       return {
         id: updated.id,
+        name: updated.name,
         isCoordinator: updated.isCoordinator,
         coordinatorLanHost: updated.coordinatorLanHost,
       };

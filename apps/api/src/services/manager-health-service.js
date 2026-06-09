@@ -34,10 +34,30 @@ function countSocketClients(io, venueId) {
   return { total: terminals + dashboards, terminals, dashboards, pos: terminals };
 }
 
-export async function touchTerminalSeen(terminalId, { syncQueueDepth } = {}) {
+export async function touchTerminalSeen(
+  terminalId,
+  { syncQueueDepth, deviceLabel, lanHost, lanPort, agentPriority, clusterMode } = {},
+) {
   const data = { lastSeenAt: new Date() };
   if (syncQueueDepth != null && Number.isFinite(Number(syncQueueDepth))) {
     data.syncQueueDepth = Math.max(0, Math.floor(Number(syncQueueDepth)));
+  }
+  if (lanHost != null) data.lastLanHost = lanHost || null;
+  if (lanPort != null && Number.isFinite(Number(lanPort))) {
+    data.lastLanPort = Math.floor(Number(lanPort));
+  }
+  if (agentPriority != null && Number.isFinite(Number(agentPriority))) {
+    data.lastAgentPriority = Math.floor(Number(agentPriority));
+  }
+  if (clusterMode != null) data.lastClusterMode = clusterMode || null;
+  if (deviceLabel?.trim()) {
+    const terminal = await prisma.terminal.findUnique({
+      where: { id: terminalId },
+      select: { name: true },
+    });
+    if (!terminal?.name?.trim()) {
+      data.name = deviceLabel.trim();
+    }
   }
   await prisma.terminal.update({ where: { id: terminalId }, data });
 }
@@ -63,6 +83,10 @@ export async function getSystemHealth(venueId, io) {
       syncQueueDepth: t.syncQueueDepth ?? 0,
       isCoordinator: t.isCoordinator,
       coordinatorLanHost: t.coordinatorLanHost,
+      lastLanHost: t.lastLanHost,
+      lastLanPort: t.lastLanPort,
+      lastAgentPriority: t.lastAgentPriority,
+      lastClusterMode: t.lastClusterMode,
       online,
       offlineMinutes:
         lastSeenMs != null ? Math.max(0, Math.floor((now - lastSeenMs) / 60000)) : null,

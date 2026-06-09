@@ -17,3 +17,11 @@ export function getCachedShift(db, cashierId) {
 export function clearCachedShift(db, cashierId) {
   db.prepare(`DELETE FROM agent_meta WHERE key = ?`).run(`shift:${cashierId}`);
 }
+
+export function linkLocalShiftServerId(db, localShiftId, serverShiftId) {
+  setAgentMeta(db, `shift_map:${localShiftId}`, serverShiftId);
+}
+
+export function getServerShiftId(db, localShiftId) {
+  return getAgentMeta(db, `shift_map:${localShiftId}`);
+}

@@ -41,4 +41,4 @@
 | **4** | ✅ Done | Cross-sell on anchor POS — billing matrix, group fire/pay, split tender, group % discount, itemized receipt |
 | **6** | **Next** | Offline sync + **designated POS as LAN coordinator** ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
 
-**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix; card/split pay also needs `FEATURE_MANUAL_CARD_PAYMENT=true`. **Phase 4 closed.** **Phase 6** (offline + [LAN coordinator POS](PHASE6_OFFLINE_PLAN.md)): [TEAM_LOG.md](TEAM_LOG.md) § Roadmap.
+**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix; card/split pay also needs `FEATURE_MANUAL_CARD_PAYMENT=true`. **Phase 4 closed.** **Phase 6 v1.1** (offline + dynamic LAN cluster + shift replay + device profile): [TEAM_LOG.md](TEAM_LOG.md) § Roadmap · [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md).

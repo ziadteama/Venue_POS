@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { hashSecret } from './services/auth-service.js';
 import { withSyncIdempotency } from './services/sync-idempotency.js';
 import { duplicateSyncIdError } from './services/sync-idempotency.js';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 
 const VENUE_ID = '00000000-0000-4000-8000-000000000097';
 const TERMINAL_ID = '00000000-0000-4000-8000-000000000097';
@@ -66,6 +67,8 @@ before(async () => {
 
 after(async () => {
   await prisma.syncEvent.deleteMany({ where: { terminalId: TERMINAL_ID } });
+  await prisma.shiftEvent.deleteMany({ where: { shift: { terminalId: TERMINAL_ID } } });
+  await prisma.shift.deleteMany({ where: { terminalId: TERMINAL_ID } });
   await prisma.floorTable.deleteMany({});
   await app.close();
 });
@@ -138,4 +141,49 @@ test('duplicate syncId returns conflict on replay', async () => {
     (err) => err.code === duplicateSyncIdError().code,
   );
   assert.equal(calls, 1);
+});
+
+test('shift open and close replay via sync batch', async () => {
+  const openSyncId = '00000000-0000-4000-8000-000000000091';
+  const closeSyncId = '00000000-0000-4000-8000-000000000092';
+
+  const openRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: terminalHeaders,
+    payload: {
+      events: [
+        {
+          syncId: openSyncId,
+          eventType: SYNC_EVENT_TYPES.SHIFT_OPEN,
+          payload: { cashierId: CASHIER_ID, openFloat: 200 },
+        },
+      ],
+    },
+  });
+  assert.equal(openRes.statusCode, 200);
+  const openBody = openRes.json();
+  assert.equal(openBody.results[0].result.status, 'open');
+
+  const closeRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: terminalHeaders,
+    payload: {
+      events: [
+        {
+          syncId: closeSyncId,
+          eventType: SYNC_EVENT_TYPES.SHIFT_CLOSE,
+          payload: { cashierId: CASHIER_ID, closeFloat: 200 },
+        },
+      ],
+    },
+  });
+  assert.equal(closeRes.statusCode, 200);
+  const closedShift = await prisma.shift.findFirst({
+    where: { cashierId: CASHIER_ID, terminalId: TERMINAL_ID },
+    orderBy: { openedAt: 'desc' },
+  });
+  assert.equal(closedShift?.status, 'closed');
+  assert.equal(Number(closedShift?.closeFloat), 200);
 });

@@ -1264,6 +1264,25 @@ sequenceDiagram
 **Verify:** `npm run test -w @venue-pos/api` (includes `phase6-offline.test.js`, `sync-idempotency.test.js`) · `npm run lint:i18n`
 **Notes:** **Phase 6 v1 shipped** for single-venue offline + coordinator floor. Cross-sell offline and several PRD items remain — **do not** treat Epic 7 checkboxes in `PRD.md` as done until handoff § below is closed.
 
+### 2026-06-09 — Phase 6 v1.1: dynamic LAN cluster + cheque hydration
+**Phase:** 6 · **Stories:** US-7.1, US-7.5 (partial)
+**What:** LAN peer gossip (`AGENT_PEERS`), relay-through-peer when any till has WAN, deterministic leader election when all WAN down, LAN relay transport for sync queue, open-cheque pre-hydration every 30s while online, POS cluster-mode banners (leader / follower / relay / electing).
+**Files:** `cluster-manager.js`, `cluster-state.js`, `cheque-hydration.js`, `lan-fetch.js`, `relay-client.js`, `routes/peer.js`, `packages/shared/src/sync.js`, `apps/local-agent/src/index.js`, `useAgentStatus.js`, `PosWorkspace.jsx`, i18n, `.env.example`, `PHASE6_OFFLINE_PLAN.md`
+**Verify:** Set `AGENT_PEERS` on two agents → stop API on one → gossip elects relay or leader → floor + sync via LAN · `node --test apps/local-agent/src/services/cluster-state.test.js apps/local-agent/src/services/cheque-hydration.test.js apps/local-agent/src/services/sync-processor.test.js`
+**Notes:** mDNS auto-discovery deferred; static peers + hub coordinator override still supported.
+
+### 2026-06-09 — Phase 6: shift replay to API
+**Phase:** 6 · **Stories:** US-7.2
+**What:** Offline `shift.open` / `shift.close` events replay through sync worker to API with `syncId` idempotency; local→server shift id linking via `shift-cache.js`.
+**Files:** `packages/shared/src/sync.js`, `apps/local-agent/src/routes/shifts.js`, `sync-processor.js`, `shift-cache.js`, `apps/api/src/routes/shifts.js`, `apps/api/src/routes/sync.js`, `sync-processor.test.js`, `phase6-offline.test.js`
+**Verify:** Open shift offline → close shift offline → start API → one server shift row · `npm run test -w @venue-pos/api`
+
+### 2026-06-09 — Phase 6: terminal device profile (till name + LAN report)
+**Phase:** 6 · **Stories:** US-7.5 (ops)
+**What:** Each agent reports adjustable till label, LAN IP/port, priority, and cluster mode on startup + heartbeat; hub stores `lastLanHost`, `lastLanPort`, `lastClusterMode`; dashboard **Settings → Terminals** edits till name and shows reported LAN; POS offline banners name relay/lead peer when known; local override via `AGENT_DEVICE_LABEL`.
+**Files:** `apps/api/prisma/migrations/20260620140000_terminal_device_profile`, `terminals.js`, `manager-health-service.js`, `manager-terminals.js`, `device-profile.js`, `heartbeat.js`, `terminal-cache.js`, `health.js`, `TerminalsSection.jsx`, i18n
+**Verify:** `npm run migrate` · start agent → hub terminal list shows reported IP/mode · set `AGENT_DEVICE_LABEL=Bar POS` → POS banner / health shows label · `node --test apps/local-agent/src/services/device-profile.test.js`
+
 ### 2026-06-10 — Phase 6 handoff: what’s done, what’s left, how to continue
 
 **Branch / context:** Work started on `feature/phase6-offline-sync` from `main`. Read `docs/PHASE6_OFFLINE_PLAN.md` and `.cursor/skills/offline-sync/SKILL.md` before coding.
@@ -1293,7 +1312,7 @@ sequenceDiagram
 
 | Priority | Item | Where to work |
 |----------|------|----------------|
-| **P0** | **Shift replay** — `shift.open` / `shift.close` queued in agent but not in `packages/shared/src/sync.js` or API replay | `shifts.js`, `sync-processor.js`, `routes/sync.js` or shift routes |
+| **P0** | ~~**Shift replay**~~ — ✅ `SHIFT_OPEN` / `SHIFT_CLOSE` in shared sync + API replay | done 2026-06-09 |
 | **P0** | **Manager ops offline** — void, comp, line transfer, cheque seat `/split`, transfer between cheques still cloud-only | `apps/local-agent/src/routes/cheques.js`, new sync event types |
 | **P0** | **Failed-queue operator UI** — banner shows count only; no inspect/retry/dismiss | POS modal + agent `GET /v1/sync/progress` or list failed rows |
 | **P1** | **Cross-sell Slice C** — coordinator can create/read group offline; **item add / fire / group pay** still hit cloud (`cross-venue.js` ~196+) | `coordinator-cross-venue.js`, `cross-venue.js`, atomic `CROSS_VENUE_GROUP_PAY` replay |
@@ -1334,6 +1353,12 @@ docs/DEVELOPMENT.md                               # § Phase 6 env + Windows ser
 ```bash
 # apps/local-agent/.env (per terminal)
 CLOUD_HEALTH_URL=http://localhost:3000/health
+AGENT_LAN_HOST=                    # auto-detected if empty
+AGENT_LAN_PORT=3456
+AGENT_LAN_SECRET=shared-secret
+AGENT_PEERS=192.168.1.22,192.168.1.23
+AGENT_PRIORITY=50
+AGENT_DEVICE_LABEL=Cafe POS-1      # optional local till name
 COORDINATOR_FALLBACK_ENABLED=true   # clients when hub down
 COORDINATOR_LAN_HOST=192.168.1.50   # coordinator machine IP
 IS_COORDINATOR=true                 # coordinator machine only
@@ -1358,7 +1383,7 @@ npm run test -w @venue-pos/api
 
 ---
 
-## Roadmap (as of 2026-06-10 — Phase 6 v1 shipped, polish remains)
+## Roadmap (as of 2026-06-09 — Phase 6 v1.1 shipped, polish remains)
 
 ### Shipped — Phase 4 summary
 
@@ -1379,15 +1404,18 @@ npm run test -w @venue-pos/api
 | Area | Status |
 |------|--------|
 | Single-venue offline (cheque open → pay → sync) | ✅ v1 |
-| LAN coordinator floor (shared tables, WAN down) | ✅ v1 |
+| Dynamic LAN cluster (relay / leader election) | ✅ v1.1 |
+| Open-cheque pre-hydration (online) | ✅ v1.1 |
+| Shift sync replay | ✅ v1.1 |
+| Terminal device profile (name + LAN report) | ✅ v1.1 |
+| LAN coordinator floor (legacy static override) | ✅ v1 |
 | Offline PIN + menu cache + reconnect handshake | ✅ v1 |
 | Cross-sell offline (Slice C) | 🟡 Stub — group shell + linked menus; full item/fire/pay offline **not** done |
-| Shift sync replay | ❌ Queued locally, not replayed to API |
 | Manager ops offline (void, split, transfer) | ❌ |
 | Failed-queue operator UI | ❌ Count in banner only |
 | Epic 7 PRD checkboxes | ❌ Update when P0 handoff items closed |
 
-**Continue from:** § **2026-06-10 — Phase 6 handoff** above.
+**Continue from:** § **2026-06-10 — Phase 6 handoff** above (manager ops + Slice C remain).
 
 ### Loose ends (cross-phase)
 
@@ -1402,10 +1430,10 @@ npm run test -w @venue-pos/api
 
 ### Recommended next — Phase 6 polish (in order)
 
-1. Shift replay (`shift.open` / `shift.close` → API).
-2. Cross-sell Slice C offline (coordinator item/fire/pay + atomic group replay).
+1. Cross-sell Slice C offline (coordinator item/fire/pay + atomic group replay).
+2. Manager ops offline (void, comp, transfer, split).
 3. Failed-queue operator UI on POS.
-4. Multi-terminal E2E test (coordinator floor).
+4. Multi-terminal E2E test (dynamic cluster + coordinator floor).
 5. Check off `PRD.md` Epic 7.
 
 ### Optional polish (any phase)
