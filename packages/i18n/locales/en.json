@@ -183,6 +183,8 @@
   "pos.payCardAmount": "Amount charged: {{amount}} EGP",
   "pos.cardLast4": "Card last 4 digits (optional)",
   "pos.paySplit": "Split",
+  "pos.paySplitHint": "Enter cash or card — the other amount fills automatically.",
+  "pos.paySplitBalanced": "Split totals {{total}} — ready to pay",
   "pos.payTitle": "Pay cheque",
   "pos.tendered": "Amount tendered",
   "pos.changeDue": "Change due",
