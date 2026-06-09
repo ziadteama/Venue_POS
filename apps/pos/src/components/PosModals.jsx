@@ -1,4 +1,4 @@
-import { DiscountModal } from './DiscountModal.jsx';
+﻿import { DiscountModal } from './DiscountModal.jsx';
 import { ModifierModal } from './ModifierModal.jsx';
 import { PaidChequePickerModal } from './PaidChequePickerModal.jsx';
 import { PayModal } from './PayModal.jsx';

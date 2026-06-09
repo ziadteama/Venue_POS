@@ -1,4 +1,4 @@
-import { firedOrders } from '../utils/cheque.js';
+﻿import { firedOrders } from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
 import { ClearIcon, PrinterIcon } from './icons.jsx';
 
@@ -28,7 +28,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId 
               onClick={() => onChangeQty(line.id, line.quantity - 1, { venueId })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
             >
-              −
+              ΓêÆ
             </button>
             <span className="min-w-[1.25rem] text-center text-sm font-medium">{line.quantity}</span>
             <button
@@ -40,7 +40,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId 
             </button>
           </div>
         )}
-        {readOnly && <p className="mt-1 text-xs text-secondary">× {line.quantity}</p>}
+        {readOnly && <p className="mt-1 text-xs text-secondary">├ù {line.quantity}</p>}
       </div>
     </li>
   );
@@ -195,16 +195,16 @@ export function ReceiptPanel({
               onClick={onPickTable}
               className="mt-1 text-sm font-medium text-primary-to hover:underline"
             >
-              {t('pos.tableActive', { table: tableLabel || '—' })}
+              {t('pos.tableActive', { table: tableLabel || 'ΓÇö' })}
             </button>
             {isCrossVenue ? (
               <p className="mt-1 text-xs font-medium text-primary-to">{t('crossVenue.badge')}</p>
             ) : null}
           </div>
           <div className="text-end text-xs text-secondary">
-            <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? '—' })}</p>
+            <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? 'ΓÇö' })}</p>
             {order ? (
-              <p>{t('pos.orderNumber', { number: order.orderNumber ?? '—' })}</p>
+              <p>{t('pos.orderNumber', { number: order.orderNumber ?? 'ΓÇö' })}</p>
             ) : null}
           </div>
         </div>
@@ -379,7 +379,7 @@ export function ReceiptPanel({
               className="shrink-0 rounded-xl border border-slate-300 px-4 py-3.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               aria-label={t('pos.actionsTitle')}
             >
-              ···
+              ┬╖┬╖┬╖
             </button>
           </div>
         )}

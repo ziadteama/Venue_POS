@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { LanguageToggle } from './LanguageToggle.jsx';
 import { parentOpenCheques } from '../utils/cheque.js';
 
@@ -27,7 +27,7 @@ function HeaderDropdown({ label, title, children, align = 'end' }) {
       >
         {label}
         <span className="text-[10px] text-white/70" aria-hidden="true">
-          ▾
+          Γû╛
         </span>
       </button>
       {open ? (
@@ -102,7 +102,7 @@ export function PosHeader({
           title={t('pos.tableLabel')}
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/15 text-sm font-bold">
-            {tableLabel || '—'}
+            {tableLabel || 'ΓÇö'}
           </span>
           <span className="hidden min-w-0 text-start md:block">
             <span className="block text-[10px] uppercase tracking-wide text-white/70">

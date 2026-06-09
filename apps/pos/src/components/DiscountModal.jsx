@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 
 export function DiscountModal({
   cheque,
@@ -56,7 +56,7 @@ export function DiscountModal({
     : isEdit
       ? isCrossVenue
         ? t('crossVenue.discountEditHint', {
-            percent: crossVenueGroup?.groupDiscountPercent ?? '—',
+            percent: crossVenueGroup?.groupDiscountPercent ?? 'ΓÇö',
             amount: currentDiscount.toFixed(2),
           })
         : t('pos.discountEditHint', { amount: currentDiscount.toFixed(2) })
