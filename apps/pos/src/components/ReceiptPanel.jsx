@@ -149,6 +149,8 @@ export function ReceiptPanel({
   onChangeQty,
   onPickTable,
   onEditDiscount,
+  onMoveTable,
+  onFreeTable,
   printing = false,
 }) {
   const isCrossVenue = Boolean(crossVenueGroup?.groupId);
@@ -205,9 +207,21 @@ export function ReceiptPanel({
             <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
               {isCrossVenue ? t('crossVenue.combinedCart') : t('pos.currentOrder')}
             </p>
-            <p className="mt-0.5 truncate text-lg font-bold text-slate-900">
-              {tableLabel ? t('pos.tableActive', { table: tableLabel }) : t('pos.noTable')}
-            </p>
+            <div className="mt-0.5 flex items-center gap-2">
+              <p className="truncate text-lg font-bold text-slate-900">
+                {tableLabel ? t('pos.tableActive', { table: tableLabel }) : t('pos.noTable')}
+              </p>
+              {onMoveTable && cheque && !cheque.parentChequeId && !isCrossVenue ? (
+                <button
+                  type="button"
+                  onClick={onMoveTable}
+                  title={t('pos.moveTableBtn')}
+                  className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-700"
+                >
+                  {t('pos.moveTableBtn')}
+                </button>
+              ) : null}
+            </div>
             {isCrossVenue ? (
               <p className="mt-1 text-xs font-medium text-primary-to">{t('crossVenue.badge')}</p>
             ) : null}
@@ -407,6 +421,14 @@ export function ReceiptPanel({
                 {paying
                   ? t('common.loading')
                   : t('pos.payAmount', { amount: payButtonAmount.toFixed(2) })}
+              </button>
+            ) : !hasReceiptLines && onFreeTable && !cheque?.parentChequeId ? (
+              <button
+                type="button"
+                onClick={onFreeTable}
+                className="w-full rounded-xl bg-emerald-500 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-95"
+              >
+                {t('pos.freeTable')}
               </button>
             ) : !hasOpenSplitChildren(cheque) ? (
               <div className="rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">

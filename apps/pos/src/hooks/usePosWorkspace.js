@@ -100,6 +100,7 @@ export function usePosWorkspace(cashier) {
     loadPaidCheques,
     refreshCheque,
     confirmPay,
+    resumeCheque,
     printChequeReceipt,
     navigateToTable,
     selectOpenCheque,
@@ -157,6 +158,9 @@ export function usePosWorkspace(cashier) {
     confirmRemoveDiscount,
     confirmRefund,
     confirmPay,
+    onPaySettled: async (paidTableLabel) => {
+      await resumeCheque(paidTableLabel);
+    },
     printChequeReceipt,
     loadPaidCheques,
     refreshShift,
@@ -327,6 +331,9 @@ export function usePosWorkspace(cashier) {
     navigateToTable: openTableCheque,
     selectOpenCheque,
     deleteTable: deleteTableAndRefresh,
+    freeTable: async () => {
+      if (cheque) await deleteTableAndRefresh(cheque);
+    },
     refreshOpenCheques,
     refreshFloor,
     openTables,

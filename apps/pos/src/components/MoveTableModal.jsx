@@ -4,7 +4,6 @@ import { CloseXIcon } from './icons.jsx';
 
 export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfirm, onCancel, t }) {
   const [selected, setSelected] = useState('');
-  const [custom, setCustom] = useState('');
 
   const currentLabel = cheque?.tableLabel ?? '';
 
@@ -18,8 +17,8 @@ export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfir
     (label) => label.toLowerCase() !== currentLabel.toLowerCase(),
   );
 
-  const targetLabel = custom.trim() || selected;
-  const canSubmit = Boolean(targetLabel) && targetLabel.toLowerCase() !== currentLabel.toLowerCase();
+  const targetLabel = selected;
+  const canSubmit = Boolean(targetLabel);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -61,16 +60,13 @@ export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfir
             <div className="grid grid-cols-3 gap-2">
               {configuredTables.map((label) => {
                 const isOccupied = occupiedLabels.has(label);
-                const isChosen = selected === label && !custom.trim();
+                const isChosen = selected === label;
                 return (
                   <button
                     key={label}
                     type="button"
                     disabled={isOccupied}
-                    onClick={() => {
-                      setSelected(label);
-                      setCustom('');
-                    }}
+                    onClick={() => setSelected(label)}
                     className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${
                       isOccupied
                         ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
@@ -95,23 +91,6 @@ export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfir
             </div>
           </div>
         ) : null}
-
-        <div className="px-5 py-3">
-          <label className="block text-sm">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-400">
-              {t('pos.moveTableCustom')}
-            </span>
-            <input
-              value={custom}
-              onChange={(e) => {
-                setCustom(e.target.value);
-                setSelected('');
-              }}
-              placeholder="e.g. T7"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-primary-to focus:outline-none focus:ring-1 focus:ring-primary-to"
-            />
-          </label>
-        </div>
 
         <div className="flex gap-2 border-t border-slate-100 px-5 py-4">
           <button
