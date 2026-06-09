@@ -9,7 +9,7 @@ const DEFAULT_FEATURES = {
   refunds: true,
   autoReceiptPrint: true,
   tables: [],
-  kdsEnabled: true,
+  kdsEnabled: false,
   crossVenueBilling: false,
   isAnchor: false,
   crossVenueTargets: [],
@@ -34,7 +34,7 @@ export function useFeatures() {
             refunds: data?.refunds !== false,
             autoReceiptPrint: data?.autoReceiptPrint !== false,
             tables: Array.isArray(data?.tables) ? data.tables : [],
-            kdsEnabled: data?.kdsEnabled !== false,
+            kdsEnabled: Boolean(data?.kdsEnabled),
             crossVenueBilling: Boolean(data?.crossVenueBilling),
             isAnchor: Boolean(data?.isAnchor),
             crossVenueTargets: Array.isArray(data?.crossVenueTargets)

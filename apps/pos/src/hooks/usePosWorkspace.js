@@ -203,7 +203,7 @@ export function usePosWorkspace(cashier) {
     crossSell,
     homeVenueId,
     groupLocked,
-    kitchenWatch,
+    kitchenWatch: features.kdsEnabled ? kitchenWatch : null,
     menu,
     loading,
     search,

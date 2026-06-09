@@ -142,9 +142,12 @@ export function PosWorkspace({ cashier, onLogout }) {
         </div>
       </div>
 
-      {ws.features.kdsEnabled ? (
-        <KitchenProgress kitchenWatch={ws.kitchenWatch} language={ws.i18n.language} t={ws.t} />
-      ) : null}
+      <KitchenProgress
+        enabled={ws.features.kdsEnabled}
+        kitchenWatch={ws.kitchenWatch}
+        language={ws.i18n.language}
+        t={ws.t}
+      />
 
       <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-5 py-2 text-xs text-secondary">
         <span className="flex items-center gap-2">
