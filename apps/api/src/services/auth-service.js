@@ -140,6 +140,11 @@ export async function verifyManagerPinByRole(venueId, pin, role) {
   throw unauthorized(`Invalid ${role.replace('_', ' ')} PIN`);
 }
 
+/** POS terminal — shift / floor manager only (not hub manager PIN). */
+export async function verifyFloorManagerPin(venueId, pin) {
+  return verifyManagerPinByRole(venueId, pin, ROLES.VENUE_MANAGER);
+}
+
 /** Shift manager initiates on POS; hub manager co-signs (dual control). */
 export async function verifyDualManagerApproval(
   venueId,

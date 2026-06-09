@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
-import { emitManagerAction } from '../plugins/socket.js';
+import { emitManagerAction, emitRefundNotification } from '../plugins/socket.js';
 import {
   approveRefundRequest,
   listApprovalRequests,
@@ -54,6 +54,16 @@ export async function managerApprovalsRoutes(app) {
       });
 
       if (request.server.io) {
+        emitRefundNotification(request.server.io, {
+          venueId: result.request.venueId,
+          terminalId: result.request.terminalId ?? undefined,
+          chequeNumber: result.cheque?.chequeNumber ?? result.request?.chequeNumber,
+          amount: result.refund?.amount,
+          method: result.refund?.method,
+          reason: result.request?.reason,
+          managerName: request.user?.username,
+          source: 'hub_approve',
+        });
         emitManagerAction(request.server.io, {
           venueId: result.request.venueId,
           terminalId: result.request.terminalId ?? undefined,
@@ -111,6 +121,15 @@ export async function managerApprovalsRoutes(app) {
       );
 
       if (request.server.io) {
+        emitRefundNotification(request.server.io, {
+          venueId,
+          chequeNumber: result.cheque?.chequeNumber,
+          amount: result.refund?.amount,
+          method: result.refund?.method,
+          reason: parsed.data.reason,
+          managerName: request.user?.username,
+          source: 'hub_force',
+        });
         emitManagerAction(request.server.io, {
           venueId,
           type: 'refund',

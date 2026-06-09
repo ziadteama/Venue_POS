@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
+import { parseApiError } from '../utils/apiError.js';
 
 export function useShiftSession(cashierId) {
   const { t } = useTranslation();
@@ -82,7 +83,7 @@ export function useShiftSession(cashierId) {
         setShowOpenModal(false);
         return true;
       } catch (err) {
-        setError(err?.message || t('pos.shiftOpenFailed'));
+        setError(parseApiError(err?.message ?? err, t('pos.shiftOpenFailed')));
         return false;
       } finally {
         setOpening(false);
@@ -111,10 +112,8 @@ export function useShiftSession(cashierId) {
         await refreshOpenContext();
         return result;
       } catch (err) {
-        const msg = err?.message?.includes('Manager')
-          ? t('pos.shiftManagerRequired')
-          : err?.message || t('pos.shiftCloseFailed');
-        setError(msg);
+        const msg = parseApiError(err?.message ?? err, t('pos.shiftCloseFailed'));
+        setError(msg.includes('Manager') ? t('pos.shiftManagerRequired') : msg);
         return null;
       } finally {
         setClosing(false);

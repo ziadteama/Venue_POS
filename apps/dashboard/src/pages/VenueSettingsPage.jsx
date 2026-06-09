@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { BillingMatrixSection } from '../components/BillingMatrixSection.jsx';
 import { TerminalsSection } from '../components/TerminalsSection.jsx';
@@ -87,7 +88,7 @@ export function VenueSettingsPage() {
         setAudits([]);
       }
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -100,7 +101,7 @@ export function VenueSettingsPage() {
         setVenues(list);
         if (list[0]?.id) setVenueId(list[0].id);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(friendlyError(err)));
   }, [user?.role]);
 
   useEffect(() => {
@@ -136,7 +137,7 @@ export function VenueSettingsPage() {
       setSuccess(t('venueConfig.saved', { count: result.changes?.length ?? 0 }));
       await load(venueId);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSaving(false);
     }

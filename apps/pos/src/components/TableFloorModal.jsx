@@ -1,3 +1,4 @@
+import { CloseXIcon } from './icons.jsx';
 import { canDeleteCheque, parentOpenCheques } from '../utils/cheque.js';
 
 function tableStatus({ openCheque, currentChequeId }) {
@@ -80,7 +81,7 @@ export function TableFloorModal({
               className="rounded-lg p-1.5 text-secondary hover:bg-slate-100"
               aria-label={t('common.cancel')}
             >
-              ✕
+              <CloseXIcon className="h-5 w-5" />
             </button>
           </div>
           {currentTable ? (
@@ -148,7 +149,7 @@ export function TableFloorModal({
                         title={t('pos.deleteTable')}
                         aria-label={t('pos.deleteTable')}
                       >
-                        ✕
+                        <CloseXIcon className="h-5 w-5" />
                       </button>
                     ) : null}
                   </div>

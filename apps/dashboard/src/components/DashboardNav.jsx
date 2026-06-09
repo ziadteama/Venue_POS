@@ -4,7 +4,7 @@ import { ROLES } from '@venue-pos/shared';
 import { useAuth } from '../hooks/useAuth.js';
 
 const NAV_ITEMS = [
-  { to: '/', end: true, labelKey: 'nav.overview', roles: [ROLES.HUB_OWNER] },
+  { to: '/', end: true, labelKey: 'nav.overview', roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
   { to: '/analytics', labelKey: 'nav.analytics', roles: [ROLES.HUB_OWNER] },
   { to: '/menus', labelKey: 'nav.menus', roles: [ROLES.HUB_MANAGER] },
   { to: '/cheques', labelKey: 'nav.cheques', roles: [ROLES.HUB_MANAGER] },
@@ -19,7 +19,9 @@ const NAV_ITEMS = [
 function linkClass({ isActive }) {
   return [
     'shrink-0 rounded-lg px-3.5 py-2 text-sm font-medium transition',
-    isActive ? 'bg-white text-primary-from shadow-sm' : 'text-white/90 hover:bg-white/15',
+    isActive
+      ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+      : 'text-slate-600 hover:bg-white/70 hover:text-slate-900',
   ].join(' ');
 }
 

@@ -24,19 +24,20 @@ export function ChequesPage() {
         onVenueChange={manager.changeVenue}
       />
 
-      {manager.error && (
+      {manager.error && manager.actionTarget?.type !== 'refund' ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
           {manager.error}
         </div>
-      )}
+      ) : null}
 
       <ChequeActionModals
         actionTarget={manager.actionTarget}
         discountForm={manager.discountForm}
-        refundForm={manager.refundForm}
         onClose={manager.closeAction}
         onSubmit={manager.runAction}
         t={t}
+        error={manager.error}
+        busy={manager.busy}
       />
 
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">

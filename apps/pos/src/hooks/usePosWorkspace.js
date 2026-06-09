@@ -6,6 +6,7 @@ import { useCrossSell } from './useCrossSell.js';
 import { useFeatures } from './useFeatures.js';
 import { useKitchenSocket } from './useKitchenSocket.js';
 import { useManagerSocket } from './useManagerSocket.js';
+import { useManagerNotifications } from './useManagerNotifications.js';
 import { useOrderLookup } from './useOrderLookup.js';
 import { usePosMenu } from './usePosMenu.js';
 import { usePosModals } from './usePosModals.js';
@@ -22,6 +23,7 @@ import { useFloorSocket } from './useFloorSocket.js';
 export function usePosWorkspace(cashier) {
   const { t, i18n } = useTranslation();
   const [refundCheque, setRefundCheque] = useState(null);
+  const [managerNotice, setManagerNotice] = useState(null);
   const [clock, setClock] = useState(() => new Date());
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
@@ -142,6 +144,13 @@ export function usePosWorkspace(cashier) {
     refreshShift,
     setKitchenWatch,
     setError,
+    onRefundSuccess: (result) => {
+      setManagerNotice({
+        id: `self-refund-${Date.now()}`,
+        self: true,
+        payload: result,
+      });
+    },
     t,
   });
 
@@ -153,6 +162,20 @@ export function usePosWorkspace(cashier) {
   }, []);
 
   useManagerSocket(cheque?.id, refreshCheque);
+
+  useManagerNotifications((payload) => {
+    if (payload.type !== 'refund') return;
+    setManagerNotice({
+      id: `${payload.chequeNumber}-${payload.at ?? Date.now()}`,
+      payload,
+    });
+  });
+
+  useEffect(() => {
+    if (!managerNotice) return undefined;
+    const timer = setTimeout(() => setManagerNotice(null), 12000);
+    return () => clearTimeout(timer);
+  }, [managerNotice]);
 
   useEffect(() => {
     if (!loading && !featuresLoading && shiftReady && !cheque && !shiftSession.showOpenModal) {
@@ -249,6 +272,7 @@ export function usePosWorkspace(cashier) {
     crossVenueGroup,
     order,
     tableLabel,
+    error,
     setError,
     sending,
     paying,
@@ -277,6 +301,8 @@ export function usePosWorkspace(cashier) {
     agentStatus,
     floorByLabel,
     coordinatorUnreachable,
+    managerNotice,
+    setManagerNotice,
   };
 }
 

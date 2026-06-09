@@ -1,6 +1,21 @@
 /**
  * fetch() does not throw on 4xx/5xx — always check res.ok before treating as success.
  */
+export function parseUpstreamError(text, fallbackMessage = 'Request failed') {
+  if (!text) return fallbackMessage;
+  try {
+    const json = JSON.parse(text);
+    if (json.error?.message) return json.error.message;
+    if (typeof json.message === 'string' && !json.message.startsWith('API /api/')) {
+      return json.message;
+    }
+  } catch {
+    // not JSON — use raw text when short enough
+    if (text.length < 200 && !text.startsWith('API /api/')) return text;
+  }
+  return fallbackMessage;
+}
+
 export async function apiFetch(apiUrl, terminalId, terminalSecret, path, options = {}) {
   const method = options.method ?? 'GET';
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
@@ -20,6 +35,7 @@ export async function apiFetch(apiUrl, terminalId, terminalSecret, path, options
     const err = new Error(`API ${path} failed (${res.status}): ${text}`);
     err.statusCode = res.status;
     err.responseText = text;
+    err.apiMessage = parseUpstreamError(text, err.message);
     throw err;
   }
 
@@ -33,7 +49,9 @@ export function sendApiError(reply, err) {
     return reply.status(err.statusCode).send(JSON.parse(err.responseText));
   } catch {
     return reply.status(err.statusCode).send({
-      error: { message: err.responseText || err.message },
+      error: {
+        message: err.apiMessage ?? parseUpstreamError(err.responseText, err.message),
+      },
     });
   }
 }

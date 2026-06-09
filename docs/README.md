@@ -21,7 +21,7 @@
 | [DEVELOPMENT.md](DEVELOPMENT.md) | Local dev guide (includes repo structure) |
 | [DEV_CREDENTIALS.md](DEV_CREDENTIALS.md) | **Dev logins, PINs, terminal secrets — where to use each** |
 | [TEAM_LOG.md](TEAM_LOG.md) | Chronological build log — update every merge |
-| [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) | **Next** — offline sync, LAN coordinator POS, shared floor |
+| [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) | Offline sync, LAN cluster — **v1.1 shipped**; P0 gaps in [TEAM_LOG.md](TEAM_LOG.md) |
 | [../apps/api/prisma/schema.prisma](../apps/api/prisma/schema.prisma) | Database schema (source of truth) |
 
 ## AI / Cursor
@@ -37,8 +37,8 @@
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 0–3 | ✅ Done | Monorepo, POS, kitchen, cheques, payments, shifts |
-| 5 (Epic 8) | ✅ Done | Hub manager dashboard — menus, analytics, orders, cheques, shifts/EOD, staff, settings, audit, health |
+| 5 (Epic 8) | ✅ Done | Dashboard v2 — CEO executive overview + hub operations overview, analytics, ops pages |
 | **4** | ✅ Done | Cross-sell on anchor POS — billing matrix, group fire/pay, split tender, group % discount, itemized receipt |
-| **6** | **Next** | Offline sync + **designated POS as LAN coordinator** ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
+| **6** | **v1.1 shipped** | Offline sync, dynamic LAN cluster, shift replay, device profile — P0 gaps remain ([PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md)) |
 
-**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix; card/split pay also needs `FEATURE_MANUAL_CARD_PAYMENT=true`. **Phase 4 closed.** **Phase 6 v1.1** (offline + dynamic LAN cluster + shift replay + device profile): [TEAM_LOG.md](TEAM_LOG.md) § Roadmap · [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md).
+**KDS is optional** (`FEATURE_KDS_ENABLED`). **Cross-venue** requires `FEATURE_CROSS_VENUE_BILLING=true` + hub billing matrix; card/split pay also needs `FEATURE_MANUAL_CARD_PAYMENT=true`. **Phase 4 closed.** **Phase 6 v1.1** (offline + dynamic LAN cluster + shift replay + device profile + floor manager refund flow): [TEAM_LOG.md](TEAM_LOG.md) § Roadmap · [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md).

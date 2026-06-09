@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 
 export function TerminalsSection({ venueId }) {
   const { t } = useTranslation();
@@ -17,7 +18,7 @@ export function TerminalsSection({ venueId }) {
       const rows = await apiFetch(`/api/v1/manager/terminals${q}`);
       setTerminals(Array.isArray(rows) ? rows : []);
     } catch (err) {
-      setError(err?.message || t('terminals.loadFailed'));
+      setError(friendlyError(err, t('terminals.loadFailed')));
     } finally {
       setLoading(false);
     }
@@ -37,7 +38,7 @@ export function TerminalsSection({ venueId }) {
       });
       await load();
     } catch (err) {
-      setError(err?.message || t('terminals.saveFailed'));
+      setError(friendlyError(err, t('terminals.saveFailed')));
     } finally {
       setSavingId(null);
     }

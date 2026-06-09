@@ -6,7 +6,7 @@ export function formatMoney(value, locale) {
 }
 
 export function formatDateTime(value, locale) {
-  if (!value) return '—';
+  if (!value) return '-';
   return new Intl.DateTimeFormat(locale, {
     dateStyle: 'short',
     timeStyle: 'short',

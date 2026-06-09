@@ -110,13 +110,13 @@ export function registerChequeRoutes(app, routeCtx) {
     }
   });
 
-  app.get('/v1/cheques/:id', async (request) => {
+  app.get('/v1/cheques/:id', async (request, reply) => {
     try {
       return await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`);
     } catch (err) {
       const local = getLocalChequeById(db, request.params.id);
       if (local) return local;
-      throw err;
+      return sendApiError(reply, err);
     }
   });
 
@@ -334,32 +334,57 @@ export function registerChequeRoutes(app, routeCtx) {
   app.patch('/v1/cheques/:id/discount', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const syncId = randomUUID();
     try {
       return await apiFetch(
         apiUrl,
         terminalId,
         terminalSecret,
         `/api/v1/cheques/${request.params.id}/discount`,
-        { method: 'PATCH', body: JSON.stringify(body) },
+        { method: 'PATCH', body: JSON.stringify({ ...body, syncId }) },
       );
     } catch (err) {
-      return sendApiError(reply, err);
+      if (isCloudOnline()) return sendApiError(reply, err);
+      const manager = await verifyCachedManagerPin(db, body.restaurantManagerPin);
+      if (!manager) return reply.status(401).send({ error: 'Invalid manager PIN' });
+      const cheque = applyLocalChequeDiscount(db, request.params.id, {
+        amount: body.amount,
+        percent: body.percent,
+      });
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.CHEQUE_DISCOUNT,
+        { chequeId: request.params.id, body, action: 'change' },
+        syncId,
+      );
+      return cheque;
     }
   });
 
   app.post('/v1/cheques/:id/discount/remove', async (request, reply) => {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const syncId = randomUUID();
     try {
       return await apiFetch(
         apiUrl,
         terminalId,
         terminalSecret,
         `/api/v1/cheques/${request.params.id}/discount/remove`,
-        { method: 'POST', body: JSON.stringify(body) },
+        { method: 'POST', body: JSON.stringify({ ...body, syncId }) },
       );
     } catch (err) {
-      return sendApiError(reply, err);
+      if (isCloudOnline()) return sendApiError(reply, err);
+      const manager = await verifyCachedManagerPin(db, body.restaurantManagerPin);
+      if (!manager) return reply.status(401).send({ error: 'Invalid manager PIN' });
+      const cheque = removeLocalChequeDiscount(db, request.params.id);
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.CHEQUE_DISCOUNT,
+        { chequeId: request.params.id, body, action: 'remove' },
+        syncId,
+      );
+      return cheque;
     }
   });
 

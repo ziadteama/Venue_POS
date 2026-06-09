@@ -5,6 +5,7 @@ export const CEO_DASHBOARD_PATHS = new Set(['/', '/analytics']);
 
 /** Hub manager — full back office across all venues (Toast/Square GM portal pattern). */
 export const HUB_MANAGER_DASHBOARD_PATHS = new Set([
+  '/',
   '/menus',
   '/users',
   '/settings',
@@ -51,7 +52,7 @@ export function canAccessDashboardPath(role, pathname) {
 }
 
 export function defaultDashboardPath(role) {
-  if (isHubManager(role)) return '/menus';
+  if (isHubManager(role)) return '/';
   if (isCeo(role)) return '/';
   return '/login';
 }

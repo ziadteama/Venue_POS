@@ -2,7 +2,8 @@ import { ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { forbidden, validationError } from '../utils/errors.js';
-import { verifyManagerPin } from './auth-service.js';
+import { verifyManagerPin, verifyFloorManagerPin } from './auth-service.js';
+import { appendAuditLog } from './audit-log-service.js';
 export { forceHubRefund as forceChequeRefund } from './approval-request-service.js';
 import {
   assertDiscountAllowed,
@@ -34,6 +35,66 @@ async function resolveVenueManager(venueId, { initiatorId, restaurantManagerPin,
   return verifyManagerPin(venueId, pin);
 }
 
+/** POS — cashier performs action; optional floor PIN co-signs. Dashboard uses initiatorId (JWT). */
+async function resolvePosActionActors(venueId, { cashierId, restaurantManagerPin, initiatorId }) {
+  if (initiatorId) {
+    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    return { initiator: manager, approver: manager, notifyManager: manager };
+  }
+
+  if (!cashierId) throw validationError('cashierId is required');
+
+  const cashier = await prisma.user.findUnique({ where: { id: cashierId } });
+  if (!cashier?.isActive || cashier.role !== ROLES.CASHIER) {
+    throw validationError('Invalid cashier');
+  }
+  if (cashier.venueId !== venueId) {
+    throw validationError('Cashier does not belong to this venue');
+  }
+
+  const floorManager = await prisma.user.findFirst({
+    where: { venueId, role: ROLES.VENUE_MANAGER, isActive: true },
+    orderBy: { username: 'asc' },
+  });
+
+  if (restaurantManagerPin?.length >= 4) {
+    const pinManager = await verifyFloorManagerPin(venueId, restaurantManagerPin);
+    return { initiator: cashier, approver: pinManager, notifyManager: pinManager };
+  }
+
+  return {
+    initiator: cashier,
+    approver: floorManager ?? cashier,
+    notifyManager: floorManager ?? cashier,
+  };
+}
+
+async function auditPosManagerAction({
+  venueId,
+  action,
+  actors,
+  cheque,
+  summary,
+  details,
+}) {
+  await appendAuditLog({
+    venueId,
+    actorId: actors.initiator.id,
+    actorUsername: actors.initiator.username,
+    action,
+    entityType: 'cheque',
+    entityId: cheque.id,
+    summary,
+    details: {
+      chequeNumber: cheque.chequeNumber,
+      tableLabel: cheque.tableLabel,
+      initiator: actors.initiator.username,
+      approver: actors.approver.username,
+      ...details,
+    },
+  });
+}
+
 export async function applyChequeDiscount(
   chequeId,
   { amount, percent, reason, restaurantManagerPin, cashierId, initiatorId },
@@ -45,34 +106,53 @@ export async function applyChequeDiscount(
 
   if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
     if (amount != null) throw validationError('Cross-venue discounts must use percent only');
-    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    const actors = await resolvePosActionActors(venueId, {
+      initiatorId,
+      restaurantManagerPin,
+      cashierId: cashierId ?? cheque.cashierId,
+    });
     return applyCrossVenueGroupDiscount({
       anchorChequeId: chequeId,
       anchorVenueId: venueId,
       percent,
       reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
+      initiatorId: actors.initiator.id,
+      approverId: actors.approver.id,
       cashierId: cashierId ?? cheque.cashierId,
     });
   }
 
   assertDiscountAllowed(cheque);
   resolveDiscountAmount(cheque, { amount, percent });
-  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+  const actors = await resolvePosActionActors(venueId, {
+    initiatorId,
+    restaurantManagerPin,
+    cashierId: cashierId ?? cheque.cashierId,
+  });
 
-  return executeChequeDiscount(
+  const result = await executeChequeDiscount(
     chequeId,
     {
       amount,
       percent,
       reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
+      initiatorId: actors.initiator.id,
+      approverId: actors.approver.id,
       cashierId: cashierId ?? cheque.cashierId,
     },
     venueId,
   );
+
+  await auditPosManagerAction({
+    venueId,
+    action: 'discount.applied',
+    actors,
+    cheque,
+    summary: `Discount applied on cheque #${cheque.chequeNumber}`,
+    details: { amount, percent, reason: reason.trim() },
+  });
+
+  return result;
 }
 
 export async function changeChequeDiscount(
@@ -86,34 +166,53 @@ export async function changeChequeDiscount(
 
   if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
     if (amount != null) throw validationError('Cross-venue discounts must use percent only');
-    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    const actors = await resolvePosActionActors(venueId, {
+      initiatorId,
+      restaurantManagerPin,
+      cashierId: cashierId ?? cheque.cashierId,
+    });
     return updateCrossVenueGroupDiscount({
       anchorChequeId: chequeId,
       anchorVenueId: venueId,
       percent,
       reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
+      initiatorId: actors.initiator.id,
+      approverId: actors.approver.id,
       cashierId: cashierId ?? cheque.cashierId,
     });
   }
 
   assertDiscountAllowed(cheque);
   resolveDiscountAmount(cheque, { amount, percent });
-  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+  const actors = await resolvePosActionActors(venueId, {
+    initiatorId,
+    restaurantManagerPin,
+    cashierId: cashierId ?? cheque.cashierId,
+  });
 
-  return updateChequeDiscount(
+  const result = await updateChequeDiscount(
     chequeId,
     {
       amount,
       percent,
       reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
+      initiatorId: actors.initiator.id,
+      approverId: actors.approver.id,
       cashierId: cashierId ?? cheque.cashierId,
     },
     venueId,
   );
+
+  await auditPosManagerAction({
+    venueId,
+    action: 'discount.changed',
+    actors,
+    cheque,
+    summary: `Discount changed on cheque #${cheque.chequeNumber}`,
+    details: { amount, percent, reason: reason.trim() },
+  });
+
+  return result;
 }
 
 export async function removeAppliedChequeDiscount(
@@ -126,30 +225,49 @@ export async function removeAppliedChequeDiscount(
   if (!reason?.trim()) throw validationError('Discount reason is required');
 
   if (cheque.crossVenueGroupId && config.featureCrossVenueBilling) {
-    const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+    const actors = await resolvePosActionActors(venueId, {
+      initiatorId,
+      restaurantManagerPin,
+      cashierId: cashierId ?? cheque.cashierId,
+    });
     return removeCrossVenueGroupDiscount({
       anchorChequeId: chequeId,
       anchorVenueId: venueId,
       reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
+      initiatorId: actors.initiator.id,
+      approverId: actors.approver.id,
       cashierId: cashierId ?? cheque.cashierId,
     });
   }
 
   assertDiscountAllowed(cheque);
-  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+  const actors = await resolvePosActionActors(venueId, {
+    initiatorId,
+    restaurantManagerPin,
+    cashierId: cashierId ?? cheque.cashierId,
+  });
 
-  return removeChequeDiscount(
+  const result = await removeChequeDiscount(
     chequeId,
     {
       reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
+      initiatorId: actors.initiator.id,
+      approverId: actors.approver.id,
       cashierId: cashierId ?? cheque.cashierId,
     },
     venueId,
   );
+
+  await auditPosManagerAction({
+    venueId,
+    action: 'discount.removed',
+    actors,
+    cheque,
+    summary: `Discount removed on cheque #${cheque.chequeNumber}`,
+    details: { reason: reason.trim() },
+  });
+
+  return result;
 }
 
 export async function applyChequeRefund(
@@ -163,21 +281,40 @@ export async function applyChequeRefund(
   assertRefundAllowed(cheque, { amount, method });
   if (!reason?.trim()) throw validationError('Refund reason is required');
 
-  const manager = await resolveVenueManager(venueId, { initiatorId, restaurantManagerPin });
+  const actors = await resolvePosActionActors(venueId, {
+    initiatorId,
+    restaurantManagerPin,
+    cashierId: cashierId ?? cheque.cashierId,
+  });
 
-  return executeRefund(
-    chequeId,
-    {
-      amount,
-      method,
-      reason,
-      initiatorId: manager.id,
-      approverId: manager.id,
-      cashierId: cashierId ?? cheque.cashierId,
-      terminalId,
-    },
+  const result = {
+    ...(await executeRefund(
+      chequeId,
+      {
+        amount,
+        method,
+        reason,
+        initiatorId: actors.initiator.id,
+        approverId: actors.approver.id,
+        cashierId: cashierId ?? cheque.cashierId,
+        terminalId,
+      },
+      venueId,
+    )),
+    manager: { id: actors.notifyManager.id, username: actors.notifyManager.username },
+    cashier: { id: actors.initiator.id, username: actors.initiator.username },
+  };
+
+  await auditPosManagerAction({
     venueId,
-  );
+    action: 'refund.processed',
+    actors,
+    cheque,
+    summary: `Refund ${Number(amount)} ${method ?? 'cash'} on cheque #${cheque.chequeNumber}`,
+    details: { amount: Number(amount), method: method ?? 'cash', reason: reason.trim() },
+  });
+
+  return result;
 }
 
 export async function listCompAudits(venueId, { limit = 50 } = {}) {

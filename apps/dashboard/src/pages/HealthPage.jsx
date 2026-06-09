@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 
 export function HealthPage() {
@@ -30,7 +31,7 @@ export function HealthPage() {
       setSnapshot(data);
       if (canPickVenue) setVenues(venueList);
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -64,7 +65,7 @@ export function HealthPage() {
         </div>
         <button
           type="button"
-          onClick={() => exportCsv().catch((e) => setError(e.message))}
+          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
         >
           {t('health.exportCsv')}

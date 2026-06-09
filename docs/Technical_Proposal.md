@@ -582,6 +582,8 @@ The server maintains a Socket.IO event bus. Clients (POS terminals, KDS, admin d
 | Phase 9 - Go-Live (Week 16)                       | Production deployment, terminal installation at each venue, staff training, hypercare support.                   |
 | ---                                               | ---                                                                                                              |
 
+**Delivery status (June 2026):** Phases 0–5 and Phase 4 are complete. **Phase 6 v1.1** shipped (offline sync, dynamic LAN cluster, shift replay, device profile); manager ops offline and cross-sell Slice C remain. **Dashboard v2** adds CEO executive overview and hub operations overview at `/`. POS refunds use floor manager PIN with venue-wide notification banners. See `docs/TEAM_LOG.md` § Roadmap.
+
 ## **12.2 Team Requirements**
 
 | **Role**                | **Responsibility**                                                      |

@@ -29,6 +29,7 @@ export function PosModals({
   tableSession,
   floorByLabel,
   modals,
+  error,
   onAddItemWithModifiers,
 }) {
   const {
@@ -63,6 +64,7 @@ export function PosModals({
     onPickRefundCheque,
     onConfirmRefund,
     onConfirmPay,
+    refundSubmitting,
     closeRefundModal,
     closeRefundPicker,
   } = modals;
@@ -159,6 +161,7 @@ export function PosModals({
           crossVenueGroup={crossVenueGroup}
           mode={discountModalMode}
           t={t}
+          error={error}
           onCancel={() => setShowDiscountModal(false)}
           onConfirm={onConfirmDiscount}
         />
@@ -169,6 +172,7 @@ export function PosModals({
           cheques={paidCheques}
           loading={loadingPaid}
           t={t}
+          error={error}
           onCancel={closeRefundPicker}
           onSelect={onPickRefundCheque}
         />
@@ -178,6 +182,8 @@ export function PosModals({
         <RefundModal
           cheque={refundCheque}
           t={t}
+          error={error}
+          submitting={refundSubmitting}
           onCancel={closeRefundModal}
           onConfirm={onConfirmRefund}
         />
@@ -188,6 +194,7 @@ export function PosModals({
           cheque={cheque}
           payTotal={crossVenueGroup?.combinedTotal}
           t={t}
+          error={error}
           manualCardEnabled={features.manualCardPayment}
           manualCardThreshold={features.manualCardApprovalThreshold}
           onCancel={() => setShowPayModal(false)}

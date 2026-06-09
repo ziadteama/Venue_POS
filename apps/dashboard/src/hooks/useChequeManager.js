@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 import { managerActionMethod, managerActionPath } from '../utils/chequeActions.js';
 
 export function useChequeManager({ user }) {
@@ -16,8 +17,6 @@ export function useChequeManager({ user }) {
   const [discountMode, setDiscountMode] = useState('amount');
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountPercent, setDiscountPercent] = useState('');
-  const [refundAmount, setRefundAmount] = useState('');
-  const [refundMethod, setRefundMethod] = useState('cash');
 
   const venueQuery = venueId ? `?venueId=${venueId}` : '';
   const listQuery = venueId
@@ -49,11 +48,11 @@ export function useChequeManager({ user }) {
   );
 
   useEffect(() => {
-    load().catch((e) => setError(e.message));
+    load().catch((e) => setError(friendlyError(e)));
   }, [load]);
 
   useEffect(() => {
-    if (selectedId) loadDetail(selectedId).catch((e) => setError(e.message));
+    if (selectedId) loadDetail(selectedId).catch((e) => setError(friendlyError(e)));
   }, [selectedId, loadDetail]);
 
   const closeAction = useCallback(() => setActionTarget(null), []);
@@ -74,7 +73,7 @@ export function useChequeManager({ user }) {
         await load();
         if (selectedId) await loadDetail(selectedId);
       } catch (e) {
-        setError(e.message);
+        setError(friendlyError(e));
       } finally {
         setBusy(false);
       }
@@ -108,15 +107,11 @@ export function useChequeManager({ user }) {
   }, []);
 
   const openRefundRequest = useCallback((cheque) => {
-    const paidTotal = cheque.payments?.reduce((s, p) => s + Number(p.amount), 0) ?? 0;
-    const refunded = cheque.refunds?.reduce((s, r) => s + Number(r.amount), 0) ?? 0;
-    const remaining = Math.max(0, paidTotal - refunded);
-    setRefundAmount(remaining > 0 ? String(remaining) : '');
-    setRefundMethod(cheque.payments?.[0]?.method ?? 'cash');
     setActionTarget({
       type: 'refund',
       chequeId: cheque.id,
       chequeNumber: cheque.chequeNumber,
+      cheque,
     });
   }, []);
 
@@ -156,12 +151,6 @@ export function useChequeManager({ user }) {
       setMode: setDiscountMode,
       setAmount: setDiscountAmount,
       setPercent: setDiscountPercent,
-    },
-    refundForm: {
-      amount: refundAmount,
-      method: refundMethod,
-      setAmount: setRefundAmount,
-      setMethod: setRefundMethod,
     },
   };
 }

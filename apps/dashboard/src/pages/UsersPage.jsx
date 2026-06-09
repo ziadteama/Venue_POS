@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 
 const emptyForm = { username: '', role: 'cashier', pin: '', cardUid: '', venueId: '' };
 
@@ -27,7 +28,7 @@ export function UsersPage() {
         setVenues(list);
         if (list[0]?.id) setVenueId(list[0].id);
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => setError(friendlyError(err)));
   }, []);
 
   const load = useCallback(async () => {
@@ -40,7 +41,7 @@ export function UsersPage() {
       if (showInactive) params.set('includeInactive', 'true');
       setUsers(await apiFetch(`/api/v1/manager/users?${params}`));
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -72,7 +73,7 @@ export function UsersPage() {
         await load();
       }
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     }
   }
 
@@ -88,7 +89,7 @@ export function UsersPage() {
       setPinUser(null);
       setNewPin('');
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     }
   }
 
@@ -102,7 +103,7 @@ export function UsersPage() {
       });
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     }
   }
 

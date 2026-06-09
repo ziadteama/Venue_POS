@@ -399,14 +399,16 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 #### US-5.6: Refund Processing
 **As a** Manager, **I want** to process refunds, **so that** customer complaints can be resolved.
 
-**Workflow (implemented):**
-- **Venue manager** (`venue_manager`) **requests** a refund from POS (PIN) or dashboard Cheques — creates a pending `ManagerApprovalRequest`.
-- **Hub manager** (`hub_manager`) **force-refunds** from dashboard **Cheques** (Approvals nav removed; `/approvals` API + page code remain for optional re-enable).
-- On approval or force-refund, the refund is executed, audited, and receipt printed (when printer configured).
+**Workflow (implemented — June 2026):**
+- **POS:** Cashier initiates refund on a paid cheque; **floor manager PIN** (`venue_manager`, e.g. dev `7777`) completes the refund immediately. Hub manager PIN (`9999`) is **rejected** on terminal routes.
+- **Dashboard:** Hub manager **force-refunds** from **Cheques** (paid tab) using JWT login — no PIN on web.
+- **Notifications:** On any completed refund (POS or dashboard), all POS terminals at the venue receive WebSocket `manager:notification` and show a dismissible banner (cheque #, amount, manager name).
+- Legacy **Approvals** queue (`/approvals` API + page) remains in code but nav removed; primary path is direct POS refund + hub Cheques.
 
 **Acceptance Criteria:**
-- [x] Refund initiated from POS or dashboard Cheques (venue manager request)
-- [x] Hub manager approval required before refund executes (venue manager cannot finalize alone)
+- [x] Refund initiated from POS (floor manager PIN) or dashboard Cheques (hub manager)
+- [x] POS refund requires floor manager PIN only (hub manager PIN not accepted on terminal)
+- [x] Venue-wide POS notification after refund completes
 - [x] Refund linked to original cheque
 - [x] Refund amount cannot exceed original payment
 - [x] Refund method validated against original payment method (cash/card/voucher caps)
@@ -415,7 +417,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Receipt printed for refund transaction (on approve / force-refund)
 - [ ] Refund initiated from order explorer (hub) — deferred; use Cheques + Approvals
 
-**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (request → approve)
+**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (floor manager PIN on POS + hub Cheques)
 
 ---
 
@@ -563,6 +565,19 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Responsive layout for tablet and desktop
 
 **Priority:** P0 | **Effort:** 4 days · **Status:** Shipped
+
+#### US-8.1b: Role-based business overview (Dashboard v2 — June 2026)
+**As a** CEO or Hub Manager, **I want** a clean home dashboard matched to my role, **so that** I see the right KPIs without operational clutter.
+
+**Acceptance Criteria:**
+- [x] **CEO** (`hub_owner`) lands on `/` — executive overview: net sales today/week, 7-day trend chart, venue performance table, recent business changes (last 3 days)
+- [x] **Hub manager** lands on `/` — operations overview: today net sales, refunds, open cheques/shifts, terminal status, 7-day trend, recent changes
+- [x] CEO restricted to `/` and `/analytics` only (no ops nav)
+- [x] Shared KPI components (StatCard, trend badge, mini bar chart, activity feed)
+- [x] REST: `GET /api/v1/manager/dashboard/executive` · `GET /api/v1/manager/dashboard/operations` (optional `?venueId=`)
+- [x] Redesigned `/analytics` page (CEO revenue drill-down unchanged in scope)
+
+**Priority:** P1 | **Effort:** 3 days · **Status:** Shipped
 
 #### US-8.2: Revenue Analytics
 **As a** Hub Manager, **I want** to analyze revenue trends, **so that** I can make business decisions.

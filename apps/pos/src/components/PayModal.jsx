@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { ModalErrorAlert, ModalFrame, ModalPanel } from './ModalFrame.jsx';
 
 function formatSplitPart(amount) {
   if (!Number.isFinite(amount) || amount <= 0) return '';
@@ -11,6 +12,7 @@ export function PayModal({
   onConfirm,
   onCancel,
   t,
+  error,
   manualCardEnabled = false,
   manualCardThreshold = 500,
 }) {
@@ -108,14 +110,13 @@ export function PayModal({
   const splitBalanced = Math.abs(splitRemaining) < 0.01 && cashNum + cardNum > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
-      >
-        <h3 className="mb-1 text-xl font-bold text-slate-900">{t('pos.payTitle')}</h3>
+    <ModalFrame layer="stacked">
+      <ModalPanel>
+        <form onSubmit={handleSubmit}>
+          <ModalErrorAlert error={error} />
+          <h3 className="mb-1 text-xl font-bold text-slate-900">{t('pos.payTitle')}</h3>
         <p className="mb-4 text-sm text-secondary">
-          {t('pos.chequeNumber', { number: cheque.chequeNumber })} ·{' '}
+          {t('pos.chequeNumber', { number: cheque.chequeNumber })} |{' '}
           <span className="font-semibold text-primary-to">
             {total.toFixed(2)} {t('pos.currency')}
           </span>
@@ -236,7 +237,8 @@ export function PayModal({
             {t('common.cancel')}
           </button>
         </div>
-      </form>
-    </div>
+        </form>
+      </ModalPanel>
+    </ModalFrame>
   );
 }

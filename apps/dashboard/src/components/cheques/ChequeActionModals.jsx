@@ -1,7 +1,6 @@
 import { ManagerActionModal } from './ManagerActionModal.jsx';
 import { DiscountRequestModal } from './DiscountRequestModal.jsx';
-import { ForceRefundModal } from './ForceRefundModal.jsx';
-import { RefundRequestModal } from './RefundRequestModal.jsx';
+import { ChequeRefundModal } from './ChequeRefundModal.jsx';
 import { RequestActionModal } from './RequestActionModal.jsx';
 
 function managerModalCopy(target, t) {
@@ -32,11 +31,12 @@ function managerModalCopy(target, t) {
 export function ChequeActionModals({
   actionTarget,
   discountForm,
-  refundForm,
   onClose,
   onSubmit,
   t,
   pinOptional = true,
+  error,
+  busy,
 }) {
   if (!actionTarget) return null;
 
@@ -84,32 +84,16 @@ export function ChequeActionModals({
     );
   }
 
-  if (actionTarget.type === 'force_refund') {
+  if (actionTarget.type === 'refund' || actionTarget.type === 'force_refund') {
     return (
-      <ForceRefundModal
+      <ChequeRefundModal
+        cheque={actionTarget.cheque}
         chequeNumber={actionTarget.chequeNumber}
-        amount={refundForm.amount}
-        method={refundForm.method}
-        onAmountChange={refundForm.setAmount}
-        onMethodChange={refundForm.setMethod}
         onConfirm={onSubmit}
         onCancel={onClose}
         t={t}
-      />
-    );
-  }
-
-  if (actionTarget.type === 'refund') {
-    return (
-      <RefundRequestModal
-        chequeNumber={actionTarget.chequeNumber}
-        amount={refundForm.amount}
-        method={refundForm.method}
-        onAmountChange={refundForm.setAmount}
-        onMethodChange={refundForm.setMethod}
-        onConfirm={onSubmit}
-        onCancel={onClose}
-        t={t}
+        error={error}
+        submitting={busy}
       />
     );
   }

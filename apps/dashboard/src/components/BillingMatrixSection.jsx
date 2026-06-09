@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
+import { friendlyError } from '../utils/apiError.js';
 
 /**
  * Cross-venue billing matrix for an anchor venue. The hub manager toggles which
@@ -20,7 +21,7 @@ export function BillingMatrixSection({ anchorVenueId, anchorType }) {
       const data = await apiFetch('/api/v1/manager/billing-config');
       setMatrix(data ?? { venues: [], pairs: [] });
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setLoading(false);
     }
@@ -56,7 +57,7 @@ export function BillingMatrixSection({ anchorVenueId, anchorType }) {
       });
       await load();
     } catch (err) {
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setBusyId('');
     }

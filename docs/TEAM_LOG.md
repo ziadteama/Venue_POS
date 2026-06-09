@@ -1283,6 +1283,18 @@ sequenceDiagram
 **Files:** `apps/api/prisma/migrations/20260620140000_terminal_device_profile`, `terminals.js`, `manager-health-service.js`, `manager-terminals.js`, `device-profile.js`, `heartbeat.js`, `terminal-cache.js`, `health.js`, `TerminalsSection.jsx`, i18n
 **Verify:** `npm run migrate` · start agent → hub terminal list shows reported IP/mode · set `AGENT_DEVICE_LABEL=Bar POS` → POS banner / health shows label · `node --test apps/local-agent/src/services/device-profile.test.js`
 
+### 2026-06-09 — POS floor manager PIN for discount/refund + refund notifications
+**Phase:** 3 / 5 · **Stories:** US-5.6, manager workflows
+**What:** POS discount and refund require **floor manager PIN only** (`venue_manager`, e.g. `7777`) — hub manager PIN (`9999`) rejected on terminal routes. When a refund completes (POS, dashboard, or hub force), all POS terminals at the venue receive a WebSocket `manager:notification` and show a dismissible banner. Offline discount edit/remove accept cached floor manager PIN.
+**Files:** `auth-service.js` (`verifyFloorManagerPin`), `manager-action-service.js`, `socket.js` (`emitRefundNotification`), `cheques.js`, `useManagerNotifications.js`, `PosWorkspace.jsx`, `preload.cjs`, i18n
+**Verify:** POS → refund paid cheque with PIN `7777` → success; PIN `9999` → 401 · second POS shows blue refund banner · `npm run test -w @venue-pos/api` (includes hub PIN rejection test in `phase1/payments.js`)
+
+### 2026-06-09 — Dashboard v2: executive + operations overview
+**Phase:** 5 · **Stories:** US-8.1, US-8.2, US-8.9 (ops summary)
+**What:** Professional business dashboards — clean white layout, KPI cards with trends, 7-day sales chart, venue performance table, recent changes feed (last 3 days). **CEO** `/` = executive overview; **Hub manager** `/` = operations overview (net sales, refunds, open cheques/shifts, terminals). Redesigned `/analytics`. New APIs: `GET /manager/dashboard/executive`, `GET /manager/dashboard/operations`.
+**Files:** `dashboard-summary-service.js`, `manager-dashboard.js`, `DashboardHome.jsx`, `OperationsOverviewPage.jsx`, `DashboardIndex.jsx`, `AnalyticsPage.jsx`, `components/dashboard/*`, `Layout.jsx`, `hub-access.js`, i18n
+**Verify:** `npm run dev:dashboard` · CEO `owner/owner123` → `/` + `/analytics` · Hub `admin/admin123` → `/` operations overview · `npm run lint:i18n`
+
 ### 2026-06-10 — Phase 6 handoff: what’s done, what’s left, how to continue
 
 **Branch / context:** Work started on `feature/phase6-offline-sync` from `main`. Read `docs/PHASE6_OFFLINE_PLAN.md` and `.cursor/skills/offline-sync/SKILL.md` before coding.
@@ -1383,7 +1395,18 @@ npm run test -w @venue-pos/api
 
 ---
 
-## Roadmap (as of 2026-06-09 — Phase 6 v1.1 shipped, polish remains)
+## Roadmap (as of 2026-06-09 — Phase 6 v1.1 + dashboard v2 shipped)
+
+### Shipped — Dashboard v2 (June 2026)
+
+| Role | Home | What you see |
+|------|------|--------------|
+| **CEO** (`hub_owner`) | `/` | Executive overview — net sales today/week, 7-day trend, venue table, recent changes |
+| **CEO** | `/analytics` | Revenue drill-down, presets, CSV export |
+| **Hub manager** | `/` | Operations overview — today EOD stats, refunds, open cheques/shifts, terminals, recent changes |
+| **Hub manager** | `/menus`, `/cheques`, … | Unchanged operational pages |
+
+API: `GET /api/v1/manager/dashboard/executive` · `GET /api/v1/manager/dashboard/operations` (optional `?venueId=`).
 
 ### Shipped — Phase 4 summary
 
@@ -1408,6 +1431,9 @@ npm run test -w @venue-pos/api
 | Open-cheque pre-hydration (online) | ✅ v1.1 |
 | Shift sync replay | ✅ v1.1 |
 | Terminal device profile (name + LAN report) | ✅ v1.1 |
+| POS floor manager PIN (discount/refund) | ✅ |
+| Refund POS notification (venue-wide banner) | ✅ |
+| Dashboard v2 (executive + operations overview) | ✅ |
 | LAN coordinator floor (legacy static override) | ✅ v1 |
 | Offline PIN + menu cache + reconnect handshake | ✅ v1 |
 | Cross-sell offline (Slice C) | 🟡 Stub — group shell + linked menus; full item/fire/pay offline **not** done |
@@ -1454,6 +1480,12 @@ FEATURE_MANUAL_CARD_PAYMENT=true   # card + split pay on POS
 # POS: anchor terminal only (Demo Cafe POS-1 in dev seed)
 npm run test -w @venue-pos/api   # includes cross-venue.test.js
 ```
+
+### 2026-06-09 — Documentation sync (Phase 6 v1.1 + dashboard v2 + refund flow)
+
+**What:** Updated all team docs and desktop brief for Phase 6 v1.1, dashboard v2 (CEO executive + hub operations overview), floor manager PIN on POS refund/discount, and venue-wide refund notifications.
+
+**Files:** `docs/DEV_CREDENTIALS.md` (restored full POS/API section), `docs/README.md`, `docs/PRD.md` (US-5.6, US-8.1b), `docs/TechSpec.md` (`manager:notification`, dashboard REST), `docs/PHASE6_OFFLINE_PLAN.md`, `docs/Technical_Proposal.md`, `AGENTS.md`, `C:\Users\pc\Desktop\Venue_POS_Phase6_Changes.md`
 
 ---
 

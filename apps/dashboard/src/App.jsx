@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { DASHBOARD_ROLES } from '@venue-pos/shared';
 import { Layout } from './components/Layout.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
-import { DashboardHome } from './pages/DashboardHome.jsx';
+import { DashboardIndex } from './pages/DashboardIndex.jsx';
 import { MenuManagerPage } from './pages/MenuManagerPage.jsx';
 import { ChequesPage } from './pages/ChequesPage.jsx';
 import { ActivityPage } from './pages/ActivityPage.jsx';
@@ -36,7 +36,7 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardHome />} />
+        <Route index element={<DashboardIndex />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="orders" element={<OrdersPage />} />
         <Route path="menus" element={<MenuManagerPage />} />
