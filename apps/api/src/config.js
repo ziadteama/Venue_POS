@@ -10,7 +10,7 @@ export const config = {
   env: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3000),
   host: process.env.HOST ?? '0.0.0.0',
-  databaseUrl: required('DATABASE_URL', 'postgresql://hub_pos:hub_pos_dev@localhost:5432/hub_pos'),
+  databaseUrl: required('DATABASE_URL', 'postgresql://hub_pos:hub_pos_dev@127.0.0.1:5432/hub_pos'),
   jwt: {
     privateKeyPath: process.env.JWT_PRIVATE_KEY_PATH ?? '../../ops/secrets/jwt-private.pem',
     publicKeyPath: process.env.JWT_PUBLIC_KEY_PATH ?? '../../ops/secrets/jwt-public.pem',

@@ -47,6 +47,9 @@ export async function callAgent(path, options = {}) {
     if (path.match(/^\/v1\/cheques\/[^/]+\/pay$/) && method === 'POST') {
       return window.venuePos.payCheque(path.split('/')[3], body);
     }
+    if (path.match(/^\/v1\/cheques\/[^/]+\/print-receipt$/) && method === 'POST') {
+      return window.venuePos.printChequeReceipt(path.split('/')[3], body);
+    }
     if (path.match(/^\/v1\/cheques\/[^/]+\/split$/) && method === 'POST') {
       return window.venuePos.splitCheque(path.split('/')[3], body);
     }

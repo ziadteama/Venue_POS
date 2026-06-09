@@ -1,19 +1,21 @@
 import { buildLiveMetrics } from '../services/metrics-service.js';
+import { redactLiveMetricsFinancials } from '../services/financial-redact.js';
 
 export const METRICS_TICK_INTERVAL_MS = 60_000;
 
 export function emitDashboardMetricsTick(io, payload) {
+  const publicPayload = redactLiveMetricsFinancials(payload);
+
   io.to('dashboard:hub').emit('dashboard:metrics_tick', {
     event: 'dashboard:metrics_tick',
-    payload,
+    payload: publicPayload,
   });
 
-  for (const venue of payload.venues) {
+  for (const venue of publicPayload.venues ?? []) {
     io.to(`venue:${venue.venueId}`).emit('dashboard:metrics_tick', {
       event: 'dashboard:metrics_tick',
       payload: {
-        timestamp: payload.timestamp,
-        totalRevenueToday: venue.revenueToday,
+        timestamp: publicPayload.timestamp,
         totalActiveOrders: venue.activeOrders,
         totalOpenTables: venue.openTablesCount,
         ordersPerMinute: venue.ordersPerMinute,

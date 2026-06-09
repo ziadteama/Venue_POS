@@ -1,3 +1,5 @@
+import { canSeeFinancials } from '@venue-pos/shared';
+import { prisma } from '../db/prisma.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 import { unauthorized, forbidden } from '../utils/errors.js';
 
@@ -11,6 +13,17 @@ export async function authenticate(request) {
   }
 }
 
+async function resolveRequestUsername(request) {
+  if (request.user?.username) return request.user.username;
+  if (!request.user?.sub) return null;
+  const user = await prisma.user.findUnique({
+    where: { id: request.user.sub },
+    select: { username: true },
+  });
+  if (user?.username) request.user.username = user.username;
+  return user?.username ?? null;
+}
+
 export function requireRoles(...roles) {
   return async (request) => {
     await authenticate(request);
@@ -18,4 +31,21 @@ export function requireRoles(...roles) {
       throw forbidden();
     }
   };
+}
+
+/** Revenue / P&L endpoints — only the `owner` dashboard account. */
+export function requireFinancialOwner() {
+  return async (request) => {
+    await authenticate(request);
+    const username = await resolveRequestUsername(request);
+    if (!canSeeFinancials({ username })) {
+      throw forbidden();
+    }
+  };
+}
+
+export async function requestCanSeeFinancials(request) {
+  await authenticate(request);
+  const username = await resolveRequestUsername(request);
+  return canSeeFinancials({ username });
 }

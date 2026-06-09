@@ -42,6 +42,25 @@ async function seed() {
     },
   });
 
+  const hubManagerPasswordHash = await bcrypt.hash('manager123', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'manager' },
+    update: {
+      passwordHash: hubManagerPasswordHash,
+      pinHash: managerPinHash,
+      role: 'hub_manager',
+      venueId: venue.id,
+      isActive: true,
+    },
+    create: {
+      username: 'manager',
+      passwordHash: hubManagerPasswordHash,
+      pinHash: managerPinHash,
+      role: 'hub_manager',
+      venueId: venue.id,
+    },
+  });
+
   const ownerPasswordHash = await bcrypt.hash('owner123', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'owner' },
@@ -100,12 +119,21 @@ async function seed() {
   const secretHash = await hashSecret(devTerminalSecret);
   const terminal = await prisma.terminal.upsert({
     where: { id: '00000000-0000-4000-8000-000000000001' },
-    update: { secretHash, venueId: venue.id, name: 'POS-1', isActive: true },
+    update: {
+      secretHash,
+      venueId: venue.id,
+      name: 'POS-1',
+      isActive: true,
+      assignedLanHost: '192.168.1.21',
+      isCoordinator: true,
+    },
     create: {
       id: '00000000-0000-4000-8000-000000000001',
       venueId: venue.id,
       name: 'POS-1',
       secretHash,
+      assignedLanHost: '192.168.1.21',
+      isCoordinator: true,
     },
   });
 
@@ -238,12 +266,19 @@ async function seed() {
 
   const terminal2 = await prisma.terminal.upsert({
     where: { id: '00000000-0000-4000-8000-000000000002' },
-    update: { secretHash, venueId: restaurant.id, name: 'POS-2', isActive: true },
+    update: {
+      secretHash,
+      venueId: restaurant.id,
+      name: 'POS-2',
+      isActive: true,
+      assignedLanHost: '192.168.1.22',
+    },
     create: {
       id: '00000000-0000-4000-8000-000000000002',
       venueId: restaurant.id,
       name: 'POS-2',
       secretHash,
+      assignedLanHost: '192.168.1.22',
     },
   });
 
@@ -294,6 +329,7 @@ async function seed() {
   });
 
   console.log('Seed complete');
+  console.log('  CEO (monitoring): owner / owner123');
   console.log('  Hub manager: admin / admin123 (PIN 9999 for shift/card policy)');
   console.log('  Venue manager: venue_mgr / venue123 (PIN 7777 for refund/discount/void on POS)');
   console.log('  Cashier PIN: 1234');

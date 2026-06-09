@@ -9,13 +9,13 @@ import {
 } from 'recharts';
 import { InboxIcon } from './icons.jsx';
 
-function CustomTooltip({ active, payload, locale, currencyLabel }) {
+function CustomTooltip({ active, payload, locale, currencyLabel, labelKey = 'weekday' }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
   const value = payload[0].value;
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-card-hover">
-      <p className="text-xs font-medium text-slate-400">{point?.date ?? point?.weekday}</p>
+      <p className="text-xs font-medium text-slate-400">{point?.date ?? point?.[labelKey] ?? point?.weekday}</p>
       <p className="mt-0.5 text-sm font-semibold text-slate-900">
         {new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)} {currencyLabel}
       </p>
@@ -23,7 +23,14 @@ function CustomTooltip({ active, payload, locale, currencyLabel }) {
   );
 }
 
-export function MiniBarChart({ data, locale, currencyLabel, emptyLabel }) {
+export function MiniBarChart({
+  data,
+  locale,
+  currencyLabel,
+  emptyLabel,
+  dataKey = 'revenue',
+  labelKey = 'weekday',
+}) {
   if (!data?.length) {
     return (
       <div className="flex h-56 flex-col items-center justify-center gap-2 text-center">
@@ -47,7 +54,7 @@ export function MiniBarChart({ data, locale, currencyLabel, emptyLabel }) {
           </defs>
           <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#eef1f6" />
           <XAxis
-            dataKey="weekday"
+            dataKey={labelKey}
             tick={{ fontSize: 12, fill: '#94a3b8' }}
             axisLine={false}
             tickLine={false}
@@ -62,11 +69,11 @@ export function MiniBarChart({ data, locale, currencyLabel, emptyLabel }) {
           />
           <Tooltip
             cursor={{ stroke: '#10b981', strokeWidth: 1, strokeDasharray: '4 4' }}
-            content={<CustomTooltip locale={locale} currencyLabel={currencyLabel} />}
+            content={<CustomTooltip locale={locale} currencyLabel={currencyLabel} labelKey={labelKey} />}
           />
           <Area
             type="monotone"
-            dataKey="revenue"
+            dataKey={dataKey}
             stroke="#059669"
             strokeWidth={2.5}
             fill="url(#revenueFill)"

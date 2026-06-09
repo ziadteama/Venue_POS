@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { tableLabelsMatch } from '@venue-pos/shared';
 import {
   linkOrphanBillableOrdersToOpenCheque,
   linkOrphanDraftOrdersToOpenCheque,
@@ -6,6 +7,7 @@ import {
 } from './cheque-reconcile.js';
 import { validationError } from '../utils/errors.js';
 import { assertTableAssigned } from './venue-config-service.js';
+import { occupyFloorTable, releaseFloorTable } from './floor-table-service.js';
 import { createOrder, sendOrderToKitchen } from './order-service.js';
 import {
   chequeInclude,
@@ -17,6 +19,7 @@ import {
   serializeCheque,
   computeChequeSubtotal,
   ordersFromCheque,
+  canRemoveEmptyCheque,
 } from './cheque-shared.js';
 import {
   clearCrossVenueGroupDrafts,
@@ -24,26 +27,31 @@ import {
   getCrossVenueGroup,
 } from './cross-venue-service.js';
 import { config } from '../config.js';
+import { resolveBusinessDate } from '../utils/business-date.js';
 
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
   if (!trimmed) throw validationError('Table label is required');
   await assertTableAssigned(venueId, trimmed);
 
-  let cheque = await prisma.cheque.findFirst({
-    where: { venueId, tableLabel: trimmed, status: 'open', parentChequeId: null },
+  const openParents = await prisma.cheque.findMany({
+    where: { venueId, status: 'open', parentChequeId: null },
     include: chequeInclude,
+    orderBy: { openedAt: 'asc' },
   });
+  let cheque = openParents.find((row) => tableLabelsMatch(row.tableLabel, trimmed)) ?? null;
 
   if (!cheque) {
+    const businessDate = resolveBusinessDate();
     cheque = await prisma.$transaction(async (tx) => {
-      const chequeNumber = await nextChequeNumber(tx, venueId);
+      const chequeNumber = await nextChequeNumber(tx, venueId, businessDate);
       return tx.cheque.create({
         data: {
           venueId,
           terminalId,
           cashierId,
           chequeNumber,
+          businessDate,
           tableLabel: trimmed,
           status: 'open',
         },
@@ -55,6 +63,7 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
       terminalId,
       cashierId,
       tableLabel: trimmed,
+      businessDate,
     });
     await linkDraftOrder(cheque.id, draft.id);
     cheque = await loadCheque(cheque.id);
@@ -78,17 +87,15 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
 export async function closeEmptyCheque(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
-  if (cheque.status !== 'open') throw validationError('Cheque is not open');
-  if (cheque.parentChequeId) throw validationError('Cannot remove a split sub-cheque');
-  if (cheque.childCheques?.length) {
-    throw validationError('Cannot remove a table with split cheques');
-  }
-
-  if (computeChequeSubtotal(cheque) > 0) {
-    throw validationError('Cannot remove a table with fired items');
-  }
-  const draft = findDraftOrder(cheque);
-  if (draft?.items?.length) {
+  if (!canRemoveEmptyCheque(cheque)) {
+    if (cheque.status !== 'open') throw validationError('Cheque is not open');
+    if (cheque.parentChequeId) throw validationError('Cannot remove a split sub-cheque');
+    if (cheque.childCheques?.some((child) => child.status === 'open')) {
+      throw validationError('Cannot remove a table with open split cheques');
+    }
+    if (computeChequeSubtotal(cheque) > 0) {
+      throw validationError('Cannot remove a table with fired items');
+    }
     throw validationError('Clear the current round before removing table');
   }
 
@@ -97,15 +104,21 @@ export async function closeEmptyCheque(chequeId, venueId) {
     for (const order of orders) {
       await tx.order.delete({ where: { id: order.id } });
     }
+    await tx.floorTable.updateMany({
+      where: { occupiedByChequeId: chequeId },
+      data: { occupiedByChequeId: null, lockedByTerminalId: null },
+    });
     await tx.cheque.delete({ where: { id: chequeId } });
   });
 
-  return { deleted: true, id: chequeId };
+  return { deleted: true, id: chequeId, tableLabel: cheque.tableLabel };
 }
 
 export async function listOpenCheques(venueId) {
   await reconcileVenueOpenCheques(venueId);
-  const cheques = await listChequesForVenue(venueId, { status: 'open' });
+  const cheques = (await listChequesForVenue(venueId, { status: 'open' })).filter(
+    (cheque) => !cheque.parentChequeId,
+  );
   if (!config.featureCrossVenueBilling) return cheques;
 
   return Promise.all(
@@ -164,8 +177,21 @@ export async function fireChequeRound(chequeId, venueId) {
     }
   }
 
-  const draft = findDraftOrder(cheque);
-  if (!draft) throw validationError('No draft order on this cheque');
+  let draft = findDraftOrder(cheque);
+  if (!draft) {
+    const recovered = await createOrder({
+      venueId: cheque.venueId,
+      terminalId: cheque.terminalId,
+      cashierId: cheque.cashierId,
+      tableLabel: cheque.tableLabel,
+      businessDate: cheque.businessDate,
+      skipValidation: true,
+    });
+    await linkDraftOrder(cheque.id, recovered.id);
+    const reloaded = await loadCheque(cheque.id);
+    draft = findDraftOrder(reloaded);
+    if (!draft) throw validationError('No draft order on this cheque');
+  }
   if (!draft.items.length) throw validationError('Cannot send an empty order');
 
   const sentOrder = await sendOrderToKitchen(draft.id);
@@ -175,6 +201,8 @@ export async function fireChequeRound(chequeId, venueId) {
     terminalId: cheque.terminalId,
     cashierId: cheque.cashierId,
     tableLabel: cheque.tableLabel,
+    businessDate: cheque.businessDate,
+    skipValidation: true,
   });
   await linkDraftOrder(cheque.id, nextDraft.id);
 
@@ -206,6 +234,42 @@ export async function clearChequeDraft(chequeId, venueId) {
     await loadCheque(chequeId),
     { venueId: cheque.venueId, terminalId: cheque.terminalId, cashierId: cheque.cashierId },
   );
+
+  return getCheque(chequeId, venueId);
+}
+
+export async function moveChequeTable(chequeId, { targetTableLabel }, venueId, { terminalId, io } = {}) {
+  const trimmed = targetTableLabel?.trim();
+  if (!trimmed) throw validationError('Target table label is required');
+
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
+  if (cheque.status !== 'open') throw validationError('Cheque is not open');
+  if (cheque.parentChequeId) throw validationError('Cannot move a split sub-cheque');
+  if (cheque.tableLabelsMatch?.(cheque.tableLabel, trimmed) || cheque.tableLabel === trimmed) {
+    return getCheque(chequeId, venueId);
+  }
+
+  await assertTableAssigned(venueId, trimmed);
+
+  const conflict = await prisma.cheque.findFirst({
+    where: { venueId, tableLabel: trimmed, status: 'open', id: { not: chequeId } },
+    select: { id: true },
+  });
+  if (conflict) throw validationError('Another cheque is already open for that table');
+
+  const oldLabel = cheque.tableLabel;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cheque.update({ where: { id: chequeId }, data: { tableLabel: trimmed } });
+    await tx.order.updateMany({
+      where: { chequeId: chequeId },
+      data: { tableLabel: trimmed },
+    });
+  });
+
+  await releaseFloorTable({ tableLabel: oldLabel, chequeId, io });
+  await occupyFloorTable({ tableLabel: trimmed, venueId, chequeId, terminalId, io });
 
   return getCheque(chequeId, venueId);
 }

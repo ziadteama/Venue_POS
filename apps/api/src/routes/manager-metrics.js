@@ -1,8 +1,7 @@
-import { ROLES } from '@venue-pos/shared';
-import { requireRoles } from '../middleware/auth.js';
+import { requireFinancialOwner } from '../middleware/auth.js';
 import { buildLiveMetrics } from '../services/metrics-service.js';
 
-const hubOwnerPreHandler = requireRoles(ROLES.HUB_OWNER);
+const financialOwnerPreHandler = requireFinancialOwner();
 
 function resolveVenueFilter(request) {
   return request.query?.venueId || undefined;
@@ -11,7 +10,7 @@ function resolveVenueFilter(request) {
 export async function managerMetricsRoutes(app) {
   app.get(
     '/api/v1/manager/metrics/live',
-    { preHandler: hubOwnerPreHandler },
+    { preHandler: financialOwnerPreHandler },
     async (request) => {
       const venueId = resolveVenueFilter(request);
       return buildLiveMetrics({ venueId });

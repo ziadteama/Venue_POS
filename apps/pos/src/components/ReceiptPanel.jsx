@@ -1,6 +1,12 @@
-﻿import { firedOrders } from '../utils/cheque.js';
+import {
+  displayChequeTotal,
+  firedOrders,
+  hasOpenSplitChildren,
+  parentPayableTotal,
+} from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
-import { ClearIcon, KebabMenuIcon, PrinterIcon } from './icons.jsx';
+import { AdjustmentsIcon, ClearIcon, PrinterIcon } from './icons.jsx';
+import { SplitSettlePanel } from './SplitSettlePanel.jsx';
 
 function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId }) {
   return (
@@ -138,9 +144,12 @@ export function ReceiptPanel({
   onOpenActions,
   onPay,
   payDisabled = false,
+  onPrintCheck,
+  onPrintFullSplit,
   onChangeQty,
   onPickTable,
   onEditDiscount,
+  printing = false,
 }) {
   const isCrossVenue = Boolean(crossVenueGroup?.groupId);
   const sentRounds = firedOrders(cheque);
@@ -150,21 +159,25 @@ export function ReceiptPanel({
       (sum, v) => sum + (v.draftOrder?.items?.length ?? 0),
       0,
     ) > 0;
+  const splitActive = !isCrossVenue && hasOpenSplitChildren(cheque);
   const hasReceiptLines = isCrossVenue
     ? (crossVenueGroup?.displayTotal ?? 0) > 0 || groupPending
-    : sentRounds.length > 0 || draftItems.length > 0;
+    : sentRounds.length > 0 || draftItems.length > 0 || splitActive;
   const hasDraftItems = isCrossVenue
     ? groupPending || draftItems.length > 0
     : draftItems.length > 0;
   const displayTotal = isCrossVenue
     ? (crossVenueGroup?.displayTotal ?? crossVenueGroup?.combinedTotal ?? 0)
-    : (cheque?.total ?? 0);
+    : displayChequeTotal(cheque);
   const canPay = isCrossVenue
     ? (crossVenueGroup?.combinedTotal ?? 0) > 0 && !hasDraftItems
-    : cheque && cheque.total > 0 && !hasDraftItems;
+    : cheque &&
+      !hasOpenSplitChildren(cheque) &&
+      parentPayableTotal(cheque) > 0 &&
+      !hasDraftItems;
   const payButtonAmount = isCrossVenue
     ? Number(crossVenueGroup?.combinedTotal ?? 0)
-    : Number(cheque?.total ?? 0);
+    : Number(parentPayableTotal(cheque) ?? 0);
   const discountAmount = isCrossVenue
     ? Number(crossVenueGroup?.groupDiscountTotal ?? 0)
     : Number(cheque?.discountAmount ?? 0);
@@ -187,24 +200,22 @@ export function ReceiptPanel({
   return (
     <aside className="flex w-[22rem] shrink-0 flex-col border-e border-slate-200/70 bg-white">
       <div className="border-b border-slate-200 px-4 py-3">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h2 className="font-semibold text-slate-900">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
               {isCrossVenue ? t('crossVenue.combinedCart') : t('pos.currentOrder')}
-            </h2>
-            <button
-              type="button"
-              onClick={onPickTable}
-              className="mt-1 text-sm font-medium text-primary-to hover:underline"
-            >
-              {t('pos.tableActive', { table: tableLabel || '\u2014' })}
-            </button>
+            </p>
+            <p className="mt-0.5 truncate text-lg font-bold text-slate-900">
+              {tableLabel ? t('pos.tableActive', { table: tableLabel }) : t('pos.noTable')}
+            </p>
             {isCrossVenue ? (
               <p className="mt-1 text-xs font-medium text-primary-to">{t('crossVenue.badge')}</p>
             ) : null}
           </div>
-          <div className="text-end text-xs text-secondary">
-            <p>{t('pos.chequeNumber', { number: cheque.chequeNumber ?? '\u2014' })}</p>
+          <div className="shrink-0 rounded-lg bg-slate-50 px-2.5 py-1.5 text-end text-[11px] leading-relaxed text-secondary ring-1 ring-slate-200/80">
+            <p className="font-medium text-slate-700">
+              {t('pos.chequeNumber', { number: cheque.chequeNumber ?? '\u2014' })}
+            </p>
             {order ? (
               <p>{t('pos.orderNumber', { number: order.orderNumber ?? '\u2014' })}</p>
             ) : null}
@@ -217,57 +228,73 @@ export function ReceiptPanel({
           <p className="p-2 text-secondary">{t('common.loading')}</p>
         ) : !hasReceiptLines ? (
           <p className="p-2 text-secondary">{t('pos.emptyCart')}</p>
-        ) : isCrossVenue ? (
-          <CrossVenueReceiptBody
-            group={crossVenueGroup}
-            language={language}
-            t={t}
-            onChangeQty={onChangeQty}
-          />
         ) : (
-          <div className="space-y-4">
-            {sentRounds.map((round) => (
-              <section key={round.id}>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
-                  {t('pos.firedRound', { number: round.orderNumber })}
-                </p>
-                <ul className="space-y-2">
-                  {round.items.map((line) => (
-                    <ReceiptLine
-                      key={line.id}
-                      line={line}
-                      language={language}
-                      readOnly
-                      order={round}
-                      t={t}
-                    />
-                  ))}
-                </ul>
-              </section>
-            ))}
-            {hasDraftItems && (
-              <section>
-                {sentRounds.length > 0 ? (
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
-                    {t('pos.currentRound')}
-                  </p>
-                ) : null}
-                <ul className="space-y-2">
-                  {draftItems.map((line) => (
-                    <ReceiptLine
-                      key={line.id}
-                      line={line}
-                      language={language}
-                      readOnly={false}
-                      onChangeQty={onChangeQty}
-                      order={order}
-                      t={t}
-                    />
-                  ))}
-                </ul>
-              </section>
+          <>
+            {splitActive ? (
+              <SplitSettlePanel
+                cheque={cheque}
+                t={t}
+                paying={paying}
+                printing={printing}
+                onPayGuest={(guest) => onPay(guest)}
+                onPayRemainder={() => onPay(null)}
+                onPrintGuest={(guest) => onPrintCheck?.(guest.id)}
+                onPrintFull={() => onPrintFullSplit?.()}
+              />
+            ) : null}
+            {isCrossVenue ? (
+              <CrossVenueReceiptBody
+                group={crossVenueGroup}
+                language={language}
+                t={t}
+                onChangeQty={onChangeQty}
+              />
+            ) : (
+              <div className="space-y-4">
+                {sentRounds.map((round) => (
+                  <section key={round.id}>
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
+                      {t('pos.firedRound', { number: round.orderNumber })}
+                    </p>
+                    <ul className="space-y-2">
+                      {round.items.map((line) => (
+                        <ReceiptLine
+                          key={line.id}
+                          line={line}
+                          language={language}
+                          readOnly
+                          order={round}
+                          t={t}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+                {hasDraftItems && (
+                  <section>
+                    {sentRounds.length > 0 ? (
+                      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-secondary">
+                        {t('pos.currentRound')}
+                      </p>
+                    ) : null}
+                    <ul className="space-y-2">
+                      {draftItems.map((line) => (
+                        <ReceiptLine
+                          key={line.id}
+                          line={line}
+                          language={language}
+                          readOnly={false}
+                          onChangeQty={onChangeQty}
+                          order={order}
+                          t={t}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
@@ -358,30 +385,41 @@ export function ReceiptPanel({
             </button>
           </div>
         ) : (
-          <div className="flex gap-2">
+          <div className="space-y-2">
+            {!hasDraftItems && hasReceiptLines && onPrintCheck && !hasOpenSplitChildren(cheque) ? (
+              <button
+                type="button"
+                disabled={printing || !printerOk}
+                onClick={() => onPrintCheck(cheque.id)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                <PrinterIcon className="h-4 w-4" />
+                {t('pos.printCheck')}
+              </button>
+            ) : null}
             {canPay ? (
               <button
                 type="button"
-                onClick={onPay}
+                onClick={() => onPay(null)}
                 disabled={paying || payDisabled}
-                className="min-w-0 flex-1 rounded-xl bg-accent-gradient py-3.5 text-base font-bold text-white shadow-sm transition duration-200 ease-premium hover:shadow-card-hover hover:brightness-[1.04] disabled:opacity-60"
+                className="w-full rounded-xl bg-accent-gradient py-3.5 text-base font-bold text-white shadow-sm transition duration-200 ease-premium hover:shadow-card-hover hover:brightness-[1.04] disabled:opacity-60"
               >
                 {paying
                   ? t('common.loading')
                   : t('pos.payAmount', { amount: payButtonAmount.toFixed(2) })}
               </button>
-            ) : (
-              <div className="flex-1 rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">
+            ) : !hasOpenSplitChildren(cheque) ? (
+              <div className="rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">
                 {t('pos.addItemsHint')}
               </div>
-            )}
+            ) : null}
             <button
               type="button"
               onClick={onOpenActions}
-              className="flex shrink-0 items-center justify-center rounded-xl border border-slate-300 px-4 py-3.5 text-slate-700 hover:bg-slate-50"
-              aria-label={t('pos.actionsTitle')}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
             >
-              <KebabMenuIcon />
+              <AdjustmentsIcon />
+              {t('pos.actionsTitle')}
             </button>
           </div>
         )}

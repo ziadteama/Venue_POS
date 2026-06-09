@@ -194,6 +194,7 @@ model Terminal {
   isActive           Boolean   @default(true) @map("is_active")
   isCoordinator      Boolean   @default(false) @map("is_coordinator")
   coordinatorLanHost String?   @map("coordinator_lan_host") @db.VarChar(255)
+  assignedLanHost    String?   @map("assigned_lan_host") @db.VarChar(255)
   lastSeenAt         DateTime? @map("last_seen_at") @db.Timestamptz(6)
   syncQueueDepth     Int       @default(0) @map("sync_queue_depth")
   lastLanHost        String?   @map("last_lan_host") @db.VarChar(255)
@@ -362,18 +363,19 @@ model MenuItemModifier {
 }
 
 model Order {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  venueId     String      @map("venue_id") @db.Uuid
-  terminalId  String?     @map("terminal_id") @db.Uuid
-  cashierId   String      @map("cashier_id") @db.Uuid
-  orderNumber Int         @map("order_number")
-  tableLabel  String?     @map("table_label") @db.VarChar(50)
-  status      OrderStatus @default(draft)
-  sentAt      DateTime?   @map("sent_at") @db.Timestamptz(6)
-  openedAt    DateTime    @default(now()) @map("opened_at") @db.Timestamptz(6)
-  closedAt    DateTime?   @map("closed_at") @db.Timestamptz(6)
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId      String      @map("venue_id") @db.Uuid
+  terminalId   String?     @map("terminal_id") @db.Uuid
+  cashierId    String      @map("cashier_id") @db.Uuid
+  orderNumber  Int         @map("order_number")
+  businessDate DateTime    @map("business_date") @db.Date
+  tableLabel   String?     @map("table_label") @db.VarChar(50)
+  status       OrderStatus @default(draft)
+  sentAt       DateTime?   @map("sent_at") @db.Timestamptz(6)
+  openedAt     DateTime    @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt     DateTime?   @map("closed_at") @db.Timestamptz(6)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   venue      Venue           @relation(fields: [venueId], references: [id])
   terminal   Terminal?       @relation(fields: [terminalId], references: [id])
@@ -382,8 +384,9 @@ model Order {
   voidAudit  OrderVoidAudit?
   chequeLink ChequeOrder?
 
-  @@unique([venueId, orderNumber], map: "uq_orders_venue_number")
+  @@unique([venueId, businessDate, orderNumber], map: "uq_orders_venue_business_day_number")
   @@index([venueId], map: "idx_orders_venue")
+  @@index([venueId, businessDate], map: "idx_orders_venue_business_date")
   @@index([status], map: "idx_orders_status")
   @@map("orders")
 }
@@ -449,23 +452,24 @@ model OrderItemCompAudit {
 }
 
 model Cheque {
-  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  venueId        String       @map("venue_id") @db.Uuid
-  terminalId     String?      @map("terminal_id") @db.Uuid
-  cashierId      String       @map("cashier_id") @db.Uuid
-  chequeNumber   Int          @map("cheque_number")
-  tableLabel     String       @map("table_label") @db.VarChar(50)
-  splitLabel     String?      @map("split_label") @db.VarChar(50)
-  splitAmount    Decimal?     @map("split_amount") @db.Decimal(10, 2)
-  discountAmount Decimal      @default(0) @map("discount_amount") @db.Decimal(10, 2)
-  parentChequeId String?      @map("parent_cheque_id") @db.Uuid
-  isCrossVenue   Boolean      @default(false) @map("is_cross_venue")
-  crossVenueGroupId String?   @map("cross_venue_group_id") @db.Uuid
-  status         ChequeStatus @default(open)
-  openedAt       DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
-  closedAt       DateTime?    @map("closed_at") @db.Timestamptz(6)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId           String       @map("venue_id") @db.Uuid
+  terminalId        String?      @map("terminal_id") @db.Uuid
+  cashierId         String       @map("cashier_id") @db.Uuid
+  chequeNumber      Int          @map("cheque_number")
+  businessDate      DateTime     @map("business_date") @db.Date
+  tableLabel        String       @map("table_label") @db.VarChar(50)
+  splitLabel        String?      @map("split_label") @db.VarChar(50)
+  splitAmount       Decimal?     @map("split_amount") @db.Decimal(10, 2)
+  discountAmount    Decimal      @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  parentChequeId    String?      @map("parent_cheque_id") @db.Uuid
+  isCrossVenue      Boolean      @default(false) @map("is_cross_venue")
+  crossVenueGroupId String?      @map("cross_venue_group_id") @db.Uuid
+  status            ChequeStatus @default(open)
+  openedAt          DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
+  closedAt          DateTime?    @map("closed_at") @db.Timestamptz(6)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   venue             Venue                     @relation(fields: [venueId], references: [id])
   terminal          Terminal?                 @relation(fields: [terminalId], references: [id])
@@ -482,8 +486,9 @@ model Cheque {
   refunds           Refund[]
   approvalRequests  ManagerApprovalRequest[]
 
-  @@unique([venueId, chequeNumber], map: "uq_cheques_venue_number")
+  @@unique([venueId, businessDate, chequeNumber], map: "uq_cheques_venue_business_day_number")
   @@index([venueId, status], map: "idx_cheques_venue_status")
+  @@index([venueId, businessDate], map: "idx_cheques_venue_business_date")
   @@index([venueId, tableLabel], map: "idx_cheques_venue_table")
   @@index([parentChequeId], map: "idx_cheques_parent")
   @@index([crossVenueGroupId], map: "idx_cheques_cross_group")

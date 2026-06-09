@@ -85,6 +85,8 @@ test('terminal roster returns staff pin hashes for offline cache', async () => {
   assert.ok(body.staff.length > 0, 'expected at least one staff member');
   assert.ok(body.staff.every((s) => s.pinHash), 'staff should include pinHash for offline cache');
   assert.ok(body.features);
+  assert.ok(body.lanConfig);
+  assert.ok(Array.isArray(body.lanConfig.peers));
 });
 
 test('terminal reconnect handshake returns menu stale hint', async () => {

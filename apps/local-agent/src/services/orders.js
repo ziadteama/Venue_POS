@@ -229,10 +229,14 @@ export async function syncOrderAction({
   }
 
   if (action === 'void') {
-    return apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${orderId}/void`, {
+    const result = await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/orders/${orderId}/void`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
+    if (getLocalOrder(db, orderId)) {
+      db.prepare(`UPDATE orders SET status = 'voided' WHERE id = ?`).run(orderId);
+    }
+    return result;
   }
 
   throw new Error(`Unknown action ${action}`);

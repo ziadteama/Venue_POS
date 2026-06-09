@@ -12,6 +12,7 @@ import { executeChequeDiscount } from '../services/cheque-discount.js';
 import { verifyManagerPin } from '../services/auth-service.js';
 import { payCrossVenueGroup } from '../services/cross-venue-service.js';
 import { openShift, closeShift } from '../services/shift-service.js';
+import { voidOrder } from '../services/order-service.js';
 
 const eventSchema = z.object({
   syncId: z.string().uuid(),
@@ -97,6 +98,12 @@ async function processSyncEvent(request, { syncId, eventType, payload }) {
           terminalId,
           venueId,
         });
+      case SYNC_EVENT_TYPES.ORDER_VOID:
+        return voidOrder(payload.orderId, {
+          cashierId: payload.cashierId,
+          managerPin: payload.managerPin,
+          reason: payload.reason,
+        }, venueId);
       default:
         throw validationError(`Unsupported sync event type: ${eventType}`);
     }

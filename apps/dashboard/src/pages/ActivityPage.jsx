@@ -1,9 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isHubManager } from '@venue-pos/shared';
+import { isHubManager, canSeeFinancials } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
+import { PageHeader } from '../components/dashboard/PageHeader.jsx';
+import { FilterBar, SearchInput } from '../components/ui/FilterBar.jsx';
+import { Field, Input, Select } from '../components/ui/Field.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
+import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { PanelSkeleton } from '../components/dashboard/Skeleton.jsx';
+import { DownloadIcon, ActivityIcon, AlertIcon } from '../components/dashboard/icons.jsx';
 
 const TYPE_FILTERS = [
   'all',
@@ -71,12 +79,12 @@ function groupByDay(events, locale) {
   return groups;
 }
 
-function ActivityRow({ ev, t, locale, currencyLabel }) {
+function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
   const badge = TYPE_BADGE[ev.type] ?? 'bg-slate-100 text-slate-800 ring-slate-200';
   const actor = ev.actor ?? ev.manager;
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="surface-card p-4 transition duration-200 ease-premium hover:border-slate-300/70 hover:shadow-card-hover">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 gap-3">
           <span
@@ -87,27 +95,27 @@ function ActivityRow({ ev, t, locale, currencyLabel }) {
           <div className="min-w-0 flex-1">
             <p className="font-medium text-slate-900">{ev.summary ?? ev.detail}</p>
             {ev.chequeNumber != null ? (
-              <p className="mt-1 text-sm text-secondary">
+              <p className="mt-1 text-sm text-slate-500">
                 {t('activity.cheque')} #{ev.chequeNumber}
                 {ev.venueName ? ` · ${ev.venueName}` : ''}
               </p>
             ) : ev.venueName ? (
-              <p className="mt-1 text-sm text-secondary">{ev.venueName}</p>
+              <p className="mt-1 text-sm text-slate-500">{ev.venueName}</p>
             ) : null}
             {ev.reason ? (
-              <p className="mt-1 text-sm text-secondary">
+              <p className="mt-1 text-sm text-slate-500">
                 {t('activity.reason')}: {ev.reason}
               </p>
             ) : null}
           </div>
         </div>
         <div className="shrink-0 sm:text-end">
-          {ev.amount != null ? (
-            <p className="text-lg font-bold text-primary-to">
+          {showAmounts && ev.amount != null ? (
+            <p className="text-lg font-bold tabular-nums text-accent-700">
               {Number(ev.amount).toFixed(2)} {currencyLabel}
             </p>
           ) : null}
-          <p className="mt-1 text-xs text-secondary">{formatWhen(ev.at, locale)}</p>
+          <p className="mt-1 text-xs text-slate-400">{formatWhen(ev.at, locale)}</p>
           {actor ? (
             <p className="mt-1 text-xs font-medium text-slate-600">
               {t('activity.byManager', { name: actor })}
@@ -135,6 +143,7 @@ export function ActivityPage() {
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-GB';
   const currencyLabel = t('pos.currency');
+  const showFinancials = canSeeFinancials(user);
 
   const load = useCallback(async () => {
     if (!venueId) return;
@@ -178,6 +187,14 @@ export function ActivityPage() {
 
   const grouped = useMemo(() => groupByDay(events, locale), [events, locale]);
 
+  function resetFilters() {
+    setTypeFilter('all');
+    setUserFilter('');
+    setFrom('');
+    setTo('');
+    setKeyword('');
+  }
+
   async function exportCsv() {
     const params = new URLSearchParams({ venueId, format: 'csv' });
     if (typeFilter !== 'all') params.set('type', typeFilter);
@@ -196,108 +213,97 @@ export function ActivityPage() {
 
   if (!isHubManager(user?.role)) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
+      <div className="surface-card p-8 text-center text-sm text-slate-500">
         {t('activity.hubManagerOnly')}
       </div>
     );
   }
 
+  const typeOptions = TYPE_FILTERS.map((type) => ({
+    value: type,
+    label: type === 'all' ? t('activity.filterAll') : typeLabel(type, t),
+  }));
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">{t('activity.title')}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-secondary">{t('activity.subtitleFull')}</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50"
-        >
-          {t('activity.exportCsv')}
-        </button>
-      </div>
+      <PageHeader
+        title={t('activity.title')}
+        subtitle={t('activity.subtitleFull')}
+        actions={
+          showFinancials ? (
+            <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
+              <DownloadIcon className="h-4 w-4" />
+              {t('activity.exportCsv')}
+            </Button>
+          ) : null
+        }
+      />
 
-      <div className="flex flex-wrap gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        {venues.length > 0 ? (
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-              {t('activity.venue')}
-            </span>
-            <select
-              className="min-w-[12rem] rounded-lg border border-slate-200 px-3 py-2"
-              value={venueId}
-              onChange={(e) => setVenueId(e.target.value)}
-            >
-              <option value="all">{t('activity.allVenues')}</option>
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {i18n.language === 'ar' ? v.nameAr : v.nameEn}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : null}
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.userFilter')}</span>
-          <input
-            className="rounded-lg border border-slate-200 px-3 py-2"
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            placeholder={t('activity.userPlaceholder')}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.from')}</span>
-          <input type="date" className="rounded-lg border px-3 py-2" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.to')}</span>
-          <input type="date" className="rounded-lg border px-3 py-2" value={to} onChange={(e) => setTo(e.target.value)} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm sm:min-w-[12rem]">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">{t('activity.search')}</span>
-          <input
-            className="rounded-lg border border-slate-200 px-3 py-2"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            placeholder={t('activity.searchPlaceholder')}
-          />
-        </label>
-      </div>
+      <FilterBar
+        onReset={resetFilters}
+        resetLabel={t('common.reset')}
+        moreLabel={t('common.moreFilters')}
+        primary={
+          <>
+            {venues.length > 0 ? (
+              <Select className="w-auto py-2" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
+                <option value="all">{t('activity.allVenues')}</option>
+                {venues.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {i18n.language === 'ar' ? v.nameAr : v.nameEn}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <SearchInput
+              value={keyword}
+              onChange={setKeyword}
+              placeholder={t('activity.searchPlaceholder')}
+              className="w-full sm:w-64"
+            />
+          </>
+        }
+        advanced={
+          <>
+            <Field label={t('activity.userFilter')}>
+              <Input
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                placeholder={t('activity.userPlaceholder')}
+              />
+            </Field>
+            <Field label={t('activity.from')}>
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </Field>
+            <Field label={t('activity.to')}>
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </Field>
+          </>
+        }
+      />
 
-      <div className="flex flex-wrap gap-2">
-        {TYPE_FILTERS.map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setTypeFilter(type)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-              typeFilter === type
-                ? 'bg-primary-gradient text-white shadow-sm'
-                : 'bg-white text-secondary ring-1 ring-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {type === 'all' ? t('activity.filterAll') : typeLabel(type, t)}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl variant="pill" options={typeOptions} value={typeFilter} onChange={setTypeFilter} />
 
       {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">{error}</div>
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <AlertIcon className="h-5 w-5 shrink-0" />
+          {error}
+        </div>
       ) : null}
 
       {loading ? (
-        <p className="text-secondary">{t('common.loading')}</p>
+        <PanelSkeleton rows={5} />
       ) : events.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-10 text-center">
-          <p className="font-medium text-slate-900">{t('activity.empty')}</p>
+        <div className="surface-card">
+          <EmptyState icon={ActivityIcon} title={t('activity.empty')} className="py-16" />
         </div>
       ) : (
         <div className="space-y-8">
           {grouped.map((group) => (
             <section key={group.key}>
-              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-secondary">{group.label}</h3>
+              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {group.label}
+              </h3>
               <div className="space-y-3">
                 {group.events.map((ev) => (
                   <ActivityRow
@@ -306,6 +312,7 @@ export function ActivityPage() {
                     t={t}
                     locale={locale}
                     currencyLabel={currencyLabel}
+                    showAmounts={showFinancials}
                   />
                 ))}
               </div>

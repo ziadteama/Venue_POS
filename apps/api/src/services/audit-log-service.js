@@ -58,7 +58,11 @@ function parseDateRange(from, to) {
   return Object.keys(range).length ? range : undefined;
 }
 
+const SHIFT_TYPE_FILTERS = new Set(['shift', 'shift_open', 'shift_close']);
+
 async function fetchAuditLogRows(venueId, filters) {
+  if (filters.type && SHIFT_TYPE_FILTERS.has(filters.type)) return [];
+
   const where = {};
   if (venueId) where.venueId = venueId;
   if (filters.type && filters.type !== 'all') {
@@ -177,14 +181,16 @@ async function fetchConfigAudits(venueId, filters) {
 }
 
 async function fetchShiftEvents(venueId, filters) {
-  if (
-    filters.type &&
-    filters.type !== 'all' &&
-    !['shift', 'shift_open', 'shift_close'].includes(filters.type)
-  ) {
+  if (filters.type && filters.type !== 'all' && !SHIFT_TYPE_FILTERS.has(filters.type)) {
     return [];
   }
+
   const where = { shift: { venueId } };
+  if (filters.type === 'shift_open') where.action = 'open';
+  if (filters.type === 'shift_close') where.action = 'close';
+  if (filters.user?.trim()) {
+    where.user = { username: { contains: filters.user.trim(), mode: 'insensitive' } };
+  }
   const createdAt = parseDateRange(filters.from, filters.to);
   if (createdAt) where.createdAt = createdAt;
 
@@ -198,7 +204,7 @@ async function fetchShiftEvents(venueId, filters) {
     take: 200,
   });
 
-  return rows.map((row) => ({
+  let mapped = rows.map((row) => ({
     id: `shift:${row.id}`,
     type: row.action === 'open' ? 'shift_open' : 'shift_close',
     action: `shift.${row.action}`,
@@ -210,6 +216,18 @@ async function fetchShiftEvents(venueId, filters) {
     manager: row.user.username,
     detail: `Shift ${row.action}`,
   }));
+
+  if (filters.q?.trim()) {
+    const q = filters.q.trim().toLowerCase();
+    mapped = mapped.filter(
+      (ev) =>
+        ev.summary?.toLowerCase().includes(q) ||
+        ev.actor?.toLowerCase().includes(q) ||
+        ev.detail?.toLowerCase().includes(q),
+    );
+  }
+
+  return mapped;
 }
 
 export async function listFullAuditLog(venueId, filters = {}) {

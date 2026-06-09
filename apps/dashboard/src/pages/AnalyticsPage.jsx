@@ -6,11 +6,20 @@ import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { StatCard } from '../components/dashboard/StatCard.jsx';
+import { StatCardSkeleton, ChartSkeleton } from '../components/dashboard/Skeleton.jsx';
+import { SectionCard } from '../components/ui/Card.jsx';
+import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import { Field, Input, Select } from '../components/ui/Field.jsx';
+import { DataTable } from '../components/ui/DataTable.jsx';
+import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { DownloadIcon, AnalyticsIcon, AlertIcon } from '../components/dashboard/icons.jsx';
 import { formatMoney } from '../utils/dashboardFormat.js';
 import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -103,11 +112,18 @@ export function AnalyticsPage() {
     }));
   }, [report, categoryId, i18n.language]);
 
+  const canDrill = Boolean(report?.drillVenueId) && !categoryId;
+
   const chartTitle = categoryId
     ? t('analytics.item')
     : report?.drillVenueId
       ? t('analytics.itemsChart')
       : t('analytics.revenueChart');
+
+  const maxCategoryRevenue = useMemo(
+    () => Math.max(1, ...(report?.categories ?? []).map((r) => Number(r.revenue ?? 0))),
+    [report?.categories],
+  );
 
   async function exportCsv() {
     if (!query) return;
@@ -121,122 +137,111 @@ export function AnalyticsPage() {
     URL.revokeObjectURL(url);
   }
 
+  const presetOptions = PRESETS.map((key) => ({ value: key, label: t(`analytics.preset.${key}`) }));
+  const showSkeleton = loading && !report && customRangeReady;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title={t('analytics.title')}
         subtitle={t('analytics.subtitle')}
         actions={
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}
             disabled={!customRangeReady || !report}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <DownloadIcon className="h-4 w-4" />
             {t('analytics.exportCsv')}
-          </button>
+          </Button>
         }
       />
 
-      <section className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap gap-2">
-          {PRESETS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                setPreset(key);
+      <section className="surface-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl
+            variant="pill"
+            options={presetOptions}
+            value={preset}
+            onChange={(value) => {
+              setPreset(value);
+              setCategoryId('');
+            }}
+          />
+          {canPickVenue && venues.length > 1 ? (
+            <Select
+              className="w-auto py-2"
+              value={venueId}
+              onChange={(e) => {
+                setVenueId(e.target.value);
                 setCategoryId('');
               }}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                preset === key
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
-              }`}
             >
-              {t(`analytics.preset.${key}`)}
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          {preset === 'custom' ? (
-            <>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  {t('analytics.from')}
-                </span>
-                <input
-                  type="date"
-                  className="rounded-lg border border-slate-200 px-3 py-2"
-                  value={customFrom}
-                  max={customTo || undefined}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                  {t('analytics.to')}
-                </span>
-                <input
-                  type="date"
-                  className="rounded-lg border border-slate-200 px-3 py-2"
-                  value={customTo}
-                  min={customFrom || undefined}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                />
-              </label>
-            </>
-          ) : null}
-
-          {canPickVenue && venues.length > 1 ? (
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                {t('analytics.filterVenue')}
-              </span>
-              <select
-                className="rounded-lg border border-slate-200 px-3 py-2"
-                value={venueId}
-                onChange={(e) => {
-                  setVenueId(e.target.value);
-                  setCategoryId('');
-                }}
-              >
-                <option value="">{t('analytics.allVenues')}</option>
-                {venues.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {i18n.language === 'ar' ? v.nameAr : v.nameEn}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <option value="">{t('analytics.allVenues')}</option>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {i18n.language === 'ar' ? v.nameAr : v.nameEn}
+                </option>
+              ))}
+            </Select>
           ) : null}
         </div>
+
+        {preset === 'custom' ? (
+          <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:max-w-md">
+            <Field label={t('analytics.from')}>
+              <Input
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+              />
+            </Field>
+            <Field label={t('analytics.to')}>
+              <Input
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+              />
+            </Field>
+          </div>
+        ) : null}
       </section>
 
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <AlertIcon className="h-5 w-5 shrink-0" />
           {error}
         </div>
       ) : null}
 
-      {loading && !report && customRangeReady ? (
-        <p className="text-sm text-slate-500">{t('common.loading')}</p>
+      {showSkeleton ? (
+        <>
+          <section className="grid gap-4 sm:grid-cols-2">
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </section>
+          <ChartSkeleton />
+        </>
       ) : preset === 'custom' && !customRangeReady ? (
-        <p className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-          {t('analytics.customHint')}
-        </p>
+        <SectionCard>
+          <EmptyState icon={AnalyticsIcon} title={t('analytics.customHint')} />
+        </SectionCard>
       ) : report ? (
         <>
           <section className="grid gap-4 sm:grid-cols-2">
             <StatCard
               label={t('analytics.totalRevenue')}
               value={formatMoney(report.totalRevenue, locale, currencyLabel)}
+              icon={AnalyticsIcon}
+              tone="emerald"
             />
             {report.comparison ? (
               <StatCard
                 label={t('analytics.vsPrevious')}
                 value={formatMoney(report.comparison.previous, locale, currencyLabel)}
+                tone="blue"
                 trend={{
                   changePercent: report.comparison.changePercent,
                   changeAmount: report.comparison.changeAmount,
@@ -247,28 +252,29 @@ export function AnalyticsPage() {
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">{chartTitle}</h3>
-                {categoryId ? (
-                  <button
-                    type="button"
-                    className="mt-1 text-sm text-primary-from hover:underline"
-                    onClick={() => setCategoryId('')}
-                  >
-                    {t('analytics.backToCategories')}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-
+          <SectionCard
+            title={chartTitle}
+            hint={canDrill ? t('analytics.drillHint') : undefined}
+            action={
+              categoryId ? (
+                <Button variant="subtle" size="sm" onClick={() => setCategoryId('')}>
+                  {t('analytics.backToCategories')}
+                </Button>
+              ) : null
+            }
+          >
             {chartData.length === 0 ? (
-              <p className="text-sm text-slate-500">{t('analytics.noData')}</p>
+              <EmptyState icon={AnalyticsIcon} title={t('analytics.noData')} />
             ) : (
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
+                    <defs>
+                      <linearGradient id="analyticsBar" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" />
+                        <stop offset="100%" stopColor="#059669" />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis
                       dataKey="name"
@@ -280,63 +286,83 @@ export function AnalyticsPage() {
                     />
                     <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
                     <Tooltip
+                      cursor={{ fill: 'rgba(16,185,129,0.06)' }}
                       formatter={(value) => formatMoney(value, locale, currencyLabel)}
-                      contentStyle={{ borderRadius: 12, borderColor: '#e2e8f0' }}
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 14px 30px -10px rgba(15,23,42,0.18)',
+                      }}
                     />
                     <Bar
                       dataKey="revenue"
-                      fill="#0f172a"
+                      fill="url(#analyticsBar)"
                       radius={[6, 6, 0, 0]}
                       maxBarSize={48}
+                      cursor={canDrill ? 'pointer' : undefined}
                       onClick={(data) => {
-                        if (!report.drillVenueId || categoryId) return;
+                        if (!canDrill) return;
                         if (data?.payload?.id) setCategoryId(data.payload.id);
                       }}
-                    />
+                    >
+                      {chartData.map((entry) => (
+                        <Cell key={entry.id} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
-          </section>
+          </SectionCard>
 
           {!categoryId && report.categories?.length > 0 ? (
-            <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-6 py-4">
-                <h3 className="text-base font-semibold text-slate-900">{t('analytics.category')}</h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-start text-xs uppercase tracking-wide text-slate-500">
-                      <th className="px-6 py-3 font-semibold">{t('analytics.category')}</th>
-                      <th className="px-6 py-3 font-semibold">{t('analytics.revenue')}</th>
-                      <th className="px-6 py-3 font-semibold" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {report.categories.map((row) => (
-                      <tr key={row.categoryId} className="border-b border-slate-100 last:border-0">
-                        <td className="px-6 py-3 font-medium text-slate-900">
-                          {labelEntity(row, i18n.language)}
-                        </td>
-                        <td className="px-6 py-3 text-slate-700">
+            <SectionCard title={t('analytics.category')} flush>
+              <DataTable
+                columns={[
+                  {
+                    key: 'name',
+                    header: t('analytics.category'),
+                    render: (row) => (
+                      <span className="font-medium text-slate-900">
+                        {labelEntity(row, i18n.language)}
+                      </span>
+                    ),
+                  },
+                  {
+                    key: 'bar',
+                    header: t('analytics.revenue'),
+                    cellClassName: 'w-1/2',
+                    render: (row) => (
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-accent-gradient"
+                            style={{
+                              width: `${Math.max(4, (Number(row.revenue ?? 0) / maxCategoryRevenue) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="w-28 text-end tabular-nums text-slate-700">
                           {formatMoney(row.revenue, locale, currencyLabel)}
-                        </td>
-                        <td className="px-6 py-3 text-end">
-                          <button
-                            type="button"
-                            className="text-sm font-medium text-primary-from hover:underline"
-                            onClick={() => setCategoryId(row.categoryId)}
-                          >
-                            {t('analytics.drillDown')}
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                        </span>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'action',
+                    header: '',
+                    align: 'end',
+                    render: (row) => (
+                      <Button variant="subtle" size="sm" onClick={() => setCategoryId(row.categoryId)}>
+                        {t('analytics.drillDown')}
+                      </Button>
+                    ),
+                  },
+                ]}
+                rows={report.categories}
+                rowKey={(row) => row.categoryId}
+              />
+            </SectionCard>
           ) : null}
         </>
       ) : null}

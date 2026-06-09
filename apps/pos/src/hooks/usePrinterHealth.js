@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { POS_PRINTER_HEALTH_POLL_MS } from '@venue-pos/shared';
 import { AGENT_URL } from '../config.js';
 
 export function usePrinterHealth() {
@@ -24,7 +25,7 @@ export function usePrinterHealth() {
       }
     }
     checkPrinter();
-    const id = setInterval(checkPrinter, 15_000);
+    const id = setInterval(checkPrinter, POS_PRINTER_HEALTH_POLL_MS);
     return () => clearInterval(id);
   }, []);
 

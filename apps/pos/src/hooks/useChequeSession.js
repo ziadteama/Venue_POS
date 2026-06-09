@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
 import { parseApiError } from '../utils/apiError.js';
@@ -27,10 +27,10 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       setCrossVenueGroup(payload.group ?? null);
       return;
     }
-    const { crossVenueGroup: group, ...chequeFields } = payload;
-    setCheque(payload);
+    const { crossVenueGroup: group, ...chequeData } = payload;
+    if (!chequeData.id) return;
+    setCheque(chequeData);
     setCrossVenueGroup(group ?? null);
-    void chequeFields;
   }, []);
 
   const applyDraftOrder = useCallback((updated) => {
@@ -45,7 +45,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
   const refreshOpenCheques = useCallback(async () => {
     try {
       const list = await callAgent('/v1/cheques/open');
-      setOpenCheques(Array.isArray(list) ? list : []);
+      setOpenCheques(parentOpenCheques(Array.isArray(list) ? list : []));
     } catch {
       setOpenCheques([]);
     }
@@ -63,9 +63,15 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
         });
         applyChequePayload(loaded);
         await refreshOpenCheques();
+        try {
+          const current = await callAgent(`/v1/cheques/${loaded.id}`);
+          if (current?.status === 'open') applyChequePayload(current);
+        } catch {
+          /* keep loaded payload if refresh fails */
+        }
         return { ok: true, crossVenueGroup: loaded.crossVenueGroup ?? null };
-      } catch {
-        setError(t('pos.chequeOpenFailed'));
+      } catch (err) {
+        setError(fail(err, 'pos.chequeOpenFailed'));
         return { ok: false };
       }
     },
@@ -96,8 +102,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       try {
         await callAgent(`/v1/cheques/${tab.id}`, { method: 'DELETE' });
         const list = await callAgent('/v1/cheques/open');
-        const parents = parentOpenCheques(Array.isArray(list) ? list : []);
-        setOpenCheques(parents);
+        setOpenCheques(parentOpenCheques(Array.isArray(list) ? list : []));
 
         if (cheque?.id === tab.id) {
           setCheque(null);
@@ -141,7 +146,23 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       return;
     }
 
-    const updated = await callAgent(`/v1/orders/${order.id}/items`, {
+    let orderId = order?.id;
+    if (!orderId && cheque?.id) {
+      const refreshed = await callAgent(`/v1/cheques/${cheque.id}`);
+      applyChequePayload(refreshed);
+      orderId = refreshed?.draftOrder?.id;
+    }
+    if (!orderId && cheque?.tableLabel) {
+      const reopened = await callAgent('/v1/cheques/open', {
+        method: 'POST',
+        body: JSON.stringify({ cashierId, tableLabel: cheque.tableLabel }),
+      });
+      applyChequePayload(reopened);
+      orderId = reopened?.draftOrder?.id;
+    }
+    if (!orderId) throw new Error('No draft order on this table');
+
+    const updated = await callAgent(`/v1/orders/${orderId}/items`, {
       method: 'POST',
       body: JSON.stringify({
         menuItemId: item.id,
@@ -244,6 +265,8 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       });
       applyChequePayload(updated);
       await refreshOpenCheques();
+      const fresh = await callAgent(`/v1/cheques/${cheque.id}`);
+      applyChequePayload(fresh);
       return true;
     } catch (err) {
       setError(fail(err, 'pos.splitFailed'));
@@ -261,6 +284,8 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       });
       applyChequePayload(updated);
       await refreshOpenCheques();
+      const fresh = await callAgent(`/v1/cheques/${cheque.id}`);
+      applyChequePayload(fresh);
       return true;
     } catch (err) {
       setError(fail(err, 'pos.splitAmountFailed'));
@@ -397,24 +422,62 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     }
   }
 
-  async function confirmPay(paymentBody) {
-    if (!cheque || paying) return false;
+  async function confirmPay(paymentBody, targetChequeId) {
+    const payId = targetChequeId ?? cheque?.id;
+    if (!payId || paying) return { ok: false };
     setPaying(true);
     setError('');
     try {
-      await callAgent(`/v1/cheques/${cheque.id}/pay`, {
+      const result = await callAgent(`/v1/cheques/${payId}/pay`, {
         method: 'POST',
         body: JSON.stringify({ cashierId, ...paymentBody }),
       });
-      setCheque(null);
-      setCrossVenueGroup(null);
+      const parentId = cheque?.parentChequeId ?? cheque?.id ?? payId;
+      const updated = await callAgent(`/v1/cheques/${parentId}`);
+      applyChequePayload(updated);
+      await refreshOpenCheques();
+      if (result.tableSettled) {
+        setCheque(null);
+        setCrossVenueGroup(null);
+      }
+      return { ok: true, settled: Boolean(result.tableSettled) };
+    } catch (err) {
+      setError(fail(err, 'pos.payFailed'));
+      return { ok: false };
+    } finally {
+      setPaying(false);
+    }
+  }
+
+  async function confirmMoveTable({ targetTableLabel }) {
+    if (!cheque?.id) return false;
+    setError('');
+    try {
+      const updated = await callAgent(`/v1/cheques/${cheque.id}/table`, {
+        method: 'PATCH',
+        body: JSON.stringify({ targetTableLabel }),
+      });
+      applyChequePayload(updated);
       await refreshOpenCheques();
       return true;
     } catch (err) {
-      setError(fail(err, 'pos.payFailed'));
+      setError(fail(err, 'pos.moveTableFailed'));
       return false;
-    } finally {
-      setPaying(false);
+    }
+  }
+
+  async function printChequeReceipt(mode = 'single', { chequeId } = {}) {
+    if (!cheque?.id) return { ok: false };
+    setError('');
+    try {
+      await callAgent(`/v1/cheques/${cheque.id}/print-receipt`, {
+        method: 'POST',
+        body: JSON.stringify({ mode, chequeId }),
+      });
+      return { ok: true };
+    } catch (err) {
+      setError(fail(err, 'pos.printFailed'));
+      return { ok: false };
     }
   }
 
@@ -442,6 +505,8 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     loadPaidCheques,
     refreshCheque,
     confirmPay,
+    confirmMoveTable,
+    printChequeReceipt,
     navigateToTable,
     selectOpenCheque,
     deleteTable,

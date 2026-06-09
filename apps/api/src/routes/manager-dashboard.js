@@ -4,6 +4,7 @@ import {
   buildExecutiveDashboard,
   buildOperationsDashboard,
 } from '../services/dashboard-summary-service.js';
+import { userCanSeeFinancials, redactExecutiveDashboardFinancials } from '../services/financial-redact.js';
 
 function resolveVenueFilter(request) {
   return request.query?.venueId || undefined;
@@ -15,7 +16,11 @@ export async function managerDashboardRoutes(app) {
     { preHandler: requireRoles(ROLES.HUB_OWNER) },
     async (request) => {
       const venueId = resolveVenueFilter(request);
-      return buildExecutiveDashboard({ venueId });
+      const result = await buildExecutiveDashboard({ venueId }, request.server.io);
+      if (!userCanSeeFinancials(request.user)) {
+        return redactExecutiveDashboardFinancials(result);
+      }
+      return result;
     },
   );
 

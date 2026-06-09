@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function ShiftOpenModal({
   t,
@@ -23,7 +24,7 @@ export function ShiftOpenModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/50 p-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
@@ -74,6 +75,6 @@ export function ShiftOpenModal({
           </button>
         </div>
       </form>
-    </div>
+    </OverlayPortal>
   );
 }

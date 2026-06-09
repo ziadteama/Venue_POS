@@ -1,5 +1,5 @@
 import { prisma } from '../db/prisma.js';
-import { listChequesForVenue } from './cheque-lifecycle.js';
+import { listOpenCheques } from './cheque-lifecycle.js';
 
 const ACTIVE_ORDER_STATUSES = ['sent', 'partially_ready', 'ready', 'served'];
 
@@ -49,7 +49,7 @@ async function buildVenueMetrics(venue, todayStart, oneHourAgo) {
     prisma.order.count({
       where: { venueId: venue.id, sentAt: { gte: oneHourAgo, not: null } },
     }),
-    listChequesForVenue(venue.id, { status: 'open' }),
+    listOpenCheques(venue.id),
   ]);
 
   const openTables = openCheques

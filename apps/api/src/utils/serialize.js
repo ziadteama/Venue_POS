@@ -175,13 +175,17 @@ export function appendChequeReceiptItems(lines, cheque) {
   }
 }
 
-export function buildChequeReceiptText(cheque, venue, { tendered, change } = {}) {
+export function buildChequeReceiptText(cheque, venue, { tendered, change, preview } = {}) {
   const lines = [
     venue?.nameEn ?? 'Venue POS',
+    ...(preview ? ['*** PRE-PAYMENT CHECK ***'] : []),
     `Cheque #${cheque.chequeNumber}`,
     `Table: ${cheque.tableLabel ?? '—'}`,
-    '---',
   ];
+  if (cheque.splitLabel) {
+    lines.push(`Guest: ${cheque.splitLabel}`);
+  }
+  lines.push('---');
 
   appendChequeReceiptItems(lines, cheque);
   lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`);
@@ -199,7 +203,37 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change } = {})
     lines.push(`Change: ${Number(change).toFixed(2)}`);
   }
 
-  lines.push('---', 'Thank you!');
+  lines.push('---', preview ? 'Not a payment receipt' : 'Thank you!');
+  return lines.join('\n');
+}
+
+/** One printable document listing every split guest plus any table remainder. */
+export function buildFullSplitReceiptText(parentCheque, childCheques, venue) {
+  const lines = [
+    venue?.nameEn ?? 'Venue POS',
+    '*** FULL TABLE CHECK ***',
+    `Cheque #${parentCheque.chequeNumber}`,
+    `Table: ${parentCheque.tableLabel ?? '—'}`,
+    '---',
+  ];
+
+  let grandTotal = 0;
+  for (const child of childCheques) {
+    lines.push(`-- ${child.splitLabel ?? 'Guest'} (#${child.chequeNumber}) --`);
+    appendChequeReceiptItems(lines, child);
+    lines.push(`Guest total: ${child.total.toFixed(2)}`, '---');
+    grandTotal += child.total;
+  }
+
+  const remainder = Number(parentCheque.total ?? 0);
+  if (remainder > 0.009) {
+    lines.push(`-- Table remainder (#${parentCheque.chequeNumber}) --`);
+    appendChequeReceiptItems(lines, parentCheque);
+    lines.push(`Remainder: ${remainder.toFixed(2)}`, '---');
+    grandTotal += remainder;
+  }
+
+  lines.push(`TABLE TOTAL: ${grandTotal.toFixed(2)}`, '---', 'Not a payment receipt');
   return lines.join('\n');
 }
 

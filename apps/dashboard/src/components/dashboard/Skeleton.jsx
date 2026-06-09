@@ -36,6 +36,27 @@ export function PanelSkeleton({ rows = 4, className = '' }) {
   );
 }
 
+export function TableSkeleton({ rows = 6, cols = 4, className = '' }) {
+  return (
+    <div className={`surface-card overflow-hidden ${className}`}>
+      <div className="flex items-center gap-4 border-b border-slate-200 bg-slate-50/60 px-5 py-3">
+        {Array.from({ length: cols }).map((_, i) => (
+          <Skeleton key={i} className="h-3 flex-1" />
+        ))}
+      </div>
+      <div className="divide-y divide-slate-100">
+        {Array.from({ length: rows }).map((_, r) => (
+          <div key={r} className="flex items-center gap-4 px-5 py-3.5">
+            {Array.from({ length: cols }).map((_, c) => (
+              <Skeleton key={c} className="h-4 flex-1" />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ChartSkeleton() {
   return (
     <div className="surface-card p-6 xl:col-span-2">

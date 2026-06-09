@@ -23,7 +23,7 @@ Every write gets a client UUID (`syncId`). Server deduplicates on `sync_id`.
 | status | pending → synced \| failed |
 | retry_count | Increment on failure |
 
-Worker polls every 5s when online. FIFO order. Failed items stay queued; show operator notification.
+Worker polls every 10s when online and queue non-empty. FIFO order. Failed items stay queued; operator uses **Review** on POS banner (`SyncFailedModal`).
 
 ## Conflict rules
 

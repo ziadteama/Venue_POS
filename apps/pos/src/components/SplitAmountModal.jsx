@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function SplitAmountModal({ cheque, onConfirm, onCancel, t }) {
   const total = cheque?.total ?? 0;
@@ -23,7 +24,7 @@ export function SplitAmountModal({ cheque, onConfirm, onCancel, t }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4">
       <form
         onSubmit={handleSubmit}
         className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
@@ -78,6 +79,6 @@ export function SplitAmountModal({ cheque, onConfirm, onCancel, t }) {
           </button>
         </div>
       </form>
-    </div>
+    </OverlayPortal>
   );
 }

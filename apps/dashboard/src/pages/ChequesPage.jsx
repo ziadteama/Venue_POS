@@ -25,7 +25,7 @@ export function ChequesPage() {
       />
 
       {manager.error && manager.actionTarget?.type !== 'refund' ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {manager.error}
         </div>
       ) : null}
@@ -49,7 +49,7 @@ export function ChequesPage() {
           onSelect={manager.setSelectedId}
         />
 
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <section className="surface-card p-6">
           <ChequeDetailView
             detail={manager.detail}
             statusTab={manager.statusTab}

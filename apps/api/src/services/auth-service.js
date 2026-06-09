@@ -22,6 +22,7 @@ export async function loginManager(username, password) {
     sub: user.id,
     role: user.role,
     venue_id: user.venueId,
+    username: user.username,
   });
 
   appendAuditLog({

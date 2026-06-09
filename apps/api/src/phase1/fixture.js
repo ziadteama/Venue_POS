@@ -139,16 +139,16 @@ before(async () => {
     },
   });
 
-  const ownerPasswordHash = await bcrypt.hash('phase1owner', config.bcryptRounds);
+  const ownerPasswordHash = await bcrypt.hash('owner123', config.bcryptRounds);
   await prisma.user.upsert({
-    where: { username: 'phase1owner' },
+    where: { username: 'owner' },
     update: {
       passwordHash: ownerPasswordHash,
       role: 'hub_owner',
       venueId: VENUE_ID,
     },
     create: {
-      username: 'phase1owner',
+      username: 'owner',
       passwordHash: ownerPasswordHash,
       role: 'hub_owner',
       venueId: VENUE_ID,
@@ -165,7 +165,7 @@ before(async () => {
   const ownerLogin = await fx.app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
-    payload: { username: 'phase1owner', password: 'phase1owner' },
+    payload: { username: 'owner', password: 'owner123' },
   });
   assert.equal(ownerLogin.statusCode, 200);
   fx.ownerToken = ownerLogin.json().accessToken;

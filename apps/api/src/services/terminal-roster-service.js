@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { serializeVenueTableLabels } from '../utils/venue-tables.js';
 import { getEnabledTargets } from './billing-config-service.js';
 import { getPublishedMenuForVenue } from './menu-service.js';
+import { buildVenueLanConfig } from './terminal-lan-service.js';
 
 const OFFLINE_PIN_ROLES = [ROLES.CASHIER, ROLES.VENUE_MANAGER];
 
@@ -55,6 +56,8 @@ export async function getTerminalRoster(venueId, terminalId = null) {
     /* menu may be unpublished */
   }
 
+  const lanConfig = await buildVenueLanConfig(prisma, venueId, terminalId);
+
   return {
     staff: staff.map((u) => ({
       id: u.id,
@@ -66,7 +69,13 @@ export async function getTerminalRoster(venueId, terminalId = null) {
       ? await prisma.terminal
           .findUnique({
             where: { id: terminalId },
-            select: { id: true, name: true, lastLanHost: true, lastLanPort: true },
+            select: {
+              id: true,
+              name: true,
+              assignedLanHost: true,
+              lastLanHost: true,
+              lastLanPort: true,
+            },
           })
           .then((t) =>
             t
@@ -74,12 +83,14 @@ export async function getTerminalRoster(venueId, terminalId = null) {
                   id: t.id,
                   name: t.name,
                   deviceLabel: t.name,
+                  assignedLanHost: t.assignedLanHost,
                   lastLanHost: t.lastLanHost,
                   lastLanPort: t.lastLanPort,
                 }
               : null,
           )
       : null,
+    lanConfig,
     features,
     menuVersionHash,
     syncedAt: new Date().toISOString(),

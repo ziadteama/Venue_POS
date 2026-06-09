@@ -1,7 +1,7 @@
 import { apiFetch } from './api-fetch.js';
 import { syncMenuFromServer } from './menu-sync.js';
 import { saveStaffCache, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
-import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount } from './sync-processor.js';
+import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount, setSyncDrainProgress, clearSyncDrainProgress } from './sync-processor.js';
 import { hydrateOpenCheques } from './cheque-hydration.js';
 
 export async function runReconnectHandshake({
@@ -45,11 +45,14 @@ export async function runReconnectHandshake({
 
   const pendingBefore = getSyncQueueDepth(db);
   let drained = 0;
+  setSyncDrainProgress(db, { total: pendingBefore, done: 0 });
   while (getSyncQueueDepth(db) > 0 && drained < pendingBefore + 50) {
     const batch = await processSyncQueue({ db, apiUrl, terminalId, terminalSecret, useBatch: true });
     if (!batch.length) break;
     drained += batch.filter((r) => r.status === 'done').length;
+    setSyncDrainProgress(db, { done: drained });
   }
+  clearSyncDrainProgress(db);
 
   setAgentMeta(db, 'last_sync_at', handshake.serverTime ?? new Date().toISOString());
 

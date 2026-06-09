@@ -25,6 +25,7 @@ import {
   serializeCheque,
 } from './cheque-shared.js';
 import { appendAuditLog } from './audit-log-service.js';
+import { resolveBusinessDate } from '../utils/business-date.js';
 import { appendChequeReceiptItems, serializeOrder } from '../utils/serialize.js';
 import { getCheque } from './cheque-lifecycle.js';
 import { resolveDiscountAmount } from './cheque-discount.js';
@@ -83,9 +84,12 @@ async function assertMenuItemForVenue(menuItemId, venueId) {
   return menuItem;
 }
 
-async function createCrossVenueDraftOrderInTx(tx, { venueId, terminalId, cashierId, tableLabel }) {
+async function createCrossVenueDraftOrderInTx(
+  tx,
+  { venueId, terminalId, cashierId, tableLabel, businessDate = resolveBusinessDate() },
+) {
   const last = await tx.order.findFirst({
-    where: { venueId },
+    where: { venueId, businessDate },
     orderBy: { orderNumber: 'desc' },
     select: { orderNumber: true },
   });
@@ -96,6 +100,7 @@ async function createCrossVenueDraftOrderInTx(tx, { venueId, terminalId, cashier
       terminalId,
       cashierId,
       orderNumber,
+      businessDate,
       tableLabel: tableLabel ?? null,
       status: 'draft',
     },
@@ -418,14 +423,16 @@ export async function startCrossVenueOrder({
 
   const groupId = randomUUID();
 
+  const businessDate = resolveBusinessDate();
   await prisma.$transaction(async (tx) => {
-    const chequeNumber = await nextChequeNumber(tx, anchorVenueId);
+    const chequeNumber = await nextChequeNumber(tx, anchorVenueId, businessDate);
     const cheque = await tx.cheque.create({
       data: {
         venueId: anchorVenueId,
         terminalId: anchorTerminalId,
         cashierId,
         chequeNumber,
+        businessDate,
         tableLabel: tableLabel ?? null,
         status: 'open',
         crossVenueGroupId: groupId,
@@ -437,6 +444,7 @@ export async function startCrossVenueOrder({
       terminalId: anchorTerminalId,
       cashierId,
       tableLabel,
+      businessDate,
     });
     await tx.chequeOrder.create({ data: { chequeId: cheque.id, orderId: order.id } });
   });
@@ -475,14 +483,16 @@ export async function ensureVenueChequeInGroup({
 
   const label = tableLabel ?? members[0]?.tableLabel ?? null;
 
+  const anchorBusinessDate = members[0]?.businessDate ?? resolveBusinessDate();
   const cheque = await prisma.$transaction(async (tx) => {
-    const chequeNumber = await nextChequeNumber(tx, targetVenueId);
+    const chequeNumber = await nextChequeNumber(tx, targetVenueId, anchorBusinessDate);
     const created = await tx.cheque.create({
       data: {
         venueId: targetVenueId,
         terminalId: anchorTerminalId,
         cashierId,
         chequeNumber,
+        businessDate: anchorBusinessDate,
         tableLabel: label,
         status: 'open',
         crossVenueGroupId: groupId,
@@ -494,6 +504,7 @@ export async function ensureVenueChequeInGroup({
       terminalId: anchorTerminalId,
       cashierId,
       tableLabel: label,
+      businessDate: anchorBusinessDate,
     });
     await tx.chequeOrder.create({ data: { chequeId: created.id, orderId: order.id } });
     return created;

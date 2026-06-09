@@ -1,3 +1,5 @@
+import { normalizeLoopbackUrl } from './cloud-health.js';
+
 /**
  * fetch() does not throw on 4xx/5xx — always check res.ok before treating as success.
  */
@@ -17,9 +19,10 @@ export function parseUpstreamError(text, fallbackMessage = 'Request failed') {
 }
 
 export async function apiFetch(apiUrl, terminalId, terminalSecret, path, options = {}) {
+  const base = normalizeLoopbackUrl(apiUrl).replace(/\/$/, '');
   const method = options.method ?? 'GET';
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
-  const res = await fetch(`${apiUrl}${path}`, {
+  const res = await fetch(`${base}${path}`, {
     ...options,
     ...(needsBody ? { body: '{}' } : {}),
     headers: {

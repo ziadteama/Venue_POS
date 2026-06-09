@@ -4,6 +4,7 @@ import {
   SYNC_WORKER_INTERVAL_MS,
   CHEQUE_HYDRATION_INTERVAL_MS,
   PEER_GOSSIP_INTERVAL_MS,
+  TERMINAL_HEARTBEAT_INTERVAL_MS,
   DEFAULT_AGENT_LAN_PORT,
   CLUSTER_MODES,
 } from '@venue-pos/shared';
@@ -16,7 +17,7 @@ import {
   syncVenueConfigFromServer,
   resolvePrinterConfig,
 } from './services/venue-config-sync.js';
-import { probeCloudHealth, setCloudOnline, isCloudOnline } from './services/cloud-health.js';
+import { probeCloudHealth, setCloudOnline, isCloudOnline, normalizeLoopbackUrl } from './services/cloud-health.js';
 import { sendDeviceRegistration } from './services/heartbeat.js';
 import { syncTerminalRosterFromServer, setAgentMeta } from './services/terminal-cache.js';
 import { runReconnectHandshake } from './services/reconnect.js';
@@ -27,14 +28,17 @@ import {
   resolveDeviceLabel,
   setLocalDeviceLabel,
 } from './services/device-profile.js';
+import { applyHubLanConfig } from './services/lan-config.js';
 
 const port = Number(process.env.PORT ?? DEFAULT_AGENT_LAN_PORT);
 const host = process.env.HOST ?? '127.0.0.1';
 const lanPort = Number(process.env.AGENT_LAN_PORT ?? port);
 const lanSecret = process.env.AGENT_LAN_SECRET ?? '';
 const dbPath = process.env.SQLITE_PATH ?? './data/local.db';
-const apiUrl = process.env.SERVER_API_URL ?? 'http://localhost:3000';
-const cloudHealthUrl = process.env.CLOUD_HEALTH_URL ?? `${apiUrl}/health`;
+const apiUrl = normalizeLoopbackUrl(process.env.SERVER_API_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
+const cloudHealthUrl = normalizeLoopbackUrl(
+  process.env.CLOUD_HEALTH_URL ?? `${apiUrl}/health`,
+);
 const venueId = process.env.VENUE_ID ?? '';
 const terminalId = process.env.TERMINAL_ID ?? '';
 const terminalSecret = process.env.TERMINAL_SECRET ?? '';
@@ -55,6 +59,22 @@ const kitchenPrinterPort = Number(process.env.KITCHEN_PRINTER_PORT ?? 9100);
 const autoReceiptPrint = process.env.FEATURE_AUTO_RECEIPT_PRINT !== 'false';
 const agentDeviceLabel = process.env.AGENT_DEVICE_LABEL ?? '';
 const advertiseHost = process.env.AGENT_LAN_HOST ?? pickLanAddress();
+const coordinatorRuntime = { host: coordinatorLanHost };
+
+function getCoordinatorLanHost() {
+  return coordinatorRuntime.host?.trim() || coordinatorLanHost?.trim() || '';
+}
+
+function syncHubLanConfig() {
+  return applyHubLanConfig({
+    db,
+    clusterManager,
+    envPeers: agentPeers,
+    envCoordinatorHost: coordinatorLanHost,
+    ownLanHost: advertiseHost,
+    coordinatorRuntime,
+  });
+}
 
 function pickLanAddress() {
   const nets = os.networkInterfaces();
@@ -133,7 +153,7 @@ const app = await buildAgentServer({
     autoReceiptPrint,
     isCoordinator,
     coordinatorMode: getClusterState().mode,
-    coordinatorLanHost,
+    getCoordinatorLanHost,
     coordinatorFallback,
     getPrinterConfig: () => resolvePrinterConfig(envPrinterDefaults),
     getClusterState,
@@ -142,6 +162,7 @@ const app = await buildAgentServer({
     getDeviceProfile: buildHeartbeatProfile,
     lanPort,
     lanSecret,
+    buildRelayOptions,
   },
 });
 
@@ -210,9 +231,10 @@ if (venueId && terminalId && terminalSecret) {
   }
 
   try {
-    await withRetry('Terminal roster sync on startup', () =>
+    const roster = await withRetry('Terminal roster sync on startup', () =>
       syncTerminalRosterFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),
     );
+    syncHubLanConfig();
     await registerDeviceWithCloud(app.log).catch((err) =>
       app.log.warn({ err }, 'Device registration on startup failed'),
     );
@@ -247,8 +269,11 @@ if (venueId && terminalId && terminalSecret) {
   });
 
   setInterval(async () => {
-    const online = await refreshCloudStatus();
-    clusterManager.runGossip().catch((err) => app.log.warn({ err }, 'Peer gossip failed'));
+    await refreshCloudStatus();
+
+    const online = isCloudOnline();
+    const queueDepth = getSyncQueueDepth(db);
+    if (!queueDepth) return;
 
     const relay = buildRelayOptions();
     const cluster = getClusterState();
@@ -275,16 +300,17 @@ if (venueId && terminalId && terminalSecret) {
         app.log.warn({ err }, 'Relay sync replay failed');
       });
     }
-
-    if (online) {
-      await sendDeviceRegistration({
-        apiUrl,
-        terminalId,
-        terminalSecret,
-        profile: buildHeartbeatProfile(),
-      }).catch(() => {});
-    }
   }, SYNC_WORKER_INTERVAL_MS);
+
+  setInterval(async () => {
+    if (!isCloudOnline()) return;
+    await sendDeviceRegistration({
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      profile: buildHeartbeatProfile(),
+    }).catch(() => {});
+  }, TERMINAL_HEARTBEAT_INTERVAL_MS);
 
   setInterval(async () => {
     if (!isCloudOnline()) return;

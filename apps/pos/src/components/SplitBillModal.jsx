@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { splittableItems } from '../utils/cheque.js';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
   const items = splittableItems(cheque);
@@ -27,7 +28,7 @@ export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
   const splits = guests.filter((g) => g.itemIds.length > 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -91,6 +92,6 @@ export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
           </button>
         </div>
       </form>
-    </div>
+    </OverlayPortal>
   );
 }

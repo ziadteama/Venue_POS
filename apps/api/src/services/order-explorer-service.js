@@ -2,6 +2,7 @@ import { prisma } from '../db/prisma.js';
 import { ORDER_STATUSES } from '@venue-pos/shared';
 import { notFound, validationError } from '../utils/errors.js';
 import { serializeOrder, decimalToNumber } from '../utils/serialize.js';
+import { filterOrderForCheque } from './cheque-shared.js';
 import { getOrderReceipt } from './order-service.js';
 import { getChequeReceipt } from './cheque-pay.js';
 import { getCrossVenueGroupSummary } from './cross-venue-service.js';
@@ -209,6 +210,19 @@ function buildWhere(filters) {
   return where;
 }
 
+function appendNonEmptyDraftFilter(where) {
+  const visibility = {
+    OR: [{ status: { not: 'draft' } }, { items: { some: {} } }],
+  };
+  if (where.AND) {
+    const existing = Array.isArray(where.AND) ? where.AND : [where.AND];
+    where.AND = [...existing, visibility];
+  } else {
+    where.AND = [visibility];
+  }
+  return where;
+}
+
 async function filterIdsByAmount(where, minAmount, maxAmount) {
   const orders = await prisma.order.findMany({
     where,
@@ -235,7 +249,7 @@ export async function searchOrders(filters = {}) {
 
   const page = Math.max(1, Number(filters.page ?? 1));
   const limit = Math.min(PAGE_SIZE, Math.max(1, Number(filters.limit ?? PAGE_SIZE)));
-  const where = buildWhere(filters);
+  const where = appendNonEmptyDraftFilter(buildWhere(filters));
 
   const minAmount = filters.minAmount != null ? Number(filters.minAmount) : null;
   const maxAmount = filters.maxAmount != null ? Number(filters.maxAmount) : null;
@@ -285,6 +299,8 @@ function groupOrdersIntoCheques(orderRecords) {
   const groups = new Map();
 
   for (const order of orderRecords) {
+    if (order.status === 'draft' && !order.items?.length) continue;
+
     const serialized = serializeListRow(order);
     const cheque = order.chequeLink?.cheque ?? null;
     const key = cheque?.id ?? `orphan:${order.id}`;
@@ -327,7 +343,7 @@ function groupOrdersIntoCheques(orderRecords) {
 }
 
 async function fetchMatchingOrders(filters) {
-  const where = buildWhere(filters);
+  const where = appendNonEmptyDraftFilter(buildWhere(filters));
   const minAmount = filters.minAmount != null ? Number(filters.minAmount) : null;
   const maxAmount = filters.maxAmount != null ? Number(filters.maxAmount) : null;
   const hasAmountFilter = minAmount != null || maxAmount != null;
@@ -612,6 +628,15 @@ export async function getOrderExplorerDetail(orderId, venueId) {
 }
 
 async function loadChequeOrders(chequeId, currentOrderId) {
+  const cheque = await prisma.cheque.findUnique({
+    where: { id: chequeId },
+    select: { id: true, parentChequeId: true, status: true },
+  });
+  if (!cheque) return [];
+
+  const isParent = !cheque.parentChequeId;
+  const forDisplay = cheque.status !== 'open';
+
   const links = await prisma.chequeOrder.findMany({
     where: { chequeId },
     include: {
@@ -626,12 +651,21 @@ async function loadChequeOrders(chequeId, currentOrderId) {
     orderBy: { createdAt: 'asc' },
   });
 
-  return links.map(({ order: linked }) => ({
-    ...serializeOrder(linked),
-    cashierUsername: linked.cashier.username,
-    voidReason: linked.voidAudit?.reason ?? null,
-    isCurrent: currentOrderId ? linked.id === currentOrderId : false,
-  }));
+  return links
+    .map(({ order: linked }) => {
+      const filtered = filterOrderForCheque(linked, chequeId, isParent, forDisplay);
+      return {
+        ...filtered,
+        cashierUsername: linked.cashier.username,
+        voidReason: linked.voidAudit?.reason ?? null,
+        isCurrent: currentOrderId ? linked.id === currentOrderId : false,
+      };
+    })
+    .filter((order) => {
+      if (order.status === 'draft') return order.items.length > 0;
+      if (forDisplay && (order.status === 'closed' || order.status === 'voided')) return true;
+      return order.items.length > 0;
+    });
 }
 
 export async function getManagerOrderReceipt(orderId, venueId) {

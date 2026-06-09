@@ -4,11 +4,13 @@ import { prisma } from '../db/prisma.js';
 import { requireRoles } from '../middleware/auth.js';
 import { validationError, notFound } from '../utils/errors.js';
 import { emitVenueConfigUpdated } from '../plugins/socket.js';
+import { isValidLanHost } from '../services/terminal-lan-service.js';
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   isCoordinator: z.boolean().optional(),
   coordinatorLanHost: z.string().max(255).nullable().optional(),
+  assignedLanHost: z.string().max(255).nullable().optional(),
 });
 
 export async function managerTerminalRoutes(app) {
@@ -34,6 +36,7 @@ export async function managerTerminalRoutes(app) {
         venueNameAr: t.venue.nameAr,
         isCoordinator: t.isCoordinator,
         coordinatorLanHost: t.coordinatorLanHost,
+        assignedLanHost: t.assignedLanHost,
         lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
         syncQueueDepth: t.syncQueueDepth,
         lastLanHost: t.lastLanHost,
@@ -50,6 +53,21 @@ export async function managerTerminalRoutes(app) {
     async (request) => {
       const parsed = patchSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      if (
+        parsed.data.assignedLanHost != null &&
+        parsed.data.assignedLanHost !== '' &&
+        !isValidLanHost(parsed.data.assignedLanHost)
+      ) {
+        throw validationError('Invalid assigned LAN IP address');
+      }
+      if (
+        parsed.data.coordinatorLanHost != null &&
+        parsed.data.coordinatorLanHost !== '' &&
+        !isValidLanHost(parsed.data.coordinatorLanHost)
+      ) {
+        throw validationError('Invalid coordinator LAN IP address');
+      }
 
       const terminal = await prisma.terminal.findUnique({ where: { id: request.params.id } });
       if (!terminal?.isActive) throw notFound('Terminal not found');
@@ -69,7 +87,10 @@ export async function managerTerminalRoutes(app) {
             ? { isCoordinator: parsed.data.isCoordinator }
             : {}),
           ...(parsed.data.coordinatorLanHost !== undefined
-            ? { coordinatorLanHost: parsed.data.coordinatorLanHost }
+            ? { coordinatorLanHost: parsed.data.coordinatorLanHost || null }
+            : {}),
+          ...(parsed.data.assignedLanHost !== undefined
+            ? { assignedLanHost: parsed.data.assignedLanHost || null }
             : {}),
         },
       });
@@ -77,7 +98,7 @@ export async function managerTerminalRoutes(app) {
       if (request.server.io) {
         emitVenueConfigUpdated(request.server.io, {
           venueId: updated.venueId,
-          changes: ['coordinator'],
+          changes: ['terminals', 'coordinator'],
           config: {
             coordinatorTerminalId: updated.isCoordinator ? updated.id : null,
             coordinatorLanHost: updated.coordinatorLanHost,
@@ -90,6 +111,7 @@ export async function managerTerminalRoutes(app) {
         name: updated.name,
         isCoordinator: updated.isCoordinator,
         coordinatorLanHost: updated.coordinatorLanHost,
+        assignedLanHost: updated.assignedLanHost,
       };
     },
   );

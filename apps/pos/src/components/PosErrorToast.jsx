@@ -1,10 +1,11 @@
 import { MODAL_Z } from '@venue-pos/shared';
+import { createPortal } from 'react-dom';
 
 /** Floating alert above all modals when a session error occurs during overlay flows. */
 export function PosErrorToast({ message, onDismiss, t }) {
   if (!message) return null;
 
-  return (
+  return createPortal(
     <div
       role="alert"
       className="pointer-events-auto fixed inset-x-4 top-4 mx-auto w-full max-w-lg rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm font-medium text-red-800 shadow-lg"
@@ -22,6 +23,7 @@ export function PosErrorToast({ message, onDismiss, t }) {
           </button>
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

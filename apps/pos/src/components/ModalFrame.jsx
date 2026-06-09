@@ -1,4 +1,35 @@
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { MODAL_Z } from '@venue-pos/shared';
+
+function useOverlayLock(active) {
+  useEffect(() => {
+    if (!active) return undefined;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [active]);
+}
+
+/**
+ * Portals a fixed full-screen overlay to document.body so z-index is not
+ * trapped by ancestor stacking contexts (same pattern as dashboard Drawer/Modal).
+ */
+export function OverlayPortal({ layer = 'stacked', className = '', children }) {
+  useOverlayLock(true);
+
+  return createPortal(
+    <div
+      className={className}
+      style={{ zIndex: MODAL_Z[layer] ?? MODAL_Z.stacked }}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 export function ModalFrame({ layer = 'stacked', children, className = '', align = 'center' }) {
   const alignClass =
@@ -7,12 +38,12 @@ export function ModalFrame({ layer = 'stacked', children, className = '', align 
       : 'items-center justify-center';
 
   return (
-    <div
+    <OverlayPortal
+      layer={layer}
       className={`fixed inset-0 flex bg-ink-900/45 p-4 backdrop-blur-sm ${alignClass} ${className}`}
-      style={{ zIndex: MODAL_Z[layer] ?? MODAL_Z.stacked }}
     >
       {children}
-    </div>
+    </OverlayPortal>
   );
 }
 

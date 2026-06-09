@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ROLES, dashboardRoleI18nKey } from '@venue-pos/shared';
+import { ROLES, canSeeFinancials, dashboardRoleI18nKey } from '@venue-pos/shared';
 import { useAuth } from '../hooks/useAuth.js';
 import {
   ActivityIcon,
@@ -17,8 +17,8 @@ import {
 } from './dashboard/icons.jsx';
 
 const NAV_ITEMS = [
-  { to: '/', end: true, labelKey: 'nav.overview', Icon: OverviewIcon, roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
-  { to: '/analytics', labelKey: 'nav.analytics', Icon: AnalyticsIcon, roles: [ROLES.HUB_OWNER] },
+  { to: '/', end: true, labelKey: 'nav.overview', Icon: OverviewIcon, roles: [ROLES.HUB_OWNER] },
+  { to: '/analytics', labelKey: 'nav.analytics', Icon: AnalyticsIcon, roles: [ROLES.HUB_OWNER], financials: true },
   { to: '/menus', labelKey: 'nav.menus', Icon: MenuIcon, roles: [ROLES.HUB_MANAGER] },
   { to: '/cheques', labelKey: 'nav.cheques', Icon: ChequeIcon, roles: [ROLES.HUB_MANAGER] },
   { to: '/shifts', labelKey: 'nav.shifts', Icon: ShiftIcon, roles: [ROLES.HUB_MANAGER] },
@@ -41,7 +41,9 @@ function navLinkClass({ isActive }) {
 export function Sidebar({ onNavigate, onLogout }) {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(user?.role));
+  const items = NAV_ITEMS.filter(
+    (item) => item.roles.includes(user?.role) && (!item.financials || canSeeFinancials(user)),
+  );
   const initials = (user?.username ?? '?').slice(0, 2).toUpperCase();
 
   return (

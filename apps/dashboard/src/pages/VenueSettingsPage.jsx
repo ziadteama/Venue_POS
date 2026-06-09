@@ -1,10 +1,25 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { BillingMatrixSection } from '../components/BillingMatrixSection.jsx';
 import { TerminalsSection } from '../components/TerminalsSection.jsx';
+import { PageHeader } from '../components/dashboard/PageHeader.jsx';
+import { SectionCard } from '../components/ui/Card.jsx';
+import { Field, Input, Select, Textarea } from '../components/ui/Field.jsx';
+import { Button } from '../components/ui/Button.jsx';
+import {
+  SettingsIcon,
+  RevenueIcon,
+  TablesIcon,
+  PrinterIcon,
+  StoreIcon,
+  PowerIcon,
+  ActivityIcon,
+  AlertIcon,
+  CheckCircleIcon,
+} from '../components/dashboard/icons.jsx';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
 
@@ -48,6 +63,8 @@ function textToTables(text) {
   return out;
 }
 
+const FORM_SECTIONS = ['general', 'tax', 'tables', 'printers'];
+
 export function VenueSettingsPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
@@ -59,6 +76,20 @@ export function VenueSettingsPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [section, setSection] = useState('general');
+
+  const sections = useMemo(
+    () => [
+      { id: 'general', label: t('venueConfig.general'), icon: StoreIcon },
+      { id: 'tax', label: t('venueConfig.taxAndService'), icon: RevenueIcon },
+      { id: 'tables', label: t('venueConfig.tables'), icon: TablesIcon },
+      { id: 'printers', label: t('venueConfig.printers'), icon: PrinterIcon },
+      { id: 'billing', label: t('billing.title'), icon: SettingsIcon },
+      { id: 'terminals', label: t('terminals.title'), icon: PowerIcon },
+      { id: 'audit', label: t('venueConfig.recentChanges'), icon: ActivityIcon },
+    ],
+    [t],
+  );
 
   const load = useCallback(async (id) => {
     if (!id) return;
@@ -145,228 +176,235 @@ export function VenueSettingsPage() {
 
   if (user?.role !== 'hub_manager') {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-secondary">
+      <div className="surface-card p-8 text-center text-sm text-slate-500">
         {t('venueConfig.hubManagerOnly')}
       </div>
     );
   }
 
+  const isFormSection = FORM_SECTIONS.includes(section);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900">{t('venueConfig.title')}</h2>
-        <p className="mt-1 text-sm text-secondary">{t('venueConfig.subtitle')}</p>
-      </div>
-
-      {venues.length > 0 && (
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs font-medium uppercase tracking-wide text-secondary">
-            {t('venueConfig.venue')}
-          </span>
-          <select
-            className="max-w-xs rounded-lg border border-slate-200 px-3 py-2"
-            value={venueId}
-            onChange={(e) => setVenueId(e.target.value)}
-          >
-            {venues.map((v) => (
-              <option key={v.id} value={v.id}>
-                {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <PageHeader
+        title={t('venueConfig.title')}
+        subtitle={t('venueConfig.subtitle')}
+        actions={
+          venues.length > 0 ? (
+            <Select className="w-auto py-2" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
+                </option>
+              ))}
+            </Select>
+          ) : null
+        }
+      />
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          <AlertIcon className="h-5 w-5 shrink-0" />
           {error}
-        </p>
+        </div>
       ) : null}
       {success ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="flex items-center gap-2 rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm font-medium text-accent-700">
+          <CheckCircleIcon className="h-5 w-5 shrink-0" />
           {success}
-        </p>
+        </div>
       ) : null}
 
-      {loading ? (
-        <p className="text-secondary">{t('common.loading')}</p>
-      ) : (
-        <form onSubmit={save} className="space-y-6">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">{t('venueConfig.general')}</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.nameEn')}</span>
-                <input
-                  required
-                  className="w-full rounded border px-3 py-2"
-                  value={form.nameEn}
-                  onChange={(e) => setForm((f) => ({ ...f, nameEn: e.target.value }))}
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.nameAr')}</span>
-                <input
-                  required
-                  className="w-full rounded border px-3 py-2"
-                  value={form.nameAr}
-                  onChange={(e) => setForm((f) => ({ ...f, nameAr: e.target.value }))}
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.type')}</span>
-                <select
-                  className="w-full rounded border px-3 py-2"
-                  value={form.type}
-                  onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-                >
-                  <option value="standard">{t('venueConfig.typeStandard')}</option>
-                  <option value="anchor">{t('venueConfig.typeAnchor')}</option>
-                </select>
-              </label>
-            </div>
-          </section>
+      <div className="grid gap-6 lg:grid-cols-[15rem_1fr]">
+        <nav className="surface-card h-max overflow-hidden p-2 lg:sticky lg:top-20">
+          {sections.map((s) => {
+            const active = section === s.id;
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSection(s.id)}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-start text-sm font-medium transition ${
+                  active
+                    ? 'bg-accent-50 text-accent-700'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {s.label}
+              </button>
+            );
+          })}
+        </nav>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">{t('venueConfig.taxAndService')}</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.taxRate')}</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  className="w-full rounded border px-3 py-2"
-                  value={form.taxRate}
-                  onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.serviceRate')}</span>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  className="w-full rounded border px-3 py-2"
-                  value={form.serviceRate}
-                  disabled={!form.serviceEnabled}
-                  onChange={(e) => setForm((f) => ({ ...f, serviceRate: e.target.value }))}
-                />
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.taxInclusive}
-                  onChange={(e) => setForm((f) => ({ ...f, taxInclusive: e.target.checked }))}
-                />
-                {t('venueConfig.taxInclusive')}
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.serviceEnabled}
-                  onChange={(e) => setForm((f) => ({ ...f, serviceEnabled: e.target.checked }))}
-                />
-                {t('venueConfig.serviceEnabled')}
-              </label>
-            </div>
-          </section>
+        <div className="min-w-0">
+          {loading ? (
+            <SectionCard>
+              <p className="text-sm text-slate-500">{t('common.loading')}</p>
+            </SectionCard>
+          ) : isFormSection ? (
+            <form onSubmit={save} className="space-y-6">
+              {section === 'general' ? (
+                <SectionCard title={t('venueConfig.general')} icon={StoreIcon}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label={t('venueConfig.nameEn')}>
+                      <Input
+                        required
+                        value={form.nameEn}
+                        onChange={(e) => setForm((f) => ({ ...f, nameEn: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label={t('venueConfig.nameAr')}>
+                      <Input
+                        required
+                        dir="rtl"
+                        value={form.nameAr}
+                        onChange={(e) => setForm((f) => ({ ...f, nameAr: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label={t('venueConfig.type')}>
+                      <Select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
+                        <option value="standard">{t('venueConfig.typeStandard')}</option>
+                        <option value="anchor">{t('venueConfig.typeAnchor')}</option>
+                      </Select>
+                    </Field>
+                  </div>
+                </SectionCard>
+              ) : null}
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-2 text-lg font-semibold">{t('venueConfig.tables')}</h3>
-            <p className="mb-4 text-sm text-secondary">{t('venueConfig.tablesHint')}</p>
-            <textarea
-              rows={8}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm"
-              placeholder={t('venueConfig.tablesPlaceholder')}
-              value={form.tablesText}
-              onChange={(e) => setForm((f) => ({ ...f, tablesText: e.target.value }))}
-            />
-          </section>
+              {section === 'tax' ? (
+                <SectionCard title={t('venueConfig.taxAndService')} icon={RevenueIcon}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label={t('venueConfig.taxRate')}>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={form.taxRate}
+                        onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label={t('venueConfig.serviceRate')}>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={form.serviceRate}
+                        disabled={!form.serviceEnabled}
+                        onChange={(e) => setForm((f) => ({ ...f, serviceRate: e.target.value }))}
+                      />
+                    </Field>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500/30"
+                        checked={form.taxInclusive}
+                        onChange={(e) => setForm((f) => ({ ...f, taxInclusive: e.target.checked }))}
+                      />
+                      {t('venueConfig.taxInclusive')}
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500/30"
+                        checked={form.serviceEnabled}
+                        onChange={(e) => setForm((f) => ({ ...f, serviceEnabled: e.target.checked }))}
+                      />
+                      {t('venueConfig.serviceEnabled')}
+                    </label>
+                  </div>
+                </SectionCard>
+              ) : null}
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="mb-4 text-lg font-semibold">{t('venueConfig.printers')}</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block text-secondary">{t('venueConfig.kitchenPrinterHost')}</span>
-                <input
-                  className="w-full rounded border px-3 py-2"
-                  placeholder="192.168.1.50"
-                  value={form.kitchenPrinterHost}
-                  onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterHost: e.target.value }))}
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.kitchenPrinterPort')}</span>
-                <input
-                  type="number"
-                  className="w-full rounded border px-3 py-2"
-                  value={form.kitchenPrinterPort}
-                  onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterPort: e.target.value }))}
-                />
-              </label>
-              <label className="text-sm sm:col-span-2">
-                <span className="mb-1 block text-secondary">{t('venueConfig.receiptPrinterHost')}</span>
-                <input
-                  className="w-full rounded border px-3 py-2"
-                  placeholder={t('venueConfig.receiptPrinterOptional')}
-                  value={form.receiptPrinterHost}
-                  onChange={(e) => setForm((f) => ({ ...f, receiptPrinterHost: e.target.value }))}
-                />
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-secondary">{t('venueConfig.receiptTemplate')}</span>
-                <select
-                  className="w-full rounded border px-3 py-2"
-                  value={form.receiptTemplate}
-                  onChange={(e) => setForm((f) => ({ ...f, receiptTemplate: e.target.value }))}
-                >
-                  {RECEIPT_TEMPLATES.map((key) => (
-                    <option key={key} value={key}>
-                      {t(`venueConfig.template.${key}`)}
-                    </option>
+              {section === 'tables' ? (
+                <SectionCard title={t('venueConfig.tables')} hint={t('venueConfig.tablesHint')} icon={TablesIcon}>
+                  <Textarea
+                    rows={10}
+                    className="font-mono"
+                    placeholder={t('venueConfig.tablesPlaceholder')}
+                    value={form.tablesText}
+                    onChange={(e) => setForm((f) => ({ ...f, tablesText: e.target.value }))}
+                  />
+                </SectionCard>
+              ) : null}
+
+              {section === 'printers' ? (
+                <SectionCard title={t('venueConfig.printers')} icon={PrinterIcon}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field className="sm:col-span-2" label={t('venueConfig.kitchenPrinterHost')}>
+                      <Input
+                        placeholder="192.168.1.50"
+                        value={form.kitchenPrinterHost}
+                        onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterHost: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label={t('venueConfig.kitchenPrinterPort')}>
+                      <Input
+                        type="number"
+                        value={form.kitchenPrinterPort}
+                        onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterPort: e.target.value }))}
+                      />
+                    </Field>
+                    <Field className="sm:col-span-2" label={t('venueConfig.receiptPrinterHost')}>
+                      <Input
+                        placeholder={t('venueConfig.receiptPrinterOptional')}
+                        value={form.receiptPrinterHost}
+                        onChange={(e) => setForm((f) => ({ ...f, receiptPrinterHost: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label={t('venueConfig.receiptTemplate')}>
+                      <Select
+                        value={form.receiptTemplate}
+                        onChange={(e) => setForm((f) => ({ ...f, receiptTemplate: e.target.value }))}
+                      >
+                        {RECEIPT_TEMPLATES.map((key) => (
+                          <option key={key} value={key}>
+                            {t(`venueConfig.template.${key}`)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  </div>
+                </SectionCard>
+              ) : null}
+
+              <div className="sticky bottom-0 -mx-1 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-card backdrop-blur">
+                <span className="me-auto text-xs text-slate-400">{t('venueConfig.subtitle')}</span>
+                <Button type="submit" variant="primary" loading={saving}>
+                  {t('common.save')}
+                </Button>
+              </div>
+            </form>
+          ) : section === 'billing' ? (
+            venueId ? (
+              <BillingMatrixSection anchorVenueId={venueId} anchorType={form.type} />
+            ) : null
+          ) : section === 'terminals' ? (
+            <TerminalsSection venueId={venueId || undefined} />
+          ) : section === 'audit' ? (
+            <SectionCard title={t('venueConfig.recentChanges')} icon={ActivityIcon}>
+              {audits.length > 0 ? (
+                <ul className="space-y-2 text-sm">
+                  {audits.map((row) => (
+                    <li key={row.id} className="rounded-xl border border-slate-100 bg-surface-overlay px-3 py-2">
+                      <span className="font-medium text-slate-900">{row.user}</span>
+                      <span className="text-slate-400"> · {new Date(row.createdAt).toLocaleString()}</span>
+                      <pre className="scrollbar-slim mt-1 overflow-x-auto text-xs text-slate-600">
+                        {JSON.stringify(row.changes, null, 2)}
+                      </pre>
+                    </li>
                   ))}
-                </select>
-              </label>
-            </div>
-          </section>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-primary-to px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-            >
-              {saving ? t('common.loading') : t('common.save')}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {!loading && venueId ? (
-        <BillingMatrixSection anchorVenueId={venueId} anchorType={form.type} />
-      ) : null}
-
-      <TerminalsSection venueId={venueId || undefined} />
-
-      {audits.length > 0 ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-3 text-lg font-semibold">{t('venueConfig.recentChanges')}</h3>
-          <ul className="space-y-2 text-sm">
-            {audits.map((row) => (
-              <li key={row.id} className="rounded border border-slate-100 px-3 py-2">
-                <span className="font-medium">{row.user}</span>
-                <span className="text-secondary"> · {new Date(row.createdAt).toLocaleString()}</span>
-                <pre className="mt-1 overflow-x-auto text-xs text-slate-600">
-                  {JSON.stringify(row.changes, null, 2)}
-                </pre>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500">{t('dashboard.noRecentChanges')}</p>
+              )}
+            </SectionCard>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

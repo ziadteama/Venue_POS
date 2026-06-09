@@ -3,6 +3,7 @@ import { notFound } from '../utils/errors.js';
 import { serializeOrder } from '../utils/serialize.js';
 import { computeVenueCharges } from '../utils/venue-charges.js';
 import { createOrder } from './order-service.js';
+import { resolveBusinessDate } from '../utils/business-date.js';
 
 export const chequeOrderInclude = {
   order: {
@@ -108,6 +109,32 @@ export function computeChequeSubtotal(cheque) {
   return itemTotal;
 }
 
+/** True when an open parent cheque has no queued or billable fired lines left. */
+export function canRemoveEmptyCheque(cheque) {
+  if (!cheque || cheque.status !== 'open') return false;
+  if (cheque.parentChequeId) return false;
+  if (cheque.childCheques?.some((child) => child.status === 'open')) return false;
+  if (computeChequeSubtotal(cheque) > 0) return false;
+  const drafts = ordersFromCheque(cheque).filter((order) => order.status === 'draft');
+  if (drafts.some((draft) => draft.items?.length)) return false;
+  return true;
+}
+
+/** True when an open split sub-cheque has no allocated billable lines left. */
+export function canRemoveEmptySplitCheque(cheque) {
+  if (!cheque || cheque.status !== 'open' || !cheque.parentChequeId) return false;
+  if (cheque.splitAmount != null) return false;
+  const parent = cheque.parentCheque;
+  if (!parent || parent.status !== 'open') return false;
+
+  const hasAllocatedItems = billingOrdersFromCheque({ ...cheque, parentCheque: parent })
+    .flatMap((order) => order.items)
+    .some((item) => item.billingChequeId === cheque.id && !item.paidAt);
+  if (hasAllocatedItems) return false;
+
+  return computeChequeSubtotal({ ...cheque, parentCheque: parent }) <= 0;
+}
+
 export function computeChequeTotal(cheque) {
   const subtotal = computeChequeSubtotal(cheque);
   const discount = Number(cheque.discountAmount ?? 0);
@@ -179,6 +206,7 @@ export function serializeCheque(cheque) {
     terminalId: cheque.terminalId,
     cashierId: cheque.cashierId,
     chequeNumber: cheque.chequeNumber,
+    businessDate: cheque.businessDate,
     tableLabel: cheque.tableLabel,
     splitLabel: cheque.splitLabel ?? null,
     splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
@@ -235,9 +263,9 @@ export async function loadCheque(chequeId) {
   return cheque;
 }
 
-export async function nextChequeNumber(tx, venueId) {
+export async function nextChequeNumber(tx, venueId, businessDate = resolveBusinessDate()) {
   const last = await tx.cheque.findFirst({
-    where: { venueId },
+    where: { venueId, businessDate },
     orderBy: { chequeNumber: 'desc' },
     select: { chequeNumber: true },
   });
@@ -257,6 +285,8 @@ export async function ensureDraftOrder(cheque, { venueId, terminalId, cashierId 
     terminalId,
     cashierId,
     tableLabel: cheque.tableLabel,
+    businessDate: cheque.businessDate,
+    skipValidation: true,
   });
   await linkDraftOrder(cheque.id, created.id);
   return created;

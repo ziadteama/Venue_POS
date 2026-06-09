@@ -1,5 +1,14 @@
 import { CloseXIcon } from './icons.jsx';
-import { canDeleteCheque, parentOpenCheques } from '../utils/cheque.js';
+import { useEffect } from 'react';
+import {
+  canDeleteCheque,
+  displayChequeTotal,
+  findFloorRowForLabel,
+  findOpenChequeForLabel,
+  hasOpenSplitChildren,
+  parentOpenCheques,
+} from '../utils/cheque.js';
+import { OverlayPortal } from './ModalFrame.jsx';
 
 function tableStatus({ openCheque, currentChequeId }) {
   if (!openCheque) return 'free';
@@ -8,45 +17,60 @@ function tableStatus({ openCheque, currentChequeId }) {
 }
 
 export function buildFloorTiles({ venueTables, openCheques, currentChequeId, floorByLabel }) {
-  const openByLabel = new Map();
-  for (const tab of parentOpenCheques(openCheques)) {
-    openByLabel.set(tab.tableLabel, tab);
-  }
-
-  const labels =
+  const parents = parentOpenCheques(openCheques);
+  const baseLabels =
     venueTables.length > 0
-      ? venueTables
-      : [...new Set([...openByLabel.keys(), ...(floorByLabel?.keys() ?? [])])].sort((a, b) =>
-          a.localeCompare(b, undefined, { numeric: true }),
+      ? [...venueTables]
+      : [...new Set([...parents.map((c) => c.tableLabel), ...(floorByLabel?.keys() ?? [])])].sort(
+          (a, b) => a.localeCompare(b, undefined, { numeric: true }),
         );
 
-  return labels.map((label) => {
-    const cheque = openByLabel.get(label) ?? null;
-    const floor = floorByLabel?.get(label);
-    const occupiedElsewhere = Boolean(floor?.isOccupied && floor?.occupiedByChequeId !== cheque?.id);
-    let status = tableStatus({ label, openCheque: cheque, currentChequeId });
+  const matchedIds = new Set();
+  const tiles = baseLabels.map((label) => {
+    const cheque = findOpenChequeForLabel(label, openCheques, floorByLabel);
+    if (cheque) matchedIds.add(cheque.id);
+    const floor = findFloorRowForLabel(label, floorByLabel);
+    const occupiedElsewhere = Boolean(
+      floor?.isOccupied && cheque && floor?.occupiedByChequeId !== cheque.id,
+    );
+    let status = tableStatus({ openCheque: cheque, currentChequeId });
     if (occupiedElsewhere && status === 'free') status = 'occupied';
-    return {
-      label,
-      cheque,
-      status,
-    };
+    return { key: cheque?.id ?? label, label, cheque, status };
   });
+
+  for (const cheque of parents) {
+    if (matchedIds.has(cheque.id)) continue;
+    tiles.push({
+      key: cheque.id,
+      label: cheque.tableLabel,
+      cheque,
+      status: tableStatus({ openCheque: cheque, currentChequeId }),
+    });
+  }
+
+  return tiles;
 }
 
 export function TableFloorModal({
   venueTables = [],
   openCheques,
+  currentCheque,
   currentChequeId,
   currentTable,
   floorByLabel,
   onClose,
   onSelectTable,
   onDeleteCheque,
+  onRefreshOpenCheques,
   t,
 }) {
   const tiles = buildFloorTiles({ venueTables, openCheques, currentChequeId, floorByLabel });
   const hasAssigned = venueTables.length > 0;
+  const activeTabs = parentOpenCheques(openCheques);
+
+  useEffect(() => {
+    onRefreshOpenCheques?.();
+  }, [onRefreshOpenCheques]);
 
   async function handlePick(tile) {
     if (tile.status === 'current') {
@@ -59,19 +83,40 @@ export function TableFloorModal({
 
   async function handleDelete(tile, event) {
     event.stopPropagation();
-    if (!tile.cheque) return;
-    const result = await onDeleteCheque(tile.cheque);
-    if (result?.ok !== false && tile.cheque.id === currentChequeId) onClose();
+    const chequeForTile =
+      tile.cheque?.id === currentChequeId && currentCheque ? currentCheque : tile.cheque;
+    if (!chequeForTile) return;
+    const result = await onDeleteCheque(chequeForTile);
+    if (result?.ok !== false && chequeForTile.id === currentChequeId) onClose();
+  }
+
+  async function handleSelectActive(tab) {
+    if (tab.id === currentChequeId) {
+      onClose();
+      return;
+    }
+    const result = await onSelectTable(tab.tableLabel, tab);
+    if (result?.ok !== false) onClose();
+  }
+
+  async function handleDeleteActive(tab, event) {
+    event.stopPropagation();
+    const chequeForTab = tab.id === currentChequeId && currentCheque ? currentCheque : tab;
+    const result = await onDeleteCheque(chequeForTab);
+    if (result?.ok !== false && chequeForTab.id === currentChequeId) onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+    <OverlayPortal
+      layer="stacked"
+      className="fixed inset-0 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center"
+    >
+      <div className="flex max-h-[96vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-slate-900">{t('pos.floorTitle')}</h3>
-              <p className="mt-0.5 text-sm text-secondary">
+              <h3 className="text-2xl font-semibold text-slate-900">{t('pos.floorTitle')}</h3>
+              <p className="mt-1 text-base text-secondary">
                 {hasAssigned ? t('pos.floorSubtitleAssigned') : t('pos.floorSubtitleOpenOnly')}
               </p>
             </div>
@@ -93,11 +138,62 @@ export function TableFloorModal({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {activeTabs.length > 0 ? (
+            <div className="mb-5 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                {t('pos.activeTablesTitle', { count: activeTabs.length })}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activeTabs.map((tab) => {
+                  const isCurrent = tab.id === currentChequeId;
+                  const chequeForTab =
+                    isCurrent && currentCheque ? currentCheque : tab;
+                  const deletable = canDeleteCheque(chequeForTab);
+                  return (
+                    <div key={tab.id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectActive(tab)}
+                        className={`rounded-xl border px-3 py-2 text-start text-sm transition ${
+                          isCurrent
+                            ? 'border-primary-to bg-blue-50 text-slate-900 ring-2 ring-primary-to/30'
+                            : 'border-amber-300 bg-white text-slate-800 hover:border-primary-to/40'
+                        }`}
+                      >
+                        <span className="font-semibold">{tab.tableLabel}</span>
+                        <span className="mt-0.5 block text-xs text-secondary">
+                          #{tab.chequeNumber} · {displayChequeTotal(chequeForTab).toFixed(0)}{' '}
+                          {t('pos.currency')}
+                          {hasOpenSplitChildren(chequeForTab) ? ` · ${t('pos.splitSettleTitle')}` : ''}
+                        </span>
+                      </button>
+                      {deletable ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteActive(tab, e)}
+                          className="absolute end-1 top-1 rounded-lg bg-white/95 p-1 text-slate-400 shadow-sm ring-1 ring-slate-200 hover:bg-red-50 hover:text-red-600"
+                          title={t('pos.deleteTable')}
+                          aria-label={t('pos.deleteTable')}
+                        >
+                          <CloseXIcon className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {tiles.length > 0 ? (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {tiles.map((tile) => {
-                const deletable = tile.cheque && canDeleteCheque(tile.cheque);
+                const chequeForTile =
+                  tile.cheque?.id === currentChequeId && currentCheque
+                    ? currentCheque
+                    : tile.cheque;
+                const deletable = chequeForTile && canDeleteCheque(chequeForTile);
                 const statusClass =
                   tile.status === 'current'
                     ? 'border-primary-to bg-blue-50 ring-2 ring-primary-to/30'
@@ -106,16 +202,16 @@ export function TableFloorModal({
                       : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50';
 
                 return (
-                  <div key={tile.label} className="relative">
+                  <div key={tile.key} className="relative">
                     <button
                       type="button"
                       onClick={() => handlePick(tile)}
-                      className={`flex min-h-[5.5rem] w-full flex-col justify-between rounded-xl border p-3 text-start transition ${statusClass}`}
+                      className={`flex min-h-[7.5rem] w-full flex-col justify-between rounded-2xl border p-4 text-start transition ${statusClass}`}
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="text-lg font-bold text-slate-900">{tile.label}</span>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-2xl font-bold text-slate-900">{tile.label}</span>
                         <span
-                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                          className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase ${
                             tile.status === 'free'
                               ? 'bg-emerald-100 text-emerald-800'
                               : tile.status === 'current'
@@ -130,22 +226,25 @@ export function TableFloorModal({
                               : t('pos.tableBusy')}
                         </span>
                       </div>
-                      {tile.cheque ? (
-                        <div className="mt-2 text-xs text-secondary">
+                      {chequeForTile ? (
+                        <div className="mt-3 text-sm text-secondary">
                           <p className="font-semibold text-primary-to">
-                            {tile.cheque.total.toFixed(0)} {t('pos.currency')}
+                            {displayChequeTotal(chequeForTile).toFixed(0)} {t('pos.currency')}
                           </p>
-                          <p>#{tile.cheque.chequeNumber}</p>
+                          <p>
+                            #{chequeForTile.chequeNumber}
+                            {hasOpenSplitChildren(chequeForTile) ? ` · ${t('pos.splitSettleTitle')}` : ''}
+                          </p>
                         </div>
                       ) : (
-                        <p className="mt-2 text-xs text-emerald-700">{t('pos.tableTapOpen')}</p>
+                        <p className="mt-3 text-sm text-emerald-700">{t('pos.tableTapOpen')}</p>
                       )}
                     </button>
                     {deletable ? (
                       <button
                         type="button"
                         onClick={(e) => handleDelete(tile, e)}
-                        className="absolute end-1 top-1 rounded-lg bg-white/90 p-1 text-slate-400 shadow-sm ring-1 ring-slate-200 hover:bg-red-50 hover:text-red-600"
+                        className="absolute end-2 top-2 rounded-xl bg-white/95 p-1.5 text-slate-400 shadow-sm ring-1 ring-slate-200 hover:bg-red-50 hover:text-red-600"
                         title={t('pos.deleteTable')}
                         aria-label={t('pos.deleteTable')}
                       >
@@ -164,6 +263,6 @@ export function TableFloorModal({
           )}
         </div>
       </div>
-    </div>
+    </OverlayPortal>
   );
 }

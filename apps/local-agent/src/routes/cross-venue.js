@@ -34,16 +34,18 @@ export function registerCrossVenueRoutes(app, routeCtx) {
     getPrinterConfig,
     autoReceiptPrint,
     isCoordinator,
-    coordinatorLanHost,
+    getCoordinatorLanHost,
     coordinatorFallback,
     getClusterState,
   } = routeCtx;
+
+  const coordinatorHost = () => getCoordinatorLanHost?.() ?? routeCtx.coordinatorLanHost ?? '';
 
   const canCoordinatorOffline = () => {
     const cluster = getClusterState?.() ?? {};
     return (
       !isCloudOnline() &&
-      (cluster.isLeader || isCoordinator || (coordinatorFallback && coordinatorLanHost))
+      (cluster.isLeader || isCoordinator || (coordinatorFallback && coordinatorHost()))
     );
   };
 
@@ -51,7 +53,7 @@ export function registerCrossVenueRoutes(app, routeCtx) {
     const cluster = getClusterState?.() ?? {};
     if (!isCloudOnline()) {
       if (cluster.isLeader || isCoordinator) return null;
-      if (cluster.leaderHost || (coordinatorFallback && coordinatorLanHost)) {
+      if (cluster.leaderHost || (coordinatorFallback && coordinatorHost())) {
         return proxyToCoordinator(routeCtx, path, options);
       }
     }

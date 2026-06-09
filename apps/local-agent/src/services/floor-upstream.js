@@ -54,11 +54,14 @@ export async function occupyFloorUpstream(ctx, { tableLabel, chequeId, venueId }
     });
   }
 
-  if (ctx.coordinatorFallback && ctx.coordinatorLanHost) {
-    return leaderFetch(ctx.coordinatorLanHost, '/v1/floor/tables/occupy', ctx, {
-      method: 'POST',
-      body: { tableLabel, chequeId, terminalId, venueId },
-    });
+  if (ctx.coordinatorFallback) {
+    const coordinatorHost = ctx.getCoordinatorLanHost?.() ?? ctx.coordinatorLanHost ?? '';
+    if (coordinatorHost) {
+      return leaderFetch(coordinatorHost, '/v1/floor/tables/occupy', ctx, {
+        method: 'POST',
+        body: { tableLabel, chequeId, terminalId, venueId },
+      });
+    }
   }
 
   return null;
@@ -97,11 +100,14 @@ export async function releaseFloorUpstream(ctx, { tableLabel, chequeId }) {
     });
   }
 
-  if (ctx.coordinatorFallback && ctx.coordinatorLanHost) {
-    return leaderFetch(ctx.coordinatorLanHost, '/v1/floor/tables/release', ctx, {
-      method: 'POST',
-      body: { tableLabel, chequeId },
-    });
+  if (ctx.coordinatorFallback) {
+    const coordinatorHost = ctx.getCoordinatorLanHost?.() ?? ctx.coordinatorLanHost ?? '';
+    if (coordinatorHost) {
+      return leaderFetch(coordinatorHost, '/v1/floor/tables/release', ctx, {
+        method: 'POST',
+        body: { tableLabel, chequeId },
+      });
+    }
   }
 
   return null;

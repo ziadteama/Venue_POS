@@ -48,7 +48,11 @@ export function TerminalsSection({ venueId }) {
     await patchTerminal(terminal, { isCoordinator: enabled });
   }
 
-  async function saveLanHost(terminal, host) {
+  async function saveAssignedLanHost(terminal, host) {
+    await patchTerminal(terminal, { assignedLanHost: host || null });
+  }
+
+  async function saveCoordinatorLanHost(terminal, host) {
     await patchTerminal(terminal, { coordinatorLanHost: host || null });
   }
 
@@ -58,64 +62,107 @@ export function TerminalsSection({ venueId }) {
     await patchTerminal(terminal, { name: trimmed });
   }
 
-  if (loading) return <p className="text-sm text-secondary">{t('common.loading')}</p>;
-
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-lg font-semibold">{t('terminals.title')}</h3>
-      <p className="mt-1 text-sm text-secondary">{t('terminals.subtitle')}</p>
-      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
-      <ul className="mt-4 divide-y divide-slate-100">
-        {terminals.map((terminal) => (
-          <li key={terminal.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
-            <div className="min-w-0 flex-1">
-              <input
-                type="text"
-                className="w-full max-w-xs rounded border px-2 py-1 font-medium"
-                placeholder={t('terminals.deviceNamePlaceholder')}
-                defaultValue={terminal.name ?? ''}
-                disabled={savingId === terminal.id}
-                onBlur={(e) => saveName(terminal, e.target.value)}
-              />
-              <p className="mt-1 text-secondary">
-                {terminal.venueNameEn}
-                {terminal.isCoordinator ? ` · ${t('terminals.coordinator')}` : ''}
-              </p>
-              {terminal.lastLanHost ? (
-                <p className="text-xs text-secondary">
-                  {t('terminals.reportedLan', {
-                    host: terminal.lastLanHost,
-                    port: terminal.lastLanPort ?? '—',
-                    mode: terminal.lastClusterMode ?? '—',
-                  })}
-                </p>
-              ) : null}
-            </div>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={terminal.isCoordinator}
-                disabled={savingId === terminal.id}
-                onChange={(e) => setCoordinator(terminal, e.target.checked)}
-              />
-              <span>{t('terminals.markCoordinator')}</span>
-            </label>
-            <input
-              type="text"
-              className="w-40 rounded border px-2 py-1 text-xs"
-              placeholder={t('terminals.lanHostPlaceholder')}
-              defaultValue={terminal.coordinatorLanHost ?? ''}
-              disabled={savingId === terminal.id}
-              onBlur={(e) => {
-                if (e.target.value !== (terminal.coordinatorLanHost ?? '')) {
-                  saveLanHost(terminal, e.target.value.trim());
-                }
-              }}
-            />
-          </li>
-        ))}
-      </ul>
-      {!terminals.length ? <p className="mt-3 text-sm text-secondary">{t('terminals.empty')}</p> : null}
+    <section className="surface-card overflow-hidden">
+      <div className="border-b border-slate-100 px-6 py-4">
+        <h3 className="text-sm font-semibold text-slate-900">{t('terminals.title')}</h3>
+        <p className="mt-0.5 text-xs text-slate-500">{t('terminals.subtitle')}</p>
+      </div>
+      <div className="px-6 py-5">
+        {error ? (
+          <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-medium text-red-700">
+            {error}
+          </p>
+        ) : null}
+        {loading ? (
+          <p className="text-sm text-slate-500">{t('common.loading')}</p>
+        ) : (
+          <>
+            <ul className="divide-y divide-slate-100">
+              {terminals.map((terminal) => (
+                <li key={terminal.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-start">
+                  <div className="min-w-0">
+                    <input
+                      type="text"
+                      className="premium-input max-w-xs py-1.5 font-medium"
+                      placeholder={t('terminals.deviceNamePlaceholder')}
+                      defaultValue={terminal.name ?? ''}
+                      disabled={savingId === terminal.id}
+                      onBlur={(e) => saveName(terminal, e.target.value)}
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      {terminal.venueNameEn}
+                      {terminal.isCoordinator ? ` · ${t('terminals.coordinator')}` : ''}
+                    </p>
+                    {terminal.lastLanHost ? (
+                      <p className="mt-1 text-xs text-slate-400">
+                        {t('terminals.reportedLan', {
+                          host: terminal.lastLanHost,
+                          port: terminal.lastLanPort ?? '—',
+                          mode: terminal.lastClusterMode ?? '—',
+                        })}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-slate-400">{t('terminals.notReportedYet')}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-slate-600">
+                      {t('terminals.assignedLanLabel')}
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        className="premium-input mt-1 w-full py-1.5 text-xs"
+                        placeholder={t('terminals.assignedLanPlaceholder')}
+                        defaultValue={terminal.assignedLanHost ?? ''}
+                        disabled={savingId === terminal.id}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim();
+                          if (next !== (terminal.assignedLanHost ?? '')) {
+                            saveAssignedLanHost(terminal, next);
+                          }
+                        }}
+                      />
+                    </label>
+                    {terminal.isCoordinator ? (
+                      <label className="block text-xs font-medium text-slate-600">
+                        {t('terminals.coordinatorLanLabel')}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="premium-input mt-1 w-full py-1.5 text-xs"
+                          placeholder={t('terminals.coordinatorLanPlaceholder')}
+                          defaultValue={terminal.coordinatorLanHost ?? ''}
+                          disabled={savingId === terminal.id}
+                          onBlur={(e) => {
+                            const next = e.target.value.trim();
+                            if (next !== (terminal.coordinatorLanHost ?? '')) {
+                              saveCoordinatorLanHost(terminal, next);
+                            }
+                          }}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+
+                  <label className="flex items-center gap-2 self-start pt-1 text-sm text-slate-700 sm:justify-end">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500/30"
+                      checked={terminal.isCoordinator}
+                      disabled={savingId === terminal.id}
+                      onChange={(e) => setCoordinator(terminal, e.target.checked)}
+                    />
+                    <span>{t('terminals.markCoordinator')}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            {!terminals.length ? <p className="text-sm text-slate-500">{t('terminals.empty')}</p> : null}
+          </>
+        )}
+      </div>
     </section>
   );
 }

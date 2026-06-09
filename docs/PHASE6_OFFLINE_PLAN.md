@@ -105,7 +105,9 @@ flowchart TB
 
 v1: **static coordinator** — no leader election. Optional manual backup IP later.
 
-**v1.1 (implemented): dynamic cluster** — agents gossip on LAN (`AGENT_PEERS` + optional mDNS), relay through any peer with WAN, deterministic leader election when all WAN down. Open cheques are **pre-hydrated** into local SQLite every 30s while online so mid-service drops do not lose in-progress tables.
+**v1.1 (implemented): dynamic cluster** — agents gossip on LAN (`AGENT_PEERS` + optional mDNS), relay through any peer with WAN, deterministic leader election when all WAN down. Open cheques are **pre-hydrated** into local SQLite every 90s while online so mid-service drops do not lose in-progress tables.
+
+**v1.2 (2026-06-10):** Reduced polling (POS status 15–25s, floor WS-only when online); failed-sync review modal; sync drain progress; `ORDER_VOID` offline replay. See `docs/TEAM_LOG.md` § 2026-06-10 Phase 6 completion pass.
 
 | Setting | Where | Purpose |
 |---------|--------|---------|
