@@ -27,6 +27,7 @@ export function PosModals({
   shift,
   shiftSession,
   tableSession,
+  floorByLabel,
   modals,
   onAddItemWithModifiers,
 }) {
@@ -114,6 +115,7 @@ export function PosModals({
           openCheques={openCheques}
           currentChequeId={cheque?.id}
           currentTable={tableLabel}
+          floorByLabel={floorByLabel}
           t={t}
           onClose={() => setShowTableModal(false)}
           onSelectTable={handleSelectTable}

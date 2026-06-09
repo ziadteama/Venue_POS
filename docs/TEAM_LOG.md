@@ -1257,6 +1257,13 @@ sequenceDiagram
 **Verify:** Cross-sell → Send → Pay → reprint shows `1x …` lines per venue + `GRAND TOTAL`. Read PRD US-4.3 and TEAM_LOG § Roadmap.
 **Notes:** **Phase 4 signed off.** Remaining gaps are loose ends (offline, voucher, target POS refresh) — not blockers.
 
+### 2026-06-09 — Phase 6 kickoff: offline sync foundation + Slice B–D start
+**Phase:** 6 · **Stories:** US-7.1–7.5
+**What:** Branch `feature/phase6-offline-sync` — shared `SYNC_EVENT_TYPES` + `DUPLICATE_SYNC_ID`; Prisma `sync_events`, `floor_tables`, terminal coordinator fields; API sync batch + floor routes; local-agent cloud health probe, 5s worker, heartbeat, offline cheque SQLite + queue replay; POS offline/coordinator banners; dashboard LAN coordinator UI; coordinator floor locks + cross-venue group buffer stub.
+**Files:** `packages/shared/src/sync.js`, `apps/api/prisma/migrations/20260609120000_phase6_offline_sync`, `sync-idempotency.js`, `floor-table-service.js`, `routes/sync.js`, `routes/floor.js`, `routes/manager-terminals.js`, `apps/local-agent/src/services/{cloud-health,local-cheques,sync-processor}.js`, `apps/pos/src/hooks/useAgentStatus.js`, `TerminalsSection.jsx`, i18n
+**Verify:** `npm run migrate` · stop API → open table, add items, cash pay on POS → start API → queue drains · `npm run test -w @venue-pos/api` (includes `sync-idempotency.test.js`)
+**Notes:** Cross-sell offline (Slice C) returns 403 when hub down unless coordinator buffer populated; set `COORDINATOR_*` env on agents.
+
 ### 2026-06-08 — Phase 6 plan: LAN coordinator POS (no peer mesh)
 **Phase:** 6 · **Docs**
 **What:** Documented offline architecture: designated POS `local-agent` as **LAN coordinator** (star failover when cloud down); phased slices for floor locks, standard sync, cross-sell offline; explicit rejection of agent peer mesh.

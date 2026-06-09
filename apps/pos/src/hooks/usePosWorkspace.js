@@ -11,6 +11,8 @@ import { usePosMenu } from './usePosMenu.js';
 import { usePosModals } from './usePosModals.js';
 import { usePrinterHealth } from './usePrinterHealth.js';
 import { useShiftSession } from './useShiftSession.js';
+import { useAgentStatus } from './useAgentStatus.js';
+import { useFloorTables } from './useFloorTables.js';
 
 /**
  * Composes POS session hooks, cross-sell menu wiring, and action handlers.
@@ -24,9 +26,14 @@ export function usePosWorkspace(cashier) {
 
   const orderLookup = useOrderLookup();
   const printerOk = usePrinterHealth();
+  const agentStatus = useAgentStatus();
   const { features, loading: featuresLoading } = useFeatures();
   const homeVenueId = features.anchorVenue?.id ?? null;
-  const crossSell = useCrossSell(features, homeVenueId);
+  const crossSell = useCrossSell(features, homeVenueId, { online: agentStatus.online });
+  const { floorByLabel } = useFloorTables({
+    enabled: agentStatus.online,
+    online: agentStatus.online,
+  });
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket(features.kdsEnabled);
   const { menu, loading, activeCategoryId, setActiveCategoryId, search, setSearch, displayItems } =
     usePosMenu();
@@ -244,6 +251,8 @@ export function usePosWorkspace(cashier) {
     logoutBlocked,
     setShowTableModal,
     openActionsSheet,
+    agentStatus,
+    floorByLabel,
   };
 }
 

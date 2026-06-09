@@ -1,4 +1,15 @@
+import { randomUUID } from 'node:crypto';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { apiFetch, sendApiError } from '../services/api-fetch.js';
+import { enqueueSync } from '../services/sync-processor.js';
+import { isCloudOnline } from '../services/cloud-health.js';
+import {
+  openLocalCheque,
+  listLocalOpenCheques,
+  getLocalChequeById,
+  fireLocalCheque,
+  payLocalCheque,
+} from '../services/local-cheques.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
 
 function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receiptPrinterPort, log }) {
@@ -12,11 +23,16 @@ function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receipt
 
 export function registerChequeRoutes(
   app,
-  { apiUrl, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint },
+  { db, apiUrl, venueId, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint },
 ) {
-  app.get('/v1/cheques/open', async () =>
-    apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open'),
-  );
+  app.get('/v1/cheques/open', async () => {
+    try {
+      return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open');
+    } catch (err) {
+      if (isCloudOnline()) throw err;
+      return listLocalOpenCheques(db, venueId);
+    }
+  });
 
   app.get('/v1/cheques/paid', async (request) => {
     const limit = request.query?.limit ?? 30;
@@ -31,15 +47,41 @@ export function registerChequeRoutes(
   app.post('/v1/cheques/open', async (request, reply) => {
     const { cashierId, tableLabel } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
-    return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
-      method: 'POST',
-      body: JSON.stringify({ cashierId, tableLabel }),
-    });
+
+    const syncId = randomUUID();
+    try {
+      return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
+        method: 'POST',
+        body: JSON.stringify({ cashierId, tableLabel, syncId }),
+      });
+    } catch (err) {
+      const cheque = openLocalCheque(db, {
+        id: syncId,
+        venueId,
+        terminalId,
+        cashierId,
+        tableLabel,
+      });
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.CHEQUE_OPEN,
+        { chequeId: cheque.id, cashierId, tableLabel },
+        syncId,
+      );
+      app.log.warn({ err }, 'Cheque opened locally; server sync deferred');
+      return cheque;
+    }
   });
 
-  app.get('/v1/cheques/:id', async (request) =>
-    apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`),
-  );
+  app.get('/v1/cheques/:id', async (request) => {
+    try {
+      return await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`);
+    } catch (err) {
+      const local = getLocalChequeById(db, request.params.id);
+      if (local) return local;
+      throw err;
+    }
+  });
 
   app.delete('/v1/cheques/:id', async (request) =>
     apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`, {
@@ -48,20 +90,44 @@ export function registerChequeRoutes(
   );
 
   app.post('/v1/cheques/:id/fire', async (request) => {
-    const result = await apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/fire`,
-      { method: 'POST' },
-    );
-    const printers = getPrinterConfig();
-    printKitchenTicket(result.sentOrder, {
-      host: printers.kitchenPrinterHost,
-      port: printers.kitchenPrinterPort,
-      log: app.log,
-    }).catch((err) => app.log.warn({ err }, 'Kitchen print failed'));
-    return result;
+    const syncId = randomUUID();
+    try {
+      const result = await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/fire`,
+        { method: 'POST', body: JSON.stringify({ syncId }) },
+      );
+      const printers = getPrinterConfig();
+      const sent = result.sentOrder ?? result.sentOrders?.[0];
+      if (sent) {
+        printKitchenTicket(sent, {
+          host: printers.kitchenPrinterHost,
+          port: printers.kitchenPrinterPort,
+          log: app.log,
+        }).catch((err) => app.log.warn({ err }, 'Kitchen print failed'));
+      }
+      return result;
+    } catch (err) {
+      const result = fireLocalCheque(db, request.params.id);
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.CHEQUE_FIRE,
+        { chequeId: request.params.id },
+        syncId,
+      );
+      const printers = getPrinterConfig();
+      if (result.sentOrder) {
+        printKitchenTicket(result.sentOrder, {
+          host: printers.kitchenPrinterHost,
+          port: printers.kitchenPrinterPort,
+          log: app.log,
+        }).catch((e) => app.log.warn({ e }, 'Kitchen print failed'));
+      }
+      app.log.warn({ err }, 'Cheque fire stored locally');
+      return result;
+    }
   });
 
   app.post('/v1/cheques/:id/clear', async (request) =>
@@ -70,14 +136,20 @@ export function registerChequeRoutes(
     }),
   );
 
-  app.get('/v1/cheques/:id/receipt', async (request) =>
-    apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/receipt`,
-    ),
-  );
+  app.get('/v1/cheques/:id/receipt', async (request) => {
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/receipt`,
+      );
+    } catch {
+      const cheque = getLocalChequeById(db, request.params.id);
+      if (!cheque) throw new Error('Cheque not found');
+      return { text: `OFFLINE\nTable ${cheque.tableLabel}\nTotal ${cheque.total}` };
+    }
+  });
 
   app.post('/v1/cheques/:id/split-amount', async (request, reply) => {
     const { splits } = request.body ?? {};
@@ -119,6 +191,8 @@ export function registerChequeRoutes(
   app.post('/v1/cheques/:id/pay', async (request, reply) => {
     const { cashierId, payments, method, amount, tendered, managerPin } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const syncId = randomUUID();
+    const payBody = { cashierId, payments, method, amount, tendered, managerPin };
     try {
       const result = await apiFetch(
         apiUrl,
@@ -127,7 +201,7 @@ export function registerChequeRoutes(
         `/api/v1/cheques/${request.params.id}/pay`,
         {
           method: 'POST',
-          body: JSON.stringify({ cashierId, payments, method, amount, tendered, managerPin }),
+          body: JSON.stringify({ ...payBody, syncId }),
         },
       );
       const printers = getPrinterConfig();
@@ -139,7 +213,26 @@ export function registerChequeRoutes(
       });
       return result;
     } catch (err) {
-      return sendApiError(reply, err);
+      try {
+        const result = payLocalCheque(db, request.params.id, { payments, method, amount });
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_PAY,
+          { chequeId: request.params.id, payBody },
+          syncId,
+        );
+        const printers = getPrinterConfig();
+        maybePrintReceipt(result.receipt, {
+          autoReceiptPrint,
+          receiptPrinterHost: printers.receiptPrinterHost,
+          receiptPrinterPort: printers.receiptPrinterPort,
+          log: app.log,
+        });
+        app.log.warn({ err }, 'Cheque payment stored locally');
+        return result;
+      } catch (localErr) {
+        return sendApiError(reply, localErr.statusCode ? localErr : err);
+      }
     }
   });
 

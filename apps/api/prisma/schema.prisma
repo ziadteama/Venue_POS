@@ -121,6 +121,7 @@ model Venue {
   auditLogs        AuditLog[]
   billingAsAnchor  VenueBillingConfig[]     @relation("BillingAnchor")
   billingAsTarget  VenueBillingConfig[]     @relation("BillingTarget")
+  floorTables      FloorTable[]
 
   @@map("venues")
 }
@@ -186,23 +187,56 @@ model User {
 }
 
 model Terminal {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  venueId        String    @map("venue_id") @db.Uuid
-  name           String?   @db.VarChar(100)
-  secretHash     String    @map("secret_hash") @db.VarChar(255)
-  isActive       Boolean   @default(true) @map("is_active")
-  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz(6)
-  syncQueueDepth Int       @default(0) @map("sync_queue_depth")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId            String    @map("venue_id") @db.Uuid
+  name               String?   @db.VarChar(100)
+  secretHash         String    @map("secret_hash") @db.VarChar(255)
+  isActive           Boolean   @default(true) @map("is_active")
+  isCoordinator      Boolean   @default(false) @map("is_coordinator")
+  coordinatorLanHost String?   @map("coordinator_lan_host") @db.VarChar(255)
+  lastSeenAt         DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  syncQueueDepth     Int       @default(0) @map("sync_queue_depth")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue   Venue    @relation(fields: [venueId], references: [id])
-  orders  Order[]
-  cheques Cheque[]
-  shifts  Shift[]
+  venue      Venue       @relation(fields: [venueId], references: [id])
+  orders     Order[]
+  cheques    Cheque[]
+  shifts     Shift[]
+  syncEvents SyncEvent[]
 
   @@index([venueId], map: "idx_terminals_venue")
   @@map("terminals")
+}
+
+/// Idempotent client sync deduplication (offline replay).
+model SyncEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  syncId      String   @unique @map("sync_id") @db.Uuid
+  terminalId  String   @map("terminal_id") @db.Uuid
+  eventType   String   @map("event_type") @db.VarChar(100)
+  resultJson  Json?    @map("result_json") @db.JsonB
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  terminal Terminal @relation(fields: [terminalId], references: [id], onDelete: Cascade)
+
+  @@index([terminalId], map: "idx_sync_events_terminal")
+  @@map("sync_events")
+}
+
+/// Hub-wide physical table occupancy (WAN up — Slice D).
+model FloorTable {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tableLabel         String   @unique @map("table_label") @db.VarChar(50)
+  venueId            String?  @map("venue_id") @db.Uuid
+  occupiedByChequeId String?  @map("occupied_by_cheque_id") @db.Uuid
+  lockedByTerminalId String?  @map("locked_by_terminal_id") @db.Uuid
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  venue Venue? @relation(fields: [venueId], references: [id], onDelete: SetNull)
+
+  @@index([venueId], map: "idx_floor_tables_venue")
+  @@map("floor_tables")
 }
 
 model MenuTemplate {

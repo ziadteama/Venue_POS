@@ -50,6 +50,7 @@ export function PosWorkspace({ cashier, onLogout }) {
           selectOpenCheque: ws.selectOpenCheque,
           deleteTable: ws.deleteTable,
         }}
+        floorByLabel={ws.floorByLabel}
         modals={ws.modals}
         onAddItemWithModifiers={ws.handleAddItemWithModifiers}
       />
@@ -78,6 +79,23 @@ export function PosWorkspace({ cashier, onLogout }) {
           >
             {ws.t('pos.shiftOpenConfirm')}
           </button>
+        </div>
+      ) : null}
+
+      {!ws.agentStatus.online ? (
+        <div className="shrink-0 border-b border-amber-300 bg-amber-100 px-5 py-2 text-center text-sm font-medium text-amber-900">
+          {ws.agentStatus.isCoordinator
+            ? ws.t('pos.offlineCoordinator')
+            : ws.t('pos.offline')}
+          {ws.agentStatus.syncQueueDepth > 0
+            ? ` · ${ws.t('pos.syncQueueDepth', { count: ws.agentStatus.syncQueueDepth })}`
+            : null}
+        </div>
+      ) : null}
+
+      {ws.crossSell.offlineBlocked ? (
+        <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-5 py-2 text-center text-sm text-slate-700">
+          {ws.t('pos.crossVenueOffline')}
         </div>
       ) : null}
 
@@ -151,8 +169,13 @@ export function PosWorkspace({ cashier, onLogout }) {
 
       <footer className="flex shrink-0 items-center justify-between border-t border-slate-200 bg-white px-5 py-2 text-xs text-secondary">
         <span className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-primary-to" />
-          {ws.t('pos.online')}
+          <span
+            className={`h-2 w-2 rounded-full ${ws.agentStatus.online ? 'bg-primary-to' : 'bg-amber-500'}`}
+          />
+          {ws.agentStatus.online ? ws.t('pos.online') : ws.t('pos.offline')}
+          {ws.agentStatus.syncQueueDepth > 0
+            ? ` (${ws.agentStatus.syncQueueDepth})`
+            : null}
         </span>
         <span>{ws.timeLabel}</span>
       </footer>

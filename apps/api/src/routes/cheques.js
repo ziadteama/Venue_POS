@@ -23,6 +23,9 @@ import {
   removeAppliedChequeDiscount,
 } from '../services/manager-action-service.js';
 import { emitManagerAction } from '../plugins/socket.js';
+import { withSyncIdempotency } from '../services/sync-idempotency.js';
+import { occupyFloorTable, releaseFloorTable } from '../services/floor-table-service.js';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 
 const splitAmountSchema = z.object({
   splits: z
@@ -60,6 +63,7 @@ const splitChequeSchema = z.object({
 const openChequeSchema = z.object({
   cashierId: z.string().uuid(),
   tableLabel: z.string().min(1).max(50),
+  syncId: z.string().uuid().optional(),
 });
 
 const paymentLineSchema = z.object({
@@ -78,6 +82,7 @@ const payChequeSchema = z.object({
   amount: z.number().positive().optional(),
   tendered: z.number().positive().optional(),
   managerPin: z.string().min(4).max(6).optional(),
+  syncId: z.string().uuid().optional(),
 });
 
 const discountSchema = z.object({
@@ -132,12 +137,30 @@ export async function chequeRoutes(app) {
     const parsed = openChequeSchema.safeParse(request.body);
     if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
-    return openOrResumeCheque({
-      venueId: request.terminal.venueId,
-      terminalId: request.terminal.id,
-      cashierId: parsed.data.cashierId,
+    const result = await withSyncIdempotency(
+      {
+        syncId: parsed.data.syncId,
+        terminalId: request.terminal.id,
+        eventType: SYNC_EVENT_TYPES.CHEQUE_OPEN,
+      },
+      async () =>
+        openOrResumeCheque({
+          venueId: request.terminal.venueId,
+          terminalId: request.terminal.id,
+          cashierId: parsed.data.cashierId,
+          tableLabel: parsed.data.tableLabel,
+        }),
+    );
+
+    await occupyFloorTable({
       tableLabel: parsed.data.tableLabel,
+      venueId: request.terminal.venueId,
+      chequeId: result.id,
+      terminalId: request.terminal.id,
+      io: request.server.io,
     });
+
+    return result;
   });
 
   app.post(
@@ -170,11 +193,29 @@ export async function chequeRoutes(app) {
       const parsed = payChequeSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
-      return payCheque(
-        request.params.id,
-        { ...parsed.data, terminalId: request.terminal.id },
-        request.terminal.venueId,
+      const result = await withSyncIdempotency(
+        {
+          syncId: parsed.data.syncId,
+          terminalId: request.terminal.id,
+          eventType: SYNC_EVENT_TYPES.CHEQUE_PAY,
+        },
+        async () =>
+          payCheque(
+            request.params.id,
+            { ...parsed.data, terminalId: request.terminal.id },
+            request.terminal.venueId,
+          ),
       );
+
+      if (result?.cheque?.tableLabel) {
+        await releaseFloorTable({
+          tableLabel: result.cheque.tableLabel,
+          chequeId: request.params.id,
+          io: request.server.io,
+        });
+      }
+
+      return result;
     },
   );
 

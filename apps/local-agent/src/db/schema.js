@@ -18,9 +18,28 @@ export function initSchema(db) {
       menu_json TEXT NOT NULL,
       synced_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS cheques (
+      id TEXT PRIMARY KEY,
+      server_id TEXT,
+      venue_id TEXT NOT NULL,
+      cashier_id TEXT NOT NULL,
+      terminal_id TEXT,
+      table_label TEXT NOT NULL,
+      cheque_number INTEGER,
+      status TEXT NOT NULL DEFAULT 'open',
+      discount_amount REAL NOT NULL DEFAULT 0,
+      tax_amount REAL NOT NULL DEFAULT 0,
+      service_amount REAL NOT NULL DEFAULT 0,
+      total REAL NOT NULL DEFAULT 0,
+      opened_at TEXT NOT NULL,
+      closed_at TEXT,
+      synced_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       server_id TEXT,
+      cheque_id TEXT,
       venue_id TEXT NOT NULL,
       cashier_id TEXT NOT NULL,
       terminal_id TEXT,
@@ -29,6 +48,21 @@ export function initSchema(db) {
       status TEXT NOT NULL DEFAULT 'draft',
       opened_at TEXT NOT NULL,
       synced_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS floor_locks (
+      table_label TEXT PRIMARY KEY,
+      cheque_id TEXT,
+      terminal_id TEXT,
+      venue_id TEXT,
+      locked_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS cross_venue_groups (
+      id TEXT PRIMARY KEY,
+      anchor_cheque_id TEXT NOT NULL,
+      anchor_venue_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      group_json TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
     CREATE TABLE IF NOT EXISTS order_items (
@@ -44,4 +78,10 @@ export function initSchema(db) {
       FOREIGN KEY (order_id) REFERENCES orders(id)
     );
   `);
+
+  try {
+    db.exec(`ALTER TABLE orders ADD COLUMN cheque_id TEXT`);
+  } catch {
+    /* column exists */
+  }
 }

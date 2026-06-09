@@ -6,7 +6,7 @@ function tableStatus({ openCheque, currentChequeId }) {
   return 'occupied';
 }
 
-export function buildFloorTiles({ venueTables, openCheques, currentChequeId }) {
+export function buildFloorTiles({ venueTables, openCheques, currentChequeId, floorByLabel }) {
   const openByLabel = new Map();
   for (const tab of parentOpenCheques(openCheques)) {
     openByLabel.set(tab.tableLabel, tab);
@@ -15,14 +15,20 @@ export function buildFloorTiles({ venueTables, openCheques, currentChequeId }) {
   const labels =
     venueTables.length > 0
       ? venueTables
-      : [...openByLabel.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      : [...new Set([...openByLabel.keys(), ...(floorByLabel?.keys() ?? [])])].sort((a, b) =>
+          a.localeCompare(b, undefined, { numeric: true }),
+        );
 
   return labels.map((label) => {
     const cheque = openByLabel.get(label) ?? null;
+    const floor = floorByLabel?.get(label);
+    const occupiedElsewhere = Boolean(floor?.isOccupied && floor?.occupiedByChequeId !== cheque?.id);
+    let status = tableStatus({ label, openCheque: cheque, currentChequeId });
+    if (occupiedElsewhere && status === 'free') status = 'occupied';
     return {
       label,
       cheque,
-      status: tableStatus({ label, openCheque: cheque, currentChequeId }),
+      status,
     };
   });
 }
@@ -32,12 +38,13 @@ export function TableFloorModal({
   openCheques,
   currentChequeId,
   currentTable,
+  floorByLabel,
   onClose,
   onSelectTable,
   onDeleteCheque,
   t,
 }) {
-  const tiles = buildFloorTiles({ venueTables, openCheques, currentChequeId });
+  const tiles = buildFloorTiles({ venueTables, openCheques, currentChequeId, floorByLabel });
   const hasAssigned = venueTables.length > 0;
 
   async function handlePick(tile) {

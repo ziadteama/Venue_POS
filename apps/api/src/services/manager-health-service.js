@@ -61,6 +61,8 @@ export async function getSystemHealth(venueId, io) {
       venueNameAr: t.venue.nameAr,
       lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
       syncQueueDepth: t.syncQueueDepth ?? 0,
+      isCoordinator: t.isCoordinator,
+      coordinatorLanHost: t.coordinatorLanHost,
       online,
       offlineMinutes:
         lastSeenMs != null ? Math.max(0, Math.floor((now - lastSeenMs) / 60000)) : null,

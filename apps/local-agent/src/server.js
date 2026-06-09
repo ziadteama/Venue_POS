@@ -9,6 +9,7 @@ import { registerCrossVenueRoutes } from './routes/cross-venue.js';
 import { registerShiftRoutes } from './routes/shifts.js';
 import { registerFeatureRoutes } from './routes/features.js';
 import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
+import { registerFloorRoutes } from './routes/floor.js';
 
 export async function buildAgentServer({ db, config }) {
   const app = Fastify({ logger: { level: 'info' } });
@@ -22,6 +23,10 @@ export async function buildAgentServer({ db, config }) {
     corsOrigins,
     getPrinterConfig,
     autoReceiptPrint,
+    isCoordinator,
+    coordinatorMode,
+    coordinatorLanHost = '',
+    coordinatorFallback = false,
   } = config;
 
   await app.register(cors, {
@@ -38,9 +43,14 @@ export async function buildAgentServer({ db, config }) {
     terminalSecret,
     getPrinterConfig,
     autoReceiptPrint,
+    isCoordinator,
+    coordinatorMode,
+    coordinatorLanHost,
+    coordinatorFallback,
   };
 
   registerHealthRoutes(app, routeCtx);
+  registerFloorRoutes(app, routeCtx);
   registerMenuRoutes(app, routeCtx);
   registerSyncRoutes(app, routeCtx);
   registerOrderRoutes(app, routeCtx);

@@ -12,7 +12,7 @@ export function registerErrorHandler(app) {
       request.log.error({ err: error, requestId }, 'Unhandled error');
     }
 
-    reply.status(statusCode).send({
+    const body = {
       error: {
         code,
         message,
@@ -20,6 +20,10 @@ export function registerErrorHandler(app) {
         timestamp: new Date().toISOString(),
         request_id: requestId,
       },
-    });
+    };
+    if (code === ERROR_CODES.DUPLICATE_SYNC_ID && error.syncResult != null) {
+      body.result = error.syncResult;
+    }
+    reply.status(statusCode).send(body);
   });
 }

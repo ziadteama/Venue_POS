@@ -5,7 +5,7 @@ import { callAgent } from '../api/agent.js';
  * Cross-sell mode on the anchor POS: toggle + venue tabs + per-venue menu fetch.
  * Integrates into the main screen — no separate ordering session.
  */
-export function useCrossSell(features, homeVenueId) {
+export function useCrossSell(features, homeVenueId, { online = true } = {}) {
   const [crossSellMode, setCrossSellMode] = useState(false);
   const [activeVenueId, setActiveVenueId] = useState(homeVenueId ?? null);
   const [remoteMenus, setRemoteMenus] = useState({});
@@ -21,7 +21,8 @@ export function useCrossSell(features, homeVenueId) {
     return list;
   }, [features]);
 
-  const canCrossSell = Boolean(features?.crossVenueBilling && venues.length > 1);
+  const canCrossSell = Boolean(online && features?.crossVenueBilling && venues.length > 1);
+  const offlineBlocked = Boolean(!online && features?.crossVenueBilling && venues.length > 1);
 
   const loadMenuForVenue = useCallback(async (venueId) => {
     if (!venueId || venueId === homeVenueId) return null;
@@ -87,6 +88,7 @@ export function useCrossSell(features, homeVenueId) {
 
   return {
     canCrossSell,
+    offlineBlocked,
     crossSellMode,
     setCrossSellMode: setCrossSellModeSafe,
     lockCrossSell,

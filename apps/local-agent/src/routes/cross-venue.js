@@ -1,5 +1,17 @@
+import { ERROR_CODES } from '@venue-pos/shared';
 import { apiFetch, sendApiError } from '../services/api-fetch.js';
+import { isCloudOnline } from '../services/cloud-health.js';
+import { getCoordinatorGroup } from '../services/coordinator-cross-venue.js';
 import { printCustomerReceipt } from '../services/kitchen-printer.js';
+
+function offlineCrossSell(reply) {
+  return reply.status(403).send({
+    error: {
+      code: ERROR_CODES.OFFLINE_MODE,
+      message: 'Cross-sell requires hub connection or LAN coordinator (Slice C)',
+    },
+  });
+}
 
 /**
  * Cross-venue ordering is online-only: an anchor terminal builds one order
@@ -8,9 +20,16 @@ import { printCustomerReceipt } from '../services/kitchen-printer.js';
  */
 export function registerCrossVenueRoutes(
   app,
-  { apiUrl, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint },
+  { db, apiUrl, terminalId, terminalSecret, getPrinterConfig, autoReceiptPrint, isCoordinator },
 ) {
   app.get('/v1/cross-venue/cheques/:chequeId/group', async (request, reply) => {
+    if (!isCloudOnline() && isCoordinator) {
+      const row = db
+        .prepare(`SELECT id FROM cross_venue_groups WHERE anchor_cheque_id = ? LIMIT 1`)
+        .get(request.params.chequeId);
+      if (row) return getCoordinatorGroup(db, row.id);
+    }
+    if (!isCloudOnline()) return offlineCrossSell(reply);
     try {
       return await apiFetch(
         apiUrl,
