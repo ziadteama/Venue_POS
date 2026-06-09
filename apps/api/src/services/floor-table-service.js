@@ -37,16 +37,7 @@ export async function occupyFloorTable({
   });
 
   const payload = serializeFloorTable(row);
-  if (io) {
-    io.to('dashboard:hub').emit('floor:table_updated', {
-      event: 'floor:table_updated',
-      payload,
-    });
-    io.emit('floor:table_updated', {
-      event: 'floor:table_updated',
-      payload,
-    });
-  }
+  emitFloorTableUpdated(io, venueId, payload);
   return payload;
 }
 
@@ -69,17 +60,17 @@ export async function releaseFloorTable({ tableLabel, chequeId, io }) {
   });
 
   const payload = serializeFloorTable(row);
-  if (io) {
-    io.to('dashboard:hub').emit('floor:table_updated', {
-      event: 'floor:table_updated',
-      payload,
-    });
-    io.emit('floor:table_updated', {
-      event: 'floor:table_updated',
-      payload,
-    });
-  }
+  emitFloorTableUpdated(io, row.venueId, payload);
   return payload;
+}
+
+function emitFloorTableUpdated(io, venueId, payload) {
+  if (!io?.to) return;
+  const message = { event: 'floor:table_updated', payload };
+  io.to('dashboard:hub').emit('floor:table_updated', message);
+  if (venueId) {
+    io.to(`venue:${venueId}:pos`).emit('floor:table_updated', message);
+  }
 }
 
 function serializeFloorTable(row) {
