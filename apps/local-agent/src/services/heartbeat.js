@@ -4,10 +4,19 @@ export async function sendTerminalHeartbeat({
   apiUrl,
   terminalId,
   terminalSecret,
-  syncQueueDepth,
+  profile = {},
 }) {
   return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/terminals/heartbeat', {
     method: 'POST',
-    body: JSON.stringify({ syncQueueDepth }),
+    body: JSON.stringify(profile),
   });
+}
+
+export async function sendDeviceRegistration({
+  apiUrl,
+  terminalId,
+  terminalSecret,
+  profile,
+}) {
+  return sendTerminalHeartbeat({ apiUrl, terminalId, terminalSecret, profile });
 }

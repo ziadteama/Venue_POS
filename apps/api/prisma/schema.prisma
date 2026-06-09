@@ -196,6 +196,10 @@ model Terminal {
   coordinatorLanHost String?   @map("coordinator_lan_host") @db.VarChar(255)
   lastSeenAt         DateTime? @map("last_seen_at") @db.Timestamptz(6)
   syncQueueDepth     Int       @default(0) @map("sync_queue_depth")
+  lastLanHost        String?   @map("last_lan_host") @db.VarChar(255)
+  lastLanPort        Int?      @map("last_lan_port")
+  lastAgentPriority  Int?      @map("last_agent_priority")
+  lastClusterMode    String?   @map("last_cluster_mode") @db.VarChar(32)
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 

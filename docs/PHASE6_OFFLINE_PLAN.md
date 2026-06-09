@@ -105,6 +105,21 @@ flowchart TB
 
 v1: **static coordinator** — no leader election. Optional manual backup IP later.
 
+**v1.1 (implemented): dynamic cluster** — agents gossip on LAN (`AGENT_PEERS` + optional mDNS), relay through any peer with WAN, deterministic leader election when all WAN down. Open cheques are **pre-hydrated** into local SQLite every 30s while online so mid-service drops do not lose in-progress tables.
+
+| Setting | Where | Purpose |
+|---------|--------|---------|
+| `AGENT_LAN_SECRET` | All agents | Shared LAN auth for peer/relay routes |
+| `AGENT_PEERS` | All agents | Static fallback peer IPs (comma-separated) |
+| `AGENT_PRIORITY` | All agents | Leader election preference (higher wins) |
+| `AGENT_LAN_HOST` | Each agent | Advertised LAN IP for gossip (auto-detected if empty) |
+| `AGENT_LAN_PORT` | All agents | LAN HTTP port (default 3456) |
+| `AGENT_DEVICE_LABEL` | Each agent | Local till display name (hub `Terminal.name` used if empty) |
+
+**Device profile (v1.1):** On startup and each heartbeat while online, agents POST till label, LAN IP/port, priority, and cluster mode to `POST /api/v1/terminals/heartbeat`. Hub stores `lastLanHost`, `lastLanPort`, `lastClusterMode` for **Settings → Terminals**. Gossip includes `deviceLabel` so POS offline banners can name relay/lead peers.
+
+**Shift replay (v1.1):** Offline `SHIFT_OPEN` / `SHIFT_CLOSE` sync events replay to API with `syncId` idempotency; local shift rows link to server ids via `shift-cache.js`.
+
 ## Failure modes & ops rules
 
 | Event | Policy (v1) |

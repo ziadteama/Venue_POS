@@ -11,6 +11,7 @@ import {
 import { executeChequeDiscount } from '../services/cheque-discount.js';
 import { verifyManagerPin } from '../services/auth-service.js';
 import { payCrossVenueGroup } from '../services/cross-venue-service.js';
+import { openShift, closeShift } from '../services/shift-service.js';
 
 const eventSchema = z.object({
   syncId: z.string().uuid(),
@@ -80,6 +81,21 @@ async function processSyncEvent(request, { syncId, eventType, payload }) {
           payments: payload.payments,
           cashierId: payload.cashierId,
           terminalId,
+        });
+      case SYNC_EVENT_TYPES.SHIFT_OPEN:
+        return openShift({
+          cashierId: payload.cashierId,
+          openFloat: payload.openFloat,
+          terminalId,
+          venueId,
+        });
+      case SYNC_EVENT_TYPES.SHIFT_CLOSE:
+        return closeShift({
+          cashierId: payload.cashierId,
+          closeFloat: payload.closeFloat,
+          managerPin: payload.managerPin,
+          terminalId,
+          venueId,
         });
       default:
         throw validationError(`Unsupported sync event type: ${eventType}`);

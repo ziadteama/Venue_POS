@@ -277,23 +277,31 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
 | 4 Cross-venue billing | ✅ Closed | Cross-sell, split pay, group % discount, itemized receipt — US-4.1–4.3, US-8.6 — [TEAM_LOG.md](TEAM_LOG.md) |
 | 5 Dashboard (Epic 8) | ✅ Done | Epic 8 complete (US-8.6 shipped in Phase 4) — [TEAM_LOG.md](TEAM_LOG.md) |
-| 6 Offline sync | ✅ Done | SQLite replay, reconnect handshake, LAN coordinator — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
+| 6 Offline sync | ✅ v1.1 | Dynamic LAN cluster, cheque hydration, shift replay — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
 
 ## Phase 6 — offline sync & LAN coordinator
 
 See [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md). POS talks to `local-agent` only; agent caches menu, staff PINs, features, and replays `sync_queue` when cloud returns.
 
-### Coordinator env (`apps/local-agent/.env`)
+**v1.1:** Agents gossip on LAN (`AGENT_PEERS`), elect a relay when any peer still has WAN, or a lead till when all WAN is down. Open cheques are pre-hydrated while online. Each agent reports its till name, LAN IP, and cluster mode to the hub on startup and heartbeat.
+
+### Agent env (`apps/local-agent/.env`)
 
 | Variable | Purpose |
 |----------|---------|
 | `CLOUD_HEALTH_URL` | WAN probe (default API `/health`) |
+| `AGENT_LAN_HOST` | Advertised LAN IP (auto-detected if empty) |
+| `AGENT_LAN_PORT` | Peer gossip + relay port (default `3456`) |
+| `AGENT_LAN_SECRET` | Shared secret for LAN peer/relay routes |
+| `AGENT_PEERS` | Comma-separated static peer IPs for gossip |
+| `AGENT_PRIORITY` | Leader election priority (higher wins ties) |
+| `AGENT_DEVICE_LABEL` | Local till display name override (hub name used if empty) |
 | `COORDINATOR_TERMINAL_ID` | Hub-designated coordinator terminal UUID |
 | `COORDINATOR_LAN_HOST` | Fixed LAN IP/hostname of coordinator machine |
 | `COORDINATOR_FALLBACK_ENABLED` | `true` — route floor/coordination to coordinator when WAN down |
 | `IS_COORDINATOR` | `true` on the lead till running coordinator SQLite |
 
-Hub manager sets coordinator in **Settings → Terminals** (persists `isCoordinator` + `coordinatorLanHost`).
+Hub manager sets coordinator and till names in **Settings → Terminals** (persists `name`, `isCoordinator`, `coordinatorLanHost`; agents report `lastLanHost` / `lastClusterMode` via heartbeat).
 
 ### Windows service (coordinator till)
 

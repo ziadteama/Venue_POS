@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError } from '../utils/errors.js';
+import { withSyncIdempotency } from '../services/sync-idempotency.js';
 import {
   closeShift,
   countOpenChequesForCashier,
@@ -11,12 +13,14 @@ import {
 const openShiftSchema = z.object({
   cashierId: z.string().uuid(),
   openFloat: z.coerce.number().min(0),
+  syncId: z.string().uuid().optional(),
 });
 
 const closeShiftSchema = z.object({
   cashierId: z.string().uuid(),
   closeFloat: z.coerce.number().min(0),
   managerPin: z.string().min(4).max(6).optional(),
+  syncId: z.string().uuid().optional(),
 });
 
 export async function shiftRoutes(app) {
@@ -47,21 +51,36 @@ export async function shiftRoutes(app) {
   app.post('/api/v1/shifts/open', { preHandler: authenticateTerminal }, async (request) => {
     const parsed = openShiftSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error.message);
-    const shift = await openShift({
-      ...parsed.data,
-      terminalId: request.terminal.id,
-      venueId: request.terminal.venueId,
-    });
-    return shift;
+    return withSyncIdempotency(
+      {
+        syncId: parsed.data.syncId,
+        terminalId: request.terminal.id,
+        eventType: SYNC_EVENT_TYPES.SHIFT_OPEN,
+      },
+      async () =>
+        openShift({
+          ...parsed.data,
+          terminalId: request.terminal.id,
+          venueId: request.terminal.venueId,
+        }),
+    );
   });
 
   app.post('/api/v1/shifts/close', { preHandler: authenticateTerminal }, async (request) => {
     const parsed = closeShiftSchema.safeParse(request.body);
     if (!parsed.success) throw validationError(parsed.error.message);
-    return closeShift({
-      ...parsed.data,
-      terminalId: request.terminal.id,
-      venueId: request.terminal.venueId,
-    });
+    return withSyncIdempotency(
+      {
+        syncId: parsed.data.syncId,
+        terminalId: request.terminal.id,
+        eventType: SYNC_EVENT_TYPES.SHIFT_CLOSE,
+      },
+      async () =>
+        closeShift({
+          ...parsed.data,
+          terminalId: request.terminal.id,
+          venueId: request.terminal.venueId,
+        }),
+    );
   });
 }

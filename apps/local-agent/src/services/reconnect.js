@@ -2,6 +2,7 @@ import { apiFetch } from './api-fetch.js';
 import { syncMenuFromServer } from './menu-sync.js';
 import { saveStaffCache, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
 import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount } from './sync-processor.js';
+import { hydrateOpenCheques } from './cheque-hydration.js';
 
 export async function runReconnectHandshake({
   db,
@@ -27,6 +28,9 @@ export async function runReconnectHandshake({
 
   if (handshake.staff?.length) saveStaffCache(db, handshake.staff);
   if (handshake.features) saveFeaturesCache(db, venueId, handshake.features);
+  if (handshake.terminal?.name) {
+    setAgentMeta(db, 'hub_device_label', handshake.terminal.name);
+  }
 
   if (handshake.menuStale) {
     setAgentMeta(db, 'menu_stale', 'true');
@@ -48,6 +52,12 @@ export async function runReconnectHandshake({
   }
 
   setAgentMeta(db, 'last_sync_at', handshake.serverTime ?? new Date().toISOString());
+
+  try {
+    await hydrateOpenCheques({ db, apiUrl, venueId, terminalId, terminalSecret });
+  } catch (err) {
+    log?.warn?.({ err }, 'Cheque hydration after reconnect failed');
+  }
 
   return {
     menuStale: handshake.menuStale,

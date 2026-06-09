@@ -11,6 +11,7 @@ import { registerFeatureRoutes } from './routes/features.js';
 import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
 import { registerFloorRoutes } from './routes/floor.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerPeerRoutes, registerRelayRoutes } from './routes/peer.js';
 
 export async function buildAgentServer({ db, config }) {
   const app = Fastify({ logger: { level: 'info' } });
@@ -28,12 +29,18 @@ export async function buildAgentServer({ db, config }) {
     coordinatorMode,
     coordinatorLanHost = '',
     coordinatorFallback = false,
+    getClusterState,
+    clusterManager,
+    getOwnLanHost,
+    getDeviceProfile,
+    lanPort = 3456,
+    lanSecret = '',
   } = config;
 
   await app.register(cors, {
     origin: corsOrigins,
     methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['content-type'],
+    allowedHeaders: ['content-type', 'x-agent-lan-secret', 'x-terminal-id', 'x-terminal-secret'],
   });
 
   const routeCtx = {
@@ -48,9 +55,13 @@ export async function buildAgentServer({ db, config }) {
     coordinatorMode,
     coordinatorLanHost,
     coordinatorFallback,
+    getClusterState,
+    getDeviceProfile,
+    lanPort,
+    lanSecret,
   };
 
-  registerHealthRoutes(app, routeCtx);
+  registerHealthRoutes(app, { ...routeCtx, clusterManager });
   registerAuthRoutes(app, routeCtx);
   registerFloorRoutes(app, routeCtx);
   registerMenuRoutes(app, routeCtx);
@@ -61,6 +72,11 @@ export async function buildAgentServer({ db, config }) {
   registerShiftRoutes(app, { db, apiUrl, terminalId, terminalSecret });
   registerFeatureRoutes(app, routeCtx);
   registerOrderExplorerRoutes(app, routeCtx);
+
+  if (clusterManager) {
+    registerPeerRoutes(app, { clusterManager, getOwnLanHost });
+    registerRelayRoutes(app, { apiUrl });
+  }
 
   await app.listen({ port, host });
   return app;

@@ -8,7 +8,7 @@ import { getPublishedMenuForVenue } from './menu-service.js';
 const OFFLINE_PIN_ROLES = [ROLES.CASHIER, ROLES.VENUE_MANAGER];
 
 /** Staff roster + features snapshot for terminal offline cache. */
-export async function getTerminalRoster(venueId) {
+export async function getTerminalRoster(venueId, terminalId = null) {
   const venue = await prisma.venue.findUnique({
     where: { id: venueId },
     select: { tables: true, type: true, nameEn: true, nameAr: true },
@@ -62,6 +62,24 @@ export async function getTerminalRoster(venueId) {
       role: u.role,
       pinHash: u.pinHash,
     })),
+    terminal: terminalId
+      ? await prisma.terminal
+          .findUnique({
+            where: { id: terminalId },
+            select: { id: true, name: true, lastLanHost: true, lastLanPort: true },
+          })
+          .then((t) =>
+            t
+              ? {
+                  id: t.id,
+                  name: t.name,
+                  deviceLabel: t.name,
+                  lastLanHost: t.lastLanHost,
+                  lastLanPort: t.lastLanPort,
+                }
+              : null,
+          )
+      : null,
     features,
     menuVersionHash,
     syncedAt: new Date().toISOString(),
@@ -69,8 +87,12 @@ export async function getTerminalRoster(venueId) {
 }
 
 /** Reconnect handshake — compare menu hash and return hints for agent. */
-export async function terminalReconnectHandshake(venueId, { menuVersionHash, lastSyncAt } = {}) {
-  const roster = await getTerminalRoster(venueId);
+export async function terminalReconnectHandshake(
+  venueId,
+  terminalId,
+  { menuVersionHash, lastSyncAt } = {},
+) {
+  const roster = await getTerminalRoster(venueId, terminalId);
   const serverHash = roster?.menuVersionHash ?? null;
   const menuStale = Boolean(serverHash && menuVersionHash && serverHash !== menuVersionHash);
 
@@ -81,5 +103,6 @@ export async function terminalReconnectHandshake(venueId, { menuVersionHash, las
     serverTime: new Date().toISOString(),
     features: roster?.features ?? null,
     staff: roster?.staff ?? [],
+    terminal: roster?.terminal ?? null,
   };
 }

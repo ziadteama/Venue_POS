@@ -27,13 +27,13 @@ export function TerminalsSection({ venueId }) {
     load();
   }, [load]);
 
-  async function setCoordinator(terminal, enabled) {
+  async function patchTerminal(terminal, body) {
     setSavingId(terminal.id);
     setError('');
     try {
       await apiFetch(`/api/v1/manager/terminals/${terminal.id}`, {
         method: 'PATCH',
-        body: JSON.stringify({ isCoordinator: enabled }),
+        body: JSON.stringify(body),
       });
       await load();
     } catch (err) {
@@ -43,20 +43,18 @@ export function TerminalsSection({ venueId }) {
     }
   }
 
+  async function setCoordinator(terminal, enabled) {
+    await patchTerminal(terminal, { isCoordinator: enabled });
+  }
+
   async function saveLanHost(terminal, host) {
-    setSavingId(terminal.id);
-    setError('');
-    try {
-      await apiFetch(`/api/v1/manager/terminals/${terminal.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ coordinatorLanHost: host || null }),
-      });
-      await load();
-    } catch (err) {
-      setError(err?.message || t('terminals.saveFailed'));
-    } finally {
-      setSavingId(null);
-    }
+    await patchTerminal(terminal, { coordinatorLanHost: host || null });
+  }
+
+  async function saveName(terminal, name) {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === (terminal.name ?? '')) return;
+    await patchTerminal(terminal, { name: trimmed });
   }
 
   if (loading) return <p className="text-sm text-secondary">{t('common.loading')}</p>;
@@ -70,11 +68,27 @@ export function TerminalsSection({ venueId }) {
         {terminals.map((terminal) => (
           <li key={terminal.id} className="flex flex-wrap items-center gap-3 py-3 text-sm">
             <div className="min-w-0 flex-1">
-              <p className="font-medium">{terminal.name || terminal.id}</p>
-              <p className="text-secondary">
+              <input
+                type="text"
+                className="w-full max-w-xs rounded border px-2 py-1 font-medium"
+                placeholder={t('terminals.deviceNamePlaceholder')}
+                defaultValue={terminal.name ?? ''}
+                disabled={savingId === terminal.id}
+                onBlur={(e) => saveName(terminal, e.target.value)}
+              />
+              <p className="mt-1 text-secondary">
                 {terminal.venueNameEn}
                 {terminal.isCoordinator ? ` · ${t('terminals.coordinator')}` : ''}
               </p>
+              {terminal.lastLanHost ? (
+                <p className="text-xs text-secondary">
+                  {t('terminals.reportedLan', {
+                    host: terminal.lastLanHost,
+                    port: terminal.lastLanPort ?? '—',
+                    mode: terminal.lastClusterMode ?? '—',
+                  })}
+                </p>
+              ) : null}
             </div>
             <label className="flex items-center gap-2">
               <input

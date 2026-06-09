@@ -80,6 +80,7 @@ export async function syncTerminalRosterFromServer({ db, apiUrl, venueId, termin
   if (data.staff?.length) saveStaffCache(db, data.staff);
   if (data.features) saveFeaturesCache(db, venueId, data.features);
   if (data.menuVersionHash) setAgentMeta(db, 'menu_version_hash', data.menuVersionHash);
+  if (data.terminal?.name) setAgentMeta(db, 'hub_device_label', data.terminal.name);
   setAgentMeta(db, 'last_roster_sync_at', data.syncedAt ?? new Date().toISOString());
   const targets = data.features?.crossVenueTargets ?? [];
   if (targets.length) {

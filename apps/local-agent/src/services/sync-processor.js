@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { SYNC_EVENT_TYPES, SYNC_MAX_RETRIES } from '@venue-pos/shared';
 import { apiFetch } from './api-fetch.js';
+import { relaySyncEvents, relayApiCall } from './relay-client.js';
+import { linkLocalShiftServerId } from './shift-cache.js';
 
 const CHEQUE_SYNC_TYPES = new Set([
   SYNC_EVENT_TYPES.CHEQUE_OPEN,
@@ -10,6 +12,11 @@ const CHEQUE_SYNC_TYPES = new Set([
   SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_PAY,
 ]);
 
+const SHIFT_SYNC_TYPES = new Set([
+  SYNC_EVENT_TYPES.SHIFT_OPEN,
+  SYNC_EVENT_TYPES.SHIFT_CLOSE,
+]);
+
 function buildReplayEvent(job, payload, syncId) {
   if (job.event_type === SYNC_EVENT_TYPES.ORDER_CREATE) {
     return null; // individual endpoint
@@ -17,10 +24,124 @@ function buildReplayEvent(job, payload, syncId) {
   if (CHEQUE_SYNC_TYPES.has(job.event_type)) {
     return { syncId, eventType: job.event_type, payload };
   }
+  if (SHIFT_SYNC_TYPES.has(job.event_type)) {
+    return { syncId, eventType: job.event_type, payload };
+  }
   return null;
 }
 
-async function replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncId) {
+async function sendBatchToCloud(apiUrl, terminalId, terminalSecret, events, relay) {
+  if (relay?.relayHost) {
+    return relaySyncEvents({
+      relayHost: relay.relayHost,
+      lanPort: relay.lanPort,
+      lanSecret: relay.lanSecret,
+      terminalId,
+      terminalSecret,
+      events,
+    });
+  }
+  return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/sync/events', {
+    method: 'POST',
+    body: JSON.stringify({ events }),
+  });
+}
+
+async function relayApiCallForJob(relay, terminalId, terminalSecret, job, payload, syncId) {
+  if (job.event_type === SYNC_EVENT_TYPES.ORDER_CREATE) {
+    return relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: '/api/v1/orders',
+      method: 'POST',
+      body: { id: payload.orderId, cashierId: payload.cashierId, tableLabel: payload.tableLabel, syncId },
+    });
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.ORDER_ADD_ITEM) {
+    return relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: `/api/v1/orders/${payload.orderId}/items`,
+      method: 'POST',
+      body: { menuItemId: payload.menuItemId, quantity: payload.quantity, modifiers: payload.modifiers, syncId },
+    });
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.ORDER_SEND) {
+    return relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: `/api/v1/orders/${payload.orderId}/send`,
+      method: 'POST',
+      body: { syncId },
+    });
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.ORDER_PATCH_ITEM) {
+    return relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: `/api/v1/orders/${payload.orderId}/items/${payload.itemId}`,
+      method: 'PATCH',
+      body: { quantity: payload.quantity, syncId },
+    });
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.CHEQUE_OPEN) {
+    const result = await relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: '/api/v1/cheques/open',
+      method: 'POST',
+      body: { cashierId: payload.cashierId, tableLabel: payload.tableLabel, syncId },
+    });
+    if (payload.chequeId && result?.id) {
+      return { linkLocalCheque: { serverId: result.id, localId: payload.chequeId }, result };
+    }
+    return result;
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.SHIFT_OPEN) {
+    const result = await relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: '/api/v1/shifts/open',
+      method: 'POST',
+      body: { cashierId: payload.cashierId, openFloat: payload.openFloat, syncId },
+    });
+    if (payload.shiftId && result?.id) {
+      return { linkLocalShift: { serverId: result.id, localId: payload.shiftId }, result };
+    }
+    return result;
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.SHIFT_CLOSE) {
+    return relayApiCall({
+      ...relay,
+      terminalId,
+      terminalSecret,
+      path: '/api/v1/shifts/close',
+      method: 'POST',
+      body: {
+        cashierId: payload.cashierId,
+        closeFloat: payload.closeFloat,
+        managerPin: payload.managerPin,
+        syncId,
+      },
+    });
+  }
+  throw new Error(`Unknown sync event for relay: ${job.event_type}`);
+}
+
+async function replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncId, relay) {
+  if (relay?.relayHost) {
+    const evt = buildReplayEvent(job, payload, syncId);
+    if (evt) {
+      return sendBatchToCloud(apiUrl, terminalId, terminalSecret, [evt], relay);
+    }
+    return relayApiCallForJob(relay, terminalId, terminalSecret, job, payload, syncId);
+  }
   if (job.event_type === SYNC_EVENT_TYPES.ORDER_CREATE) {
     return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/orders', {
       method: 'POST',
@@ -108,6 +229,31 @@ async function replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncI
       },
     );
   }
+  if (job.event_type === SYNC_EVENT_TYPES.SHIFT_OPEN) {
+    const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/shifts/open', {
+      method: 'POST',
+      body: JSON.stringify({
+        cashierId: payload.cashierId,
+        openFloat: payload.openFloat,
+        syncId,
+      }),
+    });
+    if (payload.shiftId && result?.id) {
+      return { linkLocalShift: { serverId: result.id, localId: payload.shiftId }, result };
+    }
+    return result;
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.SHIFT_CLOSE) {
+    return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/shifts/close', {
+      method: 'POST',
+      body: JSON.stringify({
+        cashierId: payload.cashierId,
+        closeFloat: payload.closeFloat,
+        managerPin: payload.managerPin,
+        syncId,
+      }),
+    });
+  }
   if (job.event_type === SYNC_EVENT_TYPES.PAYMENT_CREATE) {
     return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/sync/events', {
       method: 'POST',
@@ -133,6 +279,7 @@ export async function processSyncQueue({
   terminalId,
   terminalSecret,
   useBatch = false,
+  relay = null,
 }) {
   const pending = db
     .prepare(`SELECT * FROM sync_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 20`)
@@ -152,10 +299,7 @@ export async function processSyncQueue({
     }
     if (batchEvents.length >= 2) {
       try {
-        await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/sync/events', {
-          method: 'POST',
-          body: JSON.stringify({ events: batchEvents }),
-        });
+        await sendBatchToCloud(apiUrl, terminalId, terminalSecret, batchEvents, relay);
         for (const { job } of batchJobs) {
           db.prepare(`UPDATE sync_queue SET status = 'done' WHERE id = ?`).run(job.id);
         }
@@ -174,13 +318,17 @@ export async function processSyncQueue({
     try {
       const payload = JSON.parse(job.payload_json);
       const syncId = payload.syncId ?? job.id;
-      const result = await replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncId);
+      const result = await replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncId, relay);
 
       if (result?.linkLocalCheque) {
         db.prepare(`UPDATE cheques SET server_id = ?, synced_at = datetime('now') WHERE id = ?`).run(
           result.linkLocalCheque.serverId,
           result.linkLocalCheque.localId,
         );
+      }
+
+      if (result?.linkLocalShift) {
+        linkLocalShiftServerId(db, result.linkLocalShift.localId, result.linkLocalShift.serverId);
       }
 
       db.prepare(`UPDATE sync_queue SET status = 'done' WHERE id = ?`).run(job.id);

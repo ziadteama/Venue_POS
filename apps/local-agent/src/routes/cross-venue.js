@@ -24,9 +24,8 @@ function offlineCrossSell(reply) {
  * spanning linked venues, fires each venue's kitchen, and pays once. These
  * routes proxy to the central API (no local SQLite cache).
  */
-export function registerCrossVenueRoutes(
-  app,
-  {
+export function registerCrossVenueRoutes(app, routeCtx) {
+  const {
     db,
     apiUrl,
     venueId,
@@ -37,14 +36,24 @@ export function registerCrossVenueRoutes(
     isCoordinator,
     coordinatorLanHost,
     coordinatorFallback,
-  },
-) {
-  const canCoordinatorOffline = () =>
-    !isCloudOnline() && (isCoordinator || (coordinatorFallback && coordinatorLanHost));
+    getClusterState,
+  } = routeCtx;
+
+  const canCoordinatorOffline = () => {
+    const cluster = getClusterState?.() ?? {};
+    return (
+      !isCloudOnline() &&
+      (cluster.isLeader || isCoordinator || (coordinatorFallback && coordinatorLanHost))
+    );
+  };
 
   async function maybeProxy(path, options) {
-    if (!isCloudOnline() && coordinatorFallback && coordinatorLanHost && !isCoordinator) {
-      return proxyToCoordinator(coordinatorLanHost, path, options);
+    const cluster = getClusterState?.() ?? {};
+    if (!isCloudOnline()) {
+      if (cluster.isLeader || isCoordinator) return null;
+      if (cluster.leaderHost || (coordinatorFallback && coordinatorLanHost)) {
+        return proxyToCoordinator(routeCtx, path, options);
+      }
     }
     return null;
   }

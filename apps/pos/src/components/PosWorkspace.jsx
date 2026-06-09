@@ -84,11 +84,21 @@ export function PosWorkspace({ cashier, onLogout }) {
 
       {!ws.agentStatus.online ? (
         <div className="shrink-0 border-b border-amber-300 bg-amber-100 px-5 py-2 text-center text-sm font-medium text-amber-900">
-          {ws.agentStatus.isCoordinator
-            ? ws.t('pos.offlineCoordinator')
-            : ws.agentStatus.coordinatorActive
-              ? ws.t('pos.offlineLanCoordinator')
-              : ws.t('pos.offline')}
+          {ws.agentStatus.clusterMode === 'leader' || ws.agentStatus.isCoordinator
+            ? ws.t('pos.offlineLeader')
+            : ws.agentStatus.clusterMode === 'follower'
+              ? ws.agentStatus.leaderPeerLabel
+                ? ws.t('pos.offlineFollowerVia', { name: ws.agentStatus.leaderPeerLabel })
+                : ws.t('pos.offlineFollower')
+              : ws.agentStatus.clusterMode === 'relay'
+                ? ws.agentStatus.relayPeerLabel
+                  ? ws.t('pos.offlineRelayVia', { name: ws.agentStatus.relayPeerLabel })
+                  : ws.t('pos.offlineRelay')
+                : ws.agentStatus.clusterMode === 'electing'
+                  ? ws.t('pos.offlineElecting')
+                  : ws.agentStatus.coordinatorActive
+                    ? ws.t('pos.offlineLanCoordinator')
+                    : ws.t('pos.offline')}
           {ws.agentStatus.syncQueueDepth > 0
             ? ` · ${ws.t('pos.syncQueueDepth', { count: ws.agentStatus.syncQueueDepth })}`
             : null}
