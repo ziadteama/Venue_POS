@@ -59,6 +59,9 @@ export async function managerHubTableRoutes(app) {
     { preHandler: hubManagerPreHandler },
     async (request) => {
       const result = await deleteHubTable(request.params.id);
+      // #region agent log
+      fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H5',location:'manager-hub-tables.js:delete',message:'delete ok broadcasting',data:{deletedId:request.params.id,hasIo:Boolean(request.server.io)},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       await broadcastHubTablesUpdated(request.server.io);
       return result;
     },

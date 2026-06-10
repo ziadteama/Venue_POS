@@ -240,10 +240,34 @@ export function emitHubTablesUpdated(io, { tables }) {
   const message = { event: 'hub:tables_updated', payload };
   io.to('dashboard:hub').emit('hub:tables_updated', message);
   const rooms = io.sockets?.adapter?.rooms;
+  const posRooms = [];
+  if (!rooms) {
+    // #region agent log
+    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H1',location:'socket.js:emitHubTablesUpdated',message:'no adapter rooms',data:{tableCount:tables?.length??0},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    return;
+  }
+  for (const room of rooms.keys()) {
+    if (room.startsWith('venue:') && room.endsWith(':pos')) {
+      posRooms.push(room);
+      io.to(room).emit('hub:tables_updated', message);
+    }
+  }
+  // #region agent log
+  fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H1',location:'socket.js:emitHubTablesUpdated',message:'hub tables emitted',data:{tableCount:tables?.length??0,posRoomCount:posRooms.length,posRooms:posRooms.slice(0,5)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+}
+
+/** Hub-wide floor occupancy — all venue POS rooms (cross-venue shared tables). */
+export function emitFloorTableUpdated(io, payload) {
+  if (!io?.to) return;
+  const message = { event: 'floor:table_updated', payload };
+  io.to('dashboard:hub').emit('floor:table_updated', message);
+  const rooms = io.sockets?.adapter?.rooms;
   if (!rooms) return;
   for (const room of rooms.keys()) {
     if (room.startsWith('venue:') && room.endsWith(':pos')) {
-      io.to(room).emit('hub:tables_updated', message);
+      io.to(room).emit('floor:table_updated', message);
     }
   }
 }

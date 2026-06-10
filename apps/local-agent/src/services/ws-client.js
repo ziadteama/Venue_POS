@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { io } from 'socket.io-client';
+import { apiFetch } from './api-fetch.js';
 import { syncMenuFromServer } from './menu-sync.js';
 import { syncVenueConfigFromServer } from './venue-config-sync.js';
 import { isCloudOnline } from './cloud-health.js';
-import { patchFeaturesTables, setAgentMeta } from './terminal-cache.js';
+import { publishAgentEvent } from './agent-events.js';
+import { patchFeaturesTables, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
 
 function enqueueMenuPublish(db, payload) {
   const id = randomUUID();
@@ -43,12 +45,29 @@ export function connectTerminalSocket({
     transports: ['websocket'],
   });
 
+  async function refreshHubTablesFromCloud() {
+    try {
+      const data = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/features');
+      saveFeaturesCache(db, venueId, data);
+      if (Array.isArray(data?.tables)) {
+        publishAgentEvent('hub:tables_updated', {
+          tables: data.tables,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      log.info({ count: data?.tables?.length ?? 0 }, 'Hub tables synced on cloud connect');
+    } catch (err) {
+      log.warn({ err }, 'Hub tables sync on connect failed');
+    }
+  }
+
   socket.on('connect', () => {
     log.info('Terminal WebSocket connected');
     if (isCloudOnline()) {
       drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log }).catch(
         (err) => log.warn({ err }, 'Menu publish drain on connect failed'),
       );
+      refreshHubTablesFromCloud().catch(() => {});
     }
   });
 
@@ -79,9 +98,26 @@ export function connectTerminalSocket({
 
   socket.on('hub:tables_updated', (msg) => {
     const payload = msg?.payload ?? msg;
+    // #region agent log
+    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H2',location:'ws-client.js:hub:tables_updated',message:'ws event received',data:{hasTables:Array.isArray(payload?.tables),tableCount:payload?.tables?.length??null,msgKeys:Object.keys(msg??{})},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!Array.isArray(payload?.tables)) return;
-    patchFeaturesTables(db, venueId, payload.tables);
+    const patched = patchFeaturesTables(db, venueId, payload.tables);
+    // #region agent log
+    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H2',location:'ws-client.js:hub:tables_updated',message:'cache patched publishing sse',data:{patched,tableCount:payload.tables.length},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    publishAgentEvent('hub:tables_updated', {
+      tables: payload.tables,
+      updatedAt: payload.updatedAt ?? new Date().toISOString(),
+    });
     log.info({ count: payload.tables.length }, 'Hub table list refreshed from WebSocket');
+  });
+
+  socket.on('floor:table_updated', (msg) => {
+    const payload = msg?.payload ?? msg;
+    if (!payload?.tableLabel) return;
+    publishAgentEvent('floor:table_updated', payload);
+    log.debug({ table: payload.tableLabel }, 'Floor table update relayed to POS');
   });
 
   socket.on('venue:config_updated', async (msg) => {

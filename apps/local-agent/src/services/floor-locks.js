@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { publishAgentEvent } from './agent-events.js';
 
 export function listFloorLocks(db) {
   return db
@@ -50,9 +51,20 @@ export function occupyFloorLock(db, { tableLabel, floorTableId, chequeId, termin
        locked_at = datetime('now')`,
   ).run(key, floorTableId ?? null, chequeId ?? null, terminalId ?? null, venueId ?? null);
 
-  return listFloorLocks(db).find(
+  const row = listFloorLocks(db).find(
     (t) => t.tableLabel === key || (floorTableId && t.floorTableId === floorTableId),
   );
+  if (row) {
+    publishAgentEvent('floor:table_updated', {
+      tableLabel: row.tableLabel,
+      floorTableId: row.floorTableId,
+      occupiedByChequeId: row.chequeId,
+      isOccupied: row.isOccupied,
+      venueId: row.venueId,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return row;
 }
 
 export function releaseFloorLock(db, { tableLabel, chequeId }) {
@@ -64,7 +76,12 @@ export function releaseFloorLock(db, { tableLabel, chequeId }) {
     return listFloorLocks(db).find((t) => t.tableLabel === trimmed);
   }
   db.prepare(`DELETE FROM floor_locks WHERE table_label = ?`).run(trimmed);
-  return { tableLabel: trimmed, isOccupied: false };
+  const released = { tableLabel: trimmed, isOccupied: false, occupiedByChequeId: null };
+  publishAgentEvent('floor:table_updated', {
+    ...released,
+    updatedAt: new Date().toISOString(),
+  });
+  return released;
 }
 
 export function ensureFloorLockTable(db) {

@@ -1,16 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { normalizeTableLabel, tableLabelsMatch } from '@venue-pos/shared';
 import { notFound, validationError } from '../utils/errors.js';
-import { emitHubTablesUpdated } from '../plugins/socket.js';
-
-function emitFloorTableUpdated(io, payload) {
-  if (!io?.to) return;
-  const message = { event: 'floor:table_updated', payload };
-  io.to('dashboard:hub').emit('floor:table_updated', message);
-  if (payload.venueId) {
-    io.to(`venue:${payload.venueId}:pos`).emit('floor:table_updated', message);
-  }
-}
+import { emitFloorTableUpdated, emitHubTablesUpdated } from '../plugins/socket.js';
 
 export function serializeHubTable(row) {
   return {
