@@ -31,7 +31,7 @@ export function usePosWorkspace(cashier) {
   const orderLookup = useOrderLookup();
   const printerOk = usePrinterHealth();
   const agentStatus = useAgentStatus();
-  const { features, loading: featuresLoading } = useFeatures();
+  const { features } = useFeatures();
   const homeVenueId = features.anchorVenue?.id ?? null;
   const floorEnabled =
     agentStatus.agentReachable && (agentStatus.online || agentStatus.coordinatorActive);

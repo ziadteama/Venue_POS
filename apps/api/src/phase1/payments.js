@@ -439,7 +439,7 @@ test('cheque discount can be changed and removed before pay', async () => {
       cashierId: CASHIER_ID,
       amount: 15,
       reason: 'Manager adjustment',
-      restaurantManagerPin: '8888',
+      restaurantManagerPin: '7777',
     },
   });
   assert.equal(changeRes.statusCode, 200);
@@ -557,6 +557,14 @@ test('POS refund rejects hub manager PIN — floor manager only', async () => {
   await ensureOpenShift();
   const tableLabel = `RFHUB-${Date.now()}`;
 
+  const menuRes = await fx.app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
   const openRes = await fx.app.inject({
     method: 'POST',
     url: '/api/v1/cheques/open',
@@ -570,7 +578,19 @@ test('POS refund rejects hub manager PIN — floor manager only', async () => {
     method: 'POST',
     url: `/api/v1/orders/${draftId}/items`,
     headers: terminalHeaders,
-    payload: { menuItemId: fx.menuItemId, quantity: 1 },
+    payload: {
+      menuItemId: fx.menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
   });
 
   await fx.app.inject({

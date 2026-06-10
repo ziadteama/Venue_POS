@@ -75,7 +75,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
         return { ok: false };
       }
     },
-    [cashierId, t, refreshOpenCheques, applyChequePayload],
+    [cashierId, fail, refreshOpenCheques, applyChequePayload],
   );
 
   const navigateToTable = useCallback(
@@ -114,7 +114,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
         return { ok: false };
       }
     },
-    [cheque?.id, t],
+    [cheque?.id, fail],
   );
 
   useEffect(() => {

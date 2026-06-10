@@ -10,7 +10,8 @@ import { hashSecret } from './services/auth-service.js';
 const VENUE_ID = '00000000-0000-4000-8000-000000000098';
 const TERMINAL_ID = '00000000-0000-4000-8000-000000000098';
 const TERMINAL_SECRET = 'test-terminal-secret';
-const CASHIER_ID = '00000000-0000-4000-8000-000000000097';
+const CASHIER_ID = '00000000-0000-4000-8000-00000000009b';
+const CASHIER_USERNAME = 'menutest_cashier';
 
 let app;
 let managerToken;
@@ -49,14 +50,15 @@ before(async () => {
   });
 
   await prisma.user.upsert({
-    where: { id: CASHIER_ID },
-    update: { pinHash, role: 'cashier', venueId: VENUE_ID, username: 'menucashier' },
+    where: { username: CASHIER_USERNAME },
+    update: { pinHash, role: 'cashier', venueId: VENUE_ID, isActive: true },
     create: {
       id: CASHIER_ID,
-      username: 'menucashier',
+      username: CASHIER_USERNAME,
       pinHash,
       role: 'cashier',
       venueId: VENUE_ID,
+      isActive: true,
     },
   });
 

@@ -65,13 +65,37 @@ export function redactShiftListFinancials(result) {
   };
 }
 
+function omitAmount(event) {
+  if (!event || typeof event !== 'object') return event;
+  const rest = { ...event };
+  delete rest.amount;
+  return rest;
+}
+
+function omitVenueFinancials(venue) {
+  if (!venue || typeof venue !== 'object') return venue;
+  const rest = { ...venue };
+  delete rest.netRevenueToday;
+  delete rest.netRevenueWeek;
+  delete rest.avgChequeValue;
+  delete rest.changePercent;
+  delete rest.changeAmount;
+  delete rest.weekGrowthPercent;
+  return rest;
+}
+
+function omitVenueRevenueToday(venue) {
+  if (!venue || typeof venue !== 'object') return venue;
+  const rest = { ...venue };
+  delete rest.revenueToday;
+  return rest;
+}
+
 export function redactAuditFinancials(result) {
   if (!result || typeof result !== 'object') return result;
   return {
     ...result,
-    events: Array.isArray(result.events)
-      ? result.events.map(({ amount: _amount, ...event }) => event)
-      : result.events,
+    events: Array.isArray(result.events) ? result.events.map(omitAmount) : result.events,
   };
 }
 
@@ -114,17 +138,7 @@ export function redactExecutiveDashboardFinancials(result) {
       ? {
           ...result.ranking,
           venues: Array.isArray(result.ranking.venues)
-            ? result.ranking.venues.map(
-                ({
-                  netRevenueToday: _a,
-                  netRevenueWeek: _b,
-                  avgChequeValue: _c,
-                  changePercent: _d,
-                  changeAmount: _e,
-                  weekGrowthPercent: _f,
-                  ...row
-                }) => row,
-              )
+            ? result.ranking.venues.map(omitVenueFinancials)
             : result.ranking.venues,
           topVenue: result.ranking.topVenue
             ? {
@@ -165,7 +179,7 @@ export function redactExecutiveDashboardFinancials(result) {
         )
       : result.attention,
     recentEvents: Array.isArray(result.recentEvents)
-      ? result.recentEvents.map(({ amount: _amount, ...event }) => event)
+      ? result.recentEvents.map(omitAmount)
       : result.recentEvents,
     live: redactLiveMetricsFinancials(result.live),
   };
@@ -177,7 +191,7 @@ export function redactLiveMetricsFinancials(payload) {
     ...payload,
     totalRevenueToday: null,
     venues: Array.isArray(payload.venues)
-      ? payload.venues.map(({ revenueToday: _revenueToday, ...venue }) => venue)
+      ? payload.venues.map(omitVenueRevenueToday)
       : payload.venues,
   };
 }

@@ -231,7 +231,7 @@ if (venueId && terminalId && terminalSecret) {
   }
 
   try {
-    const roster = await withRetry('Terminal roster sync on startup', () =>
+    await withRetry('Terminal roster sync on startup', () =>
       syncTerminalRosterFromServer({ db, apiUrl, venueId, terminalId, terminalSecret }),
     );
     syncHubLanConfig();

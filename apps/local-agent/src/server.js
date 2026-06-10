@@ -35,7 +35,6 @@ export async function buildAgentServer({ db, config }) {
     getDeviceProfile,
     lanPort = 3456,
     lanSecret = '',
-    buildRelayOptions,
   } = config;
 
   await app.register(cors, {
