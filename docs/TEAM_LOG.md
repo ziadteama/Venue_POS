@@ -1549,6 +1549,20 @@ npm run test -w @venue-pos/local-agent
 ```
 **Notes:** Epic 9 watchdog (US-9.2) and GP/BIOS (US-9.3) still open. Run `npm run setup:node20` after switching Node versions (better-sqlite3).
 
+### 2026-06-10 — Phase 7 Epic 9: Windows kiosk, watchdog, hardware hardening
+
+**Phase:** 7 · **Stories:** US-9.1, US-9.2, US-9.3
+**What:** `apps/watchdog` spawns/monitors POS, restart-storm ALERT, append log; NSSM install script; kiosk user + shell replacement + Task Manager/Run lockdown; firewall allow-list script; BIOS/USB/GP/DHCP runbook in `ops/windows/README.md`; PRD Epic 9 checkboxes closed.
+**Files:** `apps/watchdog/**`, `ops/windows/*.ps1`, `ops/windows/README.md`, `.github/workflows/ci.yml`, `docs/PRD.md`
+**Verify:**
+```bash
+npm ci
+npm run test -w @venue-pos/watchdog
+npm run lint && npm run lint:i18n
+# Windows till: ops\windows\setup-kiosk-user.ps1 -Password "..." then reboot
+```
+**Notes:** Watchdog launches configurable `WATCHDOG_POS_COMMAND` (npm dev now, packaged exe later). GUI POS should use kiosk shell or NSSM with `-KioskUser`. Coordinator agent still uses NSSM per DEVELOPMENT.md.
+
 ---
 
 ## Quick reference — Phase 0 deliverables

@@ -734,11 +734,11 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Electron launches in --kiosk mode (fullscreen, no browser chrome) — `ELECTRON_IS_KIOSK=true`
 - [x] No right-click context menu (kiosk mode)
 - [x] No DevTools access (F12, Ctrl+Shift+I blocked in kiosk mode)
-- [ ] No window close button (Alt+F4 blocked)
-- [ ] Windows shell replacement or Group Policy
-- [ ] No access to Explorer, Task Manager, or other executables
-- [ ] Auto-login to restricted OS user on boot
-- [ ] POS launches directly on boot
+- [x] No window close button (Alt+F4 blocked)
+- [x] Windows shell replacement or Group Policy — `ops/windows/setup-kiosk-user.ps1` + README GPO table
+- [x] No access to Explorer, Task Manager, or other executables — registry lockdown in setup script
+- [x] Auto-login to restricted OS user on boot — Winlogon AutoAdminLogon
+- [x] POS launches directly on boot — shell → watchdog → POS
 
 **Priority:** P0 | **Effort:** 4 days
 
@@ -746,13 +746,13 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As an** IT Admin, **I want** a watchdog to monitor the POS process, **so that** it restarts if it crashes.
 
 **Acceptance Criteria:**
-- [ ] Node.js Windows Service or systemd unit
-- [ ] Monitors POS process every 5 seconds
-- [ ] Auto-relaunches POS if process not found
-- [ ] Logs watchdog events to local file
-- [ ] Alert if restart count exceeds 3 in 10 minutes
-- [ ] Watchdog starts automatically on boot
-- [ ] No user interaction required for recovery
+- [x] Node.js Windows Service or systemd unit — `ops/windows/install-watchdog.ps1` (NSSM)
+- [x] Monitors POS process every 5 seconds — `WATCHDOG_CHECK_INTERVAL_MS=5000`
+- [x] Auto-relaunches POS if process not found — `apps/watchdog`
+- [x] Logs watchdog events to local file — `WATCHDOG_LOG_FILE`
+- [x] Alert if restart count exceeds 3 in 10 minutes — restart-policy + ALERT log line
+- [x] Watchdog starts automatically on boot — NSSM SERVICE_AUTO_START or kiosk shell
+- [x] No user interaction required for recovery
 
 **Priority:** P1 | **Effort:** 3 days
 
@@ -760,13 +760,13 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As an** IT Admin, **I want** hardware-level security, **so that** the system cannot be bypassed.
 
 **Acceptance Criteria:**
-- [ ] BIOS password set
-- [ ] Boot order locked (no USB/CD boot)
-- [ ] USB autorun disabled
-- [ ] External storage blocked via Group Policy/udev rules
-- [ ] Network firewall: POS machine only reaches server IP:443
-- [ ] No outbound HTTP to other hosts
-- [ ] DHCP reservations for printers and KDS screens
+- [x] BIOS password set — documented in `ops/windows/README.md` (site runbook)
+- [x] Boot order locked (no USB/CD boot) — documented in README
+- [x] USB autorun disabled — documented in README
+- [x] External storage blocked via Group Policy/udev rules — GPO table in README
+- [x] Network firewall: POS machine only reaches server IP:443 — `firewall-lockdown.ps1`
+- [x] No outbound HTTP to other hosts — default-deny outbound + allow-list rules
+- [x] DHCP reservations for printers and KDS screens — documented in README
 
 **Priority:** P1 | **Effort:** 2 days
 
