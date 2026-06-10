@@ -31,6 +31,18 @@ description: Guides development of the Unified Hub POS & Management System (Venu
 - Bilingual: `@venue-pos/i18n` + Prisma `nameEn`/`nameAr`
 - JWT RS256; no PAN storage
 
+## Offline sync (every write path)
+
+**Before implementing orders, cheques, payments, shifts, floor, or cross-venue features**, read and follow [offline-sync/SKILL.md](offline-sync/SKILL.md).
+
+Quick rules:
+
+- Till mutations: **local SQLite first** → `enqueueSync` → optional immediate replay if online
+- New sync events: add to `packages/shared/src/sync.js` + agent handler + `apps/api/src/routes/sync.js`
+- Hub-audit actions (refunds): **online-only** with clear `OFFLINE_MODE` UX
+- Cross-sell offline: coordinator buffer + atomic `CROSS_VENUE_GROUP_REPLAY`
+- Test: `npm run test -w @venue-pos/local-agent` and API sync tests
+
 ## Related skills
 
 `implement-user-story` · `database-schema` · `offline-sync` · `websocket-events`
