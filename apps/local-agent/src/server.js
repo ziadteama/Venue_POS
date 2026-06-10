@@ -18,8 +18,6 @@ export async function buildAgentApp({ db, config, logger = false }) {
     logger: logger === false ? false : typeof logger === 'object' ? logger : { level: 'info' },
   });
   const {
-    port,
-    host,
     apiUrl,
     venueId,
     terminalId,
