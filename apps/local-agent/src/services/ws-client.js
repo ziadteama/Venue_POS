@@ -98,14 +98,8 @@ export function connectTerminalSocket({
 
   socket.on('hub:tables_updated', (msg) => {
     const payload = msg?.payload ?? msg;
-    // #region agent log
-    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H2',location:'ws-client.js:hub:tables_updated',message:'ws event received',data:{hasTables:Array.isArray(payload?.tables),tableCount:payload?.tables?.length??null,msgKeys:Object.keys(msg??{})},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!Array.isArray(payload?.tables)) return;
-    const patched = patchFeaturesTables(db, venueId, payload.tables);
-    // #region agent log
-    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H2',location:'ws-client.js:hub:tables_updated',message:'cache patched publishing sse',data:{patched,tableCount:payload.tables.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+    patchFeaturesTables(db, venueId, payload.tables);
     publishAgentEvent('hub:tables_updated', {
       tables: payload.tables,
       updatedAt: payload.updatedAt ?? new Date().toISOString(),

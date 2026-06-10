@@ -18,17 +18,10 @@ function notifyFloor(payload) {
 function connect() {
   if (eventSource || refCount === 0) return;
   eventSource = new EventSource(`${AGENT_URL}/v1/events/stream`);
-  // #region agent log
-  fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'H3',location:'agentEventStreamClient.js:connect',message:'shared sse connecting',data:{agentUrl:AGENT_URL,refCount},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   eventSource.addEventListener('hub:tables_updated', (event) => {
     try {
-      const payload = JSON.parse(event.data);
-      // #region agent log
-      fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'H4',location:'agentEventStreamClient.js:hub:tables_updated',message:'shared sse hub tables received',data:{tableCount:payload?.tables?.length??null},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      notifyHub(payload);
+      notifyHub(JSON.parse(event.data));
     } catch {
       /* ignore malformed payload */
     }
@@ -42,16 +35,7 @@ function connect() {
     }
   });
 
-  eventSource.onopen = () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'H3',location:'agentEventStreamClient.js:onopen',message:'shared sse open',data:{},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  };
-
   eventSource.onerror = () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'H3',location:'agentEventStreamClient.js:onerror',message:'shared sse error reconnecting',data:{readyState:eventSource?.readyState},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     eventSource?.close();
     eventSource = null;
     if (refCount > 0) {

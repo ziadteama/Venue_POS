@@ -34,11 +34,6 @@ export function registerEventRoutes(app, { corsOrigins = ['*'] } = {}) {
     res.write(': connected\n\n');
 
     const send = ({ event, payload }) => {
-      if (event === 'hub:tables_updated') {
-        // #region agent log
-        fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'H3',location:'events.js:sse-send',message:'sse hub tables sending',data:{tableCount:payload?.tables?.length??null},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-      }
       res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
     };
 
