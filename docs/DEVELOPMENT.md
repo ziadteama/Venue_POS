@@ -88,10 +88,12 @@ npm run db:seed
 ### One command (recommended)
 
 ```bash
-npm run setup:node20   # once — rebuilds sqlite/bcrypt (scripts/node20.mjs)
+npm run setup:node20   # once — rebuilds sqlite/bcrypt for Node 20 (run again if shell uses Node 24)
 npm run dev:stop       # if ports stuck from a prior run
 npm run dev            # starts full stack; uses Node 20 even when shell has Node 24
 ```
+
+**POS kiosk mode (Epic 9):** set `ELECTRON_IS_KIOSK=true` in `apps/pos/.env` for fullscreen kiosk (blocks DevTools, context menu, Alt+F4).
 
 **Windows + nvm:** `nvm use 20` often needs Administrator. `npm run dev` picks up nvm’s Node 20 automatically via `scripts/node20.mjs` — no `nvm use` required.
 

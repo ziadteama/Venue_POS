@@ -114,7 +114,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–5 and Phase 4 complete.** **Phase 6 complete** (full offline ops, cross-sell via coordinator, manager ops replay, test harness). **Dashboard v2** (executive + operations overview). Floor manager PIN for POS discount/refund + venue-wide refund notifications. See `docs/TEAM_LOG.md` § **2026-06-10 Phase 6 sign-off**. Plan: `docs/PHASE6_OFFLINE_PLAN.md`.
+**Phases 0–6 complete** (offline ops, cross-sell coordinator, test harness). **Phase 7 kickoff:** kiosk hardening (US-9.1 partial), US-7.4 menu publish drain on reconnect. **Dashboard v2** (executive + operations overview). See `docs/TEAM_LOG.md` § **2026-06-10** entries. Plan: `docs/PHASE6_OFFLINE_PLAN.md` (closed); next: Epic 9 kiosk/watchdog in PRD.
 
 ## POS app layout (`apps/pos`)
 
