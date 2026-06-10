@@ -586,10 +586,10 @@ export function ShiftsPage() {
             </dl>
 
             <Link
-              to={`/orders?shiftId=${detail.id}`}
+              to={`/cheques?shiftId=${detail.id}&venueId=${detail.venueId}`}
               className="inline-flex items-center text-sm font-medium text-accent-700 hover:underline"
             >
-              {t('shifts.viewOrders')}
+              {t('shifts.viewCheques')}
             </Link>
 
             {showFinancials ? (

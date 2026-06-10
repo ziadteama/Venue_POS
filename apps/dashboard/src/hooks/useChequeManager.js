@@ -8,6 +8,8 @@ export function useChequeManager({ user }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [venues, setVenues] = useState([]);
   const [venueId, setVenueId] = useState(searchParams.get('venueId') || user?.venueId || '');
+  const [shiftId, setShiftId] = useState(searchParams.get('shiftId'));
+  const [shiftContext, setShiftContext] = useState(null);
   const [statusTab, setStatusTab] = useState('open');
   const [crossGroupStatus, setCrossGroupStatus] = useState('open');
   const [searchQ, setSearchQ] = useState('');
@@ -26,16 +28,31 @@ export function useChequeManager({ user }) {
   const isCrossTab = statusTab === 'cross_sell';
 
   const syncUrl = useCallback(
-    (chequeId, vId) => {
+    (chequeId, vId, sId = shiftId) => {
       const next = new URLSearchParams(searchParams);
       if (chequeId) next.set('chequeId', chequeId);
       else next.delete('chequeId');
       if (vId) next.set('venueId', vId);
       else next.delete('venueId');
+      if (sId) next.set('shiftId', sId);
+      else next.delete('shiftId');
       setSearchParams(next, { replace: true });
     },
-    [searchParams, setSearchParams],
+    [searchParams, setSearchParams, shiftId],
   );
+
+  const loadShiftContext = useCallback(async (sId, vId) => {
+    if (!sId || !vId) {
+      setShiftContext(null);
+      return;
+    }
+    try {
+      const shift = await apiFetch(`/api/v1/manager/shifts/${sId}?venueId=${vId}`);
+      setShiftContext(shift);
+    } catch {
+      setShiftContext(null);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setError('');
@@ -54,6 +71,7 @@ export function useChequeManager({ user }) {
     const params = new URLSearchParams({ status: statusTab });
     if (venueId) params.set('venueId', venueId);
     if (searchQ.trim()) params.set('q', searchQ.trim());
+    if (shiftId) params.set('shiftId', shiftId);
     const list = await apiFetch(`/api/v1/manager/cheques?${params}`);
     setCheques(list);
     setCrossGroups([]);
@@ -66,13 +84,16 @@ export function useChequeManager({ user }) {
       setDetail(null);
     }
     return list;
-  }, [isCrossTab, crossGroupStatus, statusTab, venueId, searchQ, selectedId]);
+  }, [isCrossTab, crossGroupStatus, statusTab, venueId, searchQ, shiftId, selectedId]);
 
-  const loadDetail = useCallback(async (id, vId = venueId) => {
-    if (!id || !vId) return;
-    const q = `?venueId=${vId}`;
-    setDetail(await apiFetch(`/api/v1/manager/cheques/${id}${q}`));
-  }, [venueId]);
+  const loadDetail = useCallback(
+    async (id, vId = venueId) => {
+      if (!id || !vId) return;
+      const q = `?venueId=${vId}`;
+      setDetail(await apiFetch(`/api/v1/manager/cheques/${id}${q}`));
+    },
+    [venueId],
+  );
 
   useEffect(() => {
     load().catch((e) => setError(friendlyError(e)));
@@ -81,9 +102,16 @@ export function useChequeManager({ user }) {
   useEffect(() => {
     const urlChequeId = searchParams.get('chequeId');
     const urlVenueId = searchParams.get('venueId');
+    const urlShiftId = searchParams.get('shiftId');
     if (urlChequeId) setSelectedId(urlChequeId);
     if (urlVenueId) setVenueId(urlVenueId);
+    setShiftId(urlShiftId);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (shiftId && venueId) loadShiftContext(shiftId, venueId);
+    else setShiftContext(null);
+  }, [shiftId, venueId, loadShiftContext]);
 
   useEffect(() => {
     if (selectedId && venueId) {
@@ -176,6 +204,14 @@ export function useChequeManager({ user }) {
     [syncUrl],
   );
 
+  const clearShiftFilter = useCallback(() => {
+    setShiftId(null);
+    setShiftContext(null);
+    setSelectedId(null);
+    setDetail(null);
+    syncUrl(null, venueId, null);
+  }, [venueId, syncUrl]);
+
   const selectCrossMember = useCallback(
     (member) => {
       setVenueId(member.venueId);
@@ -194,6 +230,9 @@ export function useChequeManager({ user }) {
   return {
     venues,
     venueId,
+    shiftId,
+    shiftContext,
+    clearShiftFilter,
     statusTab,
     crossGroupStatus,
     setCrossGroupStatus,

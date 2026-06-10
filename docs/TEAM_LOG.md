@@ -1576,6 +1576,17 @@ npm run lint && npm run lint:i18n
 ```
 **Notes:** Watchdog launches configurable `WATCHDOG_POS_COMMAND` (npm dev now, packaged exe later). GUI POS should use kiosk shell or NSSM with `-KioskUser`. Coordinator agent still uses NSSM per DEVELOPMENT.md.
 
+### 2026-06-10 — Dashboard ops navigation: Shifts → Cheques → Orders
+
+**Phase:** Dashboard · **Stories:** US-4.6 (nav refinement)
+**What:** Navigation hierarchy Shifts → Cheques → Orders; cheque actions (discount/refund/void cheque) stay on Cheques; order actions (comp/void round/reprint) on Orders; `shiftId` filter on `GET /manager/cheques`; simplified Cheques layout (shift context bar, cross-sell status in sidebar, compact detail).
+**Files:** `cheque-lifecycle.js`, `manager-cheques.js`, `ChequesPage.jsx`, `ChequeDetailView.jsx`, `OrdersPage.jsx`, `ShiftsPage.jsx`, `OpsBreadcrumb.jsx`, i18n
+**Verify:**
+```bash
+npm run lint && npm run lint:i18n
+# Shifts drawer → View cheques → pick cheque → View orders; comp/void only on Orders
+```
+
 ---
 
 ## Quick reference — Phase 0 deliverables

@@ -87,6 +87,7 @@ export async function managerChequeRoutes(app) {
         status,
         limit: Number(request.query?.limit ?? 50),
         q: request.query?.q,
+        shiftId: request.query?.shiftId,
       });
     },
   );

@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth.js';
 import { useChequeManager } from '../hooks/useChequeManager.js';
 import { ChequesPageHeader } from '../components/cheques/ChequesPageHeader.jsx';
+import { ShiftContextBar } from '../components/cheques/ShiftContextBar.jsx';
 import { ChequesSidebar } from '../components/cheques/ChequesSidebar.jsx';
 import { CrossVenueChequesSidebar } from '../components/cheques/CrossVenueChequesSidebar.jsx';
 import { ChequeDetailView } from '../components/cheques/ChequeDetailView.jsx';
@@ -13,22 +14,30 @@ export function ChequesPage() {
   const manager = useChequeManager({ user });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <ChequesPageHeader
         t={t}
         i18n={i18n}
         user={user}
         statusTab={manager.statusTab}
         isCrossTab={manager.isCrossTab}
-        crossGroupStatus={manager.crossGroupStatus}
-        onCrossGroupStatusChange={manager.setCrossGroupStatus}
-        searchQ={manager.searchQ}
-        onSearchChange={manager.setSearch}
         venues={manager.venues}
         venueId={manager.venueId}
+        searchQ={manager.searchQ}
+        onSearchChange={manager.setSearch}
         onTabChange={manager.changeTab}
         onVenueChange={manager.changeVenue}
       />
+
+      {!manager.isCrossTab && manager.shiftId ? (
+        <ShiftContextBar
+          shiftContext={manager.shiftContext}
+          shiftId={manager.shiftId}
+          chequeCount={manager.cheques.length}
+          t={t}
+          onClear={manager.clearShiftFilter}
+        />
+      ) : null}
 
       {manager.error && manager.actionTarget?.type !== 'refund' ? (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -46,13 +55,14 @@ export function ChequesPage() {
         busy={manager.busy}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[14rem_1fr]">
         {manager.isCrossTab ? (
           <CrossVenueChequesSidebar
             groups={manager.crossGroups}
             selectedMemberId={manager.selectedId}
             onSelectMember={manager.selectCrossMember}
             crossGroupStatus={manager.crossGroupStatus}
+            onCrossGroupStatusChange={manager.setCrossGroupStatus}
             t={t}
             language={i18n.language}
           />
@@ -66,12 +76,13 @@ export function ChequesPage() {
           />
         )}
 
-        <section className="surface-card p-6">
+        <section className="surface-card p-5">
           <ChequeDetailView
             detail={manager.detail}
             busy={manager.busy}
             language={i18n.language}
             userRole={user?.role}
+            shiftId={manager.shiftId}
             t={t}
             onAction={manager.setActionTarget}
             onDiscountAction={(type) => {
