@@ -25,7 +25,6 @@ import {
   clearCrossVenueGroupDrafts,
   fireCrossVenueGroupByCheque,
   getCrossVenueGroup,
-  getCrossVenueGroupSummary,
 } from './cross-venue-service.js';
 import { config } from '../config.js';
 import { resolveBusinessDate } from '../utils/business-date.js';
@@ -164,7 +163,7 @@ export async function getCheque(chequeId, venueId) {
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   const crossVenueGroup =
     cheque.crossVenueGroupId && config.featureCrossVenueBilling
-      ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
+      ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId)
       : null;
   return { ...serializeCheque(cheque), crossVenueGroup };
 }
