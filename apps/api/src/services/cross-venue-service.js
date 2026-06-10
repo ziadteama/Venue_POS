@@ -140,8 +140,59 @@ function hasSentOrders(cheque) {
   return ordersFromCheque(cheque).some((o) => BILLABLE_ORDER_STATUSES.includes(o.status));
 }
 
+/** Open cross-venue member with no draft lines and no fired billable subtotal. */
+export function isCrossVenueShellMember(cheque) {
+  if (!cheque?.crossVenueGroupId) return false;
+  if (computeChequeSubtotal(cheque) > 0) return false;
+  const draft = findDraftOrder(cheque);
+  if (draft?.items?.length) return false;
+  if (hasSentOrders(cheque)) return false;
+  return true;
+}
+
+export function memberHasCrossVenueBillableContent(member) {
+  if (computeChequeSubtotal(member) > 0) return true;
+  const draft = findDraftOrder(member);
+  if (draft?.items?.length) return true;
+  return hasSentOrders(member);
+}
+
+/** Drop zero-total shells when siblings carry the order (anchor-only group stamp). */
+export function visibleCrossVenueMembers(members) {
+  const hasBillableSibling = members.some((m) => memberHasCrossVenueBillableContent(m));
+  if (!hasBillableSibling) return members;
+  return members.filter((m) => !isCrossVenueShellMember(m));
+}
+
+export async function loadCrossVenueGroupMembers(groupId) {
+  return loadGroupMembers(groupId);
+}
+
+export async function shouldHideCrossVenueShellInVenueList(cheque) {
+  if (!config.featureCrossVenueBilling || !isCrossVenueShellMember(cheque)) return false;
+  const members = await loadGroupMembers(cheque.crossVenueGroupId);
+  return members.some(
+    (m) => m.id !== cheque.id && memberHasCrossVenueBillableContent(m),
+  );
+}
+
+async function deleteCrossVenueShellMember(tx, member) {
+  const orders = ordersFromCheque(member);
+  for (const order of orders) {
+    await tx.orderItem.deleteMany({ where: { orderId: order.id } });
+    await tx.chequeOrder.deleteMany({ where: { orderId: order.id } });
+    await tx.order.delete({ where: { id: order.id } });
+  }
+  await tx.floorTable.updateMany({
+    where: { occupiedByChequeId: member.id },
+    data: { occupiedByChequeId: null, lockedByTerminalId: null },
+  });
+  await tx.cheque.delete({ where: { id: member.id } });
+}
+
 export function serializeCrossVenueGroup(groupId, anchorVenueId, members) {
-  const cheques = members.map((member) => {
+  const displayMembers = visibleCrossVenueMembers(members);
+  const cheques = displayMembers.map((member) => {
     const serialized = serializeCheque(member);
     const draft = findDraftOrder(member);
     const draftOrder = draft ? serializeOrder(draft) : null;
@@ -165,7 +216,11 @@ export function serializeCrossVenueGroup(groupId, anchorVenueId, members) {
     cheques.reduce((sum, c) => sum + c.pendingSubtotal, 0).toFixed(2),
   );
   const displayTotal = Number((combinedTotal + pendingTotal).toFixed(2));
-  const status = members.every((m) => m.status === 'paid') ? 'paid' : 'open';
+  const billableMembers = members.filter((m) => !isCrossVenueShellMember(m));
+  const status =
+    billableMembers.length > 0 && billableMembers.every((m) => m.status === 'paid')
+      ? 'paid'
+      : 'open';
   const tableLabel = members[0]?.tableLabel ?? null;
 
   const venueMap = new Map();
@@ -214,10 +269,11 @@ export async function getCrossVenueGroupSummary(groupId) {
   if (!groupId) return null;
   const members = await loadGroupMembers(groupId);
   if (!members.length) return null;
+  const visible = visibleCrossVenueMembers(members);
   return {
     groupId,
     groupChequeNumber: members[0]?.chequeNumber ?? null,
-    members: members.map((m) => {
+    members: visible.map((m) => {
       const serialized = serializeCheque(m);
       return {
         id: serialized.id,
@@ -268,7 +324,8 @@ export async function listCrossVenueChequeGroups({ status = 'open', limit = 50 }
   }
 
   const groups = [...byGroup.entries()].map(([groupId, members]) => {
-    const serializedMembers = members.map((m) => {
+    const visible = visibleCrossVenueMembers(members);
+    const serializedMembers = visible.map((m) => {
       const s = serializeCheque(m);
       return {
         chequeId: s.id,
@@ -1091,7 +1148,10 @@ export async function payCrossVenueGroup({
     }
   }
 
-  const memberTotals = openMembers.map((member) => ({
+  const shellMembers = openMembers.filter((m) => isCrossVenueShellMember(m));
+  const billableOpenMembers = openMembers.filter((m) => !isCrossVenueShellMember(m));
+
+  const memberTotals = billableOpenMembers.map((member) => ({
     member,
     total: computeChequeTotal(member),
   }));
@@ -1145,6 +1205,10 @@ export async function payCrossVenueGroup({
   const allocated = allocateProportionalPayments(paymentLines, memberTotals);
 
   await prisma.$transaction(async (tx) => {
+    for (const shell of shellMembers) {
+      await deleteCrossVenueShellMember(tx, shell);
+    }
+
     for (const { member, payments: memberPayments } of allocated) {
       for (const line of memberPayments) {
         await tx.payment.create({
@@ -1204,7 +1268,7 @@ export async function payCrossVenueGroup({
     action: 'cross_venue_pay',
     entityType: 'cross_venue_group',
     entityId: groupId,
-    summary: `Cross-venue settlement paid: ${combinedTotal.toFixed(2)} across ${openMembers.length} venue(s)`,
+    summary: `Cross-venue settlement paid: ${combinedTotal.toFixed(2)} across ${billableOpenMembers.length} venue(s)`,
     details: {
       payments: paymentLines,
       combinedTotal,

@@ -114,6 +114,7 @@ export function computeChequeSubtotal(cheque) {
 export function canRemoveEmptyCheque(cheque) {
   if (!cheque || cheque.status !== 'open') return false;
   if (cheque.parentChequeId) return false;
+  if (cheque.crossVenueGroupId) return false;
   if (cheque.childCheques?.some((child) => child.status === 'open')) return false;
   if (computeChequeSubtotal(cheque) > 0) return false;
   const drafts = ordersFromCheque(cheque).filter((order) => order.status === 'draft');
