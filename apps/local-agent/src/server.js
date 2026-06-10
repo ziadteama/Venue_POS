@@ -13,8 +13,10 @@ import { registerFloorRoutes } from './routes/floor.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerPeerRoutes, registerRelayRoutes } from './routes/peer.js';
 
-export async function buildAgentServer({ db, config }) {
-  const app = Fastify({ logger: { level: 'info' } });
+export async function buildAgentApp({ db, config, logger = false }) {
+  const app = Fastify({
+    logger: logger === false ? false : typeof logger === 'object' ? logger : { level: 'info' },
+  });
   const {
     port,
     host,
@@ -78,6 +80,12 @@ export async function buildAgentServer({ db, config }) {
     registerRelayRoutes(app, { apiUrl });
   }
 
+  return app;
+}
+
+export async function buildAgentServer({ db, config }) {
+  const app = await buildAgentApp({ db, config });
+  const { port, host } = config;
   await app.listen({ port, host });
   return app;
 }

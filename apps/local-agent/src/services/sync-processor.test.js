@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import Database from 'better-sqlite3';
 import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { initSchema } from '../db/schema.js';
-import { enqueueSync, processSyncQueue } from './sync-processor.js';
+import {
+  enqueueSync,
+  processSyncQueue,
+  retryFailedSyncJob,
+  dismissFailedSyncJob,
+  listFailedSyncJobs,
+} from './sync-processor.js';
 import { getServerShiftId } from './shift-cache.js';
 
 describe('processSyncQueue', () => {
@@ -141,5 +147,19 @@ describe('processSyncQueue', () => {
     assert.match(url, /\/api\/v1\/shifts\/close$/);
     assert.equal(body.cashierId, 'cashier-1');
     assert.equal(body.closeFloat, 150);
+  });
+
+  it('retry and dismiss failed sync jobs', () => {
+    const jobId = enqueueSync(db, SYNC_EVENT_TYPES.CHEQUE_OPEN, {
+      cashierId: 'c1',
+      tableLabel: 'F1',
+    });
+    db.prepare(`UPDATE sync_queue SET status = 'failed', retry_count = 2 WHERE id = ?`).run(jobId);
+    assert.equal(listFailedSyncJobs(db).length, 1);
+    assert.ok(retryFailedSyncJob(db, jobId));
+    assert.equal(db.prepare(`SELECT status FROM sync_queue WHERE id = ?`).get(jobId).status, 'pending');
+    db.prepare(`UPDATE sync_queue SET status = 'failed' WHERE id = ?`).run(jobId);
+    assert.ok(dismissFailedSyncJob(db, jobId));
+    assert.equal(listFailedSyncJobs(db).length, 0);
   });
 });

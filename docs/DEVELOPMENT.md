@@ -356,6 +356,8 @@ cd apps/local-agent && pm2 start src/index.js --name venue-pos-agent
 
 ### Phase 6 manual test matrix (no production env)
 
+Automated equivalent: `npm run test -w @venue-pos/local-agent` → `test/e2e/phase6-matrix.test.js` (all 10 scenarios). Use the table below for on-hardware smoke before release.
+
 | # | Scenario | Steps | Expected |
 |---|----------|-------|----------|
 | 1 | Single-venue offline pay | Online login → stop API → open table → send → pay cash → start API | One server cheque; queue empty; offline banner clears |
