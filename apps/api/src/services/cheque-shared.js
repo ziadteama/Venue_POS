@@ -1,3 +1,4 @@
+import { VOIDABLE_ROUND_STATUSES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { notFound } from '../utils/errors.js';
 import { serializeOrder } from '../utils/serialize.js';
@@ -38,7 +39,7 @@ export const chequeInclude = {
 };
 
 export const BILLABLE_ORDER_STATUSES = ['sent', 'partially_ready', 'ready', 'served'];
-export const VOIDABLE_ROUND_STATUSES = ['draft', 'sent', 'partially_ready', 'ready', 'served'];
+export { VOIDABLE_ROUND_STATUSES };
 
 export function ordersFromCheque(cheque) {
   return cheque.orders.map((link) => link.order);

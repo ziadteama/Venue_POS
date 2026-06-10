@@ -29,5 +29,15 @@ export const ORDER_STATUSES = [
   'voided',
 ];
 
+/** Kitchen rounds the hub manager may void (includes `closed` after payment). */
+export const VOIDABLE_ROUND_STATUSES = [
+  'draft',
+  'sent',
+  'partially_ready',
+  'ready',
+  'served',
+  'closed',
+];
+
 export const API_VERSION = 'v1';
 export const API_BASE = `/api/${API_VERSION}`;
