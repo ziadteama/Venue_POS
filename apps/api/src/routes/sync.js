@@ -7,7 +7,13 @@ import {
   openOrResumeCheque,
   fireChequeRound,
   payCheque,
+  clearChequeDraft,
+  closeEmptyCheque,
+  moveChequeTable,
+  splitChequeByItems,
+  transferChequeItems,
 } from '../services/cheque-service.js';
+import { replayCrossVenueGroup } from '../services/cross-venue-service.js';
 import { executeChequeDiscount } from '../services/cheque-discount.js';
 import { verifyManagerPin } from '../services/auth-service.js';
 import { payCrossVenueGroup } from '../services/cross-venue-service.js';
@@ -104,6 +110,38 @@ async function processSyncEvent(request, { syncId, eventType, payload }) {
           managerPin: payload.managerPin,
           reason: payload.reason,
         }, venueId);
+      case SYNC_EVENT_TYPES.CHEQUE_VOID:
+        return closeEmptyCheque(payload.chequeId ?? payload.id, venueId);
+      case SYNC_EVENT_TYPES.CHEQUE_CLEAR:
+        return clearChequeDraft(payload.chequeId ?? payload.id, venueId);
+      case SYNC_EVENT_TYPES.CHEQUE_TABLE_MOVE:
+        return moveChequeTable(
+          payload.chequeId ?? payload.id,
+          { targetTableLabel: payload.targetTableLabel },
+          venueId,
+          { terminalId },
+        );
+      case SYNC_EVENT_TYPES.CHEQUE_TRANSFER: {
+        const body = payload.body ?? payload;
+        return transferChequeItems(
+          payload.chequeId ?? payload.id,
+          body,
+          venueId,
+          terminalId,
+        );
+      }
+      case SYNC_EVENT_TYPES.CHEQUE_SPLIT:
+        return splitChequeByItems(
+          payload.chequeId ?? payload.id,
+          { splits: payload.splits },
+          venueId,
+        );
+      case SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY:
+        return replayCrossVenueGroup({
+          ...payload,
+          anchorVenueId: payload.anchorVenueId ?? venueId,
+          anchorTerminalId: payload.anchorTerminalId ?? terminalId,
+        });
       default:
         throw validationError(`Unsupported sync event type: ${eventType}`);
     }

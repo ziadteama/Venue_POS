@@ -1522,6 +1522,20 @@ node --test apps/local-agent/src/services/sync-processor.test.js
 
 **Files:** `docs/DEV_CREDENTIALS.md` (restored full POS/API section), `docs/README.md`, `docs/PRD.md` (US-5.6, US-8.1b), `docs/TechSpec.md` (`manager:notification`, dashboard REST), `docs/PHASE6_OFFLINE_PLAN.md`, `docs/Technical_Proposal.md`, `AGENTS.md`, `C:\Users\pc\Desktop\Venue_POS_Phase6_Changes.md`
 
+### 2026-06-10 — Phase 6 sign-off: full offline operation + test harness
+
+**Phase:** 6 · **Stories:** US-7.1–7.5 (Epic 7 closed)
+**What:** Manager ops offline (void/clear/table move/transfer/split); cross-sell Slice C via coordinator buffer + atomic `CROSS_VENUE_GROUP_REPLAY`; menu price reconcile on reconnect; refund blocked offline with clear UX; agent unit + E2E harness; manual test matrix in `DEVELOPMENT.md`; PRD Epic 7 checkboxes updated.
+**Files:** `packages/shared/src/sync.js`, `local-cheques.js`, `coordinator-cross-venue.js`, `routes/cheques.js`, `routes/cross-venue.js`, `apps/api/src/routes/sync.js`, `cross-venue-service.js`, `menu-reconcile.js`, `phase6-offline.test.js`, `local-agent/test/e2e/offline-harness.test.js`, i18n
+**Verify:**
+```bash
+npm run migrate
+npm run test -w @venue-pos/api
+npm run test -w @venue-pos/local-agent
+npm run lint && npm run lint:i18n
+```
+**Notes:** Refunds remain online-only (audit). Comp offline deferred — hub manager route only. Menu publish backlog while offline still open (US-7.4).
+
 ---
 
 ## Quick reference — Phase 0 deliverables

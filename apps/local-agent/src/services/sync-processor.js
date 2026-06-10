@@ -10,7 +10,13 @@ const CHEQUE_SYNC_TYPES = new Set([
   SYNC_EVENT_TYPES.CHEQUE_FIRE,
   SYNC_EVENT_TYPES.CHEQUE_PAY,
   SYNC_EVENT_TYPES.CHEQUE_DISCOUNT,
+  SYNC_EVENT_TYPES.CHEQUE_VOID,
+  SYNC_EVENT_TYPES.CHEQUE_CLEAR,
+  SYNC_EVENT_TYPES.CHEQUE_TABLE_MOVE,
+  SYNC_EVENT_TYPES.CHEQUE_TRANSFER,
+  SYNC_EVENT_TYPES.CHEQUE_SPLIT,
   SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_PAY,
+  SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY,
 ]);
 
 const SHIFT_SYNC_TYPES = new Set([
@@ -290,6 +296,14 @@ async function replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncI
     });
   }
   if (job.event_type === SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_PAY) {
+    return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/sync/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        events: [{ syncId, eventType: job.event_type, payload }],
+      }),
+    });
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY) {
     return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/sync/events', {
       method: 'POST',
       body: JSON.stringify({

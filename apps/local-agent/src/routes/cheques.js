@@ -6,11 +6,18 @@ import { isCloudOnline } from '../services/cloud-health.js';
 import {
   openLocalCheque,
   listLocalOpenCheques,
+  listLocalPaidCheques,
   getLocalChequeById,
   fireLocalCheque,
   payLocalCheque,
   applyLocalChequeDiscount,
   removeLocalChequeDiscount,
+  clearLocalChequeDraft,
+  closeEmptyLocalCheque,
+  moveLocalChequeTable,
+  transferLocalChequeItems,
+  splitLocalChequeByItems,
+  buildLocalReceiptText,
 } from '../services/local-cheques.js';
 import { hydrateOpenCheques } from '../services/cheque-hydration.js';
 import { assertMenuReadyForWrite } from '../services/menu-gate.js';
@@ -63,12 +70,17 @@ export function registerChequeRoutes(app, routeCtx) {
 
   app.get('/v1/cheques/paid', async (request) => {
     const limit = request.query?.limit ?? 30;
-    return apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/paid?limit=${limit}`,
-    );
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/paid?limit=${limit}`,
+      );
+    } catch (err) {
+      if (isCloudOnline()) throw err;
+      return listLocalPaidCheques(db, venueId, Number(limit) || 30);
+    }
   });
 
   app.post('/v1/cheques/open', async (request, reply) => {
@@ -127,11 +139,32 @@ export function registerChequeRoutes(app, routeCtx) {
     }
   });
 
-  app.delete('/v1/cheques/:id', async (request) =>
-    apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`, {
-      method: 'DELETE',
-    }),
-  );
+  app.delete('/v1/cheques/:id', async (request, reply) => {
+    const syncId = randomUUID();
+    try {
+      return await apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
+      try {
+        const result = closeEmptyLocalCheque(db, request.params.id, venueId);
+        await releaseFloorUpstream(routeCtx, {
+          tableLabel: result.tableLabel,
+          chequeId: request.params.id,
+        }).catch(() => {});
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_VOID,
+          { chequeId: request.params.id },
+          syncId,
+        );
+        return result;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
+  });
 
   app.post('/v1/cheques/:id/fire', async (request) => {
     const syncId = randomUUID();
@@ -175,11 +208,32 @@ export function registerChequeRoutes(app, routeCtx) {
     }
   });
 
-  app.post('/v1/cheques/:id/clear', async (request) =>
-    apiFetch(apiUrl, terminalId, terminalSecret, `/api/v1/cheques/${request.params.id}/clear`, {
-      method: 'POST',
-    }),
-  );
+  app.post('/v1/cheques/:id/clear', async (request, reply) => {
+    const syncId = randomUUID();
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/clear`,
+        { method: 'POST' },
+      );
+    } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
+      try {
+        const result = clearLocalChequeDraft(db, request.params.id);
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_CLEAR,
+          { chequeId: request.params.id },
+          syncId,
+        );
+        return result;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
+  });
 
   app.get('/v1/cheques/:id/receipt', async (request) => {
     try {
@@ -249,11 +303,22 @@ export function registerChequeRoutes(app, routeCtx) {
       });
       return { printed: 1, mode: 'single' };
     } catch (err) {
-      return sendApiError(reply, err);
+      if (isCloudOnline()) return sendApiError(reply, err);
+      const targetId = chequeId ?? parentId;
+      const text = buildLocalReceiptText(db, targetId);
+      if (!text) return reply.status(404).send({ error: 'Cheque not found' });
+      await printCustomerReceipt(text, {
+        host: printers.receiptPrinterHost,
+        port: printers.receiptPrinterPort,
+        log: app.log,
+      });
+      return { printed: 1, mode: 'single', offline: true };
     }
   });
 
   app.patch('/v1/cheques/:id/table', async (request, reply) => {
+    const { targetTableLabel } = request.body ?? {};
+    const syncId = randomUUID();
     try {
       return await apiFetch(
         apiUrl,
@@ -263,7 +328,28 @@ export function registerChequeRoutes(app, routeCtx) {
         { method: 'PATCH', body: JSON.stringify(request.body) },
       );
     } catch (err) {
-      return sendApiError(reply, err);
+      if (isCloudOnline()) return sendApiError(reply, err);
+      try {
+        const moved = moveLocalChequeTable(db, request.params.id, targetTableLabel, venueId);
+        await releaseFloorUpstream(routeCtx, {
+          tableLabel: moved.oldTableLabel,
+          chequeId: request.params.id,
+        }).catch(() => {});
+        await occupyFloorUpstream(routeCtx, {
+          tableLabel: targetTableLabel,
+          chequeId: request.params.id,
+          venueId,
+        }).catch(() => {});
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_TABLE_MOVE,
+          { chequeId: request.params.id, targetTableLabel },
+          syncId,
+        );
+        return moved.cheque;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
     }
   });
 
@@ -302,25 +388,67 @@ export function registerChequeRoutes(app, routeCtx) {
     const body = request.body ?? {};
     if (!body.cashierId) return reply.status(400).send({ error: 'cashierId required' });
     if (!body.itemIds?.length) return reply.status(400).send({ error: 'itemIds required' });
-    return apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/transfer`,
-      { method: 'POST', body: JSON.stringify(body) },
-    );
+    const syncId = randomUUID();
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/transfer`,
+        { method: 'POST', body: JSON.stringify(body) },
+      );
+    } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
+      const manager = await verifyCachedManagerPin(db, body.managerPin);
+      if (!manager) return reply.status(401).send({ error: 'Invalid manager PIN' });
+      try {
+        const result = transferLocalChequeItems(
+          db,
+          request.params.id,
+          body,
+          venueId,
+          terminalId,
+        );
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_TRANSFER,
+          { chequeId: request.params.id, body },
+          syncId,
+        );
+        return result;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
   });
 
   app.post('/v1/cheques/:id/split', async (request, reply) => {
     const { splits } = request.body ?? {};
     if (!splits?.length) return reply.status(400).send({ error: 'splits required' });
-    return apiFetch(
-      apiUrl,
-      terminalId,
-      terminalSecret,
-      `/api/v1/cheques/${request.params.id}/split`,
-      { method: 'POST', body: JSON.stringify({ splits }) },
-    );
+    const syncId = randomUUID();
+    try {
+      return await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.id}/split`,
+        { method: 'POST', body: JSON.stringify({ splits }) },
+      );
+    } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
+      try {
+        const result = splitLocalChequeByItems(db, request.params.id, { splits }, venueId);
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_SPLIT,
+          { chequeId: request.params.id, splits },
+          syncId,
+        );
+        return result;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
   });
 
   app.post('/v1/cheques/:id/pay', async (request, reply) => {
@@ -495,7 +623,13 @@ export function registerChequeRoutes(app, routeCtx) {
       }
       return result;
     } catch (err) {
-      return sendApiError(reply, err);
+      if (isCloudOnline()) return sendApiError(reply, err);
+      return reply.status(503).send({
+        error: {
+          code: 'OFFLINE_MODE',
+          message: 'Refunds require hub connection',
+        },
+      });
     }
   });
 }

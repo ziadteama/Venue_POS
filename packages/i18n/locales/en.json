@@ -290,6 +290,7 @@
   "pos.menuNotCached": "Menu not cached — connect to hub to sync menu",
   "pos.menuStale": "Menu update available — sync before new orders",
   "pos.crossVenueOffline": "Cross-sell unavailable while offline",
+  "pos.offline.refundRequiresHub": "Refunds require hub connection — try again when online",
   "pos.connecting": "Connecting to local agent...",
   "pos.newOrder": "New order",
   "pos.currentOrder": "Current order",

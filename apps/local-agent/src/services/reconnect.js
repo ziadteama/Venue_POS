@@ -3,6 +3,7 @@ import { syncMenuFromServer } from './menu-sync.js';
 import { saveStaffCache, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
 import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount, setSyncDrainProgress, clearSyncDrainProgress } from './sync-processor.js';
 import { hydrateOpenCheques } from './cheque-hydration.js';
+import { reconcileLocalChequePrices } from './menu-reconcile.js';
 
 export async function runReconnectHandshake({
   db,
@@ -42,6 +43,8 @@ export async function runReconnectHandshake({
   } else {
     setAgentMeta(db, 'menu_stale', 'false');
   }
+
+  reconcileLocalChequePrices(db, venueId);
 
   const pendingBefore = getSyncQueueDepth(db);
   let drained = 0;
