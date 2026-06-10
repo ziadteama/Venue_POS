@@ -4,7 +4,6 @@ import { useChequeManager } from '../hooks/useChequeManager.js';
 import { ChequesPageHeader } from '../components/cheques/ChequesPageHeader.jsx';
 import { ShiftContextBar } from '../components/cheques/ShiftContextBar.jsx';
 import { ChequesSidebar } from '../components/cheques/ChequesSidebar.jsx';
-import { CrossVenueChequesSidebar } from '../components/cheques/CrossVenueChequesSidebar.jsx';
 import { ChequeDetailView } from '../components/cheques/ChequeDetailView.jsx';
 import { ChequeActionModals } from '../components/cheques/ChequeActionModals.jsx';
 
@@ -20,7 +19,6 @@ export function ChequesPage() {
         i18n={i18n}
         user={user}
         statusTab={manager.statusTab}
-        isCrossTab={manager.isCrossTab}
         venues={manager.venues}
         venueId={manager.venueId}
         searchQ={manager.searchQ}
@@ -29,7 +27,7 @@ export function ChequesPage() {
         onVenueChange={manager.changeVenue}
       />
 
-      {!manager.isCrossTab && manager.shiftId ? (
+      {manager.shiftId ? (
         <ShiftContextBar
           shiftContext={manager.shiftContext}
           shiftId={manager.shiftId}
@@ -56,25 +54,13 @@ export function ChequesPage() {
       />
 
       <div className="grid gap-4 lg:grid-cols-[14rem_1fr]">
-        {manager.isCrossTab ? (
-          <CrossVenueChequesSidebar
-            groups={manager.crossGroups}
-            selectedMemberId={manager.selectedId}
-            onSelectMember={manager.selectCrossMember}
-            crossGroupStatus={manager.crossGroupStatus}
-            onCrossGroupStatusChange={manager.setCrossGroupStatus}
-            t={t}
-            language={i18n.language}
-          />
-        ) : (
-          <ChequesSidebar
-            t={t}
-            statusTab={manager.statusTab}
-            cheques={manager.cheques}
-            selectedId={manager.selectedId}
-            onSelect={manager.setSelectedId}
-          />
-        )}
+        <ChequesSidebar
+          t={t}
+          statusTab={manager.statusTab}
+          cheques={manager.cheques}
+          selectedId={manager.selectedId}
+          onSelect={manager.setSelectedId}
+        />
 
         <section className="surface-card p-5">
           <ChequeDetailView

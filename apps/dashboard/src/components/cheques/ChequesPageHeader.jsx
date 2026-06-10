@@ -8,7 +8,6 @@ export function ChequesPageHeader({
   i18n,
   user,
   statusTab,
-  isCrossTab,
   venues,
   venueId,
   searchQ,
@@ -25,12 +24,11 @@ export function ChequesPageHeader({
             options={[
               { value: 'open', label: t('cheque.tabOpen') },
               { value: 'paid', label: t('cheque.tabPaid') },
-              { value: 'cross_sell', label: t('cheque.tabCrossSell') },
             ]}
             value={statusTab}
             onChange={onTabChange}
           />
-          {!isCrossTab && user?.role === 'hub_manager' && venues.length >= 1 ? (
+          {user?.role === 'hub_manager' && venues.length >= 1 ? (
             <Select className="w-full py-2 sm:w-auto" value={venueId} onChange={(e) => onVenueChange(e.target.value)}>
               {venues.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -39,14 +37,12 @@ export function ChequesPageHeader({
               ))}
             </Select>
           ) : null}
-          {!isCrossTab ? (
-            <SearchInput
-              value={searchQ}
-              onChange={onSearchChange}
-              placeholder={t('cheque.searchPlaceholder')}
-              className="w-full sm:w-52"
-            />
-          ) : null}
+          <SearchInput
+            value={searchQ}
+            onChange={onSearchChange}
+            placeholder={t('cheque.searchPlaceholder')}
+            className="w-full sm:w-52"
+          />
         </div>
       }
     />

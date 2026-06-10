@@ -11,10 +11,8 @@ export function useChequeManager({ user }) {
   const [shiftId, setShiftId] = useState(searchParams.get('shiftId'));
   const [shiftContext, setShiftContext] = useState(null);
   const [statusTab, setStatusTab] = useState('open');
-  const [crossGroupStatus, setCrossGroupStatus] = useState('open');
   const [searchQ, setSearchQ] = useState('');
   const [cheques, setCheques] = useState([]);
-  const [crossGroups, setCrossGroups] = useState([]);
   const [selectedId, setSelectedId] = useState(searchParams.get('chequeId'));
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState('');
@@ -24,8 +22,6 @@ export function useChequeManager({ user }) {
   const [discountMode, setDiscountMode] = useState('amount');
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountPercent, setDiscountPercent] = useState('');
-
-  const isCrossTab = statusTab === 'cross_sell';
 
   const syncUrl = useCallback(
     (chequeId, vId, sId = shiftId) => {
@@ -59,22 +55,12 @@ export function useChequeManager({ user }) {
     const venueList = await apiFetch('/api/v1/venues');
     setVenues(venueList);
 
-    if (isCrossTab) {
-      const groups = await apiFetch(
-        `/api/v1/manager/cheques/cross-venue?status=${crossGroupStatus}`,
-      );
-      setCrossGroups(groups);
-      setCheques([]);
-      return groups;
-    }
-
     const params = new URLSearchParams({ status: statusTab });
     if (venueId) params.set('venueId', venueId);
     if (searchQ.trim()) params.set('q', searchQ.trim());
     if (shiftId) params.set('shiftId', shiftId);
     const list = await apiFetch(`/api/v1/manager/cheques?${params}`);
     setCheques(list);
-    setCrossGroups([]);
 
     if (!venueId && venueList[0]) setVenueId(venueList[0].id);
 
@@ -84,7 +70,7 @@ export function useChequeManager({ user }) {
       setDetail(null);
     }
     return list;
-  }, [isCrossTab, crossGroupStatus, statusTab, venueId, searchQ, shiftId, selectedId]);
+  }, [statusTab, venueId, searchQ, shiftId, selectedId]);
 
   const loadDetail = useCallback(
     async (id, vId = venueId) => {
@@ -150,7 +136,7 @@ export function useChequeManager({ user }) {
   );
 
   const openDiscountRequest = useCallback((cheque, actionType = 'discount') => {
-    setDiscountMode('amount');
+    setDiscountMode(cheque.isCrossVenue ? 'percent' : 'amount');
     setDiscountAmount(
       actionType === 'discount_change' && cheque.discountAmount > 0
         ? String(cheque.discountAmount)
@@ -162,6 +148,7 @@ export function useChequeManager({ user }) {
       chequeId: cheque.id,
       chequeNumber: cheque.chequeNumber,
       currentDiscount: cheque.discountAmount ?? 0,
+      isCrossVenue: cheque.isCrossVenue,
     });
   }, []);
 
@@ -186,11 +173,9 @@ export function useChequeManager({ user }) {
   const changeTab = useCallback(
     (tab) => {
       setStatusTab(tab);
-      if (tab !== 'cross_sell') {
-        setSelectedId(null);
-        setDetail(null);
-        syncUrl(null, venueId);
-      }
+      setSelectedId(null);
+      setDetail(null);
+      syncUrl(null, venueId);
     },
     [venueId, syncUrl],
   );
@@ -199,6 +184,7 @@ export function useChequeManager({ user }) {
     (id) => {
       setVenueId(id);
       setSelectedId(null);
+      setDetail(null);
       syncUrl(null, id);
     },
     [syncUrl],
@@ -212,19 +198,10 @@ export function useChequeManager({ user }) {
     syncUrl(null, venueId, null);
   }, [venueId, syncUrl]);
 
-  const selectCrossMember = useCallback(
-    (member) => {
-      setVenueId(member.venueId);
-      setSelectedId(member.chequeId);
-      syncUrl(member.chequeId, member.venueId);
-      loadDetail(member.chequeId, member.venueId).catch((e) => setError(friendlyError(e)));
-    },
-    [loadDetail, syncUrl],
-  );
-
   const setSearch = useCallback((q) => {
     setSearchQ(q);
     setSelectedId(null);
+    setDetail(null);
   }, []);
 
   return {
@@ -234,12 +211,8 @@ export function useChequeManager({ user }) {
     shiftContext,
     clearShiftFilter,
     statusTab,
-    crossGroupStatus,
-    setCrossGroupStatus,
     searchQ,
     cheques,
-    crossGroups,
-    isCrossTab,
     selectedId,
     setSelectedId: (id) => {
       setSelectedId(id);
@@ -256,7 +229,6 @@ export function useChequeManager({ user }) {
     openRefundRequest,
     changeTab,
     changeVenue,
-    selectCrossMember,
     setSearch,
     setActionTarget,
     discountForm: {

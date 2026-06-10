@@ -145,6 +145,9 @@ function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, onDiscountAct
           </div>
         </div>
       ) : null}
+      {detail.isCrossVenue && canDiscount ? (
+        <p className="text-xs text-violet-700">{t('crossVenue.discountPercentOnly')}</p>
+      ) : null}
       {canDiscount && !hasDiscount && detail.total > 0 ? (
         <button
           type="button"

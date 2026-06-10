@@ -42,12 +42,14 @@ export function ChequeActionModals({
 
   if (actionTarget.type === 'discount' || actionTarget.type === 'discount_change') {
     const isChange = actionTarget.type === 'discount_change';
+    const crossVenue = Boolean(actionTarget.isCrossVenue);
     return (
       <DiscountRequestModal
         chequeNumber={actionTarget.chequeNumber}
         mode={discountForm.mode}
         amount={discountForm.amount}
         percent={discountForm.percent}
+        percentOnly={crossVenue}
         onModeChange={discountForm.setMode}
         onAmountChange={discountForm.setAmount}
         onPercentChange={discountForm.setPercent}
@@ -57,11 +59,21 @@ export function ChequeActionModals({
         titleKey={isChange ? 'cheque.discountChangeTitle' : 'cheque.discountTitle'}
         confirmLabelKey={isChange ? 'cheque.confirmDiscountChange' : 'cheque.applyDiscount'}
         subtitle={
-          isChange
-            ? t('cheque.discountChangeHint', {
-                amount: Number(actionTarget.currentDiscount ?? 0).toFixed(2),
-              })
-            : undefined
+          crossVenue
+            ? t(
+                isChange ? 'crossVenue.discountEditHint' : 'crossVenue.discountApplyHint',
+                isChange
+                  ? {
+                      percent: '—',
+                      amount: Number(actionTarget.currentDiscount ?? 0).toFixed(2),
+                    }
+                  : undefined,
+              )
+            : isChange
+              ? t('cheque.discountChangeHint', {
+                  amount: Number(actionTarget.currentDiscount ?? 0).toFixed(2),
+                })
+              : undefined
         }
       />
     );
