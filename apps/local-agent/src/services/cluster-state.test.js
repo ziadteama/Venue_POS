@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CLUSTER_MODES, CLUSTER_HYSTERESIS_TICKS } from '@venue-pos/shared';
+import { CLUSTER_MODES } from '@venue-pos/shared';
 import { computeClusterState } from './cluster-state.js';
 
 describe('computeClusterState', () => {

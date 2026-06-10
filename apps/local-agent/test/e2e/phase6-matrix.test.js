@@ -114,7 +114,7 @@ describe('Phase 6 manual matrix', () => {
     fireLocalCheque(db, cheque.id);
     payLocalCheque(db, cheque.id, { method: 'cash', amount: 50 });
 
-    const syncId = enqueueSync(
+    enqueueSync(
       db,
       SYNC_EVENT_TYPES.CHEQUE_PAY,
       { chequeId: cheque.id, payBody: { cashierId: CASHIER, method: 'cash', amount: 50 } },
@@ -124,7 +124,7 @@ describe('Phase 6 manual matrix', () => {
 
     let payUrl;
     const originalFetch = global.fetch;
-    global.fetch = async (url, options = {}) => {
+    global.fetch = async (url) => {
       payUrl = String(url);
       return {
         ok: true,
