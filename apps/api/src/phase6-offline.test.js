@@ -63,6 +63,20 @@ before(async () => {
     },
     update: { secretHash, isActive: true, venueId: VENUE_ID },
   });
+
+  await prisma.syncEvent.deleteMany({
+    where: {
+      syncId: {
+        in: [
+          '00000000-0000-4000-8000-000000000091',
+          '00000000-0000-4000-8000-000000000092',
+          '00000000-0000-4000-8000-000000000098',
+        ],
+      },
+    },
+  });
+  await prisma.shiftEvent.deleteMany({ where: { shift: { terminalId: TERMINAL_ID } } });
+  await prisma.shift.deleteMany({ where: { terminalId: TERMINAL_ID } });
 });
 
 after(async () => {

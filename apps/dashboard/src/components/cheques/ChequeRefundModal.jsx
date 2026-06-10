@@ -36,7 +36,7 @@ export function ChequeRefundModal({
     setMethod(nextMethod);
     const remaining = remainingForMethod(summary, nextMethod);
     setAmount(remaining > 0 ? String(Number(remaining.toFixed(2))) : '');
-  }, [cheque?.id, summary.remainingTotal]);
+  }, [cheque?.id, summary]);
 
   useEffect(() => {
     if (methodRemaining <= 0) return;

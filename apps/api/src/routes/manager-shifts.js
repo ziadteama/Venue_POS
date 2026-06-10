@@ -14,7 +14,6 @@ import {
   redactEodFinancials,
   redactShiftListFinancials,
   redactShiftRowFinancials,
-  redactAuditFinancials,
 } from '../services/financial-redact.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
