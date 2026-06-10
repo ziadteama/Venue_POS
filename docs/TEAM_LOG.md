@@ -1601,6 +1601,13 @@ npm run lint && npm run lint:i18n
 # Shifts drawer → View cheques → pick cheque → View orders; comp/void only on Orders
 ```
 
+### 2026-06-10 — Fix void kitchen round on paid cheques
+
+**Phase:** API
+**What:** Paid cheques mark fired rounds as `closed`; manager void round returned 400 because `closed` was missing from `VOIDABLE_ROUND_STATUSES`. Added `closed` to shared constant; regression test for paid-cheque round void + refund adjustment.
+**Files:** `packages/shared/src/constants.js`, `cheque-shared.js`, `phase1/cheques.js`, `OrderDetailPanel.jsx`
+**Verify:** Dashboard Orders → paid cheque → Void round; `npm run test -w @venue-pos/api`
+
 ### 2026-06-10 — EOD financial reconciliation E2E test
 
 **Phase:** API / QA

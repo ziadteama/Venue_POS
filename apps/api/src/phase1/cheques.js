@@ -359,6 +359,69 @@ test('manager can void a kitchen round on open cheque', async () => {
   assert.ok(listRes.json().some((c) => c.id === chequeId));
 });
 
+test('manager can void a closed kitchen round on paid cheque', async () => {
+  await ensureOpenShift();
+  const menuRes = await fx.app.inject({
+    method: 'GET',
+    url: `/api/v1/venues/${VENUE_ID}/menu`,
+    headers: terminalHeaders,
+  });
+  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const option = group.options[0];
+
+  const openRes = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'VP1' },
+  });
+  const chequeId = openRes.json().id;
+  let draftId = openRes.json().draftOrder.id;
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: {
+      menuItemId: fx.menuItemId,
+      quantity: 1,
+      modifiers: [
+        {
+          groupId: group.id,
+          optionId: option.id,
+          nameEn: option.nameEn,
+          nameAr: option.nameAr,
+          priceDelta: option.priceDelta,
+        },
+      ],
+    },
+  });
+  const fireRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/fire`,
+    headers: terminalHeaders,
+  });
+  const closedOrderId = fireRes.json().sentOrder.id;
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${chequeId}/pay`,
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, method: 'cash' },
+  });
+
+  const voidRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/cheques/${chequeId}/orders/${closedOrderId}/void`,
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+    payload: { reason: 'Customer returned dish' },
+  });
+  assert.equal(voidRes.statusCode, 200, voidRes.body);
+  const voided = voidRes.json().orders.find((o) => o.id === closedOrderId);
+  assert.equal(voided.status, 'voided');
+  assert.ok(voidRes.json().refunds?.length >= 1);
+});
+
 test('manager can comp a line item on open cheque', async () => {
   const menuRes = await fx.app.inject({
     method: 'GET',

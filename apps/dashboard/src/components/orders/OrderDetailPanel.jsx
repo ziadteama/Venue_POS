@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { VOIDABLE_ROUND_STATUSES } from '@venue-pos/shared';
 import { CrossVenueBadge, CrossVenueGroupPanel } from '../CrossVenueBadge.jsx';
 import { OpsBreadcrumb } from '../dashboard/OpsBreadcrumb.jsx';
 import { Button } from '../ui/Button.jsx';
@@ -175,7 +176,7 @@ export function OrderDetailPanel({
                       )
                     : null}
                   {showOrderActions &&
-                  chequeOrder.status !== 'voided' &&
+                  VOIDABLE_ROUND_STATUSES.includes(chequeOrder.status) &&
                   chequeOrder.items?.length > 0 &&
                   detail.cheque?.id ? (
                     <Button
