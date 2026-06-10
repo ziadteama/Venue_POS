@@ -263,13 +263,32 @@ export async function loadCheque(chequeId) {
   return cheque;
 }
 
-export async function nextChequeNumber(tx, venueId, businessDate = resolveBusinessDate()) {
-  const last = await tx.cheque.findFirst({
-    where: { venueId, businessDate },
-    orderBy: { chequeNumber: 'desc' },
-    select: { chequeNumber: true },
+/** Allocate next hub-wide cheque number for a business date (all venues share one sequence). */
+export async function nextChequeNumber(tx, businessDate = resolveBusinessDate()) {
+  const date =
+    businessDate instanceof Date
+      ? businessDate
+      : new Date(`${String(businessDate).slice(0, 10)}T00:00:00.000Z`);
+
+  const existing = await tx.chequeNumberCounter.findUnique({
+    where: { businessDate: date },
   });
-  return (last?.chequeNumber ?? 0) + 1;
+  if (!existing) {
+    const maxRow = await tx.cheque.findFirst({
+      where: { businessDate: date },
+      orderBy: { chequeNumber: 'desc' },
+      select: { chequeNumber: true },
+    });
+    await tx.chequeNumberCounter.create({
+      data: { businessDate: date, lastNumber: maxRow?.chequeNumber ?? 0 },
+    });
+  }
+
+  const row = await tx.chequeNumberCounter.update({
+    where: { businessDate: date },
+    data: { lastNumber: { increment: 1 } },
+  });
+  return row.lastNumber;
 }
 
 export async function linkDraftOrder(chequeId, orderId) {

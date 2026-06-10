@@ -1549,6 +1549,19 @@ npm run test -w @venue-pos/local-agent
 ```
 **Notes:** Epic 9 watchdog (US-9.2) and GP/BIOS (US-9.3) still open. Run `npm run setup:node20` after switching Node versions (better-sqlite3).
 
+### 2026-06-10 — Shared cross-sell cheque numbers + dashboard navigation
+
+**Phase:** 4 / Dashboard · **Stories:** US-4.6 (cross-sell UX), hub manager ops
+**What:** Hub-wide `ChequeNumberCounter` (one sequence per business date); cross-sell siblings copy anchor cheque number; `GET /manager/cheques/cross-venue` group list; Cheques Cross-sell tab; cheque search (`q`); deep links (`?chequeId`, `?shiftId`, `?venueId`); Shifts→Orders→Cheques cross-links; hub manager Operations overview at `/`.
+**Files:** `schema.prisma`, `cheque-shared.js`, `cross-venue-service.js`, `manager-cheques.js`, `cheque-numbering.test.js`, dashboard cheques/orders/shifts pages, `hub-access.js`, i18n
+**Verify:**
+```bash
+npm run migrate -w @venue-pos/api
+npm run test -w @venue-pos/api
+npm run lint && npm run lint:i18n
+```
+**Notes:** Offline replay unchanged — server assigns hub-wide numbers on sync; local-agent keeps venue-local numbers until replay. `getCheque` returns `getCrossVenueGroupSummary` with `members` for linked panel.
+
 ### 2026-06-10 — Phase 7 Epic 9: Windows kiosk, watchdog, hardware hardening
 
 **Phase:** 7 · **Stories:** US-9.1, US-9.2, US-9.3

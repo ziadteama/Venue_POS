@@ -51,7 +51,7 @@ export async function splitChequeByItems(chequeId, { splits }, venueId) {
 
   await prisma.$transaction(async (tx) => {
     for (const split of splits) {
-      const chequeNumber = await nextChequeNumber(tx, venueId, cheque.businessDate);
+      const chequeNumber = await nextChequeNumber(tx, cheque.businessDate);
       const child = await tx.cheque.create({
         data: {
           venueId: cheque.venueId,
@@ -131,7 +131,7 @@ export async function splitChequeByAmount(chequeId, { splits }, venueId) {
 
   await prisma.$transaction(async (tx) => {
     for (const split of splits) {
-      const chequeNumber = await nextChequeNumber(tx, venueId, cheque.businessDate);
+      const chequeNumber = await nextChequeNumber(tx, cheque.businessDate);
       await tx.cheque.create({
         data: {
           venueId: cheque.venueId,

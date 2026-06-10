@@ -12,6 +12,7 @@ import {
 import {
   listOpenCheques,
   listChequesForVenue,
+  listCrossVenueChequeGroups,
   getCheque,
   voidChequeRound,
   voidOpenCheque,
@@ -83,6 +84,22 @@ export async function managerChequeRoutes(app) {
         throw validationError('Invalid status filter');
       }
       return listChequesForVenue(venueId, {
+        status,
+        limit: Number(request.query?.limit ?? 50),
+        q: request.query?.q,
+      });
+    },
+  );
+
+  app.get(
+    '/api/v1/manager/cheques/cross-venue',
+    { preHandler: hubManagerPreHandler },
+    async (request) => {
+      const status = request.query?.status ?? 'open';
+      if (!['open', 'paid'].includes(status)) {
+        throw validationError('Invalid status filter');
+      }
+      return listCrossVenueChequeGroups({
         status,
         limit: Number(request.query?.limit ?? 50),
       });
