@@ -46,6 +46,12 @@ function orderSubtotal(order) {
   return serializeOrder(order).subtotal;
 }
 
+/** Sum order subtotals for cheque/shift rollups — voided kitchen rounds bill zero. */
+function billableOrderSubtotal(order) {
+  if (order.status === 'voided') return 0;
+  return order.subtotal ?? 0;
+}
+
 function paymentMethods(cheque) {
   if (!cheque?.payments?.length) return [];
   return [...new Set(cheque.payments.map((p) => p.method))];
@@ -335,7 +341,7 @@ function groupOrdersIntoCheques(orderRecords) {
       ...group,
       orderCount: group.orders.length,
       orderNumbers: group.orders.map((o) => o.orderNumber),
-      totalSubtotal: group.orders.reduce((sum, o) => sum + o.subtotal, 0),
+      totalSubtotal: group.orders.reduce((sum, o) => sum + billableOrderSubtotal(o), 0),
       cashiers: [...new Set(group.orders.map((o) => o.cashierUsername))],
       orders: group.orders.sort((a, b) => a.orderNumber - b.orderNumber),
     }))
@@ -577,7 +583,7 @@ export async function getChequeExplorerDetail(chequeId, venueId) {
     venueNameEn: cheque.venue.nameEn,
     venueNameAr: cheque.venue.nameAr,
     tableLabel: cheque.tableLabel,
-    totalSubtotal: chequeOrders.reduce((sum, o) => sum + o.subtotal, 0),
+    totalSubtotal: chequeOrders.reduce((sum, o) => sum + billableOrderSubtotal(o), 0),
     openedAt: chequeOrders[0]?.openedAt ?? cheque.openedAt,
   };
 }

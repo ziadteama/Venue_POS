@@ -10,11 +10,6 @@ import {
   eodReconciliationToCsv,
 } from '../services/manager-shift-service.js';
 import { requestCanSeeFinancials } from '../middleware/auth.js';
-import {
-  redactEodFinancials,
-  redactShiftListFinancials,
-  redactShiftRowFinancials,
-} from '../services/financial-redact.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
@@ -50,7 +45,7 @@ export async function managerShiftsRoutes(app) {
         return shiftsListToCsv(result);
       }
 
-      return (await requestCanSeeFinancials(request)) ? result : redactShiftListFinancials(result);
+      return result;
     },
   );
 
@@ -72,7 +67,8 @@ export async function managerShiftsRoutes(app) {
         reply.header('Content-Disposition', 'attachment; filename="eod-reconciliation.csv"');
         return eodReconciliationToCsv(result);
       }
-      return (await requestCanSeeFinancials(request)) ? result : redactEodFinancials(result);
+      // Hub manager daily ops — full EOD totals (CEO cannot access this route).
+      return result;
     },
   );
 
@@ -82,7 +78,8 @@ export async function managerShiftsRoutes(app) {
     async (request) => {
       const venueId = resolveVenueFilter(request);
       const detail = await getManagerShiftDetail(request.params.id, venueId);
-      return (await requestCanSeeFinancials(request)) ? detail : redactShiftRowFinancials(detail);
+      // Hub manager shift detail — same totals as POS close report.
+      return detail;
     },
   );
 

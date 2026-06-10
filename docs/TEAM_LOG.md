@@ -1601,6 +1601,17 @@ npm run lint && npm run lint:i18n
 # Shifts drawer → View cheques → pick cheque → View orders; comp/void only on Orders
 ```
 
+### 2026-06-10 — EOD financial reconciliation E2E test
+
+**Phase:** API / QA
+**What:** API E2E test simulates a full cashier day (clean sale, discount, comp, void round, refund, void cheque, shift close) and asserts totals agree across shift close report, manager shift detail, EOD, analytics revenue, operations dashboard, Cheques, and Orders explorer. Fixed hub-manager shift/EOD financial redaction (daily ops need real totals), EOD `netRevenue` double-subtracting refunds, operations `grossRevenue`, and Orders explorer cheque subtotals including voided rounds.
+**Files:** `eod-reconciliation.test.js`, `manager-shifts.js`, `manager-shift-service.js`, `dashboard-summary-service.js`, `order-explorer-service.js`, `phase1/dashboard.js`
+**Verify:**
+```bash
+node --test src/eod-reconciliation.test.js   # from apps/api
+npm run test -w @venue-pos/api
+```
+
 ---
 
 ## Quick reference — Phase 0 deliverables
