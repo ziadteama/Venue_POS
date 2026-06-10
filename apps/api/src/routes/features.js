@@ -1,7 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { config } from '../config.js';
-import { serializeVenueTableLabels } from '../utils/venue-tables.js';
+import { listHubTableLabels } from '../services/hub-table-service.js';
 import { getEnabledTargets } from '../services/billing-config-service.js';
 
 export async function featureRoutes(app) {
@@ -9,8 +9,9 @@ export async function featureRoutes(app) {
     const venueId = request.terminal.venueId;
     const venue = await prisma.venue.findUnique({
       where: { id: venueId },
-      select: { tables: true, type: true, nameEn: true, nameAr: true },
+      select: { type: true, nameEn: true, nameAr: true },
     });
+    const tables = await listHubTableLabels();
 
     const crossVenueTargets = config.featureCrossVenueBilling
       ? await getEnabledTargets(venueId)
@@ -24,7 +25,7 @@ export async function featureRoutes(app) {
       discounts: config.featureDiscountsEnabled,
       refunds: config.featureRefundsEnabled,
       autoReceiptPrint: config.featureAutoReceiptPrint,
-      tables: serializeVenueTableLabels(venue?.tables),
+      tables,
       crossVenueBilling: config.featureCrossVenueBilling && crossVenueTargets.length > 0,
       isAnchor: venue?.type === 'anchor',
       crossVenueTargets,

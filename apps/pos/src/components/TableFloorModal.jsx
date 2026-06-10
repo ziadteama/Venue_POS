@@ -3,9 +3,9 @@ import { useEffect } from 'react';
 import {
   canDeleteCheque,
   displayChequeTotal,
-  findFloorRowForLabel,
   findOpenChequeForLabel,
   hasOpenSplitChildren,
+  isHubTableBlocked,
   parentOpenCheques,
 } from '../utils/cheque.js';
 import { OverlayPortal } from './ModalFrame.jsx';
@@ -16,7 +16,13 @@ function tableStatus({ openCheque, currentChequeId }) {
   return 'occupied';
 }
 
-export function buildFloorTiles({ venueTables, openCheques, currentChequeId, floorByLabel }) {
+export function buildFloorTiles({
+  venueTables,
+  openCheques,
+  currentChequeId,
+  currentCrossVenueGroupId,
+  floorByLabel,
+}) {
   const parents = parentOpenCheques(openCheques);
   const baseLabels =
     venueTables.length > 0
@@ -29,12 +35,17 @@ export function buildFloorTiles({ venueTables, openCheques, currentChequeId, flo
   const tiles = baseLabels.map((label) => {
     const cheque = findOpenChequeForLabel(label, openCheques, floorByLabel);
     if (cheque) matchedIds.add(cheque.id);
-    const floor = findFloorRowForLabel(label, floorByLabel);
-    const occupiedElsewhere = Boolean(
-      floor?.isOccupied && cheque && floor?.occupiedByChequeId !== cheque.id,
-    );
     let status = tableStatus({ openCheque: cheque, currentChequeId });
-    if (occupiedElsewhere && status === 'free') status = 'occupied';
+    if (
+      status === 'free' &&
+      isHubTableBlocked(label, {
+        floorByLabel,
+        chequeId: currentChequeId,
+        crossVenueGroupId: currentCrossVenueGroupId,
+      })
+    ) {
+      status = 'occupied';
+    }
     return { key: cheque?.id ?? label, label, cheque, status };
   });
 
@@ -56,6 +67,7 @@ export function TableFloorModal({
   openCheques,
   currentCheque,
   currentChequeId,
+  currentCrossVenueGroupId,
   currentTable,
   floorByLabel,
   onClose,
@@ -64,7 +76,13 @@ export function TableFloorModal({
   onRefreshOpenCheques,
   t,
 }) {
-  const tiles = buildFloorTiles({ venueTables, openCheques, currentChequeId, floorByLabel });
+  const tiles = buildFloorTiles({
+    venueTables,
+    openCheques,
+    currentChequeId,
+    currentCrossVenueGroupId,
+    floorByLabel,
+  });
   const hasAssigned = venueTables.length > 0;
   const activeTabs = parentOpenCheques(openCheques);
 
@@ -77,6 +95,7 @@ export function TableFloorModal({
       onClose();
       return;
     }
+    if (tile.status === 'occupied' && !tile.cheque) return;
     const result = await onSelectTable(tile.label, tile.cheque);
     if (result?.ok !== false) onClose();
   }
@@ -194,17 +213,21 @@ export function TableFloorModal({
                     ? currentCheque
                     : tile.cheque;
                 const deletable = chequeForTile && canDeleteCheque(chequeForTile);
+                const hubBlocked = tile.status === 'occupied' && !tile.cheque;
                 const statusClass =
                   tile.status === 'current'
                     ? 'border-primary-to bg-blue-50 ring-2 ring-primary-to/30'
-                    : tile.status === 'occupied'
-                      ? 'border-amber-300 bg-amber-50/80'
-                      : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50';
+                    : hubBlocked
+                      ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-80'
+                      : tile.status === 'occupied'
+                        ? 'border-amber-300 bg-amber-50/80'
+                        : 'border-slate-200 bg-white hover:border-emerald-400 hover:bg-emerald-50/50';
 
                 return (
                   <div key={tile.key} className="relative">
                     <button
                       type="button"
+                      disabled={hubBlocked}
                       onClick={() => handlePick(tile)}
                       className={`flex min-h-[7.5rem] w-full flex-col justify-between rounded-2xl border p-4 text-start transition ${statusClass}`}
                     >

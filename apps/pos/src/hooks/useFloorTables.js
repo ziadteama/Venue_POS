@@ -2,6 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { POS_FLOOR_POLL_OFFLINE_MS } from '@venue-pos/shared';
 import { callAgent } from '../api/agent.js';
 
+/** API hub rows use occupiedByChequeId; offline coordinator locks use chequeId. */
+function normalizeFloorRow(row) {
+  const occupiedByChequeId = row.occupiedByChequeId ?? row.chequeId ?? null;
+  return {
+    ...row,
+    isOccupied: row.isOccupied ?? Boolean(occupiedByChequeId),
+    occupiedByChequeId,
+    occupiedCrossVenueGroupId: row.occupiedCrossVenueGroupId ?? null,
+  };
+}
+
 export function useFloorTables({ enabled, coordinatorActive, online = false }) {
   const [floorByLabel, setFloorByLabel] = useState(new Map());
   const [coordinatorUnreachable, setCoordinatorUnreachable] = useState(false);
@@ -16,7 +27,8 @@ export function useFloorTables({ enabled, coordinatorActive, online = false }) {
       const rows = await callAgent('/v1/floor/tables');
       const map = new Map();
       for (const row of Array.isArray(rows) ? rows : []) {
-        map.set(row.tableLabel, row);
+        const normalized = normalizeFloorRow(row);
+        map.set(normalized.tableLabel, normalized);
       }
       setFloorByLabel(map);
       setCoordinatorUnreachable(false);

@@ -3,6 +3,7 @@ import { ROLES } from '@venue-pos/shared';
 import { requireRoles } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
 import {
+  broadcastHubTablesUpdated,
   createHubTable,
   deleteHubTable,
   listHubTables,
@@ -35,7 +36,9 @@ export async function managerHubTableRoutes(app) {
     async (request) => {
       const parsed = createSchema.safeParse(request.body ?? {});
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return createHubTable(parsed.data);
+      const row = await createHubTable(parsed.data);
+      await broadcastHubTablesUpdated(request.server.io);
+      return row;
     },
   );
 
@@ -45,13 +48,19 @@ export async function managerHubTableRoutes(app) {
     async (request) => {
       const parsed = updateSchema.safeParse(request.body ?? {});
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return updateHubTable(request.params.id, parsed.data);
+      const row = await updateHubTable(request.params.id, parsed.data);
+      await broadcastHubTablesUpdated(request.server.io);
+      return row;
     },
   );
 
   app.delete(
     '/api/v1/manager/hub/tables/:id',
     { preHandler: hubManagerPreHandler },
-    async (request) => deleteHubTable(request.params.id),
+    async (request) => {
+      const result = await deleteHubTable(request.params.id);
+      await broadcastHubTablesUpdated(request.server.io);
+      return result;
+    },
   );
 }

@@ -1,20 +1,39 @@
 import { useState } from 'react';
 import { OverlayPortal } from './ModalFrame.jsx';
 import { CloseXIcon } from './icons.jsx';
+import { isHubTableBlocked, tableLabelsMatch } from '../utils/cheque.js';
 
-export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfirm, onCancel, t }) {
+export function MoveTableModal({
+  cheque,
+  openCheques,
+  venueTables = [],
+  floorByLabel,
+  onConfirm,
+  onCancel,
+  t,
+}) {
   const [selected, setSelected] = useState('');
 
   const currentLabel = cheque?.tableLabel ?? '';
 
-  const occupiedLabels = new Set(
-    (openCheques ?? [])
-      .filter((c) => c.id !== cheque?.id && !c.parentChequeId)
-      .map((c) => c.tableLabel),
-  );
+  function isOccupied(label) {
+    if (isHubTableBlocked(label, {
+      floorByLabel,
+      chequeId: cheque?.id,
+      crossVenueGroupId: cheque?.crossVenueGroupId,
+    })) {
+      return true;
+    }
+    return (openCheques ?? []).some(
+      (c) =>
+        c.id !== cheque?.id &&
+        !c.parentChequeId &&
+        tableLabelsMatch(c.tableLabel, label),
+    );
+  }
 
   const configuredTables = (venueTables ?? []).filter(
-    (label) => label.toLowerCase() !== currentLabel.toLowerCase(),
+    (label) => !tableLabelsMatch(label, currentLabel),
   );
 
   const targetLabel = selected;
@@ -59,16 +78,16 @@ export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfir
             </p>
             <div className="grid grid-cols-3 gap-2">
               {configuredTables.map((label) => {
-                const isOccupied = occupiedLabels.has(label);
+                const occupied = isOccupied(label);
                 const isChosen = selected === label;
                 return (
                   <button
                     key={label}
                     type="button"
-                    disabled={isOccupied}
+                    disabled={occupied}
                     onClick={() => setSelected(label)}
                     className={`rounded-xl border px-3 py-3 text-sm font-semibold transition ${
-                      isOccupied
+                      occupied
                         ? 'cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300'
                         : isChosen
                           ? 'border-primary-to bg-primary-to/10 text-primary-to ring-1 ring-primary-to'
@@ -76,7 +95,7 @@ export function MoveTableModal({ cheque, openCheques, venueTables = [], onConfir
                     }`}
                   >
                     <span className="block">{label}</span>
-                    {isOccupied ? (
+                    {occupied ? (
                       <span className="mt-0.5 block text-[10px] font-medium text-slate-400">
                         {t('pos.moveTableOccupied')}
                       </span>

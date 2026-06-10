@@ -32,6 +32,13 @@ export function getCachedFeatures(db, venueId) {
   return JSON.parse(row.features_json);
 }
 
+export function patchFeaturesTables(db, venueId, tables) {
+  const cached = getCachedFeatures(db, venueId);
+  if (!cached) return false;
+  saveFeaturesCache(db, venueId, { ...cached, tables });
+  return true;
+}
+
 export async function verifyCachedManagerPin(db, pin) {
   const rows = db
     .prepare(`SELECT id, username, role, pin_hash FROM staff_cache WHERE role = 'venue_manager'`)

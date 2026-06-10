@@ -68,10 +68,7 @@ export async function getTerminalVenueSettings(venueId) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   if (!venue?.isActive) throw notFound('Venue not found');
   const settings = serializeTerminalVenueSettings(venue);
-  const hubTables = await listHubTableLabels();
-  if (hubTables.length > 0) {
-    settings.tables = hubTables;
-  }
+  settings.tables = await listHubTableLabels();
   return settings;
 }
 

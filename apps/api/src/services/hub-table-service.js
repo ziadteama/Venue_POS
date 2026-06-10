@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { normalizeTableLabel, tableLabelsMatch } from '@venue-pos/shared';
 import { notFound, validationError } from '../utils/errors.js';
+import { emitHubTablesUpdated } from '../plugins/socket.js';
 
 function emitFloorTableUpdated(io, payload) {
   if (!io?.to) return;
@@ -203,4 +204,10 @@ export async function deleteHubTable(id) {
 export async function listHubTableLabels() {
   const rows = await listHubTables({ activeOnly: true });
   return rows.map((r) => r.tableLabel);
+}
+
+export async function broadcastHubTablesUpdated(io) {
+  if (!io) return;
+  const tables = await listHubTableLabels();
+  emitHubTablesUpdated(io, { tables });
 }

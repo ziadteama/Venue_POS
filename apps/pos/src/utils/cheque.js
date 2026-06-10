@@ -19,6 +19,21 @@ export function findFloorRowForLabel(label, floorByLabel) {
 }
 
 /** Resolve the open cheque shown on a floor tile (floor lock wins over label guess). */
+/** Hub-wide block: occupied by another cheque/group (cross-sell siblings exempt). */
+export function isHubTableBlocked(label, { floorByLabel, chequeId, crossVenueGroupId } = {}) {
+  const floor = findFloorRowForLabel(label, floorByLabel);
+  if (!floor?.isOccupied) return false;
+  if (chequeId && floor.occupiedByChequeId === chequeId) return false;
+  if (
+    crossVenueGroupId &&
+    floor.occupiedCrossVenueGroupId &&
+    floor.occupiedCrossVenueGroupId === crossVenueGroupId
+  ) {
+    return false;
+  }
+  return true;
+}
+
 export function findOpenChequeForLabel(label, openCheques, floorByLabel) {
   const parents = parentOpenCheques(openCheques);
   const floor = findFloorRowForLabel(label, floorByLabel);

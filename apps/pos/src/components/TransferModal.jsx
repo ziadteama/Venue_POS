@@ -2,20 +2,32 @@ import { useState } from 'react';
 import { transferableItems } from '../utils/cheque.js';
 import { OverlayPortal } from './ModalFrame.jsx';
 
-export function TransferModal({ cheque, openCheques, language, onConfirm, onCancel, t }) {
+export function TransferModal({
+  cheque,
+  openCheques,
+  venueTables = [],
+  language,
+  onConfirm,
+  onCancel,
+  t,
+}) {
   const items = transferableItems(cheque);
   const [selected, setSelected] = useState([]);
   const [targetTable, setTargetTable] = useState('');
   const [managerPin, setManagerPin] = useState('');
   const [reason, setReason] = useState('');
 
-  const otherTables = [
+  const hubTables = (venueTables ?? []).filter(
+    (label) => label.toLowerCase() !== (cheque?.tableLabel ?? '').toLowerCase(),
+  );
+  const openTableLabels = [
     ...new Set(
-      openCheques
+      (openCheques ?? [])
         .filter((c) => c.id !== cheque?.id && !c.parentChequeId)
         .map((c) => c.tableLabel),
     ),
   ];
+  const targetTables = hubTables.length > 0 ? hubTables : openTableLabels;
 
   function toggle(id) {
     setSelected((prev) =>
@@ -71,7 +83,7 @@ export function TransferModal({ cheque, openCheques, language, onConfirm, onCanc
             placeholder="T5"
           />
           <datalist id="transfer-tables">
-            {otherTables.map((tbl) => (
+            {targetTables.map((tbl) => (
               <option key={tbl} value={tbl} />
             ))}
           </datalist>

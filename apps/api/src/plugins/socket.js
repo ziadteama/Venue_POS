@@ -231,6 +231,23 @@ export function emitVenueConfigUpdated(io, { venueId, changes, config }) {
   });
 }
 
+export function emitHubTablesUpdated(io, { tables }) {
+  if (!io?.to) return;
+  const payload = {
+    tables,
+    updatedAt: new Date().toISOString(),
+  };
+  const message = { event: 'hub:tables_updated', payload };
+  io.to('dashboard:hub').emit('hub:tables_updated', message);
+  const rooms = io.sockets?.adapter?.rooms;
+  if (!rooms) return;
+  for (const room of rooms.keys()) {
+    if (room.startsWith('venue:') && room.endsWith(':pos')) {
+      io.to(room).emit('hub:tables_updated', message);
+    }
+  }
+}
+
 export function emitBillingConfigUpdated(io, { anchorVenueId, targetVenueId, enabled }) {
   const payload = {
     anchorVenueId,

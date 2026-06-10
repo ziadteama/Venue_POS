@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import { syncMenuFromServer } from './menu-sync.js';
 import { syncVenueConfigFromServer } from './venue-config-sync.js';
 import { isCloudOnline } from './cloud-health.js';
-import { setAgentMeta } from './terminal-cache.js';
+import { patchFeaturesTables, setAgentMeta } from './terminal-cache.js';
 
 function enqueueMenuPublish(db, payload) {
   const id = randomUUID();
@@ -75,6 +75,13 @@ export function connectTerminalSocket({
       log.warn({ err }, 'Menu refresh after WS event failed');
       enqueueMenuPublish(db, payload);
     }
+  });
+
+  socket.on('hub:tables_updated', (msg) => {
+    const payload = msg?.payload ?? msg;
+    if (!Array.isArray(payload?.tables)) return;
+    patchFeaturesTables(db, venueId, payload.tables);
+    log.info({ count: payload.tables.length }, 'Hub table list refreshed from WebSocket');
   });
 
   socket.on('venue:config_updated', async (msg) => {
