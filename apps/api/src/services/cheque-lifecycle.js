@@ -200,6 +200,36 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
   return cheques.map(serializeCheque);
 }
 
+/** Hub manager: find cheques across all venues (numeric cheque # or table label). */
+export async function searchChequesHubWide({ status = 'open', q, limit = 50 } = {}) {
+  const trimmed = q?.trim();
+  if (!trimmed) return [];
+
+  const where = { status };
+  const asNum = Number(trimmed);
+  if (!Number.isNaN(asNum) && String(asNum) === trimmed) {
+    where.chequeNumber = asNum;
+  } else {
+    where.tableLabel = { contains: trimmed, mode: 'insensitive' };
+  }
+
+  const cheques = await prisma.cheque.findMany({
+    where,
+    include: {
+      ...chequeInclude,
+      venue: { select: { id: true, nameEn: true, nameAr: true } },
+    },
+    orderBy: status === 'paid' ? { closedAt: 'desc' } : { openedAt: 'asc' },
+    take: limit,
+  });
+
+  return cheques.map((c) => ({
+    ...serializeCheque(c),
+    venueNameEn: c.venue.nameEn,
+    venueNameAr: c.venue.nameAr,
+  }));
+}
+
 export async function getCheque(chequeId, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');

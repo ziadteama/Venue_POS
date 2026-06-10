@@ -53,14 +53,22 @@ export function ChequesPage() {
         busy={manager.busy}
       />
 
+      {manager.hubSearchActive ? (
+        <p className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-800">
+          {t('cheque.hubSearchHint', { count: manager.cheques.length })}
+        </p>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-[14rem_1fr]">
         <ChequesSidebar
-          t={t}
-          statusTab={manager.statusTab}
-          cheques={manager.cheques}
-          selectedId={manager.selectedId}
-          onSelect={manager.setSelectedId}
-        />
+            t={t}
+            statusTab={manager.statusTab}
+            cheques={manager.cheques}
+            selectedId={manager.selectedId}
+            onSelect={manager.setSelectedId}
+            showVenueName={manager.hubSearchActive}
+            language={i18n.language}
+          />
 
         <section className="surface-card p-5">
           <ChequeDetailView

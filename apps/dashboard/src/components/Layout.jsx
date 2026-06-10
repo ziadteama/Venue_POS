@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { canAccessDashboardPath, canSeeFinancials, defaultDashboardPath } from '@venue-pos/shared';
@@ -8,6 +8,7 @@ import { LanguageToggle } from './LanguageToggle.jsx';
 import { BellIcon } from './dashboard/icons.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { useHubNotifications } from '../hooks/useHubNotifications.js';
+import { CommandPalette } from './dashboard/CommandPalette.jsx';
 
 const SECTION_TITLES = {
   '/': 'nav.overview',
@@ -53,10 +54,23 @@ export function Layout() {
   const { logout, token, user } = useAuth();
   const { notice, setNotice } = useHubNotifications(token);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
 
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  const onKeyDown = useCallback((e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      setCommandOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onKeyDown]);
 
   function handleLogout() {
     logout();
@@ -107,6 +121,16 @@ export function Layout() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={() => setCommandOpen(true)}
+                className="hidden rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition hover:bg-slate-50 sm:inline-flex sm:items-center sm:gap-1"
+              >
+                <span>{t('commandPalette.shortcut')}</span>
+                <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-mono text-[10px]">
+                  Ctrl+K
+                </kbd>
+              </button>
               <div className="hidden sm:block">
                 <LanguageToggle />
               </div>
@@ -165,6 +189,8 @@ export function Layout() {
           </ErrorBoundary>
         </main>
       </div>
+
+      <CommandPalette open={commandOpen} onClose={() => setCommandOpen(false)} />
     </div>
   );
 }

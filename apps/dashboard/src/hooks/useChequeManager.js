@@ -4,6 +4,11 @@ import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { managerActionMethod, managerActionPath } from '../utils/chequeActions.js';
 
+function isNumericQuery(q) {
+  const trimmed = q?.trim();
+  return trimmed && /^\d+$/.test(trimmed);
+}
+
 export function useChequeManager({ user }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [venues, setVenues] = useState([]);
@@ -12,6 +17,7 @@ export function useChequeManager({ user }) {
   const [shiftContext, setShiftContext] = useState(null);
   const [statusTab, setStatusTab] = useState('open');
   const [searchQ, setSearchQ] = useState('');
+  const [hubSearchActive, setHubSearchActive] = useState(false);
   const [cheques, setCheques] = useState([]);
   const [selectedId, setSelectedId] = useState(searchParams.get('chequeId'));
   const [detail, setDetail] = useState(null);
@@ -55,22 +61,37 @@ export function useChequeManager({ user }) {
     const venueList = await apiFetch('/api/v1/venues');
     setVenues(venueList);
 
-    const params = new URLSearchParams({ status: statusTab });
-    if (venueId) params.set('venueId', venueId);
-    if (searchQ.trim()) params.set('q', searchQ.trim());
-    if (shiftId) params.set('shiftId', shiftId);
-    const list = await apiFetch(`/api/v1/manager/cheques?${params}`);
+    const trimmedQ = searchQ.trim();
+    const useHubSearch = isNumericQuery(trimmedQ) && user?.role === 'hub_manager';
+
+    let list;
+    if (useHubSearch) {
+      const params = new URLSearchParams({ status: statusTab, q: trimmedQ });
+      list = await apiFetch(`/api/v1/manager/cheques/hub-search?${params}`);
+      setHubSearchActive(true);
+    } else {
+      const params = new URLSearchParams({ status: statusTab });
+      if (venueId) params.set('venueId', venueId);
+      if (trimmedQ) params.set('q', trimmedQ);
+      if (shiftId) params.set('shiftId', shiftId);
+      list = await apiFetch(`/api/v1/manager/cheques?${params}`);
+      setHubSearchActive(false);
+    }
+
     setCheques(list);
 
-    if (!venueId && venueList[0]) setVenueId(venueList[0].id);
+    if (!venueId && venueList[0] && !useHubSearch) setVenueId(venueList[0].id);
 
-    if (!selectedId && list[0]) setSelectedId(list[0].id);
-    else if (selectedId && !list.some((c) => c.id === selectedId)) {
+    if (!selectedId && list[0]) {
+      setSelectedId(list[0].id);
+      if (useHubSearch && list[0].venueId) setVenueId(list[0].venueId);
+    } else if (selectedId && !list.some((c) => c.id === selectedId)) {
       setSelectedId(list[0]?.id ?? null);
       setDetail(null);
+      if (list[0]?.venueId) setVenueId(list[0].venueId);
     }
     return list;
-  }, [statusTab, venueId, searchQ, shiftId, selectedId]);
+  }, [statusTab, venueId, searchQ, shiftId, selectedId, user?.role]);
 
   const loadDetail = useCallback(
     async (id, vId = venueId) => {
@@ -198,6 +219,15 @@ export function useChequeManager({ user }) {
     syncUrl(null, venueId, null);
   }, [venueId, syncUrl]);
 
+  const selectCheque = useCallback(
+    (cheque) => {
+      setSelectedId(cheque.id);
+      if (cheque.venueId) setVenueId(cheque.venueId);
+      syncUrl(cheque.id, cheque.venueId ?? venueId);
+    },
+    [venueId, syncUrl],
+  );
+
   const setSearch = useCallback((q) => {
     setSearchQ(q);
     setSelectedId(null);
@@ -211,12 +241,17 @@ export function useChequeManager({ user }) {
     shiftContext,
     clearShiftFilter,
     statusTab,
+    hubSearchActive,
     searchQ,
     cheques,
     selectedId,
     setSelectedId: (id) => {
-      setSelectedId(id);
-      syncUrl(id, venueId);
+      const cheque = cheques.find((c) => c.id === id);
+      if (cheque) selectCheque(cheque);
+      else {
+        setSelectedId(id);
+        syncUrl(id, venueId);
+      }
     },
     detail,
     error,

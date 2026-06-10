@@ -39,39 +39,56 @@ export function CrossVenueGroupPanel({
   locale,
   formatMoney,
   linkMembers = false,
+  currentVenueId,
 }) {
   const members = normalizeMembers(group);
   if (!members.length) return null;
+  const combinedTotal =
+    group.displayTotal ??
+    group.combinedTotal ??
+    members.reduce((sum, m) => sum + Number(m.total ?? 0), 0);
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
-      <p className="mb-2 text-sm font-semibold text-violet-900">
-        {t('crossVenue.linkedCheques')}
-        {group.groupChequeNumber != null ? (
-          <span className="ms-2 font-normal text-violet-700">
-            #{group.groupChequeNumber}
-          </span>
-        ) : null}
-      </p>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-violet-900">
+          {t('crossVenue.linkedCheques')}
+          {group.groupChequeNumber != null ? (
+            <span className="ms-2 font-normal text-violet-700">#{group.groupChequeNumber}</span>
+          ) : null}
+        </p>
+        <span className="text-xs font-medium tabular-nums text-violet-800">
+          {formatMoney(combinedTotal, locale)} {t('pos.currency')} {t('cheque.groupTotal')}
+        </span>
+      </div>
       <ul className="space-y-1.5 text-sm">
-        {members.map((member) => (
-          <li key={member.id} className="flex items-center justify-between gap-2 text-violet-950">
-            {linkMembers ? (
-              <Link
-                to={`/cheques?chequeId=${member.id}&venueId=${member.venueId}`}
-                className="hover:underline"
-              >
-                {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
-              </Link>
-            ) : (
-              <span>
-                {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
+        {members.map((member) => {
+          const isCurrent = currentVenueId && member.venueId === currentVenueId;
+          return (
+            <li
+              key={member.id}
+              className={`flex items-center justify-between gap-2 rounded-md px-1.5 py-0.5 ${
+                isCurrent ? 'bg-violet-100/80 font-medium' : 'text-violet-950'
+              }`}
+            >
+              {linkMembers ? (
+                <Link
+                  to={`/cheques?chequeId=${member.id}&venueId=${member.venueId}`}
+                  className="hover:underline"
+                >
+                  {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
+                  {isCurrent ? ` (${t('crossVenue.currentVenue')})` : ''}
+                </Link>
+              ) : (
+                <span>
+                  {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
+                </span>
+              )}
+              <span className="shrink-0 font-medium">
+                {formatMoney(member.total, locale)} {t('pos.currency')}
               </span>
-            )}
-            <span className="shrink-0 font-medium">
-              {formatMoney(member.total, locale)} {t('pos.currency')}
-            </span>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

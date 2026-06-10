@@ -95,11 +95,10 @@ function ChequeOrdersSummary({ detail, t }) {
           <p className="text-sm font-semibold tabular-nums text-slate-900">
             {subtotal.toFixed(2)} {t('pos.currency')}
           </p>
-          <Link
-            to={`/orders?chequeId=${detail.id}`}
-            className="text-sm font-medium text-accent-700 hover:underline"
-          >
-            {t('cheque.viewOrders')} →
+          <Link to={`/orders?chequeId=${detail.id}&venueId=${detail.venueId}`}>
+            <Button variant="secondary" size="sm">
+              {t('cheque.viewOrders')}
+            </Button>
           </Link>
         </div>
       </div>
@@ -266,6 +265,7 @@ export function ChequeDetailView({
           locale={locale}
           formatMoney={formatMoney}
           linkMembers
+          currentVenueId={detail.venueId}
         />
       ) : null}
       <ChequeOrdersSummary detail={detail} t={t} />
