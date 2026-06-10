@@ -212,6 +212,7 @@ export function serializeCheque(cheque) {
     businessDate: cheque.businessDate,
     tableLabel: cheque.tableLabel,
     floorTableId: cheque.floorTableId ?? null,
+    serviceMode: cheque.serviceMode ?? 'dine_in',
     splitLabel: cheque.splitLabel ?? null,
     splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
     discountAmount,

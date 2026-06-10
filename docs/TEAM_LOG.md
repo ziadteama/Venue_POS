@@ -1672,6 +1672,15 @@ npm run lint && npm run lint:i18n
 **Verify:** `npm run test -w @venue-pos/local-agent` · induce failed sync → banner clears within ~30s without Review click
 **Notes:** `SyncFailedModal` kept in codebase but no POS entry point; hub can still use `/v1/sync/failed` API.
 
+### 2026-06-10 — POS Take away service mode (US-3.7)
+**Phase:** 3 · **Story:** US-3.7
+**What:** `serviceMode` on cheques (`dine_in` | `takeaway`); shared takeaway counter per venue without floor occupation; POS Dine in / Take away entry; offline sync + dashboard order label.
+**Files:** migration `20260624120000_cheque_service_mode`, `cheque-lifecycle.js`, `cheque.js` (shared), `local-cheques.js`, `ReceiptPanel.jsx`, `takeaway.test.js`, i18n
+**Verify:** `npm run migrate:dev` · `npm run test -w @venue-pos/api` · `npm run test:agent` · POS: Take away → order → pay; Tables modal shows takeaway chip when open
+**Notes:** Move table blocked for takeaway. Cross-sell unchanged (anchor label `TAKEAWAY`).
+
+---
+
 ### 2026-06-10 — Background menu sync worker (30s)
 **Phase:** 6 · **Story:** US-7.4 (menu publish drain)
 **What:** Menu publish queue and stale cache drain automatically every 30s while online; POS no longer blocked on pending publish when cache exists; removed manual POS menu sync and cheque-open drain.

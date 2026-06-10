@@ -57,6 +57,11 @@ enum ChequeStatus {
   voided
 }
 
+enum ChequeServiceMode {
+  dine_in
+  takeaway
+}
+
 enum ChequeDiscountAction {
   apply
   change
@@ -473,6 +478,7 @@ model Cheque {
   businessDate      DateTime     @map("business_date") @db.Date
   tableLabel        String       @map("table_label") @db.VarChar(50)
   floorTableId      String?      @map("floor_table_id") @db.Uuid
+  serviceMode       ChequeServiceMode @default(dine_in) @map("service_mode")
   splitLabel        String?      @map("split_label") @db.VarChar(50)
   splitAmount       Decimal?     @map("split_amount") @db.Decimal(10, 2)
   discountAmount    Decimal      @default(0) @map("discount_amount") @db.Decimal(10, 2)
@@ -508,6 +514,7 @@ model Cheque {
   @@index([parentChequeId], map: "idx_cheques_parent")
   @@index([crossVenueGroupId], map: "idx_cheques_cross_group")
   @@index([floorTableId, status], map: "idx_cheques_floor_table_status")
+  @@index([venueId, serviceMode, status], map: "idx_cheques_venue_service_mode")
   @@map("cheques")
 }
 

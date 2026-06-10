@@ -1,3 +1,13 @@
+import { isTakeawayServiceMode, TAKEAWAY_TABLE_LABEL } from '@venue-pos/shared';
+
+/** Receipt / kitchen location line for dine-in table or takeaway counter. */
+export function formatTableLocationLine({ tableLabel, serviceMode } = {}) {
+  if (isTakeawayServiceMode(serviceMode) || tableLabel === TAKEAWAY_TABLE_LABEL) {
+    return 'Take away';
+  }
+  return `Table: ${tableLabel ?? '—'}`;
+}
+
 export function decimalToNumber(value) {
   if (value == null) return value;
   return Number(value);
@@ -119,7 +129,7 @@ export function buildReceiptText(order, venue) {
   const lines = [
     venue?.nameEn ?? 'Venue POS',
     `Order #${order.orderNumber}`,
-    `Table: ${order.tableLabel ?? '—'}`,
+    formatTableLocationLine({ tableLabel: order.tableLabel }),
     `Status: ${order.status}`,
     '---',
   ];
@@ -188,7 +198,10 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change, previe
     venue?.nameEn ?? 'Venue POS',
     ...(preview ? ['*** PRE-PAYMENT CHECK ***'] : []),
     `Cheque #${cheque.chequeNumber}`,
-    `Table: ${cheque.tableLabel ?? '—'}`,
+    formatTableLocationLine({
+      tableLabel: cheque.tableLabel,
+      serviceMode: cheque.serviceMode,
+    }),
   ];
   if (cheque.splitLabel) {
     lines.push(`Guest: ${cheque.splitLabel}`);
@@ -221,7 +234,10 @@ export function buildFullSplitReceiptText(parentCheque, childCheques, venue) {
     venue?.nameEn ?? 'Venue POS',
     '*** FULL TABLE CHECK ***',
     `Cheque #${parentCheque.chequeNumber}`,
-    `Table: ${parentCheque.tableLabel ?? '—'}`,
+    formatTableLocationLine({
+      tableLabel: parentCheque.tableLabel,
+      serviceMode: parentCheque.serviceMode,
+    }),
     '---',
   ];
 
@@ -250,7 +266,10 @@ export function buildRefundReceiptText(cheque, venue, refund) {
     venue?.nameEn ?? 'Venue POS',
     '*** REFUND ***',
     `Cheque #${cheque.chequeNumber}`,
-    `Table: ${cheque.tableLabel ?? '—'}`,
+    formatTableLocationLine({
+      tableLabel: cheque.tableLabel,
+      serviceMode: cheque.serviceMode,
+    }),
     '---',
     `Refund amount: ${Number(refund.amount).toFixed(2)}`,
     `Method: ${refund.method}`,

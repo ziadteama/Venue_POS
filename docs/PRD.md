@@ -270,6 +270,19 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 
 **Priority:** P1 | **Effort:** 4 days
 
+#### US-3.7: Take away orders
+**As a** Cashier, **I want** to start a take-away order beside dine-in table service, **so that** counter pickup orders do not require a floor table.
+
+**Acceptance Criteria:**
+- [x] POS empty state offers **Dine in** (table picker) and **Take away** (shared counter)
+- [x] One open takeaway cheque per venue (resume-or-open); no hub floor occupation
+- [x] Cross-sell allowed on takeaway anchor cheques
+- [x] Receipts and kitchen tickets show "Take away" (not internal label)
+- [x] Offline sync replays `serviceMode` on `CHEQUE_OPEN`
+- [x] Dashboard order explorer shows Take away in table column
+
+**Priority:** P1 | **Effort:** 2 days
+
 ---
 
 ### Epic 4: Cross-Venue Billing

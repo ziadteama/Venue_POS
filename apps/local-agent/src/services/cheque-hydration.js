@@ -66,8 +66,8 @@ function upsertChequeFromServer(db, cheque) {
 
   if (!existing) {
     db.prepare(
-      `INSERT INTO cheques (id, server_id, venue_id, cashier_id, terminal_id, table_label, cheque_number, status, discount_amount, tax_amount, service_amount, total, opened_at, synced_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
+      `INSERT INTO cheques (id, server_id, venue_id, cashier_id, terminal_id, table_label, floor_table_id, service_mode, cheque_number, status, discount_amount, tax_amount, service_amount, total, opened_at, synced_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
     ).run(
       cheque.id,
       cheque.id,
@@ -75,6 +75,8 @@ function upsertChequeFromServer(db, cheque) {
       cheque.cashierId,
       cheque.terminalId ?? null,
       cheque.tableLabel,
+      cheque.floorTableId ?? null,
+      cheque.serviceMode ?? 'dine_in',
       cheque.chequeNumber ?? null,
       cheque.status ?? 'open',
       discount,
@@ -85,13 +87,15 @@ function upsertChequeFromServer(db, cheque) {
     );
   } else {
     db.prepare(
-      `UPDATE cheques SET server_id = ?, venue_id = ?, cashier_id = ?, terminal_id = ?, table_label = ?, cheque_number = ?, status = ?, discount_amount = ?, tax_amount = ?, service_amount = ?, total = ?, opened_at = ?, synced_at = datetime('now') WHERE id = ?`,
+      `UPDATE cheques SET server_id = ?, venue_id = ?, cashier_id = ?, terminal_id = ?, table_label = ?, floor_table_id = ?, service_mode = ?, cheque_number = ?, status = ?, discount_amount = ?, tax_amount = ?, service_amount = ?, total = ?, opened_at = ?, synced_at = datetime('now') WHERE id = ?`,
     ).run(
       cheque.id,
       cheque.venueId,
       cheque.cashierId,
       cheque.terminalId ?? null,
       cheque.tableLabel,
+      cheque.floorTableId ?? null,
+      cheque.serviceMode ?? 'dine_in',
       cheque.chequeNumber ?? null,
       cheque.status ?? 'open',
       discount,

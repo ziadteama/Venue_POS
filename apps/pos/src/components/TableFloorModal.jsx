@@ -4,8 +4,10 @@ import {
   canDeleteCheque,
   displayChequeTotal,
   findOpenChequeForLabel,
+  findOpenTakeawayCheque,
   hasOpenSplitChildren,
   isHubTableBlocked,
+  isTakeawayCheque,
   parentOpenCheques,
 } from '../utils/cheque.js';
 import { OverlayPortal } from './ModalFrame.jsx';
@@ -84,7 +86,8 @@ export function TableFloorModal({
     floorByLabel,
   });
   const hasAssigned = venueTables.length > 0;
-  const activeTabs = parentOpenCheques(openCheques);
+  const takeawayTab = findOpenTakeawayCheque(openCheques);
+  const activeTabs = parentOpenCheques(openCheques).filter((tab) => !isTakeawayCheque(tab));
 
   useEffect(() => {
     onRefreshOpenCheques?.();
@@ -158,6 +161,31 @@ export function TableFloorModal({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          {takeawayTab ? (
+            <div className="mb-5 rounded-2xl border border-emerald-200/80 bg-emerald-50/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-900">
+                {t('pos.takeAway')}
+              </p>
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => handleSelectActive(takeawayTab)}
+                  className={`rounded-xl border px-3 py-2 text-start text-sm transition ${
+                    takeawayTab.id === currentChequeId
+                      ? 'border-primary-to bg-white text-slate-900 ring-2 ring-primary-to/30'
+                      : 'border-emerald-300 bg-white text-slate-800 hover:border-primary-to/40'
+                  }`}
+                >
+                  <span className="font-semibold">{t('pos.takeAway')}</span>
+                  <span className="mt-0.5 block text-xs text-secondary">
+                    #{takeawayTab.chequeNumber} · {displayChequeTotal(takeawayTab).toFixed(0)}{' '}
+                    {t('pos.currency')}
+                  </span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {activeTabs.length > 0 ? (
             <div className="mb-5 rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-900">

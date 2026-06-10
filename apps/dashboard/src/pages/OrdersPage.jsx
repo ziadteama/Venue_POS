@@ -389,7 +389,12 @@ export function OrdersPage() {
           count: group.orderCount,
         }),
     },
-    { key: 'table', header: t('orders.table'), render: (group) => group.tableLabel ?? '—' },
+    {
+      key: 'table',
+      header: t('orders.table'),
+      render: (group) =>
+        group.serviceMode === 'takeaway' ? t('orders.takeAway') : group.tableLabel ?? '—',
+    },
     {
       key: 'status',
       header: t('orders.chequeStatus'),

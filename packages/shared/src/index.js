@@ -8,3 +8,4 @@ export * from './modal-layers.js';
 export * from './sync.js';
 export * from './refund.js';
 export * from './table-label.js';
+export * from './cheque.js';

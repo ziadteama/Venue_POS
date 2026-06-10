@@ -141,4 +141,9 @@ export function initSchema(db) {
   } catch {
     /* column exists */
   }
+  try {
+    db.exec(`ALTER TABLE cheques ADD COLUMN service_mode TEXT NOT NULL DEFAULT 'dine_in'`);
+  } catch {
+    /* column exists */
+  }
 }

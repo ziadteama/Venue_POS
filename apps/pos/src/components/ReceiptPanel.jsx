@@ -1,7 +1,9 @@
 import {
   displayChequeTotal,
+  displayChequeLocation,
   firedOrders,
   hasOpenSplitChildren,
+  isTakeawayCheque,
   parentPayableTotal,
 } from '../utils/cheque.js';
 import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js';
@@ -148,6 +150,7 @@ export function ReceiptPanel({
   onPrintFullSplit,
   onChangeQty,
   onPickTable,
+  onPickTakeaway,
   onEditDiscount,
   onMoveTable,
   onFreeTable,
@@ -191,9 +194,18 @@ export function ReceiptPanel({
         <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
           <p className="text-lg font-semibold text-slate-900">{t('pos.noTableSelected')}</p>
           <p className="mt-2 text-sm text-slate-500">{t('pos.noTableSelectedHint')}</p>
-          <button type="button" onClick={onPickTable} className="btn-accent mt-5 px-5 py-3">
-            {t('pos.chooseTable')}
-          </button>
+          <div className="mt-5 flex w-full max-w-xs flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={onPickTable} className="btn-accent flex-1 px-4 py-3">
+              {t('pos.dineIn')}
+            </button>
+            <button
+              type="button"
+              onClick={onPickTakeaway}
+              className="flex-1 rounded-xl border border-primary-to bg-white px-4 py-3 text-sm font-semibold text-primary-to transition hover:bg-blue-50"
+            >
+              {t('pos.takeAway')}
+            </button>
+          </div>
         </div>
       </aside>
     );
@@ -209,9 +221,13 @@ export function ReceiptPanel({
             </p>
             <div className="mt-0.5 flex items-center gap-2">
               <p className="truncate text-lg font-bold text-slate-900">
-                {tableLabel ? t('pos.tableActive', { table: tableLabel }) : t('pos.noTable')}
+                {displayChequeLocation(cheque, t)}
               </p>
-              {onMoveTable && cheque && !cheque.parentChequeId && !isCrossVenue ? (
+              {onMoveTable &&
+              cheque &&
+              !cheque.parentChequeId &&
+              !isCrossVenue &&
+              !isTakeawayCheque(cheque) ? (
                 <button
                   type="button"
                   onClick={onMoveTable}
@@ -422,7 +438,10 @@ export function ReceiptPanel({
                   ? t('common.loading')
                   : t('pos.payAmount', { amount: payButtonAmount.toFixed(2) })}
               </button>
-            ) : !hasReceiptLines && onFreeTable && !cheque?.parentChequeId ? (
+            ) : !hasReceiptLines &&
+              onFreeTable &&
+              !cheque?.parentChequeId &&
+              !isTakeawayCheque(cheque) ? (
               <button
                 type="button"
                 onClick={onFreeTable}

@@ -152,8 +152,8 @@ export function usePosModals({
       if (result.settled) {
         setKitchenWatch(null);
         await refreshShift();
-        if (snapshot?.tableLabel) {
-          await onPaySettled?.(snapshot.tableLabel);
+        if (snapshot?.tableLabel || snapshot?.serviceMode === 'takeaway') {
+          await onPaySettled?.(snapshot.tableLabel, { serviceMode: snapshot.serviceMode });
         }
       }
     }

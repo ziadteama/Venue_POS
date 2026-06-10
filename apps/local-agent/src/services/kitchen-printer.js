@@ -1,4 +1,5 @@
 import net from 'node:net';
+import { TAKEAWAY_TABLE_LABEL } from '@venue-pos/shared';
 
 /** @type {{ ok: boolean; message: string; lastAttemptAt: string | null }} */
 let printerHealth = { ok: true, message: 'not_configured', lastAttemptAt: null };
@@ -12,7 +13,9 @@ function formatKitchenTicket(order) {
     '\x1B\x40',
     '*** KITCHEN ***',
     `Order #${order.orderNumber ?? '?'}`,
-    `Table: ${order.tableLabel ?? '—'}`,
+    order.tableLabel === TAKEAWAY_TABLE_LABEL
+      ? 'Take away'
+      : `Table: ${order.tableLabel ?? '—'}`,
     `Time: ${new Date().toLocaleTimeString()}`,
     '------------------------------',
   ];

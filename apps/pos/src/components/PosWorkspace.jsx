@@ -80,6 +80,7 @@ export function PosWorkspace({ cashier, onLogout }) {
         search={ws.search}
         onSearchChange={ws.setSearch}
         tableLabel={ws.tableLabel}
+        serviceMode={ws.cheque?.serviceMode}
         openCheques={ws.openCheques}
         onOpenTables={() => ws.openTables()}
         shift={ws.shift}
@@ -231,6 +232,7 @@ export function PosWorkspace({ cashier, onLogout }) {
           onSend={ws.onSend}
           onOpenActions={ws.openActionsSheet}
           onPickTable={() => ws.openTables()}
+          onPickTakeaway={() => ws.openTakeawayCheque()}
           onEditDiscount={() => ws.modals.openDiscountModal('edit')}
           onPay={ws.onPay}
           payDisabled={!ws.shiftReady}
@@ -244,15 +246,11 @@ export function PosWorkspace({ cashier, onLogout }) {
 
         <div className={`relative min-w-0 flex-1 ${!ws.cheque ? 'opacity-50' : ''}`}>
           {!ws.cheque ? (
-            <button
-              type="button"
-              onClick={() => ws.openTables()}
-              className="absolute inset-0 z-10 flex items-center justify-center bg-slate-100/40 px-6 text-center"
-            >
+            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-slate-100/40 px-6 text-center">
               <span className="max-w-sm rounded-xl bg-white/95 px-4 py-3 text-sm font-medium text-slate-700 shadow-sm ring-1 ring-slate-200">
-                {ws.t('pos.selectTableForMenu')}
+                {ws.t('pos.selectServiceForMenu')}
               </span>
-            </button>
+            </div>
           ) : null}
 
           <CrossSellBar

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
 import { parseApiError } from '../utils/apiError.js';
-import { normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
+import { isTakeawayCheque, normalizeTableLabel, parentOpenCheques } from '../utils/cheque.js';
 
 export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
   const { t } = useTranslation();
@@ -51,6 +51,28 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     }
   }, []);
 
+  const resumeTakeaway = useCallback(async () => {
+    setError('');
+    try {
+      const loaded = await callAgent('/v1/cheques/open', {
+        method: 'POST',
+        body: JSON.stringify({ cashierId, serviceMode: 'takeaway' }),
+      });
+      applyChequePayload(loaded);
+      await refreshOpenCheques();
+      try {
+        const current = await callAgent(`/v1/cheques/${loaded.id}`);
+        if (current?.status === 'open') applyChequePayload(current);
+      } catch {
+        /* keep loaded payload if refresh fails */
+      }
+      return { ok: true, crossVenueGroup: loaded.crossVenueGroup ?? null };
+    } catch (err) {
+      setError(fail(err, 'pos.chequeOpenFailed'));
+      return { ok: false };
+    }
+  }, [cashierId, fail, refreshOpenCheques, applyChequePayload]);
+
   const resumeCheque = useCallback(
     async (label) => {
       setError('');
@@ -59,7 +81,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       try {
         const loaded = await callAgent('/v1/cheques/open', {
           method: 'POST',
-          body: JSON.stringify({ cashierId, tableLabel: table }),
+          body: JSON.stringify({ cashierId, tableLabel: table, serviceMode: 'dine_in' }),
         });
         applyChequePayload(loaded);
         await refreshOpenCheques();
@@ -91,9 +113,10 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
   const selectOpenCheque = useCallback(
     async (tab) => {
       if (tab.id === cheque?.id) return { ok: true };
+      if (isTakeawayCheque(tab)) return resumeTakeaway();
       return resumeCheque(tab.tableLabel);
     },
-    [cheque?.id, resumeCheque],
+    [cheque?.id, resumeCheque, resumeTakeaway],
   );
 
   const deleteTable = useCallback(
@@ -506,6 +529,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     loadPaidCheques,
     refreshCheque,
     resumeCheque,
+    resumeTakeaway,
     confirmPay,
     confirmMoveTable,
     printChequeReceipt,

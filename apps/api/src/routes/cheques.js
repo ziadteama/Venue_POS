@@ -62,11 +62,22 @@ const splitChequeSchema = z.object({
     .max(8),
 });
 
-const openChequeSchema = z.object({
-  cashierId: z.string().uuid(),
-  tableLabel: z.string().min(1).max(50),
-  syncId: z.string().uuid().optional(),
-});
+const openChequeSchema = z
+  .object({
+    cashierId: z.string().uuid(),
+    serviceMode: z.enum(['dine_in', 'takeaway']).default('dine_in'),
+    tableLabel: z.string().min(1).max(50).optional(),
+    syncId: z.string().uuid().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.serviceMode === 'dine_in' && !data.tableLabel?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'tableLabel is required for dine-in',
+        path: ['tableLabel'],
+      });
+    }
+  });
 
 const paymentLineSchema = z.object({
   method: z.enum(['cash', 'card', 'voucher']),
@@ -125,9 +136,10 @@ export async function chequeRoutes(app) {
 
   app.delete('/api/v1/cheques/:id', { preHandler: authenticateTerminal }, async (request) => {
     const result = await closeEmptyCheque(request.params.id, request.terminal.venueId);
-    if (result.tableLabel) {
+    if (result.tableLabel && result.serviceMode !== 'takeaway' && result.floorTableId) {
       await releaseFloorTable({
         tableLabel: result.tableLabel,
+        floorTableId: result.floorTableId,
         chequeId: result.id,
         io: request.server.io,
       });
@@ -168,18 +180,21 @@ export async function chequeRoutes(app) {
           terminalId: request.terminal.id,
           cashierId: parsed.data.cashierId,
           tableLabel: parsed.data.tableLabel,
+          serviceMode: parsed.data.serviceMode,
         }),
     );
 
-    await occupyFloorTable({
-      tableLabel: result.tableLabel ?? parsed.data.tableLabel,
-      floorTableId: result.floorTableId,
-      venueId: request.terminal.venueId,
-      chequeId: result.id,
-      crossVenueGroupId: result.crossVenueGroupId,
-      terminalId: request.terminal.id,
-      io: request.server.io,
-    });
+    if (result.serviceMode !== 'takeaway') {
+      await occupyFloorTable({
+        tableLabel: result.tableLabel ?? parsed.data.tableLabel,
+        floorTableId: result.floorTableId,
+        venueId: request.terminal.venueId,
+        chequeId: result.id,
+        crossVenueGroupId: result.crossVenueGroupId,
+        terminalId: request.terminal.id,
+        io: request.server.io,
+      });
+    }
 
     return result;
   });
@@ -229,9 +244,15 @@ export async function chequeRoutes(app) {
       );
 
       const rootId = result?.cheque?.parentChequeId ?? result?.cheque?.id ?? request.params.id;
-      if (result?.tableSettled && result?.cheque?.tableLabel) {
+      if (
+        result?.tableSettled &&
+        result?.cheque?.tableLabel &&
+        result.cheque.serviceMode !== 'takeaway' &&
+        result.cheque.floorTableId
+      ) {
         await releaseFloorTable({
           tableLabel: result.cheque.tableLabel,
+          floorTableId: result.cheque.floorTableId,
           chequeId: rootId,
           io: request.server.io,
         });

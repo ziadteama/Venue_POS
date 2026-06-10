@@ -56,6 +56,7 @@ async function processSyncEvent(request, { syncId, eventType, payload }) {
           terminalId,
           cashierId: payload.cashierId,
           tableLabel: payload.tableLabel,
+          serviceMode: payload.serviceMode ?? 'dine_in',
         });
       case SYNC_EVENT_TYPES.CHEQUE_FIRE:
         return fireChequeRound(payload.chequeId ?? payload.id, venueId);

@@ -1,4 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import {
+  CHEQUE_SERVICE_MODES,
+  TAKEAWAY_TABLE_LABEL,
+  isTakeawayServiceMode,
+} from '@venue-pos/shared';
 import { getLocalOrder, sendLocalOrder, createLocalOrder } from './orders.js';
 
 function nextLocalChequeNumber(db, venueId) {
@@ -61,6 +66,8 @@ export function serializeLocalCheque(db, chequeId) {
     cashierId: cheque.cashier_id,
     chequeNumber: cheque.cheque_number,
     tableLabel: cheque.table_label,
+    floorTableId: cheque.floor_table_id ?? null,
+    serviceMode: cheque.service_mode ?? CHEQUE_SERVICE_MODES.DINE_IN,
     status: cheque.status,
     discountAmount: totals.discount,
     subtotalBeforeDiscount: totals.subtotal,
@@ -77,27 +84,38 @@ export function serializeLocalCheque(db, chequeId) {
   };
 }
 
-export function openLocalCheque(db, { id, venueId, terminalId, cashierId, tableLabel }) {
-  const trimmed = tableLabel?.trim();
+export function openLocalCheque(
+  db,
+  { id, venueId, terminalId, cashierId, tableLabel, serviceMode = CHEQUE_SERVICE_MODES.DINE_IN },
+) {
+  const takeaway = isTakeawayServiceMode(serviceMode);
+  const trimmed = takeaway ? TAKEAWAY_TABLE_LABEL : tableLabel?.trim();
   if (!trimmed) throw new Error('tableLabel required');
 
-  const existing = db
-    .prepare(
-      `SELECT id FROM cheques WHERE venue_id = ? AND table_label = ? AND status = 'open' LIMIT 1`,
-    )
-    .get(venueId, trimmed);
+  const existing = takeaway
+    ? db
+        .prepare(
+          `SELECT id FROM cheques WHERE venue_id = ? AND service_mode = ? AND status = 'open' AND parent_cheque_id IS NULL LIMIT 1`,
+        )
+        .get(venueId, CHEQUE_SERVICE_MODES.TAKEAWAY)
+    : db
+        .prepare(
+          `SELECT id FROM cheques WHERE venue_id = ? AND table_label = ? AND status = 'open' AND (service_mode IS NULL OR service_mode = 'dine_in') LIMIT 1`,
+        )
+        .get(venueId, trimmed);
   if (existing) return serializeLocalCheque(db, existing.id);
 
   const chequeId = id ?? randomUUID();
   const orderId = randomUUID();
   const now = new Date().toISOString();
   const chequeNumber = nextLocalChequeNumber(db, venueId);
+  const mode = takeaway ? CHEQUE_SERVICE_MODES.TAKEAWAY : CHEQUE_SERVICE_MODES.DINE_IN;
 
   const tx = db.transaction(() => {
     db.prepare(
-      `INSERT INTO cheques (id, venue_id, cashier_id, terminal_id, table_label, cheque_number, status, opened_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'open', ?)`,
-    ).run(chequeId, venueId, cashierId, terminalId ?? null, trimmed, chequeNumber, now);
+      `INSERT INTO cheques (id, venue_id, cashier_id, terminal_id, table_label, service_mode, cheque_number, status, opened_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)`,
+    ).run(chequeId, venueId, cashierId, terminalId ?? null, trimmed, mode, chequeNumber, now);
 
     db.prepare(
       `INSERT INTO orders (id, cheque_id, venue_id, cashier_id, terminal_id, table_label, status, opened_at)

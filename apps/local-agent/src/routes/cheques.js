@@ -84,8 +84,11 @@ export function registerChequeRoutes(app, routeCtx) {
   });
 
   app.post('/v1/cheques/open', async (request, reply) => {
-    const { cashierId, tableLabel } = request.body ?? {};
+    const { cashierId, tableLabel, serviceMode = 'dine_in' } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    if (serviceMode === 'dine_in' && !tableLabel?.trim()) {
+      return reply.status(400).send({ error: 'tableLabel required for dine-in' });
+    }
 
     try {
       assertMenuReadyForWrite(db, venueId);
@@ -94,10 +97,13 @@ export function registerChequeRoutes(app, routeCtx) {
     }
 
     const syncId = randomUUID();
+    const openBody = { cashierId, serviceMode, syncId };
+    if (tableLabel?.trim()) openBody.tableLabel = tableLabel.trim();
+
     try {
       const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cheques/open', {
         method: 'POST',
-        body: JSON.stringify({ cashierId, tableLabel, syncId }),
+        body: JSON.stringify(openBody),
       });
       return result;
     } catch (err) {
@@ -108,20 +114,23 @@ export function registerChequeRoutes(app, routeCtx) {
         terminalId,
         cashierId,
         tableLabel,
+        serviceMode,
       });
-      try {
-        await occupyFloorUpstream(routeCtx, {
-          tableLabel,
-          chequeId: cheque.id,
-          venueId,
-        });
-      } catch (floorErr) {
-        app.log.warn({ floorErr }, 'Floor occupy failed offline');
+      if (serviceMode !== 'takeaway') {
+        try {
+          await occupyFloorUpstream(routeCtx, {
+            tableLabel: cheque.tableLabel,
+            chequeId: cheque.id,
+            venueId,
+          });
+        } catch (floorErr) {
+          app.log.warn({ floorErr }, 'Floor occupy failed offline');
+        }
       }
       enqueueSync(
         db,
         SYNC_EVENT_TYPES.CHEQUE_OPEN,
-        { chequeId: cheque.id, cashierId, tableLabel },
+        { chequeId: cheque.id, cashierId, tableLabel: cheque.tableLabel, serviceMode },
         syncId,
       );
       app.log.warn({ err }, 'Cheque opened locally; server sync deferred');
@@ -149,10 +158,12 @@ export function registerChequeRoutes(app, routeCtx) {
       if (isCloudOnline()) return sendApiError(reply, err);
       try {
         const result = closeEmptyLocalCheque(db, request.params.id, venueId);
-        await releaseFloorUpstream(routeCtx, {
-          tableLabel: result.tableLabel,
-          chequeId: request.params.id,
-        }).catch(() => {});
+        if (result.serviceMode !== 'takeaway') {
+          await releaseFloorUpstream(routeCtx, {
+            tableLabel: result.tableLabel,
+            chequeId: request.params.id,
+          }).catch(() => {});
+        }
         enqueueSync(
           db,
           SYNC_EVENT_TYPES.CHEQUE_VOID,
@@ -474,7 +485,11 @@ export function registerChequeRoutes(app, routeCtx) {
         receiptPrinterPort: printers.receiptPrinterPort,
         log: app.log,
       });
-      if (result.tableSettled && result.cheque?.tableLabel) {
+      if (
+        result.tableSettled &&
+        result.cheque?.tableLabel &&
+        result.cheque.serviceMode !== 'takeaway'
+      ) {
         const rootId = result.cheque.parentChequeId ?? result.cheque.id;
         await releaseFloorUpstream(routeCtx, {
           tableLabel: result.cheque.tableLabel,
@@ -487,7 +502,7 @@ export function registerChequeRoutes(app, routeCtx) {
       try {
         const result = payLocalCheque(db, request.params.id, { payments, method, amount });
         const cheque = getLocalChequeById(db, request.params.id);
-        if (cheque?.tableLabel && result.tableSettled) {
+        if (cheque?.tableLabel && result.tableSettled && cheque.serviceMode !== 'takeaway') {
           await releaseFloorUpstream(routeCtx, {
             tableLabel: cheque.tableLabel,
             chequeId: request.params.id,

@@ -2,9 +2,24 @@ import {
   normalizeTableLabel,
   normalizedTableKey,
   tableLabelsMatch,
+  isTakeawayServiceMode,
 } from '@venue-pos/shared';
 
 export { normalizeTableLabel, tableLabelsMatch, normalizedTableKey };
+
+export function isTakeawayCheque(cheque) {
+  return isTakeawayServiceMode(cheque?.serviceMode);
+}
+
+export function findOpenTakeawayCheque(openCheques) {
+  return parentOpenCheques(openCheques).find((cheque) => isTakeawayCheque(cheque)) ?? null;
+}
+
+export function displayChequeLocation(cheque, t) {
+  if (isTakeawayCheque(cheque)) return t('pos.takeAway');
+  if (cheque?.tableLabel) return t('pos.tableActive', { table: cheque.tableLabel });
+  return t('pos.noTable');
+}
 
 const BILLABLE = ['sent', 'partially_ready', 'ready', 'served'];
 

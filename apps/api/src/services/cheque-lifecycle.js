@@ -1,5 +1,10 @@
 import { prisma } from '../db/prisma.js';
-import { tableLabelsMatch } from '@venue-pos/shared';
+import {
+  tableLabelsMatch,
+  CHEQUE_SERVICE_MODES,
+  TAKEAWAY_TABLE_LABEL,
+  isTakeawayServiceMode,
+} from '@venue-pos/shared';
 import {
   linkOrphanBillableOrdersToOpenCheque,
   linkOrphanDraftOrdersToOpenCheque,
@@ -36,7 +41,85 @@ import { config } from '../config.js';
 import { resolveBusinessDate } from '../utils/business-date.js';
 import { overlayHubBillingOnCheques } from './hub-billing-service.js';
 
-export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
+export async function openOrResumeCheque({
+  venueId,
+  terminalId,
+  cashierId,
+  tableLabel,
+  serviceMode = CHEQUE_SERVICE_MODES.DINE_IN,
+}) {
+  if (isTakeawayServiceMode(serviceMode)) {
+    return openOrResumeTakeawayCheque({ venueId, terminalId, cashierId });
+  }
+  return openOrResumeDineInCheque({ venueId, terminalId, cashierId, tableLabel });
+}
+
+async function openOrResumeTakeawayCheque({ venueId, terminalId, cashierId }) {
+  const label = TAKEAWAY_TABLE_LABEL;
+  let cheque = await prisma.cheque.findFirst({
+    where: {
+      venueId,
+      status: 'open',
+      parentChequeId: null,
+      serviceMode: CHEQUE_SERVICE_MODES.TAKEAWAY,
+    },
+    include: chequeInclude,
+    orderBy: { openedAt: 'asc' },
+  });
+
+  if (!cheque) {
+    const businessDate = resolveBusinessDate();
+    cheque = await prisma.$transaction(async (tx) => {
+      const chequeNumber = await nextChequeNumber(tx, businessDate);
+      return tx.cheque.create({
+        data: {
+          venueId,
+          terminalId,
+          cashierId,
+          chequeNumber,
+          businessDate,
+          tableLabel: label,
+          floorTableId: null,
+          serviceMode: CHEQUE_SERVICE_MODES.TAKEAWAY,
+          status: 'open',
+        },
+      });
+    });
+
+    const draft = await createOrder({
+      venueId,
+      terminalId,
+      cashierId,
+      tableLabel: label,
+      floorTableId: null,
+      businessDate,
+    });
+    await linkDraftOrder(cheque.id, draft.id);
+    cheque = await loadCheque(cheque.id);
+  } else {
+    await ensureDraftOrder(cheque, {
+      venueId,
+      terminalId,
+      cashierId,
+      tableLabel: label,
+      floorTableId: null,
+    });
+    cheque = await loadCheque(cheque.id);
+  }
+
+  await linkOrphanBillableOrdersToOpenCheque(cheque.id, venueId, label);
+  await linkOrphanDraftOrdersToOpenCheque(cheque.id, venueId, label);
+  cheque = await loadCheque(cheque.id);
+
+  const crossVenueGroup =
+    cheque.crossVenueGroupId && config.featureCrossVenueBilling
+      ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId).catch(() => null)
+      : null;
+
+  return { ...serializeCheque(cheque), crossVenueGroup };
+}
+
+async function openOrResumeDineInCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
   if (!trimmed) throw validationError('Table label is required');
   const hubTable = await resolveHubTable(trimmed);
@@ -66,6 +149,7 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
           businessDate,
           tableLabel: hubTable.tableLabel,
           floorTableId: hubTable.id,
+          serviceMode: CHEQUE_SERVICE_MODES.DINE_IN,
           status: 'open',
         },
       });
@@ -404,6 +488,9 @@ export async function moveChequeTable(chequeId, { targetTableLabel }, venueId, {
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
   if (cheque.parentChequeId) throw validationError('Cannot move a split sub-cheque');
+  if (isTakeawayServiceMode(cheque.serviceMode)) {
+    throw validationError('Cannot move a takeaway order to a table');
+  }
 
   const hubTable = await resolveHubTable(trimmed);
   if (cheque.floorTableId === hubTable.id) {

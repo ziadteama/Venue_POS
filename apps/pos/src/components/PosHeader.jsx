@@ -98,6 +98,7 @@ export function PosHeader({
   search,
   onSearchChange,
   tableLabel,
+  serviceMode,
   openCheques,
   onOpenTables,
   shift,
@@ -107,7 +108,13 @@ export function PosHeader({
   onLogout,
 }) {
   const openCount = openCheques.length;
-  const tableDisplay = tableLabel || t('pos.noTable');
+  const isTakeaway = serviceMode === 'takeaway';
+  const tableDisplay = isTakeaway ? t('pos.takeAway') : tableLabel || t('pos.noTable');
+  const tableTitle = isTakeaway
+    ? t('pos.takeAway')
+    : tableLabel
+      ? t('pos.tableActive', { table: tableLabel })
+      : t('pos.chooseTable');
 
   return (
     <header className="flex shrink-0 flex-col gap-2 border-b border-white/5 bg-ink-gradient px-3 py-2.5 text-white shadow-card sm:px-4 sm:py-3">
@@ -142,9 +149,9 @@ export function PosHeader({
         <HeaderAction
           icon={TablesIcon}
           label={t('pos.tablesTitle')}
-          shortLabel={tableLabel ? tableDisplay : t('pos.tablesTitle')}
+          shortLabel={tableLabel || isTakeaway ? tableDisplay : t('pos.tablesTitle')}
           onClick={onOpenTables}
-          title={tableLabel ? t('pos.tableActive', { table: tableLabel }) : t('pos.chooseTable')}
+          title={tableTitle}
           variant="primary"
           badge={openCount}
           className="min-w-0"

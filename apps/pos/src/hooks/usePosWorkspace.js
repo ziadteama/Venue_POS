@@ -100,6 +100,7 @@ export function usePosWorkspace(cashier) {
     refreshCheque,
     confirmPay,
     resumeCheque,
+    resumeTakeaway,
     printChequeReceipt,
     navigateToTable,
     selectOpenCheque,
@@ -157,8 +158,12 @@ export function usePosWorkspace(cashier) {
     confirmRemoveDiscount,
     confirmRefund,
     confirmPay,
-    onPaySettled: async (paidTableLabel) => {
-      await resumeCheque(paidTableLabel);
+    onPaySettled: async (paidTableLabel, { serviceMode } = {}) => {
+      if (serviceMode === 'takeaway') {
+        await resumeTakeaway();
+      } else if (paidTableLabel) {
+        await resumeCheque(paidTableLabel);
+      }
     },
     printChequeReceipt,
     loadPaidCheques,
@@ -214,6 +219,12 @@ export function usePosWorkspace(cashier) {
     },
     [navigateToTable, setError, setShowTableModal],
   );
+
+  const openTakeawayCheque = useCallback(async () => {
+    const result = await resumeTakeaway();
+    if (result?.ok !== false) setError('');
+    return result;
+  }, [resumeTakeaway, setError]);
 
   function handleTapItem(item) {
     if (!cheque) {
@@ -336,6 +347,7 @@ export function usePosWorkspace(cashier) {
     refreshOpenCheques,
     refreshFloor,
     openTables,
+    openTakeawayCheque,
     menuForGrid,
     menuDisplayItems,
     gridCategoryId,

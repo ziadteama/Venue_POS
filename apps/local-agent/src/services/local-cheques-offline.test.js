@@ -11,6 +11,7 @@ import {
   listLocalPaidCheques,
 } from './local-cheques.js';
 import { addLocalOrderItem } from './orders.js';
+import { CHEQUE_SERVICE_MODES, TAKEAWAY_TABLE_LABEL } from '@venue-pos/shared';
 
 const VENUE = '00000000-0000-4000-8000-0000000000a1';
 const CASHIER = '00000000-0000-4000-8000-0000000000a2';
@@ -24,6 +25,26 @@ before(() => {
 
 after(() => {
   db?.close();
+});
+
+test('open takeaway resumes single shared counter offline', () => {
+  const first = openLocalCheque(db, {
+    venueId: VENUE,
+    terminalId: TERMINAL,
+    cashierId: CASHIER,
+    serviceMode: CHEQUE_SERVICE_MODES.TAKEAWAY,
+  });
+  assert.equal(first.serviceMode, CHEQUE_SERVICE_MODES.TAKEAWAY);
+  assert.equal(first.tableLabel, TAKEAWAY_TABLE_LABEL);
+  assert.equal(first.floorTableId, null);
+
+  const second = openLocalCheque(db, {
+    venueId: VENUE,
+    terminalId: TERMINAL,
+    cashierId: CASHIER,
+    serviceMode: CHEQUE_SERVICE_MODES.TAKEAWAY,
+  });
+  assert.equal(second.id, first.id);
 });
 
 test('clear draft and close empty cheque offline', () => {
