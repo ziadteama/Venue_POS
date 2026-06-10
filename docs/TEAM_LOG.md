@@ -1534,7 +1534,7 @@ npm run test -w @venue-pos/api
 npm run test -w @venue-pos/local-agent
 npm run lint && npm run lint:i18n
 ```
-**Notes:** Refunds remain online-only (audit). Comp offline deferred — hub manager route only. Menu publish backlog while offline still open (US-7.4).
+**Notes:** Refunds remain online-only (audit). Comp offline deferred — hub manager route only. Menu publish backlog while offline still open (US-7.4). All 10 manual-matrix scenarios automated in `test/e2e/phase6-matrix.test.js` (two live agent processes for floor LAN).
 
 ---
 
