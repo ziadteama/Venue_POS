@@ -40,12 +40,14 @@ export function registerFloorRoutes(app, routeCtx) {
     });
 
     app.post('/v1/floor/tables/occupy', async (request, reply) => {
-      const { tableLabel, chequeId, venueId } = request.body ?? {};
-      if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
+      const { tableLabel, floorTableId, chequeId, crossVenueGroupId, venueId } = request.body ?? {};
+      if (!tableLabel && !floorTableId) {
+        return reply.status(400).send({ error: 'tableLabel or floorTableId required' });
+      }
       if (isCloudOnline()) {
         return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/occupy', {
           method: 'POST',
-          body: JSON.stringify({ tableLabel, chequeId }),
+          body: JSON.stringify({ tableLabel, floorTableId, chequeId, crossVenueGroupId, venueId }),
         });
       }
       const leaderHost = getLeaderHost(routeCtx);
@@ -55,7 +57,7 @@ export function registerFloorRoutes(app, routeCtx) {
             lanPort: routeCtx.lanPort,
             lanSecret: routeCtx.lanSecret,
             method: 'POST',
-            body: { tableLabel, chequeId, terminalId, venueId },
+            body: { tableLabel, floorTableId, chequeId, crossVenueGroupId, terminalId, venueId },
           });
         } catch (err) {
           return reply.status(err.statusCode ?? 503).send({ error: err.message });
@@ -94,11 +96,14 @@ export function registerFloorRoutes(app, routeCtx) {
   app.get('/v1/floor/tables', async () => listFloorLocks(db));
 
   app.post('/v1/floor/tables/occupy', async (request, reply) => {
-    const { tableLabel, chequeId, venueId } = request.body ?? {};
-    if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
+    const { tableLabel, floorTableId, chequeId, venueId } = request.body ?? {};
+    if (!tableLabel && !floorTableId) {
+      return reply.status(400).send({ error: 'tableLabel or floorTableId required' });
+    }
     try {
       return occupyFloorLock(db, {
         tableLabel,
+        floorTableId,
         chequeId,
         terminalId: request.body?.terminalId ?? terminalId,
         venueId,

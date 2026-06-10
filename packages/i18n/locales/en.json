@@ -266,6 +266,7 @@
   "orders.compItem": "Comp {{name}}",
   "orders.voidRound": "Void round",
   "orders.chequeContextHint": "Table {{table}} · {{status}}",
+  "orders.chequeNotInListHint": "This cheque is not in the current list (filters or shift may hide it). Details and actions are still available on the right.",
   "orders.backToCheque": "Back to cheque",
   "orders.clearChequeFilter": "Show all orders",
   "orders.shiftFilterHint": "Orders on this shift",
@@ -958,5 +959,19 @@
   "venueConfig.template.compact": "Compact",
   "venueConfig.template.detailed": "Detailed",
   "venueConfig.saved": "Saved {{count}} change(s). Terminals receive updates via WebSocket.",
-  "venueConfig.recentChanges": "Recent configuration changes"
+  "venueConfig.recentChanges": "Recent configuration changes",
+  "hubTables.title": "Hub table floor",
+  "hubTables.hint": "One master list for all venues. Any cashier may serve any table; occupancy is shared across the hub.",
+  "hubTables.newLabel": "New table label",
+  "hubTables.newPlaceholder": "T1",
+  "hubTables.add": "Add table",
+  "hubTables.empty": "No tables yet. Add labels cashiers can pick on POS.",
+  "hubTables.occupied": "Occupied",
+  "hubTables.inactive": "Inactive",
+  "hubTables.deactivate": "Deactivate",
+  "hubTables.activate": "Activate",
+  "hubTables.confirmDelete": "Delete table {{label}}?",
+  "hubTax.title": "Tax & service (all venues)",
+  "hubTax.hint": "Set rates per venue on one screen — no need to switch venue first.",
+  "hubTax.saved": "Saved tax & service for {{venue}}."
 }

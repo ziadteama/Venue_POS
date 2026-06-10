@@ -4,10 +4,12 @@ import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { BillingMatrixSection } from '../components/BillingMatrixSection.jsx';
+import { HubTablesSection } from '../components/HubTablesSection.jsx';
+import { HubTaxMatrixSection } from '../components/HubTaxMatrixSection.jsx';
 import { TerminalsSection } from '../components/TerminalsSection.jsx';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { SectionCard } from '../components/ui/Card.jsx';
-import { Field, Input, Select, Textarea } from '../components/ui/Field.jsx';
+import { Field, Input, Select } from '../components/ui/Field.jsx';
 import { Button } from '../components/ui/Button.jsx';
 import {
   SettingsIcon,
@@ -49,21 +51,8 @@ function tablesToText(tables) {
     .join('\n');
 }
 
-function textToTables(text) {
-  const seen = new Set();
-  const out = [];
-  for (const line of String(text).split(/\r?\n/)) {
-    const label = line.trim();
-    if (!label) continue;
-    const key = label.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push({ label });
-  }
-  return out;
-}
-
-const FORM_SECTIONS = ['general', 'tax', 'tables', 'printers'];
+const FORM_SECTIONS = ['general', 'printers'];
+const HUB_SECTIONS = ['tax', 'tables'];
 
 export function VenueSettingsPage() {
   const { t, i18n } = useTranslation();
@@ -162,7 +151,6 @@ export function VenueSettingsPage() {
           kitchenPrinterPort: Number(form.kitchenPrinterPort),
           receiptPrinterHost: form.receiptPrinterHost.trim() || null,
           receiptPrinterPort: Number(form.receiptPrinterPort),
-          tables: textToTables(form.tablesText),
         }),
       });
       setSuccess(t('venueConfig.saved', { count: result.changes?.length ?? 0 }));
@@ -183,6 +171,7 @@ export function VenueSettingsPage() {
   }
 
   const isFormSection = FORM_SECTIONS.includes(section);
+  const isHubSection = HUB_SECTIONS.includes(section);
 
   return (
     <div className="space-y-6">
@@ -190,7 +179,7 @@ export function VenueSettingsPage() {
         title={t('venueConfig.title')}
         subtitle={t('venueConfig.subtitle')}
         actions={
-          venues.length > 0 ? (
+          venues.length > 0 && !isHubSection ? (
             <Select className="w-auto py-2" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
               {venues.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -243,6 +232,10 @@ export function VenueSettingsPage() {
             <SectionCard>
               <p className="text-sm text-slate-500">{t('common.loading')}</p>
             </SectionCard>
+          ) : section === 'tables' ? (
+            <HubTablesSection />
+          ) : section === 'tax' ? (
+            <HubTaxMatrixSection />
           ) : isFormSection ? (
             <form onSubmit={save} className="space-y-6">
               {section === 'general' ? (
@@ -270,64 +263,6 @@ export function VenueSettingsPage() {
                       </Select>
                     </Field>
                   </div>
-                </SectionCard>
-              ) : null}
-
-              {section === 'tax' ? (
-                <SectionCard title={t('venueConfig.taxAndService')} icon={RevenueIcon}>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label={t('venueConfig.taxRate')}>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={form.taxRate}
-                        onChange={(e) => setForm((f) => ({ ...f, taxRate: e.target.value }))}
-                      />
-                    </Field>
-                    <Field label={t('venueConfig.serviceRate')}>
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                        value={form.serviceRate}
-                        disabled={!form.serviceEnabled}
-                        onChange={(e) => setForm((f) => ({ ...f, serviceRate: e.target.value }))}
-                      />
-                    </Field>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500/30"
-                        checked={form.taxInclusive}
-                        onChange={(e) => setForm((f) => ({ ...f, taxInclusive: e.target.checked }))}
-                      />
-                      {t('venueConfig.taxInclusive')}
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-slate-700">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-slate-300 text-accent-600 focus:ring-accent-500/30"
-                        checked={form.serviceEnabled}
-                        onChange={(e) => setForm((f) => ({ ...f, serviceEnabled: e.target.checked }))}
-                      />
-                      {t('venueConfig.serviceEnabled')}
-                    </label>
-                  </div>
-                </SectionCard>
-              ) : null}
-
-              {section === 'tables' ? (
-                <SectionCard title={t('venueConfig.tables')} hint={t('venueConfig.tablesHint')} icon={TablesIcon}>
-                  <Textarea
-                    rows={10}
-                    className="font-mono"
-                    placeholder={t('venueConfig.tablesPlaceholder')}
-                    value={form.tablesText}
-                    onChange={(e) => setForm((f) => ({ ...f, tablesText: e.target.value }))}
-                  />
                 </SectionCard>
               ) : null}
 

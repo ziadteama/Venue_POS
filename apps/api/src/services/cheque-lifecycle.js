@@ -6,7 +6,11 @@ import {
   reconcileVenueOpenCheques,
 } from './cheque-reconcile.js';
 import { validationError } from '../utils/errors.js';
-import { assertTableAssigned } from './venue-config-service.js';
+import {
+  assertTableAvailable,
+  resolveHubTable,
+  syncChequeOrdersFloorTable,
+} from './hub-table-service.js';
 import { occupyFloorTable, releaseFloorTable } from './floor-table-service.js';
 import { createOrder, sendOrderToKitchen } from './order-service.js';
 import {
@@ -34,43 +38,70 @@ import { resolveBusinessDate } from '../utils/business-date.js';
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
   if (!trimmed) throw validationError('Table label is required');
-  await assertTableAssigned(venueId, trimmed);
+  const hubTable = await resolveHubTable(trimmed);
 
   const openParents = await prisma.cheque.findMany({
     where: { venueId, status: 'open', parentChequeId: null },
     include: chequeInclude,
     orderBy: { openedAt: 'asc' },
   });
-  let cheque = openParents.find((row) => tableLabelsMatch(row.tableLabel, trimmed)) ?? null;
+  let cheque =
+    openParents.find(
+      (row) =>
+        row.floorTableId === hubTable.id || tableLabelsMatch(row.tableLabel, hubTable.tableLabel),
+    ) ?? null;
 
   if (!cheque) {
+    await assertTableAvailable(hubTable.id, {});
     const businessDate = resolveBusinessDate();
     cheque = await prisma.$transaction(async (tx) => {
       const chequeNumber = await nextChequeNumber(tx, businessDate);
-      return tx.cheque.create({
+      const created = await tx.cheque.create({
         data: {
           venueId,
           terminalId,
           cashierId,
           chequeNumber,
           businessDate,
-          tableLabel: trimmed,
+          tableLabel: hubTable.tableLabel,
+          floorTableId: hubTable.id,
           status: 'open',
         },
       });
+      return created;
     });
 
     const draft = await createOrder({
       venueId,
       terminalId,
       cashierId,
-      tableLabel: trimmed,
+      tableLabel: hubTable.tableLabel,
+      floorTableId: hubTable.id,
       businessDate,
     });
     await linkDraftOrder(cheque.id, draft.id);
     cheque = await loadCheque(cheque.id);
   } else {
-    await ensureDraftOrder(cheque, { venueId, terminalId, cashierId });
+    await assertTableAvailable(hubTable.id, {
+      chequeId: cheque.id,
+      crossVenueGroupId: cheque.crossVenueGroupId,
+    });
+    if (!cheque.floorTableId || cheque.tableLabel !== hubTable.tableLabel) {
+      await prisma.$transaction(async (tx) => {
+        await tx.cheque.update({
+          where: { id: cheque.id },
+          data: { floorTableId: hubTable.id, tableLabel: hubTable.tableLabel },
+        });
+        await syncChequeOrdersFloorTable(tx, cheque.id, hubTable.id, hubTable.tableLabel);
+      });
+    }
+    await ensureDraftOrder(cheque, {
+      venueId,
+      terminalId,
+      cashierId,
+      tableLabel: hubTable.tableLabel,
+      floorTableId: hubTable.id,
+    });
     cheque = await loadCheque(cheque.id);
   }
 
@@ -372,30 +403,39 @@ export async function moveChequeTable(chequeId, { targetTableLabel }, venueId, {
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   if (cheque.status !== 'open') throw validationError('Cheque is not open');
   if (cheque.parentChequeId) throw validationError('Cannot move a split sub-cheque');
-  if (tableLabelsMatch(cheque.tableLabel, trimmed)) {
+
+  const hubTable = await resolveHubTable(trimmed);
+  if (cheque.floorTableId === hubTable.id) {
     return getCheque(chequeId, venueId);
   }
 
-  await assertTableAssigned(venueId, trimmed);
-
-  const conflict = await prisma.cheque.findFirst({
-    where: { venueId, tableLabel: trimmed, status: 'open', id: { not: chequeId } },
-    select: { id: true },
+  await assertTableAvailable(hubTable.id, {
+    chequeId,
+    crossVenueGroupId: cheque.crossVenueGroupId,
   });
-  if (conflict) throw validationError('Another cheque is already open for that table');
 
-  const oldLabel = cheque.tableLabel;
+  const oldFloorTableId = cheque.floorTableId;
 
   await prisma.$transaction(async (tx) => {
-    await tx.cheque.update({ where: { id: chequeId }, data: { tableLabel: trimmed } });
-    await tx.order.updateMany({
-      where: { chequeId: chequeId },
-      data: { tableLabel: trimmed },
+    await tx.cheque.update({
+      where: { id: chequeId },
+      data: { tableLabel: hubTable.tableLabel, floorTableId: hubTable.id },
     });
+    await syncChequeOrdersFloorTable(tx, chequeId, hubTable.id, hubTable.tableLabel);
   });
 
-  await releaseFloorTable({ tableLabel: oldLabel, chequeId, io });
-  await occupyFloorTable({ tableLabel: trimmed, venueId, chequeId, terminalId, io });
+  if (oldFloorTableId) {
+    await releaseFloorTable({ floorTableId: oldFloorTableId, chequeId, io });
+  }
+  await occupyFloorTable({
+    tableLabel: hubTable.tableLabel,
+    floorTableId: hubTable.id,
+    venueId,
+    chequeId,
+    crossVenueGroupId: cheque.crossVenueGroupId,
+    terminalId,
+    io,
+  });
 
   return getCheque(chequeId, venueId);
 }

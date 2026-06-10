@@ -266,6 +266,7 @@
   "orders.compItem": "تعويض {{name}}",
   "orders.voidRound": "إلغاء الجولة",
   "orders.chequeContextHint": "طاولة {{table}} · {{status}}",
+  "orders.chequeNotInListHint": "هذا الشيك غير ظاهر في القائمة الحالية (قد تخفيه الفلاتر أو الوردية). التفاصيل والإجراءات متاحة على اليمين.",
   "orders.backToCheque": "العودة إلى الشيك",
   "orders.clearChequeFilter": "عرض كل الطلبات",
   "orders.shiftFilterHint": "طلبات هذه الوردية",
@@ -958,5 +959,19 @@
   "venueConfig.template.compact": "مختصر",
   "venueConfig.template.detailed": "مفصل",
   "venueConfig.saved": "تم حفظ {{count}} تغيير/تغييرات. تستقبل الأجهزة التحديث عبر WebSocket.",
-  "venueConfig.recentChanges": "آخر تغييرات الإعدادات"
+  "venueConfig.recentChanges": "آخر تغييرات الإعدادات",
+  "hubTables.title": "طاولات المركز",
+  "hubTables.hint": "قائمة واحدة لجميع الفروع. أي كاشير يمكنه خدمة أي طاولة؛ الإشغال مشترك على مستوى المركز.",
+  "hubTables.newLabel": "تسمية طاولة جديدة",
+  "hubTables.newPlaceholder": "T1",
+  "hubTables.add": "إضافة طاولة",
+  "hubTables.empty": "لا توجد طاولات بعد. أضف تسميات يختارها الكاشير على نقطة البيع.",
+  "hubTables.occupied": "مشغولة",
+  "hubTables.inactive": "غير نشطة",
+  "hubTables.deactivate": "إيقاف",
+  "hubTables.activate": "تفعيل",
+  "hubTables.confirmDelete": "حذف الطاولة {{label}}؟",
+  "hubTax.title": "الضريبة والخدمة (كل الفروع)",
+  "hubTax.hint": "اضبط النسب لكل فرع في شاشة واحدة دون تبديل الفرع أولاً.",
+  "hubTax.saved": "تم حفظ الضريبة والخدمة لـ {{venue}}."
 }

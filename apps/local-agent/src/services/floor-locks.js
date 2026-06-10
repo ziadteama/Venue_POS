@@ -2,10 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 export function listFloorLocks(db) {
   return db
-    .prepare(`SELECT table_label, cheque_id, terminal_id, venue_id, locked_at FROM floor_locks ORDER BY table_label`)
+    .prepare(
+      `SELECT table_label, floor_table_id, cheque_id, terminal_id, venue_id, locked_at FROM floor_locks ORDER BY table_label`,
+    )
     .all()
     .map((row) => ({
       tableLabel: row.table_label,
+      floorTableId: row.floor_table_id,
       chequeId: row.cheque_id,
       terminalId: row.terminal_id,
       venueId: row.venue_id,
@@ -14,26 +17,42 @@ export function listFloorLocks(db) {
     }));
 }
 
-export function occupyFloorLock(db, { tableLabel, chequeId, terminalId, venueId }) {
-  const trimmed = tableLabel?.trim();
-  if (!trimmed) throw new Error('tableLabel required');
-
-  const existing = db.prepare(`SELECT * FROM floor_locks WHERE table_label = ?`).get(trimmed);
-  if (existing?.cheque_id && existing.cheque_id !== chequeId) {
-    throw new Error('Table is occupied on coordinator');
+function findOccupyingLock(db, { tableLabel, floorTableId, chequeId }) {
+  if (floorTableId) {
+    const byId = db
+      .prepare(`SELECT * FROM floor_locks WHERE floor_table_id = ? AND cheque_id IS NOT NULL`)
+      .get(floorTableId);
+    if (byId?.cheque_id && byId.cheque_id !== chequeId) return byId;
   }
+  const trimmed = tableLabel?.trim();
+  if (!trimmed) return null;
+  const byLabel = db.prepare(`SELECT * FROM floor_locks WHERE table_label = ?`).get(trimmed);
+  if (byLabel?.cheque_id && byLabel.cheque_id !== chequeId) return byLabel;
+  return null;
+}
 
+export function occupyFloorLock(db, { tableLabel, floorTableId, chequeId, terminalId, venueId }) {
+  const trimmed = tableLabel?.trim();
+  if (!trimmed && !floorTableId) throw new Error('tableLabel required');
+
+  const conflict = findOccupyingLock(db, { tableLabel: trimmed, floorTableId, chequeId });
+  if (conflict) throw new Error('Table is occupied on coordinator');
+
+  const key = trimmed || floorTableId;
   db.prepare(
-    `INSERT INTO floor_locks (table_label, cheque_id, terminal_id, venue_id, locked_at)
-     VALUES (?, ?, ?, ?, datetime('now'))
+    `INSERT INTO floor_locks (table_label, floor_table_id, cheque_id, terminal_id, venue_id, locked_at)
+     VALUES (?, ?, ?, ?, ?, datetime('now'))
      ON CONFLICT(table_label) DO UPDATE SET
+       floor_table_id = excluded.floor_table_id,
        cheque_id = excluded.cheque_id,
        terminal_id = excluded.terminal_id,
        venue_id = excluded.venue_id,
        locked_at = datetime('now')`,
-  ).run(trimmed, chequeId ?? null, terminalId ?? null, venueId ?? null);
+  ).run(key, floorTableId ?? null, chequeId ?? null, terminalId ?? null, venueId ?? null);
 
-  return listFloorLocks(db).find((t) => t.tableLabel === trimmed);
+  return listFloorLocks(db).find(
+    (t) => t.tableLabel === key || (floorTableId && t.floorTableId === floorTableId),
+  );
 }
 
 export function releaseFloorLock(db, { tableLabel, chequeId }) {
