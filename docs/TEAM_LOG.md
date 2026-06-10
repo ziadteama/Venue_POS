@@ -1632,6 +1632,18 @@ npm run lint && npm run lint:i18n
 # Cheques → View orders on paid cheque with stale table filter; Settings → Hub table floor
 ```
 
+### 2026-06-10 — Hub-wide tax & service (single rate)
+
+**Phase:** API / Dashboard
+**What:** Replaced per-venue tax/service matrix with one `hub_billing` row for all venues (like hub floor tables). Settings → Tax & service edits `GET/PATCH /api/v1/manager/hub/billing`; venue config PATCH rejects tax fields; cheque totals and terminal settings read hub rates.
+**Files:** migration `20260610150000_hub_billing`, `hub-billing-service.js`, `manager-hub-billing.js`, `venue-config-service.js`, `cheque-shared.js`, `HubTaxMatrixSection.jsx`, `VenueSettingsPage.jsx`, i18n
+**Verify:**
+```bash
+npm run migrate -w @venue-pos/api && npm run db:generate
+npm run test -w @venue-pos/api -- --test apps/api/src/phase1/dashboard.js
+# Settings → Tax & service — one form; per-venue General no longer saves tax
+```
+
 ### 2026-06-10 — Cross-sell zero anchor shell fix
 
 **Phase:** API

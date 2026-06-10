@@ -424,7 +424,7 @@ test('hub manager can read and update venue config', async () => {
     url: `/api/v1/manager/venues/${VENUE_ID}/config`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
     payload: {
-      kitchenPrinterHost: '192.168.1.99',
+      kitchenPrinterHost: '192.168.1.199',
       kitchenPrinterPort: 9100,
       receiptTemplate: 'compact',
     },
@@ -434,7 +434,7 @@ test('hub manager can read and update venue config', async () => {
   assert.equal(patchRes.json().config.taxRate, 0.14);
   assert.equal(patchRes.json().config.serviceRate, 0.12);
   assert.equal(patchRes.json().config.serviceEnabled, true);
-  assert.equal(patchRes.json().config.kitchenPrinterHost, '192.168.1.99');
+  assert.equal(patchRes.json().config.kitchenPrinterHost, '192.168.1.199');
 
   const audits = await fx.app.inject({
     method: 'GET',
