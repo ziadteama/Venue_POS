@@ -1,24 +1,48 @@
 import { useState } from 'react';
 import { BilingualField } from './BilingualField.jsx';
-import { isMissingTranslation } from '../../utils/menuTranslations.js';
 import { menuLabel } from '../../utils/menuLabel.js';
-import { Modal } from '../ui/Modal.jsx';
+import { Drawer } from '../ui/Drawer.jsx';
 import { Button } from '../ui/Button.jsx';
 import { Field, Input, Textarea } from '../ui/Field.jsx';
 import { Badge } from '../ui/Badge.jsx';
+import { SectionCard } from '../ui/Card.jsx';
 
-export function ItemEditorModal({ t, item, categoryId, busy, onCancel, onSave }) {
+export function ItemEditorDrawer({
+  t,
+  item,
+  categoryId,
+  modifierGroups,
+  busy,
+  onCancel,
+  onSave,
+}) {
   const isNew = !item?.id;
+  const attachedIds = new Set(
+    (item?.modifierGroups ?? []).map((g) => g.id ?? g.modifierGroup?.id).filter(Boolean),
+  );
+
   const [form, setForm] = useState({
     nameEn: item?.nameEn ?? '',
     nameAr: item?.nameAr ?? '',
     price: item?.price != null ? String(item.price) : '',
     descriptionEn: item?.descriptionEn ?? '',
     descriptionAr: item?.descriptionAr ?? '',
+    imageUrl: item?.imageUrl ?? '',
+    isAvailable: item?.isAvailable ?? true,
+    modifierGroupIds: [...attachedIds],
   });
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function toggleModifierGroup(groupId) {
+    setForm((prev) => {
+      const ids = new Set(prev.modifierGroupIds);
+      if (ids.has(groupId)) ids.delete(groupId);
+      else ids.add(groupId);
+      return { ...prev, modifierGroupIds: [...ids] };
+    });
   }
 
   function handleSubmit(e) {
@@ -30,13 +54,17 @@ export function ItemEditorModal({ t, item, categoryId, busy, onCancel, onSave })
       price: Number(form.price),
       descriptionEn: form.descriptionEn.trim() || undefined,
       descriptionAr: form.descriptionAr.trim() || undefined,
+      imageUrl: form.imageUrl.trim() || undefined,
+      isAvailable: form.isAvailable,
+      modifierGroupIds: form.modifierGroupIds,
     });
   }
 
   return (
-    <Modal
+    <Drawer
+      open
       onClose={busy ? undefined : onCancel}
-      size="xl"
+      size="lg"
       title={isNew ? t('menu.addItem') : t('menu.editItem')}
       footer={
         <>
@@ -49,13 +77,12 @@ export function ItemEditorModal({ t, item, categoryId, busy, onCancel, onSave })
         </>
       }
     >
-      <form id="item-editor-form" onSubmit={handleSubmit} className="space-y-4">
+      <form id="item-editor-form" onSubmit={handleSubmit} className="space-y-5">
         <BilingualField
           labelEn={t('menu.nameEn')}
           labelAr={t('menu.nameAr')}
           nameEn={form.nameEn}
           nameAr={form.nameAr}
-          missingLabel={t('menu.missingTranslation')}
           onNameEnChange={(v) => update('nameEn', v)}
           onNameArChange={(v) => update('nameAr', v)}
           requiredEn
@@ -78,25 +105,232 @@ export function ItemEditorModal({ t, item, categoryId, busy, onCancel, onSave })
               onChange={(e) => update('descriptionEn', e.target.value)}
             />
           </Field>
-          <label className="block text-sm">
-            <span className="mb-1.5 flex items-center gap-2 font-medium text-slate-700">
-              {t('menu.descriptionAr')}
-              {isMissingTranslation(form.descriptionAr) && form.descriptionEn ? (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                  {t('menu.missingTranslation')}
-                </span>
-              ) : null}
-            </span>
+          <Field label={t('menu.descriptionAr')}>
             <Textarea
               dir="rtl"
               rows={2}
               value={form.descriptionAr}
               onChange={(e) => update('descriptionAr', e.target.value)}
             />
-          </label>
+          </Field>
         </div>
+        <Field label={t('menu.imageUrl')}>
+          <Input value={form.imageUrl} onChange={(e) => update('imageUrl', e.target.value)} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={form.isAvailable}
+            onChange={(e) => update('isAvailable', e.target.checked)}
+          />
+          {t('menu.availableOnPos')}
+        </label>
+
+        {modifierGroups.length > 0 ? (
+          <div>
+            <p className="mb-2 text-sm font-semibold text-slate-900">{t('menu.itemModifiers')}</p>
+            <ul className="space-y-2">
+              {modifierGroups.map((group) => (
+                <li key={group.id}>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={form.modifierGroupIds.includes(group.id)}
+                      onChange={() => toggleModifierGroup(group.id)}
+                    />
+                    <span className="font-medium">{group.nameEn}</span>
+                    <span className="text-xs text-slate-500">
+                      {t('menu.modifierRule', {
+                        min: group.minSelection,
+                        max: group.maxSelection,
+                      })}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">{t('menu.noModifierGroups')}</p>
+        )}
       </form>
-    </Modal>
+    </Drawer>
+  );
+}
+
+export function ModifierGroupsSection({ t, language, groups, busy, onAddGroup, onDeleteGroup, onAddOption }) {
+  const [form, setForm] = useState({
+    nameEn: '',
+    nameAr: '',
+    minSelection: '0',
+    maxSelection: '1',
+    optionNameEn: '',
+    optionNameAr: '',
+    optionPrice: '0',
+  });
+  const [addingOptionFor, setAddingOptionFor] = useState(null);
+  const [optionForm, setOptionForm] = useState({ nameEn: '', nameAr: '', priceDelta: '0' });
+
+  function handleAddGroup() {
+    if (!form.nameEn.trim()) return;
+    onAddGroup({
+      nameEn: form.nameEn.trim(),
+      nameAr: form.nameAr.trim(),
+      minSelection: Number(form.minSelection),
+      maxSelection: Number(form.maxSelection),
+      options: form.optionNameEn.trim()
+        ? [
+            {
+              nameEn: form.optionNameEn.trim(),
+              nameAr: form.optionNameAr.trim(),
+              priceDelta: Number(form.optionPrice) || 0,
+            },
+          ]
+        : undefined,
+    }).then(() => {
+      setForm({
+        nameEn: '',
+        nameAr: '',
+        minSelection: '0',
+        maxSelection: '1',
+        optionNameEn: '',
+        optionNameAr: '',
+        optionPrice: '0',
+      });
+    });
+  }
+
+  function handleAddOption(groupId) {
+    if (!optionForm.nameEn.trim()) return;
+    onAddOption(groupId, {
+      nameEn: optionForm.nameEn.trim(),
+      nameAr: optionForm.nameAr.trim(),
+      priceDelta: Number(optionForm.priceDelta) || 0,
+    }).then(() => {
+      setAddingOptionFor(null);
+      setOptionForm({ nameEn: '', nameAr: '', priceDelta: '0' });
+    });
+  }
+
+  return (
+    <SectionCard title={t('menu.modifierGroups')}>
+      <p className="mb-4 text-sm text-slate-500">{t('menu.modifierGroupsHint')}</p>
+
+      {groups.length === 0 ? (
+        <p className="mb-4 text-sm text-slate-500">{t('menu.noModifierGroups')}</p>
+      ) : (
+        <ul className="mb-6 divide-y divide-slate-100 rounded-xl border border-slate-200">
+          {groups.map((group) => (
+            <li key={group.id} className="px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-medium text-slate-900">{menuLabel(group, language)}</p>
+                  <p className="text-xs text-slate-500">
+                    {t('menu.modifierRule', { min: group.minSelection, max: group.maxSelection })}
+                  </p>
+                </div>
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  className="text-red-700"
+                  disabled={busy}
+                  onClick={() => onDeleteGroup(group.id)}
+                >
+                  {t('common.delete')}
+                </Button>
+              </div>
+              <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                {group.options?.map((opt) => (
+                  <li key={opt.id}>
+                    {menuLabel(opt, language)}
+                    {Number(opt.priceDelta) !== 0 ? (
+                      <span className="ms-1 text-accent-700">
+                        (+{Number(opt.priceDelta).toFixed(2)})
+                      </span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              {addingOptionFor === group.id ? (
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  <Input
+                    placeholder={t('menu.nameEn')}
+                    value={optionForm.nameEn}
+                    onChange={(e) => setOptionForm({ ...optionForm, nameEn: e.target.value })}
+                  />
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="w-24"
+                    placeholder={t('menu.priceDelta')}
+                    value={optionForm.priceDelta}
+                    onChange={(e) => setOptionForm({ ...optionForm, priceDelta: e.target.value })}
+                  />
+                  <Button variant="secondary" size="sm" disabled={busy} onClick={() => handleAddOption(group.id)}>
+                    {t('menu.addOption')}
+                  </Button>
+                  <Button variant="subtle" size="sm" onClick={() => setAddingOptionFor(null)}>
+                    {t('common.cancel')}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  className="mt-2"
+                  disabled={busy}
+                  onClick={() => setAddingOptionFor(group.id)}
+                >
+                  {t('menu.addOption')}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label={t('menu.nameEn')}>
+          <Input value={form.nameEn} onChange={(e) => setForm({ ...form, nameEn: e.target.value })} />
+        </Field>
+        <Field label={t('menu.nameAr')}>
+          <Input dir="rtl" value={form.nameAr} onChange={(e) => setForm({ ...form, nameAr: e.target.value })} />
+        </Field>
+        <Field label={t('menu.minSelection')}>
+          <Input
+            type="number"
+            min="0"
+            value={form.minSelection}
+            onChange={(e) => setForm({ ...form, minSelection: e.target.value })}
+          />
+        </Field>
+        <Field label={t('menu.maxSelection')}>
+          <Input
+            type="number"
+            min="0"
+            value={form.maxSelection}
+            onChange={(e) => setForm({ ...form, maxSelection: e.target.value })}
+          />
+        </Field>
+        <Field label={t('menu.firstOptionEn')}>
+          <Input
+            value={form.optionNameEn}
+            onChange={(e) => setForm({ ...form, optionNameEn: e.target.value })}
+          />
+        </Field>
+        <Field label={t('menu.firstOptionPrice')}>
+          <Input
+            type="number"
+            step="0.01"
+            value={form.optionPrice}
+            onChange={(e) => setForm({ ...form, optionPrice: e.target.value })}
+          />
+        </Field>
+      </div>
+      <Button variant="secondary" size="sm" className="mt-3" disabled={busy || !form.nameEn.trim()} onClick={handleAddGroup}>
+        {t('menu.addModifierGroup')}
+      </Button>
+    </SectionCard>
   );
 }
 
@@ -113,6 +347,8 @@ export function CategorySection({
   onToggleAvailability,
   onEditItem,
   onAddItem,
+  onDeleteCategory,
+  onDeleteItem,
 }) {
   return (
     <section
@@ -137,53 +373,72 @@ export function CategorySection({
               </span>
             ) : null}
             <h3 className="text-base font-semibold text-slate-900">{menuLabel(category, language)}</h3>
-            {isMissingTranslation(category.nameAr) ? (
-              <Badge tone="amber">{t('menu.missingTranslation')}</Badge>
-            ) : null}
           </div>
-          <p className="text-sm text-slate-500">{category.nameEn}</p>
         </div>
         {canEdit ? (
-          <Button variant="secondary" size="sm" disabled={busy} onClick={() => onAddItem(category.id)}>
-            {t('menu.addItem')}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" disabled={busy} onClick={() => onAddItem(category.id)}>
+              {t('menu.addItem')}
+            </Button>
+            <Button
+              variant="subtle"
+              size="sm"
+              className="text-red-700"
+              disabled={busy}
+              onClick={onDeleteCategory}
+            >
+              {t('common.delete')}
+            </Button>
+          </div>
         ) : null}
       </div>
 
       <ul className="divide-y divide-slate-100">
-        {category.items?.map((item) => (
-          <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
-            <div className="min-w-0">
-              <p className="font-medium text-slate-900">
-                {menuLabel(item, language)} —{' '}
-                <span className="tabular-nums text-accent-700">{item.price.toFixed(2)}</span>
-              </p>
-              <p className="text-xs text-slate-500">{item.nameEn}</p>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {isMissingTranslation(item.nameAr) ? (
-                  <Badge tone="amber">{t('menu.missingTranslation')}</Badge>
+        {category.items?.length ? (
+          category.items.map((item) => (
+            <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+              <div className="min-w-0">
+                <p className="font-medium text-slate-900">
+                  {menuLabel(item, language)} —{' '}
+                  <span className="tabular-nums text-accent-700">{Number(item.price).toFixed(2)}</span>
+                </p>
+                {item.modifierGroups?.length > 0 ? (
+                  <p className="text-xs text-slate-500">
+                    {item.modifierGroups.map((g) => g.nameEn).join(', ')}
+                  </p>
                 ) : null}
                 {!item.isAvailable ? <Badge tone="red">86</Badge> : null}
               </div>
-            </div>
-            {canEdit ? (
-              <div className="flex gap-2">
-                <Button variant="subtle" size="sm" disabled={busy} onClick={() => onEditItem(item)}>
-                  {t('menu.editItem')}
-                </Button>
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  disabled={busy}
-                  className="text-amber-700 hover:bg-amber-50"
-                  onClick={() => onToggleAvailability(item)}
-                >
-                  {item.isAvailable ? t('menu.mark86') : t('menu.markAvailable')}
-                </Button>
-              </div>
-            ) : null}
-          </li>
-        ))}
+              {canEdit ? (
+                <div className="flex gap-2">
+                  <Button variant="subtle" size="sm" disabled={busy} onClick={() => onEditItem(item)}>
+                    {t('menu.editItem')}
+                  </Button>
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    disabled={busy}
+                    className="text-amber-700 hover:bg-amber-50"
+                    onClick={() => onToggleAvailability(item)}
+                  >
+                    {item.isAvailable ? t('menu.mark86') : t('menu.markAvailable')}
+                  </Button>
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    className="text-red-700"
+                    disabled={busy}
+                    onClick={() => onDeleteItem(item)}
+                  >
+                    {t('common.delete')}
+                  </Button>
+                </div>
+              ) : null}
+            </li>
+          ))
+        ) : (
+          <li className="px-5 py-4 text-sm text-slate-500">{t('menu.noItemsInCategory')}</li>
+        )}
       </ul>
     </section>
   );

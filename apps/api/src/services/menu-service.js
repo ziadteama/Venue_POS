@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../db/prisma.js';
 import { notFound, validationError } from '../utils/errors.js';
-import { serializeMenuTemplate } from '../utils/serialize.js';
+import { serializeVenueMenu } from '../utils/serialize.js';
 
 const itemInclude = {
   modifierGroups: {
@@ -15,8 +15,7 @@ const itemInclude = {
   },
 };
 
-const templateInclude = {
-  venues: true,
+const menuInclude = {
   modifierGroups: {
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
@@ -37,15 +36,6 @@ const templateInclude = {
   },
 };
 
-export async function listMenuTemplates() {
-  const templates = await prisma.menuTemplate.findMany({
-    where: { isActive: true },
-    include: { venues: true },
-    orderBy: { updatedAt: 'desc' },
-  });
-  return templates.map(serializeMenuTemplate);
-}
-
 export async function listVenues() {
   return prisma.venue.findMany({
     where: { isActive: true },
@@ -54,79 +44,101 @@ export async function listVenues() {
   });
 }
 
-export async function getMenuTemplate(id) {
-  const template = await prisma.menuTemplate.findUnique({
-    where: { id },
-    include: templateInclude,
+export async function ensureVenueMenu(venueId) {
+  await ensureVenue(venueId);
+  return prisma.venueMenu.upsert({
+    where: { venueId },
+    update: {},
+    create: { venueId, status: 'draft' },
   });
-  if (!template) throw notFound('Menu template not found');
-  return serializeMenuTemplate(template);
 }
 
-export async function createMenuTemplate(data) {
-  const template = await prisma.menuTemplate.create({
-    data: {
-      nameEn: data.nameEn,
-      nameAr: data.nameAr ?? '',
-      venues: data.venueIds?.length
-        ? { create: data.venueIds.map((venueId) => ({ venueId })) }
-        : undefined,
+export async function getVenueMenu(venueId) {
+  await ensureVenueMenu(venueId);
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    include: {
+      venueMenu: true,
+      categories: {
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          items: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            include: itemInclude,
+          },
+        },
+      },
+      modifierGroups: {
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          options: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+        },
+      },
     },
-    include: templateInclude,
   });
-  return serializeMenuTemplate(template);
+  if (!venue) throw notFound('Venue not found');
+  return serializeVenueMenu(venue);
 }
 
-export async function updateMenuTemplate(id, data) {
-  await ensureTemplate(id);
-
-  if (data.venueIds) {
-    await prisma.menuTemplateVenue.deleteMany({ where: { menuTemplateId: id } });
-    if (data.venueIds.length) {
-      await prisma.menuTemplateVenue.createMany({
-        data: data.venueIds.map((venueId) => ({ menuTemplateId: id, venueId })),
-      });
-    }
-  }
-
-  const template = await prisma.menuTemplate.update({
-    where: { id },
-    data: { nameEn: data.nameEn, nameAr: data.nameAr },
-    include: templateInclude,
-  });
-  return serializeMenuTemplate(template);
-}
-
-export async function createCategory(menuTemplateId, data) {
-  await ensureTemplate(menuTemplateId);
+export async function createCategory(venueId, data) {
+  await ensureVenueMenu(venueId);
   const maxOrder = await prisma.category.aggregate({
-    where: { menuTemplateId },
+    where: { venueId },
     _max: { sortOrder: true },
   });
   await prisma.category.create({
     data: {
-      menuTemplateId,
+      venueId,
       nameEn: data.nameEn,
       nameAr: data.nameAr ?? '',
       sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
-  return getMenuTemplate(menuTemplateId);
+  return getVenueMenu(venueId);
 }
 
-export async function reorderCategories(menuTemplateId, orderedIds) {
-  await ensureTemplate(menuTemplateId);
+export async function updateCategory(venueId, categoryId, data) {
+  await assertCategoryInVenue(venueId, categoryId);
+  await prisma.category.update({
+    where: { id: categoryId },
+    data: {
+      ...(data.nameEn != null ? { nameEn: data.nameEn } : {}),
+      ...(data.nameAr != null ? { nameAr: data.nameAr } : {}),
+    },
+  });
+  return getVenueMenu(venueId);
+}
+
+export async function deleteCategory(venueId, categoryId) {
+  await assertCategoryInVenue(venueId, categoryId);
+  await prisma.category.update({
+    where: { id: categoryId },
+    data: { isActive: false },
+  });
+  return getVenueMenu(venueId);
+}
+
+export async function reorderCategories(venueId, orderedIds) {
+  await ensureVenueMenu(venueId);
   await prisma.$transaction(
     orderedIds.map((id, index) =>
-      prisma.category.update({ where: { id }, data: { sortOrder: index } }),
+      prisma.category.update({ where: { id, venueId }, data: { sortOrder: index } }),
     ),
   );
-  return getMenuTemplate(menuTemplateId);
+  return getVenueMenu(venueId);
 }
 
 export async function createMenuItem(categoryId, data) {
   const category = await prisma.category.findUnique({ where: { id: categoryId } });
-  if (!category) throw notFound('Category not found');
+  if (!category || !category.isActive) throw notFound('Category not found');
+
+  const maxOrder = await prisma.menuItem.aggregate({
+    where: { categoryId },
+    _max: { sortOrder: true },
+  });
 
   await prisma.menuItem.create({
     data: {
@@ -139,16 +151,16 @@ export async function createMenuItem(categoryId, data) {
       taxRate: data.taxRate ?? 0,
       imageUrl: data.imageUrl,
       isAvailable: data.isAvailable ?? true,
-      sortOrder: data.sortOrder ?? 0,
+      sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
     },
   });
 
-  return getMenuTemplate(category.menuTemplateId);
+  return getVenueMenu(category.venueId);
 }
 
 export async function updateMenuItem(itemId, data) {
-  const item = await prisma.menuItem.findUnique({
-    where: { id: itemId },
+  const item = await prisma.menuItem.findFirst({
+    where: { id: itemId, isActive: true },
     include: { category: true },
   });
   if (!item) throw notFound('Menu item not found');
@@ -156,33 +168,54 @@ export async function updateMenuItem(itemId, data) {
   await prisma.menuItem.update({
     where: { id: itemId },
     data: {
-      nameEn: data.nameEn,
-      nameAr: data.nameAr ?? '',
-      descriptionEn: data.descriptionEn,
-      descriptionAr: data.descriptionAr,
-      price: data.price,
-      isAvailable: data.isAvailable,
-      imageUrl: data.imageUrl,
+      ...(data.nameEn != null ? { nameEn: data.nameEn } : {}),
+      ...(data.nameAr != null ? { nameAr: data.nameAr } : {}),
+      ...(data.descriptionEn != null ? { descriptionEn: data.descriptionEn } : {}),
+      ...(data.descriptionAr != null ? { descriptionAr: data.descriptionAr } : {}),
+      ...(data.price != null ? { price: data.price } : {}),
+      ...(data.isAvailable != null ? { isAvailable: data.isAvailable } : {}),
+      ...(data.imageUrl != null ? { imageUrl: data.imageUrl } : {}),
     },
   });
 
-  return getMenuTemplate(item.category.menuTemplateId);
+  return getVenueMenu(item.category.venueId);
 }
 
-export async function createModifierGroup(menuTemplateId, data) {
-  await ensureTemplate(menuTemplateId);
+export async function deleteMenuItem(itemId) {
+  const item = await prisma.menuItem.findFirst({
+    where: { id: itemId, isActive: true },
+    include: { category: true },
+  });
+  if (!item) throw notFound('Menu item not found');
+
+  await prisma.menuItem.update({
+    where: { id: itemId },
+    data: { isActive: false },
+  });
+
+  return getVenueMenu(item.category.venueId);
+}
+
+export async function createModifierGroup(venueId, data) {
+  await ensureVenueMenu(venueId);
+  const maxOrder = await prisma.modifierGroup.aggregate({
+    where: { venueId },
+    _max: { sortOrder: true },
+  });
+
   const group = await prisma.modifierGroup.create({
     data: {
-      menuTemplateId,
+      venueId,
       nameEn: data.nameEn,
       nameAr: data.nameAr ?? '',
       minSelection: data.minSelection ?? 0,
       maxSelection: data.maxSelection ?? 1,
+      sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
       options: data.options?.length
         ? {
             create: data.options.map((opt, i) => ({
               nameEn: opt.nameEn,
-              nameAr: opt.nameAr,
+              nameAr: opt.nameAr ?? '',
               priceDelta: opt.priceDelta ?? 0,
               sortOrder: i,
             })),
@@ -202,53 +235,154 @@ export async function createModifierGroup(menuTemplateId, data) {
     });
   }
 
-  return getMenuTemplate(menuTemplateId);
+  return getVenueMenu(venueId);
 }
 
-export async function publishMenuTemplate(id) {
-  const template = await prisma.menuTemplate.findUnique({
-    where: { id },
-    include: templateInclude,
+export async function updateModifierGroup(venueId, groupId, data) {
+  await assertModifierGroupInVenue(venueId, groupId);
+  await prisma.modifierGroup.update({
+    where: { id: groupId },
+    data: {
+      ...(data.nameEn != null ? { nameEn: data.nameEn } : {}),
+      ...(data.nameAr != null ? { nameAr: data.nameAr } : {}),
+      ...(data.minSelection != null ? { minSelection: data.minSelection } : {}),
+      ...(data.maxSelection != null ? { maxSelection: data.maxSelection } : {}),
+    },
   });
-  if (!template) throw notFound('Menu template not found');
-  if (!template.categories.length) {
+  return getVenueMenu(venueId);
+}
+
+export async function deleteModifierGroup(venueId, groupId) {
+  await assertModifierGroupInVenue(venueId, groupId);
+  await prisma.modifierGroup.update({
+    where: { id: groupId },
+    data: { isActive: false },
+  });
+  return getVenueMenu(venueId);
+}
+
+export async function addModifierOption(venueId, groupId, data) {
+  await assertModifierGroupInVenue(venueId, groupId);
+  const maxOrder = await prisma.modifierOption.aggregate({
+    where: { modifierGroupId: groupId },
+    _max: { sortOrder: true },
+  });
+  await prisma.modifierOption.create({
+    data: {
+      modifierGroupId: groupId,
+      nameEn: data.nameEn,
+      nameAr: data.nameAr ?? '',
+      priceDelta: data.priceDelta ?? 0,
+      sortOrder: data.sortOrder ?? (maxOrder._max.sortOrder ?? 0) + 1,
+    },
+  });
+  return getVenueMenu(venueId);
+}
+
+export async function updateModifierOption(venueId, optionId, data) {
+  const option = await prisma.modifierOption.findFirst({
+    where: { id: optionId, isActive: true, modifierGroup: { venueId, isActive: true } },
+  });
+  if (!option) throw notFound('Modifier option not found');
+
+  await prisma.modifierOption.update({
+    where: { id: optionId },
+    data: {
+      ...(data.nameEn != null ? { nameEn: data.nameEn } : {}),
+      ...(data.nameAr != null ? { nameAr: data.nameAr } : {}),
+      ...(data.priceDelta != null ? { priceDelta: data.priceDelta } : {}),
+    },
+  });
+  return getVenueMenu(venueId);
+}
+
+export async function deleteModifierOption(venueId, optionId) {
+  const option = await prisma.modifierOption.findFirst({
+    where: { id: optionId, isActive: true, modifierGroup: { venueId, isActive: true } },
+  });
+  if (!option) throw notFound('Modifier option not found');
+
+  await prisma.modifierOption.update({
+    where: { id: optionId },
+    data: { isActive: false },
+  });
+  return getVenueMenu(venueId);
+}
+
+export async function setItemModifiers(itemId, modifierGroupIds) {
+  const item = await prisma.menuItem.findFirst({
+    where: { id: itemId, isActive: true },
+    include: { category: true },
+  });
+  if (!item) throw notFound('Menu item not found');
+
+  const venueId = item.category.venueId;
+  if (modifierGroupIds?.length) {
+    const groups = await prisma.modifierGroup.findMany({
+      where: { id: { in: modifierGroupIds }, venueId, isActive: true },
+    });
+    if (groups.length !== modifierGroupIds.length) {
+      throw validationError('One or more modifier groups are invalid for this venue');
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.menuItemModifier.deleteMany({ where: { menuItemId: itemId } }),
+    ...(modifierGroupIds?.length
+      ? [
+          prisma.menuItemModifier.createMany({
+            data: modifierGroupIds.map((modifierGroupId) => ({ menuItemId: itemId, modifierGroupId })),
+          }),
+        ]
+      : []),
+  ]);
+
+  return getVenueMenu(venueId);
+}
+
+export async function publishVenueMenu(venueId) {
+  await ensureVenueMenu(venueId);
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    include: menuInclude,
+  });
+  if (!venue) throw notFound('Venue not found');
+  if (!venue.categories.length) {
     throw validationError('Cannot publish an empty menu');
   }
 
-  const serialized = serializeMenuTemplate(template);
+  const serialized = serializeVenueMenu(venue);
   const versionHash = createHash('sha256').update(JSON.stringify(serialized)).digest('hex');
 
-  const published = await prisma.menuTemplate.update({
-    where: { id },
+  await prisma.venueMenu.update({
+    where: { venueId },
     data: {
       status: 'published',
       publishedAt: new Date(),
       versionHash,
     },
-    include: templateInclude,
   });
 
-  return serializeMenuTemplate(published);
+  return getVenueMenu(venueId);
 }
 
 export async function getPublishedMenuForVenue(venueId) {
-  const assignment = await prisma.menuTemplateVenue.findFirst({
-    where: {
-      venueId,
-      menuTemplate: { status: 'published', isActive: true },
-    },
-    include: {
-      menuTemplate: { include: templateInclude },
-    },
-    orderBy: { menuTemplate: { publishedAt: 'desc' } },
+  const venueMenu = await prisma.venueMenu.findUnique({
+    where: { venueId },
   });
+  if (!venueMenu || venueMenu.status !== 'published') {
+    throw notFound('No published menu for this venue');
+  }
 
-  if (!assignment) throw notFound('No published menu for this venue');
+  const venue = await prisma.venue.findUnique({
+    where: { id: venueId },
+    include: menuInclude,
+  });
+  if (!venue) throw notFound('Venue not found');
 
-  const menu = serializeMenuTemplate(assignment.menuTemplate);
+  const menu = serializeVenueMenu(venue);
   return {
     venueId,
-    menuTemplateId: menu.id,
     versionHash: menu.versionHash,
     publishedAt: menu.publishedAt,
     categories: menu.categories.map((category) => ({
@@ -263,8 +397,24 @@ export async function getPublishedMenuForVenue(venueId) {
   };
 }
 
-async function ensureTemplate(id) {
-  const template = await prisma.menuTemplate.findUnique({ where: { id } });
-  if (!template) throw notFound('Menu template not found');
-  return template;
+async function ensureVenue(venueId) {
+  const venue = await prisma.venue.findUnique({ where: { id: venueId, isActive: true } });
+  if (!venue) throw notFound('Venue not found');
+  return venue;
+}
+
+async function assertCategoryInVenue(venueId, categoryId) {
+  const category = await prisma.category.findFirst({
+    where: { id: categoryId, venueId, isActive: true },
+  });
+  if (!category) throw notFound('Category not found');
+  return category;
+}
+
+async function assertModifierGroupInVenue(venueId, groupId) {
+  const group = await prisma.modifierGroup.findFirst({
+    where: { id: groupId, venueId, isActive: true },
+  });
+  if (!group) throw notFound('Modifier group not found');
+  return group;
 }

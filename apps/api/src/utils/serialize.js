@@ -16,7 +16,7 @@ export function serializeModifierOption(option) {
 export function serializeModifierGroup(group) {
   return {
     id: group.id,
-    menuTemplateId: group.menuTemplateId,
+    venueId: group.venueId,
     nameEn: group.nameEn,
     nameAr: group.nameAr,
     minSelection: group.minSelection,
@@ -54,7 +54,7 @@ export function serializeMenuItem(item) {
 export function serializeCategory(category) {
   return {
     id: category.id,
-    menuTemplateId: category.menuTemplateId,
+    venueId: category.venueId,
     nameEn: category.nameEn,
     nameAr: category.nameAr,
     sortOrder: category.sortOrder,
@@ -62,17 +62,17 @@ export function serializeCategory(category) {
   };
 }
 
-export function serializeMenuTemplate(template) {
+export function serializeVenueMenu(venue) {
+  const menu = venue.venueMenu ?? {};
   return {
-    id: template.id,
-    nameEn: template.nameEn,
-    nameAr: template.nameAr,
-    status: template.status,
-    publishedAt: template.publishedAt,
-    versionHash: template.versionHash,
-    venueIds: template.venues?.map((v) => v.venueId) ?? [],
-    categories: template.categories?.map(serializeCategory) ?? [],
-    modifierGroups: template.modifierGroups?.map(serializeModifierGroup) ?? [],
+    venueId: venue.id,
+    venueNameEn: venue.nameEn,
+    venueNameAr: venue.nameAr,
+    status: menu.status ?? 'draft',
+    publishedAt: menu.publishedAt ?? null,
+    versionHash: menu.versionHash ?? null,
+    categories: venue.categories?.map(serializeCategory) ?? [],
+    modifierGroups: venue.modifierGroups?.map(serializeModifierGroup) ?? [],
   };
 }
 
@@ -172,6 +172,14 @@ export function appendChequeReceiptItems(lines, cheque) {
   if (Number(cheque.discountAmount ?? 0) > 0) {
     lines.push(`Subtotal: ${Number(subtotal).toFixed(2)}`);
     lines.push(`Discount: -${Number(cheque.discountAmount).toFixed(2)}`);
+  } else if (Number(subtotal) > 0 && Number(subtotal) !== Number(cheque.total ?? 0)) {
+    lines.push(`Subtotal: ${Number(subtotal).toFixed(2)}`);
+  }
+  if (Number(cheque.serviceAmount ?? 0) > 0) {
+    lines.push(`Service: ${Number(cheque.serviceAmount).toFixed(2)}`);
+  }
+  if (Number(cheque.taxAmount ?? 0) > 0) {
+    lines.push(`Tax: ${Number(cheque.taxAmount).toFixed(2)}`);
   }
 }
 

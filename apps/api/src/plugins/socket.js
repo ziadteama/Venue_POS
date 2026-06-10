@@ -74,13 +74,11 @@ export function registerSocket(app) {
   app.log.info('Socket.IO attached');
 }
 
-export function emitMenuUpdated(io, { templateId, venueIds, versionHash, publishedAt }) {
-  for (const venueId of venueIds) {
-    io.to(`venue:${venueId}`).emit('menu:updated', {
-      event: 'menu:updated',
-      payload: { templateId, venueIds, versionHash, publishedAt },
-    });
-  }
+export function emitMenuUpdated(io, { venueId, versionHash, publishedAt }) {
+  io.to(`venue:${venueId}`).emit('menu:updated', {
+    event: 'menu:updated',
+    payload: { venueId, versionHash, publishedAt },
+  });
 }
 
 export function emitOrderCreated(io, order) {

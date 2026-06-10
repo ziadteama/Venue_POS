@@ -6,7 +6,7 @@ import { prisma } from './db/prisma.js';
 import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
-import { publishMenuTemplate } from './services/menu-service.js';
+import { publishVenueMenu } from './services/menu-service.js';
 
 const VENUE_ID = '00000000-0000-4000-8000-0000000000e1';
 const TERMINAL_ID = '00000000-0000-4000-8000-0000000000e2';
@@ -29,33 +29,33 @@ let todayIso;
 const cheques = {};
 
 async function seedMenu() {
-  const template = await prisma.menuTemplate.create({
-    data: {
-      nameEn: 'EOD menu',
-      nameAr: 'قائمة',
-      venues: { create: [{ venueId: VENUE_ID }] },
-      categories: {
-        create: [
-          {
-            nameEn: 'All',
-            nameAr: 'الكل',
-            sortOrder: 0,
-            items: {
-              create: [
-                { nameEn: 'Item100', nameAr: 'مئة', price: 100, sortOrder: 0 },
-                { nameEn: 'Item40', nameAr: 'أربعون', price: 40, sortOrder: 1 },
-                { nameEn: 'Item60', nameAr: 'ستون', price: 60, sortOrder: 2 },
-                { nameEn: 'Item50', nameAr: 'خمسون', price: 50, sortOrder: 3 },
-              ],
-            },
-          },
-        ],
-      },
-    },
-    include: { categories: { include: { items: true } } },
+  await prisma.venueMenu.upsert({
+    where: { venueId: VENUE_ID },
+    create: { venueId: VENUE_ID, status: 'draft' },
+    update: {},
   });
-  await publishMenuTemplate(template.id);
-  const items = template.categories[0].items;
+  let category = await prisma.category.findFirst({ where: { venueId: VENUE_ID } });
+  if (!category) {
+    category = await prisma.category.create({
+      data: { venueId: VENUE_ID, nameEn: 'All', nameAr: 'الكل', sortOrder: 0 },
+    });
+  }
+  const specs = [
+    { nameEn: 'Item100', nameAr: 'مئة', price: 100, sortOrder: 0 },
+    { nameEn: 'Item40', nameAr: 'أربعون', price: 40, sortOrder: 1 },
+    { nameEn: 'Item60', nameAr: 'ستون', price: 60, sortOrder: 2 },
+    { nameEn: 'Item50', nameAr: 'خمسون', price: 50, sortOrder: 3 },
+  ];
+  for (const spec of specs) {
+    const existing = await prisma.menuItem.findFirst({
+      where: { categoryId: category.id, nameEn: spec.nameEn },
+    });
+    if (!existing) {
+      await prisma.menuItem.create({ data: { categoryId: category.id, ...spec } });
+    }
+  }
+  await publishVenueMenu(VENUE_ID);
+  const items = await prisma.menuItem.findMany({ where: { categoryId: category.id } });
   return {
     item100: items.find((i) => i.nameEn === 'Item100').id,
     item40: items.find((i) => i.nameEn === 'Item40').id,

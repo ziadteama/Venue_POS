@@ -71,11 +71,8 @@ async function assertMenuItemForVenue(menuItemId, venueId) {
       isActive: true,
       category: {
         isActive: true,
-        menuTemplate: {
-          status: 'published',
-          isActive: true,
-          venues: { some: { venueId } },
-        },
+        venueId,
+        venue: { venueMenu: { status: 'published' } },
       },
     },
   });

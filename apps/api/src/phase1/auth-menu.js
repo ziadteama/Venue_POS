@@ -21,40 +21,33 @@ test('cashier PIN login works with terminal headers', async () => {
 });
 
 test('manager creates menu with modifier and publishes', async () => {
-  const createRes = await fx.app.inject({
-    method: 'POST',
-    url: '/api/v1/menu-templates',
-    headers: { authorization: `Bearer ${fx.managerToken}` },
-    payload: {
-      nameEn: 'Phase1 Menu',
-      nameAr: 'قائمة',
-      venueIds: [VENUE_ID],
-    },
-  });
-  fx.templateId = createRes.json().id;
-
   const catRes = await fx.app.inject({
     method: 'POST',
-    url: `/api/v1/menu-templates/${fx.templateId}/categories`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/categories`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
-    payload: { nameEn: 'Mains', nameAr: 'أطباق', sortOrder: 0 },
+    payload: { nameEn: 'Phase1 Mains', nameAr: 'أطباق', sortOrder: 0 },
   });
-  fx.categoryId = catRes.json().categories[0].id;
+  const menuAfterCategory = catRes.json();
+  fx.categoryId = menuAfterCategory.categories.at(-1)?.id;
+  assert.ok(fx.categoryId, 'category id from create response');
 
   const itemRes = await fx.app.inject({
     method: 'POST',
-    url: `/api/v1/categories/${fx.categoryId}/items`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/categories/${fx.categoryId}/items`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
-    payload: { nameEn: 'Burger', nameAr: 'برجر', price: 120 },
+    payload: { nameEn: 'Phase1 Burger', nameAr: 'برجر', price: 120 },
   });
-  fx.menuItemId = itemRes.json().categories[0].items[0].id;
+  const menuAfterItem = itemRes.json();
+  const category = menuAfterItem.categories.find((c) => c.id === fx.categoryId);
+  fx.menuItemId = category?.items?.at(-1)?.id;
+  assert.ok(fx.menuItemId, 'menu item id from create response');
 
   await fx.app.inject({
     method: 'POST',
-    url: `/api/v1/menu-templates/${fx.templateId}/modifier-groups`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/modifier-groups`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
     payload: {
-      nameEn: 'Size',
+      nameEn: 'Phase1 Size',
       nameAr: 'حجم',
       minSelection: 1,
       maxSelection: 1,
@@ -68,7 +61,7 @@ test('manager creates menu with modifier and publishes', async () => {
 
   const publishRes = await fx.app.inject({
     method: 'POST',
-    url: `/api/v1/menu-templates/${fx.templateId}/publish`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/publish`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
   });
   assert.equal(publishRes.statusCode, 200);
@@ -82,8 +75,10 @@ test('terminal reads published menu with modifiers', async () => {
     headers: terminalHeaders,
   });
   assert.equal(res.statusCode, 200);
-  const item = res.json().categories[0].items[0];
-  assert.ok(item.modifierGroups?.length >= 1);
+  const item = res.json().categories
+    .flatMap((c) => c.items)
+    .find((i) => i.id === fx.menuItemId);
+  assert.ok(item?.modifierGroups?.length >= 1);
 });
 
 test('order lifecycle: create, add with modifier, qty, send, receipt', async () => {
@@ -101,7 +96,10 @@ test('order lifecycle: create, add with modifier, qty, send, receipt', async () 
     url: `/api/v1/venues/${VENUE_ID}/menu`,
     headers: terminalHeaders,
   });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
+  const menuItem = menuRes.json().categories
+    .flatMap((c) => c.items)
+    .find((i) => i.id === fx.menuItemId);
+  const group = menuItem.modifierGroups[0];
   const option = group.options[0];
 
   const addRes = await fx.app.inject({
@@ -167,7 +165,7 @@ test('order lifecycle: create, add with modifier, qty, send, receipt', async () 
     headers: terminalHeaders,
   });
   assert.equal(receiptRes.statusCode, 200);
-  assert.ok(receiptRes.json().text.includes('Burger'));
+  assert.ok(receiptRes.json().text.includes('Phase1 Burger'));
 });
 
 test('kitchen orders list returns sent tickets', async () => {

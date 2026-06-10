@@ -6,7 +6,7 @@ import { prisma } from './db/prisma.js';
 import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
-import { publishMenuTemplate } from './services/menu-service.js';
+import { seedPublishedVenueMenu } from './test-helpers/venue-menu-fixture.js';
 
 const VENUE_A = '00000000-0000-4000-8000-0000000000c8';
 const VENUE_B = '00000000-0000-4000-8000-0000000000c9';
@@ -96,47 +96,15 @@ before(async () => {
     create: { id: TERMINAL_B, name: 'T-B', secretHash, venueId: VENUE_B },
   });
 
-  const templateA = await prisma.menuTemplate.create({
-    data: {
-      nameEn: 'Hub Menu A',
-      nameAr: 'قائمة',
-      venues: { create: [{ venueId: VENUE_A }] },
-      categories: {
-        create: [
-          {
-            nameEn: 'All',
-            nameAr: 'الكل',
-            sortOrder: 0,
-            items: { create: [{ nameEn: 'Item A', nameAr: 'صنف', price: 40, sortOrder: 0 }] },
-          },
-        ],
-      },
-    },
-    include: { categories: { include: { items: true } } },
+  const menuA = await seedPublishedVenueMenu(prisma, VENUE_A, {
+    items: [{ nameEn: 'Item A', nameAr: 'صنف', price: 40 }],
   });
-  await publishMenuTemplate(templateA.id);
-  menuItemA = templateA.categories[0].items[0].id;
+  menuItemA = menuA.menuItemId;
 
-  const template = await prisma.menuTemplate.create({
-    data: {
-      nameEn: 'Hub Menu B',
-      nameAr: 'قائمة',
-      venues: { create: [{ venueId: VENUE_B }] },
-      categories: {
-        create: [
-          {
-            nameEn: 'All',
-            nameAr: 'الكل',
-            sortOrder: 0,
-            items: { create: [{ nameEn: 'Item B', nameAr: 'صنف', price: 50, sortOrder: 0 }] },
-          },
-        ],
-      },
-    },
-    include: { categories: { include: { items: true } } },
+  const menuB = await seedPublishedVenueMenu(prisma, VENUE_B, {
+    items: [{ nameEn: 'Item B', nameAr: 'صنف', price: 50 }],
   });
-  await publishMenuTemplate(template.id);
-  menuItemB = template.categories[0].items[0].id;
+  menuItemB = menuB.menuItemId;
 
   await app.inject({
     method: 'PUT',

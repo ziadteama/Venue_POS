@@ -110,39 +110,19 @@ after(async () => {
   await prisma.$disconnect();
 });
 
-test('venue manager cannot list or read menu templates', async () => {
-  const listRes = await app.inject({
+test('venue manager cannot read venue menu editor API', async () => {
+  const res = await app.inject({
     method: 'GET',
-    url: '/api/v1/menu-templates',
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu`,
     headers: { authorization: `Bearer ${venueManagerToken}` },
   });
-  assert.equal(listRes.statusCode, 403);
-
-  const detailRes = await app.inject({
-    method: 'GET',
-    url: '/api/v1/menu-templates/00000000-0000-4000-8000-000000000001',
-    headers: { authorization: `Bearer ${venueManagerToken}` },
-  });
-  assert.equal(detailRes.statusCode, 403);
+  assert.equal(res.statusCode, 403);
 });
 
-test('manager can create and publish a menu template', async () => {
-  const createRes = await app.inject({
-    method: 'POST',
-    url: '/api/v1/menu-templates',
-    headers: { authorization: `Bearer ${managerToken}` },
-    payload: {
-      nameEn: 'Lunch Menu',
-      nameAr: 'قائمة الغداء',
-      venueIds: [VENUE_ID],
-    },
-  });
-  assert.equal(createRes.statusCode, 200);
-  const templateId = createRes.json().id;
-
+test('manager can build and publish a venue menu', async () => {
   const categoryRes = await app.inject({
     method: 'POST',
-    url: `/api/v1/menu-templates/${templateId}/categories`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/categories`,
     headers: { authorization: `Bearer ${managerToken}` },
     payload: { nameEn: 'Drinks', nameAr: 'مشروبات', sortOrder: 0 },
   });
@@ -151,7 +131,7 @@ test('manager can create and publish a menu template', async () => {
 
   const itemRes = await app.inject({
     method: 'POST',
-    url: `/api/v1/categories/${categoryId}/items`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/categories/${categoryId}/items`,
     headers: { authorization: `Bearer ${managerToken}` },
     payload: {
       nameEn: 'Espresso',
@@ -162,9 +142,24 @@ test('manager can create and publish a menu template', async () => {
   assert.equal(itemRes.statusCode, 200);
   menuItemId = itemRes.json().categories[0].items[0].id;
 
+  const modRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/modifier-groups`,
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: {
+      nameEn: 'Size',
+      nameAr: 'حجم',
+      minSelection: 1,
+      maxSelection: 1,
+      menuItemIds: [menuItemId],
+      options: [{ nameEn: 'Large', nameAr: 'كبير', priceDelta: 5 }],
+    },
+  });
+  assert.equal(modRes.statusCode, 200);
+
   const publishRes = await app.inject({
     method: 'POST',
-    url: `/api/v1/menu-templates/${templateId}/publish`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/publish`,
     headers: { authorization: `Bearer ${managerToken}` },
   });
   assert.equal(publishRes.statusCode, 200);
@@ -182,38 +177,19 @@ test('terminal can fetch published venue menu', async () => {
     },
   });
   assert.equal(res.statusCode, 200);
-  const body = res.json();
-  assert.equal(body.venueId, VENUE_ID);
-  assert.ok(body.categories.length >= 1);
-  assert.ok(body.categories[0].items.length >= 1);
+  assert.equal(res.json().venueId, VENUE_ID);
+  assert.ok(res.json().categories.length >= 1);
+  const item = res.json().categories[0].items[0];
+  assert.equal(item.nameEn, 'Espresso');
 });
 
-test('terminal can create order and add item', async () => {
-  const createRes = await app.inject({
-    method: 'POST',
-    url: '/api/v1/orders',
-    headers: {
-      'x-terminal-id': TERMINAL_ID,
-      'x-terminal-secret': TERMINAL_SECRET,
-    },
-    payload: { cashierId: CASHIER_ID, tableLabel: 'T1' },
+test('manager can soft-delete menu item', async () => {
+  const res = await app.inject({
+    method: 'DELETE',
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/items/${menuItemId}`,
+    headers: { authorization: `Bearer ${managerToken}` },
   });
-  assert.equal(createRes.statusCode, 200);
-  const order = createRes.json();
-  assert.equal(order.status, 'draft');
-  assert.ok(order.orderNumber >= 1);
-
-  const addRes = await app.inject({
-    method: 'POST',
-    url: `/api/v1/orders/${order.id}/items`,
-    headers: {
-      'x-terminal-id': TERMINAL_ID,
-      'x-terminal-secret': TERMINAL_SECRET,
-    },
-    payload: { menuItemId, quantity: 2 },
-  });
-  assert.equal(addRes.statusCode, 200);
-  assert.equal(addRes.json().items.length, 1);
-  assert.equal(addRes.json().items[0].quantity, 2);
-  assert.equal(addRes.json().subtotal, 71);
+  assert.equal(res.statusCode, 200);
+  const deleted = res.json().categories[0].items.find((i) => i.id === menuItemId);
+  assert.equal(deleted, undefined);
 });

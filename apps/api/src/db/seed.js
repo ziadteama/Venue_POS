@@ -137,73 +137,66 @@ async function seed() {
     },
   });
 
-  let menuTemplate = await prisma.menuTemplate.findFirst({
-    where: { nameEn: 'Demo Lunch Menu' },
+  await prisma.venueMenu.upsert({
+    where: { venueId: venue.id },
+    update: {},
+    create: { venueId: venue.id, status: 'draft' },
   });
 
-  if (!menuTemplate) {
-    menuTemplate = await prisma.menuTemplate.create({
-      data: {
-        nameEn: 'Demo Lunch Menu',
-        nameAr: 'قائمة الغداء التجريبية',
-        venues: { create: [{ venueId: venue.id }] },
-        categories: {
-          create: [
-            {
-              nameEn: 'Hot Drinks',
-              nameAr: 'مشروبات ساخنة',
-              sortOrder: 0,
-              items: {
-                create: [
-                  {
-                    nameEn: 'Espresso',
-                    nameAr: 'إسبريسو',
-                    price: 35,
-                    sortOrder: 0,
-                  },
-                  {
-                    nameEn: 'Cappuccino',
-                    nameAr: 'كابتشينو',
-                    price: 45,
-                    sortOrder: 1,
-                  },
-                ],
-              },
-            },
-            {
-              nameEn: 'Food',
-              nameAr: 'طعام',
-              sortOrder: 1,
-              items: {
-                create: [
-                  {
-                    nameEn: 'Club Sandwich',
-                    nameAr: 'ساندويتش كلوب',
-                    descriptionEn: 'Chicken, lettuce, tomato',
-                    descriptionAr: 'دجاج، خس، طماطم',
-                    price: 85,
-                    sortOrder: 0,
-                  },
-                ],
-              },
-            },
-          ],
+  const cafeCategoryCount = await prisma.category.count({ where: { venueId: venue.id } });
+  if (cafeCategoryCount === 0) {
+    await prisma.category.createMany({
+      data: [
+        { venueId: venue.id, nameEn: 'Hot Drinks', nameAr: 'مشروبات ساخنة', sortOrder: 0 },
+        { venueId: venue.id, nameEn: 'Food', nameAr: 'طعام', sortOrder: 1 },
+      ],
+    });
+    const hotDrinks = await prisma.category.findFirst({
+      where: { venueId: venue.id, nameEn: 'Hot Drinks' },
+    });
+    const food = await prisma.category.findFirst({
+      where: { venueId: venue.id, nameEn: 'Food' },
+    });
+    await prisma.menuItem.createMany({
+      data: [
+        {
+          categoryId: hotDrinks.id,
+          nameEn: 'Espresso',
+          nameAr: 'إسبريسو',
+          price: 35,
+          sortOrder: 0,
         },
-      },
+        {
+          categoryId: hotDrinks.id,
+          nameEn: 'Cappuccino',
+          nameAr: 'كابتشينو',
+          price: 45,
+          sortOrder: 1,
+        },
+        {
+          categoryId: food.id,
+          nameEn: 'Club Sandwich',
+          nameAr: 'ساندويتش كلوب',
+          descriptionEn: 'Chicken, lettuce, tomato',
+          descriptionAr: 'دجاج، خس، طماطم',
+          price: 85,
+          sortOrder: 0,
+        },
+      ],
     });
   }
 
   const cappuccino = await prisma.menuItem.findFirst({
-    where: { nameEn: 'Cappuccino', category: { menuTemplateId: menuTemplate.id } },
+    where: { nameEn: 'Cappuccino', category: { venueId: venue.id } },
   });
   if (cappuccino) {
     const existingGroup = await prisma.modifierGroup.findFirst({
-      where: { menuTemplateId: menuTemplate.id, nameEn: 'Size' },
+      where: { venueId: venue.id, nameEn: 'Size' },
     });
     if (!existingGroup) {
       const group = await prisma.modifierGroup.create({
         data: {
-          menuTemplateId: menuTemplate.id,
+          venueId: venue.id,
           nameEn: 'Size',
           nameAr: 'الحجم',
           minSelection: 1,
@@ -222,8 +215,8 @@ async function seed() {
     }
   }
 
-  const { publishMenuTemplate } = await import('../services/menu-service.js');
-  await publishMenuTemplate(menuTemplate.id);
+  const { publishVenueMenu } = await import('../services/menu-service.js');
+  await publishVenueMenu(venue.id);
 
   // --- Phase 4: second venue for cross-venue billing -----------------------
   const DEMO_VENUE_2_ID = '00000000-0000-4000-8000-000000000020';
@@ -282,42 +275,41 @@ async function seed() {
     },
   });
 
-  let restaurantMenu = await prisma.menuTemplate.findFirst({
-    where: { nameEn: 'Demo Dinner Menu' },
+  await prisma.venueMenu.upsert({
+    where: { venueId: restaurant.id },
+    update: {},
+    create: { venueId: restaurant.id, status: 'draft' },
   });
-  if (!restaurantMenu) {
-    restaurantMenu = await prisma.menuTemplate.create({
-      data: {
-        nameEn: 'Demo Dinner Menu',
-        nameAr: 'قائمة العشاء التجريبية',
-        venues: { create: [{ venueId: restaurant.id }] },
-        categories: {
-          create: [
-            {
-              nameEn: 'Mains',
-              nameAr: 'أطباق رئيسية',
-              sortOrder: 0,
-              items: {
-                create: [
-                  { nameEn: 'Grilled Chicken', nameAr: 'دجاج مشوي', price: 150, sortOrder: 0 },
-                  { nameEn: 'Beef Burger', nameAr: 'برجر لحم', price: 130, sortOrder: 1 },
-                ],
-              },
-            },
-            {
-              nameEn: 'Sides',
-              nameAr: 'أطباق جانبية',
-              sortOrder: 1,
-              items: {
-                create: [{ nameEn: 'Fries', nameAr: 'بطاطس', price: 40, sortOrder: 0 }],
-              },
-            },
-          ],
+
+  const restaurantCategoryCount = await prisma.category.count({ where: { venueId: restaurant.id } });
+  if (restaurantCategoryCount === 0) {
+    await prisma.category.createMany({
+      data: [
+        { venueId: restaurant.id, nameEn: 'Mains', nameAr: 'أطباق رئيسية', sortOrder: 0 },
+        { venueId: restaurant.id, nameEn: 'Sides', nameAr: 'أطباق جانبية', sortOrder: 1 },
+      ],
+    });
+    const mains = await prisma.category.findFirst({
+      where: { venueId: restaurant.id, nameEn: 'Mains' },
+    });
+    const sides = await prisma.category.findFirst({
+      where: { venueId: restaurant.id, nameEn: 'Sides' },
+    });
+    await prisma.menuItem.createMany({
+      data: [
+        {
+          categoryId: mains.id,
+          nameEn: 'Grilled Chicken',
+          nameAr: 'دجاج مشوي',
+          price: 150,
+          sortOrder: 0,
         },
-      },
+        { categoryId: mains.id, nameEn: 'Beef Burger', nameAr: 'برجر لحم', price: 130, sortOrder: 1 },
+        { categoryId: sides.id, nameEn: 'Fries', nameAr: 'بطاطس', price: 40, sortOrder: 0 },
+      ],
     });
   }
-  await publishMenuTemplate(restaurantMenu.id);
+  await publishVenueMenu(restaurant.id);
 
   // Enable cross-venue billing: Demo Cafe (anchor) may settle Demo Restaurant orders.
   await prisma.venueBillingConfig.upsert({
@@ -337,7 +329,7 @@ async function seed() {
   console.log(`  Venue ID: ${venue.id}`);
   console.log(`  Terminal ID: ${terminal.id}`);
   console.log(`  Terminal secret: ${devTerminalSecret}`);
-  console.log('  Menu: Demo Lunch Menu (published)');
+  console.log('  Menu: per-venue (Demo Cafe + Demo Restaurant published)');
   console.log('  --- Cross-venue (Phase 4) ---');
   console.log(`  Venue 2 (anchor target): Demo Restaurant ${restaurant.id}`);
   console.log(`  Terminal 2 ID: ${terminal2.id} (same secret)`);

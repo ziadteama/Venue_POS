@@ -636,7 +636,7 @@ test('features endpoint exposes discounts and receipt print flags', async () => 
 test('manager can 86 an item', async () => {
   const res = await fx.app.inject({
     method: 'PATCH',
-    url: `/api/v1/menu-items/${fx.menuItemId}`,
+    url: `/api/v1/manager/venues/${VENUE_ID}/menu/items/${fx.menuItemId}`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
     payload: { isAvailable: false },
   });

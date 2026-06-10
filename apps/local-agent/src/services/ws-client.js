@@ -15,6 +15,12 @@ function enqueueMenuPublish(db, payload) {
   ).run(id, payload.versionHash ?? '', JSON.stringify(payload));
 }
 
+/** Mark pending publish rows drained after a successful menu sync. */
+export function markMenuPublishQueueDrained(db) {
+  db.prepare(`UPDATE menu_publish_queue SET status = 'done' WHERE status = 'pending'`).run();
+  setAgentMeta(db, 'menu_stale', 'false');
+}
+
 export async function drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log }) {
   const pending = db
     .prepare(`SELECT * FROM menu_publish_queue WHERE status = 'pending' ORDER BY created_at ASC`)
@@ -22,8 +28,8 @@ export async function drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, t
   for (const row of pending) {
     try {
       await syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret });
-      db.prepare(`UPDATE menu_publish_queue SET status = 'done' WHERE id = ?`).run(row.id);
-      setAgentMeta(db, 'menu_stale', 'false');
+      markMenuPublishQueueDrained(db);
+      break;
     } catch (err) {
       log.warn({ err, id: row.id }, 'Menu publish queue drain failed');
       break;
@@ -73,7 +79,16 @@ export function connectTerminalSocket({
 
   socket.on('menu:updated', async (msg) => {
     const payload = msg?.payload ?? msg;
-    if (!payload.venueIds?.includes(venueId)) return;
+    const matchesVenue =
+      payload.venueId === venueId ||
+      (Array.isArray(payload.venueIds) && payload.venueIds.includes(venueId));
+    const pendingBefore = db
+      .prepare(`SELECT COUNT(*) AS n FROM menu_publish_queue WHERE status = 'pending'`)
+      .get().n;
+    // #region agent log
+    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'A,D',location:'ws-client.js:menu:updated',message:'menu WS event',data:{matchesVenue,pendingBefore,cloudOnline:isCloudOnline(),venueId:payload.venueId,versionHash:payload.versionHash},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    if (!matchesVenue) return;
     if (!isCloudOnline()) {
       enqueueMenuPublish(db, payload);
       setAgentMeta(db, 'menu_stale', 'true');
@@ -89,7 +104,18 @@ export function connectTerminalSocket({
         terminalSecret,
       });
       log.info({ updated: result.updated }, 'Menu refreshed from WebSocket event');
-      setAgentMeta(db, 'menu_stale', 'false');
+      markMenuPublishQueueDrained(db);
+      const pendingAfter = db
+        .prepare(`SELECT COUNT(*) AS n FROM menu_publish_queue WHERE status = 'pending'`)
+        .get().n;
+      // #region agent log
+      fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'A',location:'ws-client.js:menu:updated:success',message:'menu sync after WS',data:{updated:result.updated,pendingAfter,versionHash:result.menu?.versionHash},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      publishAgentEvent('menu:updated', {
+        venueId,
+        versionHash: payload.versionHash ?? result.menu?.versionHash ?? null,
+        updatedAt: payload.publishedAt ?? new Date().toISOString(),
+      });
     } catch (err) {
       log.warn({ err }, 'Menu refresh after WS event failed');
       enqueueMenuPublish(db, payload);

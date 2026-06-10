@@ -95,7 +95,7 @@ export async function addOrderItem(orderId, { menuItemId, quantity, modifiers = 
       isAvailable: true,
       category: {
         isActive: true,
-        menuTemplate: { status: 'published', isActive: true },
+        venue: { venueMenu: { status: 'published' } },
       },
     },
     include: {

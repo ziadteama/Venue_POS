@@ -112,7 +112,9 @@ model Venue {
 
   users            User[]
   terminals        Terminal[]
-  menuTemplates    MenuTemplateVenue[]
+  venueMenu        VenueMenu?
+  categories       Category[]
+  modifierGroups   ModifierGroup[]
   orders           Order[]
   cheques          Cheque[]
   shifts           Shift[]
@@ -261,49 +263,32 @@ model HubBilling {
   @@map("hub_billing")
 }
 
-model MenuTemplate {
-  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  nameEn      String     @map("name_en") @db.VarChar(255)
-  nameAr      String     @map("name_ar") @db.VarChar(255)
+model VenueMenu {
+  venueId     String     @id @map("venue_id") @db.Uuid
   status      MenuStatus @default(draft)
   publishedAt DateTime?  @map("published_at") @db.Timestamptz(6)
   versionHash String?    @map("version_hash") @db.VarChar(64)
-  isActive    Boolean    @default(true) @map("is_active")
-  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venues         MenuTemplateVenue[]
-  categories     Category[]
-  modifierGroups ModifierGroup[]
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
-  @@map("menu_templates")
-}
-
-model MenuTemplateVenue {
-  menuTemplateId String @map("menu_template_id") @db.Uuid
-  venueId        String @map("venue_id") @db.Uuid
-
-  menuTemplate MenuTemplate @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
-  venue        Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
-
-  @@id([menuTemplateId, venueId])
-  @@map("menu_template_venues")
+  @@map("venue_menus")
 }
 
 model Category {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  menuTemplateId String   @map("menu_template_id") @db.Uuid
-  nameEn         String   @map("name_en") @db.VarChar(255)
-  nameAr         String   @map("name_ar") @db.VarChar(255)
-  sortOrder      Int      @default(0) @map("sort_order")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId   String   @map("venue_id") @db.Uuid
+  nameEn    String   @map("name_en") @db.VarChar(255)
+  nameAr    String   @map("name_ar") @db.VarChar(255)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  menuTemplate MenuTemplate @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
-  items        MenuItem[]
+  venue Venue      @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  items MenuItem[]
 
-  @@index([menuTemplateId], map: "idx_categories_template")
+  @@index([venueId], map: "idx_categories_venue")
   @@map("categories")
 }
 
@@ -332,22 +317,22 @@ model MenuItem {
 }
 
 model ModifierGroup {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  menuTemplateId String   @map("menu_template_id") @db.Uuid
-  nameEn         String   @map("name_en") @db.VarChar(255)
-  nameAr         String   @map("name_ar") @db.VarChar(255)
-  minSelection   Int      @default(0) @map("min_selection")
-  maxSelection   Int      @default(1) @map("max_selection")
-  sortOrder      Int      @default(0) @map("sort_order")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  venueId      String   @map("venue_id") @db.Uuid
+  nameEn       String   @map("name_en") @db.VarChar(255)
+  nameAr       String   @map("name_ar") @db.VarChar(255)
+  minSelection Int      @default(0) @map("min_selection")
+  maxSelection Int      @default(1) @map("max_selection")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  menuTemplate MenuTemplate       @relation(fields: [menuTemplateId], references: [id], onDelete: Cascade)
-  options      ModifierOption[]
-  items        MenuItemModifier[]
+  venue   Venue              @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  options ModifierOption[]
+  items   MenuItemModifier[]
 
-  @@index([menuTemplateId], map: "idx_modifier_groups_template")
+  @@index([venueId], map: "idx_modifier_groups_venue")
   @@map("modifier_groups")
 }
 

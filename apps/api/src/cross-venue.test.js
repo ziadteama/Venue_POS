@@ -8,7 +8,7 @@ import { prisma } from './db/prisma.js';
 import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
-import { publishMenuTemplate } from './services/menu-service.js';
+import { seedPublishedVenueMenu } from './test-helpers/venue-menu-fixture.js';
 
 const ANCHOR_VENUE = '00000000-0000-4000-8000-0000000000a0';
 const TARGET_VENUE = '00000000-0000-4000-8000-0000000000a1';
@@ -28,26 +28,10 @@ let anchorMenuItemId;
 let targetMenuItemId;
 
 async function seedVenueMenu(venueId, nameEn, price) {
-  const template = await prisma.menuTemplate.create({
-    data: {
-      nameEn: `${nameEn} Menu ${venueId.slice(-4)}`,
-      nameAr: 'قائمة',
-      venues: { create: [{ venueId }] },
-      categories: {
-        create: [
-          {
-            nameEn: 'All',
-            nameAr: 'الكل',
-            sortOrder: 0,
-            items: { create: [{ nameEn, nameAr: nameEn, price, sortOrder: 0 }] },
-          },
-        ],
-      },
-    },
-    include: { categories: { include: { items: true } } },
+  const { menuItemId } = await seedPublishedVenueMenu(prisma, venueId, {
+    items: [{ nameEn, nameAr: nameEn, price }],
   });
-  await publishMenuTemplate(template.id);
-  return template.categories[0].items[0].id;
+  return menuItemId;
 }
 
 async function enableBilling() {

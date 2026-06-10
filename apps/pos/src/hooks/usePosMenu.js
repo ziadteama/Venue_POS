@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { callAgent } from '../api/agent.js';
+import { subscribeAgentEventStream } from './agentEventStreamClient.js';
 
 /** Menu load, category filter, and search — no cheque/session logic. */
 export function usePosMenu() {
@@ -26,6 +27,9 @@ export function usePosMenu() {
         setMenuError('menuNotCached');
       }
       setMenu(data?.categories?.length ? data : null);
+      // #region agent log
+      fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'E,F',location:'usePosMenu.js:loadMenu',message:'POS menu loaded',data:{categoryCount:data?.categories?.length??0,versionHash:data?.versionHash??null,itemCount:data?.categories?.flatMap(c=>c.items??[])?.length??0},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
     } catch {
       setMenu(null);
       setMenuError('menuNotCached');
@@ -36,6 +40,14 @@ export function usePosMenu() {
 
   useEffect(() => {
     loadMenu();
+  }, [loadMenu]);
+
+  useEffect(() => {
+    return subscribeAgentEventStream({
+      onMenuUpdated: () => {
+        loadMenu();
+      },
+    });
   }, [loadMenu]);
 
   const allItems = useMemo(

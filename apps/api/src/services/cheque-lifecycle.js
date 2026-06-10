@@ -34,6 +34,7 @@ import {
 } from './cross-venue-service.js';
 import { config } from '../config.js';
 import { resolveBusinessDate } from '../utils/business-date.js';
+import { overlayHubBillingOnCheques } from './hub-billing-service.js';
 
 export async function openOrResumeCheque({ venueId, terminalId, cashierId, tableLabel }) {
   const trimmed = tableLabel?.trim();
@@ -237,14 +238,15 @@ export async function listChequesForVenue(
     orderBy: status === 'paid' ? { closedAt: 'desc' } : { openedAt: 'asc' },
     take: limit,
   });
+  const withHubBilling = await overlayHubBillingOnCheques(cheques);
   if (!hideCrossVenueShells || !config.featureCrossVenueBilling) {
-    return cheques.map(serializeCheque);
+    return withHubBilling.map(serializeCheque);
   }
 
   const visibility = await Promise.all(
-    cheques.map((c) => shouldHideCrossVenueShellInVenueList(c).then((hide) => !hide)),
+    withHubBilling.map((c) => shouldHideCrossVenueShellInVenueList(c).then((hide) => !hide)),
   );
-  return cheques.filter((_, i) => visibility[i]).map(serializeCheque);
+  return withHubBilling.filter((_, i) => visibility[i]).map(serializeCheque);
 }
 
 /** Hub manager: find cheques across all venues (numeric cheque # or table label). */

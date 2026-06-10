@@ -7,32 +7,28 @@ import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError } from '../utils/errors.js';
 import { emitMenuUpdated } from '../plugins/socket.js';
 import {
-  listMenuTemplates,
-  getMenuTemplate,
-  createMenuTemplate,
-  updateMenuTemplate,
+  getVenueMenu,
   createCategory,
+  updateCategory,
+  deleteCategory,
   reorderCategories,
   createMenuItem,
   updateMenuItem,
+  deleteMenuItem,
   createModifierGroup,
-  publishMenuTemplate,
+  updateModifierGroup,
+  deleteModifierGroup,
+  addModifierOption,
+  updateModifierOption,
+  deleteModifierOption,
+  setItemModifiers,
+  publishVenueMenu,
   getPublishedMenuForVenue,
 } from '../services/menu-service.js';
-import {
-  applyTranslationUpdates,
-  buildMenuTranslationsCsv,
-  importMenuTranslationsCsv,
-  suggestMissingTranslations,
-} from '../services/menu-translations.js';
 
 const bilingualName = z.object({
   nameEn: z.string().min(1),
   nameAr: z.string().optional(),
-});
-
-const createTemplateSchema = bilingualName.extend({
-  venueIds: z.array(z.string().uuid()).optional(),
 });
 
 const createCategorySchema = bilingualName.extend({
@@ -62,107 +58,61 @@ const modifierGroupSchema = bilingualName.extend({
     .optional(),
 });
 
+const modifierOptionSchema = bilingualName.extend({
+  priceDelta: z.number().optional(),
+  sortOrder: z.number().int().optional(),
+});
+
+function venueIdParam(request) {
+  return request.params.venueId;
+}
+
 export async function menuRoutes(app) {
   app.get(
-    '/api/v1/menu-templates',
+    '/api/v1/manager/venues/:venueId/menu',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async () => listMenuTemplates(),
+    async (request) => getVenueMenu(venueIdParam(request)),
   );
 
   app.post(
-    '/api/v1/menu-templates',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request) => {
-      const parsed = createTemplateSchema.safeParse(request.body);
-      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return createMenuTemplate(parsed.data);
-    },
-  );
-
-  app.get(
-    '/api/v1/menu-templates/:id',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request) => getMenuTemplate(request.params.id),
-  );
-
-  app.patch(
-    '/api/v1/menu-templates/:id',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request) => {
-      const parsed = createTemplateSchema.partial().safeParse(request.body);
-      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return updateMenuTemplate(request.params.id, parsed.data);
-    },
-  );
-
-  app.post(
-    '/api/v1/menu-templates/:id/categories',
+    '/api/v1/manager/venues/:venueId/menu/categories',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
       const parsed = createCategorySchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return createCategory(request.params.id, parsed.data);
+      return createCategory(venueIdParam(request), parsed.data);
     },
   );
 
+  app.patch(
+    '/api/v1/manager/venues/:venueId/menu/categories/:categoryId',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const parsed = createCategorySchema.partial().safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return updateCategory(venueIdParam(request), request.params.categoryId, parsed.data);
+    },
+  );
+
+  app.delete(
+    '/api/v1/manager/venues/:venueId/menu/categories/:categoryId',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => deleteCategory(venueIdParam(request), request.params.categoryId),
+  );
+
   app.put(
-    '/api/v1/menu-templates/:id/categories/reorder',
+    '/api/v1/manager/venues/:venueId/menu/categories/reorder',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
       const schema = z.object({ orderedIds: z.array(z.string().uuid()).min(1) });
       const parsed = schema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return reorderCategories(request.params.id, parsed.data.orderedIds);
+      return reorderCategories(venueIdParam(request), parsed.data.orderedIds);
     },
   );
 
   app.post(
-    '/api/v1/menu-templates/:id/modifier-groups',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request) => {
-      const parsed = modifierGroupSchema.safeParse(request.body);
-      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return createModifierGroup(request.params.id, parsed.data);
-    },
-  );
-
-  app.post(
-    '/api/v1/menu-templates/:id/publish',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request) => {
-      const result = await publishMenuTemplate(request.params.id);
-      const actor = await prisma.user.findUnique({
-        where: { id: request.user.sub },
-        select: { id: true, username: true, venueId: true },
-      });
-      appendAuditLog({
-        venueId: actor?.venueId ?? result.venueIds?.[0] ?? null,
-        actorId: actor?.id ?? request.user.sub,
-        actorUsername: actor?.username,
-        action: 'menu.published',
-        entityType: 'menu_template',
-        entityId: result.id,
-        summary: `Menu published: ${result.nameEn ?? result.id}`,
-        details: {
-          templateId: result.id,
-          venueIds: result.venueIds,
-          versionHash: result.versionHash,
-        },
-      }).catch(() => {});
-      if (request.server.io) {
-        emitMenuUpdated(request.server.io, {
-          templateId: result.id,
-          venueIds: result.venueIds,
-          versionHash: result.versionHash,
-          publishedAt: result.publishedAt,
-        });
-      }
-      return result;
-    },
-  );
-
-  app.post(
-    '/api/v1/categories/:categoryId/items',
+    '/api/v1/manager/venues/:venueId/menu/categories/:categoryId/items',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
       const parsed = createItemSchema.safeParse(request.body);
@@ -172,7 +122,7 @@ export async function menuRoutes(app) {
   );
 
   app.patch(
-    '/api/v1/menu-items/:itemId',
+    '/api/v1/manager/venues/:venueId/menu/items/:itemId',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
       const parsed = createItemSchema.partial().safeParse(request.body);
@@ -181,59 +131,110 @@ export async function menuRoutes(app) {
     },
   );
 
-  app.get(
-    '/api/v1/menu-templates/:id/translations/export',
+  app.delete(
+    '/api/v1/manager/venues/:venueId/menu/items/:itemId',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request, reply) => {
-      const template = await getMenuTemplate(request.params.id);
-      const csv = buildMenuTranslationsCsv(template);
-      reply.header('content-type', 'text/csv; charset=utf-8');
-      reply.header(
-        'content-disposition',
-        `attachment; filename="menu-translations-${template.id}.csv"`,
-      );
-      return reply.send(csv);
-    },
+    async (request) => deleteMenuItem(request.params.itemId),
   );
 
   app.post(
-    '/api/v1/menu-templates/:id/translations/import',
+    '/api/v1/manager/venues/:venueId/menu/modifier-groups',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
-      const schema = z.object({ csv: z.string().min(1) });
+      const parsed = modifierGroupSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return createModifierGroup(venueIdParam(request), parsed.data);
+    },
+  );
+
+  app.patch(
+    '/api/v1/manager/venues/:venueId/menu/modifier-groups/:groupId',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const parsed = modifierGroupSchema.partial().safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return updateModifierGroup(venueIdParam(request), request.params.groupId, parsed.data);
+    },
+  );
+
+  app.delete(
+    '/api/v1/manager/venues/:venueId/menu/modifier-groups/:groupId',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => deleteModifierGroup(venueIdParam(request), request.params.groupId),
+  );
+
+  app.post(
+    '/api/v1/manager/venues/:venueId/menu/modifier-groups/:groupId/options',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const parsed = modifierOptionSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return addModifierOption(venueIdParam(request), request.params.groupId, parsed.data);
+    },
+  );
+
+  app.patch(
+    '/api/v1/manager/venues/:venueId/menu/modifier-options/:optionId',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const parsed = modifierOptionSchema.partial().safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return updateModifierOption(venueIdParam(request), request.params.optionId, parsed.data);
+    },
+  );
+
+  app.delete(
+    '/api/v1/manager/venues/:venueId/menu/modifier-options/:optionId',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => deleteModifierOption(venueIdParam(request), request.params.optionId),
+  );
+
+  app.put(
+    '/api/v1/manager/venues/:venueId/menu/items/:itemId/modifiers',
+    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
+    async (request) => {
+      const schema = z.object({ modifierGroupIds: z.array(z.string().uuid()) });
       const parsed = schema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return importMenuTranslationsCsv(request.params.id, parsed.data.csv);
+      return setItemModifiers(request.params.itemId, parsed.data.modifierGroupIds);
     },
   );
 
-  app.get(
-    '/api/v1/menu-templates/:id/translations/suggest',
-    { preHandler: requireRoles(ROLES.HUB_MANAGER) },
-    async (request) => suggestMissingTranslations(request.params.id),
-  );
-
   app.post(
-    '/api/v1/menu-templates/:id/translations/apply',
+    '/api/v1/manager/venues/:venueId/menu/publish',
     { preHandler: requireRoles(ROLES.HUB_MANAGER) },
     async (request) => {
-      const schema = z.object({
-        updates: z
-          .array(
-            z.object({
-              entityType: z.enum(['template', 'category', 'item']),
-              entityId: z.string().uuid(),
-              nameEn: z.string().min(1).optional(),
-              nameAr: z.string().min(1).optional(),
-              descriptionEn: z.string().optional(),
-              descriptionAr: z.string().optional(),
-            }),
-          )
-          .min(1),
+      const venueId = venueIdParam(request);
+      const result = await publishVenueMenu(venueId);
+      const actor = await prisma.user.findUnique({
+        where: { id: request.user.sub },
+        select: { id: true, username: true, venueId: true },
       });
-      const parsed = schema.safeParse(request.body);
-      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return applyTranslationUpdates(request.params.id, parsed.data.updates);
+      const venue = await prisma.venue.findUnique({
+        where: { id: venueId },
+        select: { nameEn: true },
+      });
+      appendAuditLog({
+        venueId,
+        actorId: actor?.id ?? request.user.sub,
+        actorUsername: actor?.username,
+        action: 'menu.published',
+        entityType: 'venue_menu',
+        entityId: venueId,
+        summary: `Menu published: ${venue?.nameEn ?? venueId}`,
+        details: {
+          venueId,
+          versionHash: result.versionHash,
+        },
+      }).catch(() => {});
+      if (request.server.io) {
+        emitMenuUpdated(request.server.io, {
+          venueId,
+          versionHash: result.versionHash,
+          publishedAt: result.publishedAt,
+        });
+      }
+      return result;
     },
   );
 

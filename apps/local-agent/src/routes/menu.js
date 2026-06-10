@@ -1,4 +1,5 @@
 import { getCachedMenu, syncMenuFromServer } from '../services/menu-sync.js';
+import { markMenuPublishQueueDrained } from '../services/ws-client.js';
 
 export function registerMenuRoutes(app, { db, apiUrl, venueId, terminalId, terminalSecret }) {
   app.get('/v1/menu', async () => {
@@ -8,6 +9,8 @@ export function registerMenuRoutes(app, { db, apiUrl, venueId, terminalId, termi
   });
 
   app.post('/v1/menu/sync', async () => {
-    return syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret });
+    const result = await syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret });
+    markMenuPublishQueueDrained(db);
+    return result;
   });
 }

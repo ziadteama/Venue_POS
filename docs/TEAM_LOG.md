@@ -1651,6 +1651,20 @@ npm run test -w @venue-pos/api -- --test apps/api/src/phase1/dashboard.js
 **Files:** `cross-venue-service.js`, `cheque-lifecycle.js`, `cheque-manager.js`, `cheque-shared.js`, `manager-cheques.js`, `cross-venue.test.js`
 **Verify:** `node --test src/cross-venue.test.js` (target-only + void-shell tests); `npm run test -w @venue-pos/api`
 
+### 2026-06-10 — Venue-centric menu redesign (no templates)
+
+**Phase:** 2 · **Story:** US-2.x
+**What:** Replaced menu templates with per-venue menus (`venue_menus`). Dashboard `/menus` is venue tabs → categories/items/modifiers → publish. API: `GET/POST/PATCH/DELETE /api/v1/manager/venues/:venueId/menu/*`. Terminal `GET /api/v1/venues/:venueId/menu` unchanged. WebSocket `menu:updated` payload is `{ venueId, versionHash }`; agent relays via SSE; POS reloads menu live.
+**Files:** migration `20260623120000_venue_menus`, `menu-service.js`, `menus.js`, `MenuManagerPage.jsx`, `useVenueMenu.js`, `MenuEditor.jsx`, `ws-client.js`, `usePosMenu.js`, `agentEventStreamClient.js`, seed, i18n
+**Verify:**
+```bash
+npm run migrate && npm run db:generate && npm run seed
+npm run test -w @venue-pos/api
+npm run test -w @venue-pos/local-agent
+npm run lint && npm run lint:i18n
+# Dashboard Menus → pick venue → add item + modifier → Publish → POS updates without refresh
+```
+
 ---
 
 ## Quick reference — Phase 0 deliverables
