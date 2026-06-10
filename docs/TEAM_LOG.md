@@ -1619,6 +1619,13 @@ node --test src/eod-reconciliation.test.js   # from apps/api
 npm run test -w @venue-pos/api
 ```
 
+### 2026-06-10 — Cross-sell zero anchor shell fix
+
+**Phase:** API
+**What:** When cross-selling from the cafe with items only on target venues, the anchor cheque stayed open at $0 — breaking manager Cheques/Orders display and void. Zero-total “shell” members are now hidden from hub manager lists, shown with combined group total on direct lookup, dropped on group pay, and voiding a shell voids the whole unpaid group.
+**Files:** `cross-venue-service.js`, `cheque-lifecycle.js`, `cheque-manager.js`, `cheque-shared.js`, `manager-cheques.js`, `cross-venue.test.js`
+**Verify:** `node --test src/cross-venue.test.js` (target-only + void-shell tests); `npm run test -w @venue-pos/api`
+
 ---
 
 ## Quick reference — Phase 0 deliverables

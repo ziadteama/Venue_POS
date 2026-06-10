@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
 import { resolveDashboardManager } from './auth-service.js';
 import { executeRefund } from './cheque-refund.js';
@@ -10,6 +11,11 @@ import {
   ordersFromCheque,
 } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
+import {
+  isCrossVenueShellMember,
+  loadCrossVenueGroupMembers,
+  memberHasCrossVenueBillableContent,
+} from './cross-venue-service.js';
 
 function orderBillableSubtotal(order) {
   return order.items.reduce((sum, item) => sum + itemLineTotal(item), 0);
@@ -96,6 +102,39 @@ export async function voidChequeRound(
   return { cheque: await getCheque(chequeId, venueId), voidedOrderId: orderId };
 }
 
+async function voidOpenChequeInTx(tx, cheque, { managerId, reason }) {
+  const ordersToVoid = ordersFromCheque(cheque).filter((o) =>
+    VOIDABLE_ROUND_STATUSES.includes(o.status),
+  );
+  const voidedOrderIds = [];
+
+  for (const order of ordersToVoid) {
+    if (order.status === 'draft' && !order.items.length) {
+      await tx.order.delete({ where: { id: order.id } });
+      continue;
+    }
+    voidedOrderIds.push(order.id);
+    await tx.orderVoidAudit.create({
+      data: {
+        orderId: order.id,
+        cashierId: cheque.cashierId,
+        approverId: managerId,
+        reason: reason.trim(),
+      },
+    });
+    await tx.order.update({
+      where: { id: order.id },
+      data: { status: 'voided', closedAt: new Date() },
+    });
+  }
+  await tx.cheque.update({
+    where: { id: cheque.id },
+    data: { status: 'voided', closedAt: new Date() },
+  });
+
+  return voidedOrderIds;
+}
+
 export async function voidOpenCheque(chequeId, { managerPin, reason, initiatorId }, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found');
@@ -103,37 +142,35 @@ export async function voidOpenCheque(chequeId, { managerPin, reason, initiatorId
   if (!reason?.trim()) throw validationError('Void reason is required');
 
   const manager = await resolveDashboardManager(venueId, { initiatorId, managerPin });
-  const ordersToVoid = ordersFromCheque(cheque).filter((o) =>
-    VOIDABLE_ROUND_STATUSES.includes(o.status),
-  );
 
-  const voidedOrderIds = [];
-
-  await prisma.$transaction(async (tx) => {
-    for (const order of ordersToVoid) {
-      if (order.status === 'draft' && !order.items.length) {
-        await tx.order.delete({ where: { id: order.id } });
-        continue;
-      }
-      voidedOrderIds.push(order.id);
-      await tx.orderVoidAudit.create({
-        data: {
-          orderId: order.id,
-          cashierId: cheque.cashierId,
-          approverId: manager.id,
-          reason: reason.trim(),
-        },
+  if (
+    config.featureCrossVenueBilling &&
+    cheque.crossVenueGroupId &&
+    isCrossVenueShellMember(cheque)
+  ) {
+    const members = await loadCrossVenueGroupMembers(cheque.crossVenueGroupId);
+    const hasBillableSiblings = members.some(
+      (m) => m.id !== chequeId && memberHasCrossVenueBillableContent(m),
+    );
+    if (hasBillableSiblings) {
+      const openMembers = members.filter((m) => m.status === 'open');
+      const voidedOrderIds = [];
+      await prisma.$transaction(async (tx) => {
+        for (const member of openMembers) {
+          const ids = await voidOpenChequeInTx(tx, member, {
+            managerId: manager.id,
+            reason: reason.trim(),
+          });
+          voidedOrderIds.push(...ids);
+        }
       });
-      await tx.order.update({
-        where: { id: order.id },
-        data: { status: 'voided', closedAt: new Date() },
-      });
+      return { cheque: await getCheque(chequeId, venueId), voidedOrderIds };
     }
-    await tx.cheque.update({
-      where: { id: chequeId },
-      data: { status: 'voided', closedAt: new Date() },
-    });
-  });
+  }
+
+  const voidedOrderIds = await prisma.$transaction(async (tx) =>
+    voidOpenChequeInTx(tx, cheque, { managerId: manager.id, reason: reason.trim() }),
+  );
 
   return { cheque: await getCheque(chequeId, venueId), voidedOrderIds };
 }

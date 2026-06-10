@@ -18,6 +18,7 @@ const headersA = { 'x-terminal-id': TERMINAL_A, 'x-terminal-secret': SECRET };
 
 let app;
 let managerToken;
+let anchorMenuItemId;
 let targetMenuItemId;
 
 async function seedMenu(venueId, nameEn) {
@@ -93,7 +94,7 @@ before(async () => {
     create: { id: TERMINAL_A, venueId: VENUE_A, name: 'Till N', secretHash },
   });
 
-  await seedMenu(VENUE_A, 'Cafe');
+  anchorMenuItemId = await seedMenu(VENUE_A, 'Cafe');
   targetMenuItemId = await seedMenu(VENUE_B, 'Rest');
 
   const mgr = await prisma.user.findUnique({ where: { username: 'num_mgr' } });
@@ -147,6 +148,19 @@ test('cross-sell sibling cheques share anchor cheque number', async () => {
   });
   assert.equal(open.statusCode, 200, open.body);
   const anchor = open.json();
+
+  const addAnchor = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/cheques/${anchor.id}/items`,
+    headers: headersA,
+    payload: {
+      cashierId: CASHIER_A,
+      venueId: VENUE_A,
+      menuItemId: anchorMenuItemId,
+      quantity: 1,
+    },
+  });
+  assert.equal(addAnchor.statusCode, 200, addAnchor.body);
 
   const addTarget = await app.inject({
     method: 'POST',

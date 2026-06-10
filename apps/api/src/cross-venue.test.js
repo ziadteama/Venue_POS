@@ -623,3 +623,127 @@ test('atomic cross-venue group replay via sync creates and pays once', async () 
   assert.equal(duplicate.statusCode, 409);
   assert.equal(duplicate.json().error.code, 'DUPLICATE_SYNC_ID');
 });
+
+test('target-only cross-sell hides zero anchor shell from manager lists and drops it on pay', async () => {
+  await enableBilling();
+  await ensureAnchorShift();
+
+  const open = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER, tableLabel: 'CV-shell' },
+  });
+  assert.equal(open.statusCode, 200, open.body);
+  const anchorChequeId = open.json().id;
+
+  const addTarget = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: TARGET_VENUE,
+      menuItemId: targetMenuItemId,
+      quantity: 1,
+    },
+  });
+  assert.equal(addTarget.statusCode, 200, addTarget.body);
+  const groupId = addTarget.json().group.groupId;
+  assert.equal(addTarget.json().group.cheques.length, 1);
+  assert.equal(addTarget.json().group.cheques[0].venueId, TARGET_VENUE);
+
+  const anchorOpenList = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/cheques/open?venueId=${ANCHOR_VENUE}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(anchorOpenList.statusCode, 200);
+  assert.ok(!anchorOpenList.json().some((c) => c.id === anchorChequeId));
+
+  const targetOpenList = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/cheques/open?venueId=${TARGET_VENUE}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.ok(targetOpenList.json().some((c) => c.tableLabel === 'CV-shell'));
+
+  const anchorDetail = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/cheques/${anchorChequeId}?venueId=${ANCHOR_VENUE}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(anchorDetail.statusCode, 200);
+  assert.equal(anchorDetail.json().isCrossVenueShell, true);
+  assert.ok(anchorDetail.json().total > 0);
+  assert.equal(anchorDetail.json().crossVenueGroup.cheques.length, 1);
+
+  const fire = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/fire`,
+    headers: anchorHeaders,
+  });
+  assert.equal(fire.statusCode, 200, fire.body);
+
+  const pay = await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/pay`,
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER, method: 'cash', tendered: 500 },
+  });
+  assert.equal(pay.statusCode, 200, pay.body);
+
+  const members = await prisma.cheque.findMany({ where: { crossVenueGroupId: groupId } });
+  assert.equal(members.length, 1);
+  assert.equal(members[0].venueId, TARGET_VENUE);
+  assert.equal(members[0].status, 'paid');
+});
+
+test('void on zero anchor shell voids entire cross-sell group', async () => {
+  await enableBilling();
+  await ensureAnchorShift();
+
+  const open = await app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: anchorHeaders,
+    payload: { cashierId: ANCHOR_CASHIER, tableLabel: 'CV-void-shell' },
+  });
+  assert.equal(open.statusCode, 200, open.body);
+  const anchorChequeId = open.json().id;
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cross-venue/cheques/${anchorChequeId}/items`,
+    headers: anchorHeaders,
+    payload: {
+      cashierId: ANCHOR_CASHIER,
+      venueId: TARGET_VENUE,
+      menuItemId: targetMenuItemId,
+      quantity: 1,
+    },
+  });
+
+  await app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${anchorChequeId}/fire`,
+    headers: anchorHeaders,
+  });
+
+  const voidRes = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/cheques/${anchorChequeId}/void?venueId=${ANCHOR_VENUE}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: { reason: 'Guest left', managerPin: '7777' },
+  });
+  assert.equal(voidRes.statusCode, 200, voidRes.body);
+
+  const members = await prisma.cheque.findMany({
+    where: { id: { in: [anchorChequeId] } },
+    include: { orders: true },
+  });
+  const groupId = members[0]?.crossVenueGroupId;
+  assert.ok(groupId);
+  const groupMembers = await prisma.cheque.findMany({ where: { crossVenueGroupId: groupId } });
+  assert.ok(groupMembers.every((m) => m.status === 'voided'));
+});

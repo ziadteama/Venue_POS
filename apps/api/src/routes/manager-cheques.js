@@ -70,7 +70,7 @@ export async function managerChequeRoutes(app) {
     async (request) => {
       const venueId = resolveVenueId(request);
       if (!venueId) throw validationError('Venue is required');
-      return listOpenCheques(venueId);
+      return listOpenCheques(venueId, { hideCrossVenueShells: true });
     },
   );
 
@@ -89,6 +89,7 @@ export async function managerChequeRoutes(app) {
         limit: Number(request.query?.limit ?? 50),
         q: request.query?.q,
         shiftId: request.query?.shiftId,
+        hideCrossVenueShells: true,
       });
     },
   );
@@ -107,6 +108,7 @@ export async function managerChequeRoutes(app) {
         status,
         q,
         limit: Number(request.query?.limit ?? 50),
+        hideCrossVenueShells: true,
       });
     },
   );

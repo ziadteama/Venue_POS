@@ -25,6 +25,8 @@ import {
   clearCrossVenueGroupDrafts,
   fireCrossVenueGroupByCheque,
   getCrossVenueGroup,
+  isCrossVenueShellMember,
+  shouldHideCrossVenueShellInVenueList,
 } from './cross-venue-service.js';
 import { config } from '../config.js';
 import { resolveBusinessDate } from '../utils/business-date.js';
@@ -114,11 +116,12 @@ export async function closeEmptyCheque(chequeId, venueId) {
   return { deleted: true, id: chequeId, tableLabel: cheque.tableLabel };
 }
 
-export async function listOpenCheques(venueId) {
+export async function listOpenCheques(venueId, { hideCrossVenueShells = false } = {}) {
   await reconcileVenueOpenCheques(venueId);
-  const cheques = (await listChequesForVenue(venueId, { status: 'open' })).filter(
-    (cheque) => !cheque.parentChequeId,
-  );
+  let cheques = (await listChequesForVenue(venueId, {
+    status: 'open',
+    hideCrossVenueShells,
+  })).filter((cheque) => !cheque.parentChequeId);
   if (!config.featureCrossVenueBilling) return cheques;
 
   return Promise.all(
@@ -126,7 +129,11 @@ export async function listOpenCheques(venueId) {
       if (!c.crossVenueGroupId) return c;
       try {
         const group = await getCrossVenueGroup(c.crossVenueGroupId, venueId);
-        return { ...c, total: group.displayTotal, crossVenueDisplayTotal: group.displayTotal };
+        const enriched = { ...c, total: group.displayTotal, crossVenueDisplayTotal: group.displayTotal };
+        if (isCrossVenueShellMember(await loadCheque(c.id))) {
+          enriched.isCrossVenueShell = true;
+        }
+        return enriched;
       } catch {
         return c;
       }
@@ -170,7 +177,10 @@ async function chequeIdsForShift(shiftId, venueId, status) {
   return [...ids];
 }
 
-export async function listChequesForVenue(venueId, { status = 'open', limit = 50, q, shiftId } = {}) {
+export async function listChequesForVenue(
+  venueId,
+  { status = 'open', limit = 50, q, shiftId, hideCrossVenueShells = false } = {},
+) {
   const where = { venueId, status };
   const trimmed = q?.trim();
   if (trimmed) {
@@ -197,11 +207,23 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
     orderBy: status === 'paid' ? { closedAt: 'desc' } : { openedAt: 'asc' },
     take: limit,
   });
-  return cheques.map(serializeCheque);
+  if (!hideCrossVenueShells || !config.featureCrossVenueBilling) {
+    return cheques.map(serializeCheque);
+  }
+
+  const visibility = await Promise.all(
+    cheques.map((c) => shouldHideCrossVenueShellInVenueList(c).then((hide) => !hide)),
+  );
+  return cheques.filter((_, i) => visibility[i]).map(serializeCheque);
 }
 
 /** Hub manager: find cheques across all venues (numeric cheque # or table label). */
-export async function searchChequesHubWide({ status = 'open', q, limit = 50 } = {}) {
+export async function searchChequesHubWide({
+  status = 'open',
+  q,
+  limit = 50,
+  hideCrossVenueShells = false,
+} = {}) {
   const trimmed = q?.trim();
   if (!trimmed) return [];
 
@@ -223,7 +245,15 @@ export async function searchChequesHubWide({ status = 'open', q, limit = 50 } = 
     take: limit,
   });
 
-  return cheques.map((c) => ({
+  let rows = cheques;
+  if (hideCrossVenueShells && config.featureCrossVenueBilling) {
+    const visibility = await Promise.all(
+      cheques.map((c) => shouldHideCrossVenueShellInVenueList(c).then((hide) => !hide)),
+    );
+    rows = cheques.filter((_, i) => visibility[i]);
+  }
+
+  return rows.map((c) => ({
     ...serializeCheque(c),
     venueNameEn: c.venue.nameEn,
     venueNameAr: c.venue.nameAr,
@@ -237,7 +267,17 @@ export async function getCheque(chequeId, venueId) {
     cheque.crossVenueGroupId && config.featureCrossVenueBilling
       ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId)
       : null;
-  return { ...serializeCheque(cheque), crossVenueGroup };
+  const serialized = serializeCheque(cheque);
+  if (crossVenueGroup && isCrossVenueShellMember(cheque)) {
+    return {
+      ...serialized,
+      total: crossVenueGroup.displayTotal,
+      crossVenueDisplayTotal: crossVenueGroup.displayTotal,
+      isCrossVenueShell: true,
+      crossVenueGroup,
+    };
+  }
+  return { ...serialized, crossVenueGroup };
 }
 
 export async function fireChequeRound(chequeId, venueId) {
