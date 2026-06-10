@@ -7,7 +7,6 @@ import { ReceiptPanel } from './ReceiptPanel.jsx';
 import { OrderLookupModal } from './OrderLookupModal.jsx';
 import { CrossSellBar } from './CrossSellBar.jsx';
 import { LogoutConfirmModal } from './LogoutConfirmModal.jsx';
-import { SyncFailedModal } from './SyncFailedModal.jsx';
 import { usePosWorkspace } from '../hooks/usePosWorkspace.js';
 
 export function PosWorkspace({ cashier, onLogout }) {
@@ -44,15 +43,6 @@ export function PosWorkspace({ cashier, onLogout }) {
             ws.setShowLogoutModal(false);
             ws.setShowCloseModal(true);
           }}
-        />
-      ) : null}
-
-      {ws.showSyncFailedModal ? (
-        <SyncFailedModal
-          t={ws.t}
-          open={ws.showSyncFailedModal}
-          onClose={() => ws.setShowSyncFailedModal(false)}
-          agentRefresh={ws.agentStatus.refresh}
         />
       ) : null}
 
@@ -139,9 +129,6 @@ export function PosWorkspace({ cashier, onLogout }) {
             {ws.agentStatus.syncQueueDepth > 0
               ? ` | ${ws.t('pos.syncQueueDepth', { count: ws.agentStatus.syncQueueDepth })}`
               : null}
-            {ws.agentStatus.syncFailedCount > 0
-              ? ` | ${ws.t('pos.syncFailed', { count: ws.agentStatus.syncFailedCount })}`
-              : null}
             {ws.agentStatus.syncProgress?.syncing
               ? ` | ${
                   ws.agentStatus.syncProgress.drainTotal
@@ -153,30 +140,19 @@ export function PosWorkspace({ cashier, onLogout }) {
                 }`
               : null}
           </span>
-          {ws.agentStatus.syncFailedCount > 0 ? (
-            <button
-              type="button"
-              onClick={() => ws.setShowSyncFailedModal(true)}
-              className="shrink-0 rounded border border-amber-400 bg-white px-2 py-0.5 text-xs font-semibold text-amber-900 hover:bg-amber-50"
-            >
-              {ws.t('pos.syncFailedReview')}
-            </button>
-          ) : null}
         </div>
       ) : null}
 
       {ws.agentStatus.agentReachable &&
       ws.agentStatus.online &&
-      ws.agentStatus.syncFailedCount > 0 ? (
-        <div className="flex shrink-0 items-center justify-center gap-3 border-b border-red-200 bg-red-50 px-5 py-2 text-center text-sm text-red-800">
-          <span>{ws.t('pos.syncFailed', { count: ws.agentStatus.syncFailedCount })}</span>
-          <button
-            type="button"
-            onClick={() => ws.setShowSyncFailedModal(true)}
-            className="shrink-0 rounded border border-red-300 bg-white px-2 py-0.5 text-xs font-semibold hover:bg-red-50"
-          >
-            {ws.t('pos.syncFailedReview')}
-          </button>
+      (ws.agentStatus.syncQueueDepth > 0 || ws.agentStatus.syncProgress?.syncing) ? (
+        <div className="shrink-0 border-b border-slate-200 bg-slate-50 px-5 py-1.5 text-center text-xs text-slate-600">
+          {ws.agentStatus.syncProgress?.syncing && ws.agentStatus.syncProgress.drainTotal
+            ? ws.t('pos.syncProgress', {
+                done: ws.agentStatus.syncProgress.drainDone ?? 0,
+                total: ws.agentStatus.syncProgress.drainTotal,
+              })
+            : ws.t('pos.syncInProgress')}
         </div>
       ) : null}
 
@@ -213,12 +189,6 @@ export function PosWorkspace({ cashier, onLogout }) {
       {ws.coordinatorUnreachable ? (
         <div className="shrink-0 border-b border-red-200 bg-red-50 px-5 py-2 text-center text-sm text-red-800">
           {ws.t('pos.coordinatorUnreachable')}
-        </div>
-      ) : null}
-
-      {ws.agentStatus.menuStale && ws.agentStatus.online ? (
-        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-center text-sm text-amber-900">
-          {ws.t('pos.menuStale')}
         </div>
       ) : null}
 

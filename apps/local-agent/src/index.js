@@ -2,6 +2,8 @@ import 'dotenv/config';
 import os from 'node:os';
 import {
   SYNC_WORKER_INTERVAL_MS,
+  MENU_SYNC_WORKER_INTERVAL_MS,
+  SYNC_FAILED_RETRY_INTERVAL_MS,
   CHEQUE_HYDRATION_INTERVAL_MS,
   PEER_GOSSIP_INTERVAL_MS,
   TERMINAL_HEARTBEAT_INTERVAL_MS,
@@ -13,6 +15,8 @@ import { buildAgentServer } from './server.js';
 import { syncMenuFromServer } from './services/menu-sync.js';
 import { processSyncQueue, getSyncQueueDepth } from './services/sync-processor.js';
 import { connectTerminalSocket } from './services/ws-client.js';
+import { startMenuSyncWorker } from './services/menu-sync-worker.js';
+import { startSyncRetryWorker } from './services/sync-retry-worker.js';
 import {
   syncVenueConfigFromServer,
   resolvePrinterConfig,
@@ -266,6 +270,27 @@ if (venueId && terminalId && terminalSecret) {
     venueId,
     db,
     log: app.log,
+  });
+
+  startMenuSyncWorker({
+    db,
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    log: app.log,
+    intervalMs: MENU_SYNC_WORKER_INTERVAL_MS,
+  });
+
+  startSyncRetryWorker({
+    db,
+    apiUrl,
+    terminalId,
+    terminalSecret,
+    log: app.log,
+    intervalMs: SYNC_FAILED_RETRY_INTERVAL_MS,
+    getRelay: () => buildRelayOptions(),
+    getClusterMode: () => getClusterState().mode,
   });
 
   setInterval(async () => {

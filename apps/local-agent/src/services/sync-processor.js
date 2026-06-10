@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { SYNC_EVENT_TYPES, SYNC_MAX_RETRIES } from '@venue-pos/shared';
-import { apiFetch } from './api-fetch.js';
+import { apiFetch, parseUpstreamError } from './api-fetch.js';
 import { relaySyncEvents, relayApiCall } from './relay-client.js';
 import { linkLocalShiftServerId } from './shift-cache.js';
 import { setAgentMeta } from './terminal-cache.js';
@@ -23,6 +23,24 @@ const SHIFT_SYNC_TYPES = new Set([
   SYNC_EVENT_TYPES.SHIFT_OPEN,
   SYNC_EVENT_TYPES.SHIFT_CLOSE,
 ]);
+
+const SKIPPABLE_REPLAY_MESSAGES = [
+  'Order is not editable',
+  'Items can only be added to draft orders',
+  'Order not found',
+  'Order item not found',
+];
+
+/** Permanent upstream rejections that mean local state already advanced — drop the queue row. */
+export function isReplaySkippableError(err) {
+  if (!err?.statusCode) return false;
+  if (err.statusCode === 404) return true;
+  if (err.statusCode === 400) {
+    const msg = err.apiMessage ?? parseUpstreamError(err.responseText ?? '', '');
+    return SKIPPABLE_REPLAY_MESSAGES.some((fragment) => msg.includes(fragment));
+  }
+  return false;
+}
 
 function buildReplayEvent(job, payload, syncId) {
   if (job.event_type === SYNC_EVENT_TYPES.ORDER_CREATE) {
@@ -375,6 +393,11 @@ export async function processSyncQueue({
       db.prepare(`UPDATE sync_queue SET status = 'done' WHERE id = ?`).run(job.id);
       results.push({ id: job.id, status: 'done' });
     } catch (err) {
+      if (isReplaySkippableError(err)) {
+        db.prepare(`UPDATE sync_queue SET status = 'done' WHERE id = ?`).run(job.id);
+        results.push({ id: job.id, status: 'done', skipped: true });
+        continue;
+      }
       const retries =
         db.prepare(`SELECT retry_count FROM sync_queue WHERE id = ?`).get(job.id)?.retry_count ?? 0;
       const nextStatus = retries + 1 >= SYNC_MAX_RETRIES ? 'failed' : 'pending';
@@ -474,6 +497,17 @@ export function retryFailedSyncJob(db, jobId) {
     `UPDATE sync_queue SET status = 'pending', retry_count = 0 WHERE id = ?`,
   ).run(jobId);
   return true;
+}
+
+/** Move all failed jobs back to pending for background replay. */
+export function requeueAllFailedSyncJobs(db) {
+  const failed = db
+    .prepare(`SELECT id FROM sync_queue WHERE status = 'failed' ORDER BY created_at ASC`)
+    .all();
+  for (const row of failed) {
+    retryFailedSyncJob(db, row.id);
+  }
+  return failed.length;
 }
 
 export function dismissFailedSyncJob(db, jobId) {

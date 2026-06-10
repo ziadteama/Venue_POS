@@ -9,6 +9,7 @@ import {
   retryFailedSyncJob,
   dismissFailedSyncJob,
   listFailedSyncJobs,
+  isReplaySkippableError,
 } from './sync-processor.js';
 import { getServerShiftId } from './shift-cache.js';
 
@@ -147,6 +148,38 @@ describe('processSyncQueue', () => {
     assert.match(url, /\/api\/v1\/shifts\/close$/);
     assert.equal(body.cashierId, 'cashier-1');
     assert.equal(body.closeFloat, 150);
+  });
+
+  it('marks job done when upstream says order is not editable', async () => {
+    global.fetch = async () => ({
+      ok: false,
+      status: 400,
+      text: async () =>
+        JSON.stringify({ error: { message: 'Order is not editable' } }),
+    });
+
+    enqueueSync(db, 'order.patch_item', { orderId: 'o1', itemId: 'i1', quantity: 0 });
+    const results = await processSyncQueue({
+      db,
+      apiUrl: 'http://api',
+      terminalId: 't1',
+      terminalSecret: 'secret',
+    });
+
+    assert.equal(results[0].status, 'done');
+    assert.equal(results[0].skipped, true);
+    assert.equal(db.prepare(`SELECT status FROM sync_queue`).get().status, 'done');
+  });
+
+  it('isReplaySkippableError detects permanent 400/404', () => {
+    assert.ok(
+      isReplaySkippableError({
+        statusCode: 400,
+        apiMessage: 'Order is not editable',
+      }),
+    );
+    assert.ok(isReplaySkippableError({ statusCode: 404 }));
+    assert.ok(!isReplaySkippableError({ statusCode: 500 }));
   });
 
   it('retry and dismiss failed sync jobs', () => {

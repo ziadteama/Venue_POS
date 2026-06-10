@@ -1,5 +1,5 @@
 import { getCachedMenu, syncMenuFromServer } from '../services/menu-sync.js';
-import { markMenuPublishQueueDrained } from '../services/ws-client.js';
+import { markMenuPublishQueueDrained } from '../services/menu-publish-queue.js';
 
 export function registerMenuRoutes(app, { db, apiUrl, venueId, terminalId, terminalSecret }) {
   app.get('/v1/menu', async () => {

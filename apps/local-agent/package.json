@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node ../../scripts/node20.mjs --watch src/index.js",
+    "dev": "node ../../scripts/node20.mjs --watch-path=./src --watch src/index.js",
     "start": "node ../../scripts/node20.mjs src/index.js",
     "build": "echo \"No build step yet\"",
     "test": "node scripts/run-tests.mjs"

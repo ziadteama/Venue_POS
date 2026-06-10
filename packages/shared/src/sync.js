@@ -29,6 +29,10 @@ export const SYNC_QUEUE_STATUS = {
 
 export const MAX_SYNC_BATCH = 50;
 export const SYNC_WORKER_INTERVAL_MS = 10_000;
+/** Background menu publish / stale cache drain while online (retries after WS or API failures). */
+export const MENU_SYNC_WORKER_INTERVAL_MS = 30_000;
+/** Re-queue failed sync_queue jobs and replay while online (or via LAN relay). */
+export const SYNC_FAILED_RETRY_INTERVAL_MS = 30_000;
 export const SYNC_MAX_RETRIES = 10;
 export const CHEQUE_HYDRATION_INTERVAL_MS = 90_000;
 export const CHEQUE_HYDRATE_MIN_INTERVAL_MS = 30_000;

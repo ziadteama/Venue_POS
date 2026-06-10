@@ -1,40 +1,17 @@
-import { randomUUID } from 'node:crypto';
 import { io } from 'socket.io-client';
 import { apiFetch } from './api-fetch.js';
-import { syncMenuFromServer } from './menu-sync.js';
+import { runMenuBackgroundSync } from './menu-sync-worker.js';
+import { enqueueMenuPublish, markMenuPublishQueueDrained } from './menu-publish-queue.js';
 import { syncVenueConfigFromServer } from './venue-config-sync.js';
 import { isCloudOnline } from './cloud-health.js';
 import { publishAgentEvent } from './agent-events.js';
 import { patchFeaturesTables, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
 
-function enqueueMenuPublish(db, payload) {
-  const id = randomUUID();
-  db.prepare(
-    `INSERT INTO menu_publish_queue (id, version_hash, payload_json, status)
-     VALUES (?, ?, ?, 'pending')`,
-  ).run(id, payload.versionHash ?? '', JSON.stringify(payload));
-}
+export { markMenuPublishQueueDrained } from './menu-publish-queue.js';
 
-/** Mark pending publish rows drained after a successful menu sync. */
-export function markMenuPublishQueueDrained(db) {
-  db.prepare(`UPDATE menu_publish_queue SET status = 'done' WHERE status = 'pending'`).run();
-  setAgentMeta(db, 'menu_stale', 'false');
-}
-
-export async function drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log }) {
-  const pending = db
-    .prepare(`SELECT * FROM menu_publish_queue WHERE status = 'pending' ORDER BY created_at ASC`)
-    .all();
-  for (const row of pending) {
-    try {
-      await syncMenuFromServer({ db, apiUrl, venueId, terminalId, terminalSecret });
-      markMenuPublishQueueDrained(db);
-      break;
-    } catch (err) {
-      log.warn({ err, id: row.id }, 'Menu publish queue drain failed');
-      break;
-    }
-  }
+/** @deprecated Use runMenuBackgroundSync — kept for reconnect and tests. */
+export async function drainMenuPublishQueue(ctx) {
+  return runMenuBackgroundSync(ctx);
 }
 
 export function connectTerminalSocket({
@@ -89,24 +66,19 @@ export function connectTerminalSocket({
       log.info('Menu publish queued — terminal offline');
       return;
     }
-    try {
-      const result = await syncMenuFromServer({
-        db,
-        apiUrl,
-        venueId,
-        terminalId,
-        terminalSecret,
-      });
+    const result = await runMenuBackgroundSync({
+      db,
+      apiUrl,
+      venueId,
+      terminalId,
+      terminalSecret,
+      log,
+    });
+    if (result.ok) {
       log.info({ updated: result.updated }, 'Menu refreshed from WebSocket event');
-      markMenuPublishQueueDrained(db);
-      publishAgentEvent('menu:updated', {
-        venueId,
-        versionHash: payload.versionHash ?? result.menu?.versionHash ?? null,
-        updatedAt: payload.publishedAt ?? new Date().toISOString(),
-      });
-    } catch (err) {
-      log.warn({ err }, 'Menu refresh after WS event failed');
+    } else if (!result.skipped) {
       enqueueMenuPublish(db, payload);
+      setAgentMeta(db, 'menu_stale', 'true');
     }
   });
 

@@ -26,7 +26,6 @@ export function usePosWorkspace(cashier) {
   const [managerNotice, setManagerNotice] = useState(null);
   const [clock, setClock] = useState(() => new Date());
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showSyncFailedModal, setShowSyncFailedModal] = useState(false);
 
   const orderLookup = useOrderLookup();
   const printerOk = usePrinterHealth();
@@ -353,8 +352,6 @@ export function usePosWorkspace(cashier) {
     coordinatorUnreachable,
     managerNotice,
     setManagerNotice,
-    showSyncFailedModal,
-    setShowSyncFailedModal,
   };
 }
 

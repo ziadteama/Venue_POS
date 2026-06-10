@@ -1,7 +1,14 @@
 import { apiFetch } from './api-fetch.js';
 import { syncMenuFromServer } from './menu-sync.js';
 import { saveStaffCache, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
-import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount, setSyncDrainProgress, clearSyncDrainProgress } from './sync-processor.js';
+import {
+  processSyncQueue,
+  getSyncQueueDepth,
+  getFailedSyncCount,
+  requeueAllFailedSyncJobs,
+  setSyncDrainProgress,
+  clearSyncDrainProgress,
+} from './sync-processor.js';
 import { hydrateOpenCheques } from './cheque-hydration.js';
 import { reconcileLocalChequePrices } from './menu-reconcile.js';
 import { publishAgentEvent } from './agent-events.js';
@@ -57,6 +64,10 @@ export async function runReconnectHandshake({
   await drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log });
 
   reconcileLocalChequePrices(db, venueId);
+
+  if (getFailedSyncCount(db) > 0) {
+    requeueAllFailedSyncJobs(db);
+  }
 
   const pendingBefore = getSyncQueueDepth(db);
   let drained = 0;

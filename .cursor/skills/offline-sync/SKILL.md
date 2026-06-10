@@ -79,19 +79,15 @@ Add new types in **`packages/shared/src/sync.js`** first, then agent + API handl
 
 ## Menu gate
 
-`assertMenuReadyForWrite(db, venueId)` blocks writes when:
+`assertMenuReadyForWrite(db, venueId)` blocks writes only when menu cache is empty (`MENU_NOT_CACHED`).
 
-- Menu cache empty (`MENU_NOT_CACHED`)
-- `menu_stale` flag set while online (`MENU_STALE`)
-- Pending `menu_publish_queue` rows while online (`MENU_PUBLISH_PENDING`)
-
-While **offline**, stale gate is relaxed — cached menu used; reconcile on reconnect.
+Pending `menu_publish_queue` rows and `menu_stale` are drained by **`menu-sync-worker.js`** every `MENU_SYNC_WORKER_INTERVAL_MS` (30s) while online — POS is not blocked. While **offline**, cached menu is used; worker resumes on reconnect.
 
 ## Sync queue worker
 
 - SQLite table `sync_queue`: `pending` → `done` | `failed`
 - Worker: `SYNC_WORKER_INTERVAL_MS` (10s) when online + pending
-- Failed jobs: operator **Review** modal on POS (`SyncFailedModal`); retry/dismiss in `sync-processor.js`
+- Failed jobs: `sync-retry-worker.js` re-queues and replays every `SYNC_FAILED_RETRY_INTERVAL_MS` (30s) when online or LAN relay; reconnect handshake also re-queues failed rows
 - Skip replay while cloud marked offline (`isCloudOnline()` false)
 
 ## Key files

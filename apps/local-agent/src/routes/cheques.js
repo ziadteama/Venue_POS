@@ -21,7 +21,6 @@ import {
 } from '../services/local-cheques.js';
 import { hydrateOpenCheques } from '../services/cheque-hydration.js';
 import { assertMenuReadyForWrite } from '../services/menu-gate.js';
-import { drainMenuPublishQueue } from '../services/ws-client.js';
 import { occupyFloorUpstream, releaseFloorUpstream } from '../services/floor-upstream.js';
 import { verifyCachedManagerPin } from '../services/terminal-cache.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
@@ -89,16 +88,6 @@ export function registerChequeRoutes(app, routeCtx) {
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
 
     try {
-      if (isCloudOnline()) {
-        await drainMenuPublishQueue({
-          db,
-          apiUrl,
-          venueId,
-          terminalId,
-          terminalSecret,
-          log: app.log,
-        });
-      }
       assertMenuReadyForWrite(db, venueId);
     } catch (gateErr) {
       return reply.status(gateErr.statusCode ?? 409).send({ error: gateErr.message });

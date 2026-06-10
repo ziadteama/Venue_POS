@@ -14,15 +14,7 @@ export function usePosMenu() {
     setLoading(true);
     setMenuError('');
     try {
-      let data = await callAgent('/v1/menu');
-      if (!data.categories?.length) {
-        try {
-          await callAgent('/v1/menu/sync', { method: 'POST' });
-          data = await callAgent('/v1/menu');
-        } catch {
-          setMenuError('menuNotCached');
-        }
-      }
+      const data = await callAgent('/v1/menu');
       if (!data.categories?.length) {
         setMenuError('menuNotCached');
       }

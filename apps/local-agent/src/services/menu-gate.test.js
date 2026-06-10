@@ -16,7 +16,7 @@ test('menu gate blocks writes when cache empty', () => {
   db.close();
 });
 
-test('menu gate blocks writes when stale flag set online', () => {
+test('menu gate allows writes when stale but cache populated (background worker drains)', () => {
   const db = createDatabase(':memory:');
   const menu = { categories: [{ items: [{ id: 'i1', price: 10 }] }] };
   db.prepare(
@@ -24,9 +24,20 @@ test('menu gate blocks writes when stale flag set online', () => {
   ).run(VENUE, JSON.stringify(menu));
   setCloudOnline(true);
   markMenuStale(db, true);
-  assert.throws(
-    () => assertMenuReadyForWrite(db, VENUE),
-    (err) => err.code === 'MENU_STALE',
-  );
+  assert.doesNotThrow(() => assertMenuReadyForWrite(db, VENUE));
+  db.close();
+});
+
+test('menu gate allows writes when publish queue pending but cache populated', () => {
+  const db = createDatabase(':memory:');
+  const menu = { categories: [{ items: [{ id: 'i1', price: 10 }] }] };
+  db.prepare(
+    `INSERT INTO menu_cache (venue_id, version_hash, menu_json, synced_at) VALUES (?, 'v1', ?, datetime('now'))`,
+  ).run(VENUE, JSON.stringify(menu));
+  db.prepare(
+    `INSERT INTO menu_publish_queue (id, version_hash, payload_json, status) VALUES ('q1', 'v2', '{}', 'pending')`,
+  ).run();
+  setCloudOnline(true);
+  assert.doesNotThrow(() => assertMenuReadyForWrite(db, VENUE));
   db.close();
 });

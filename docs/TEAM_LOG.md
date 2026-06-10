@@ -1665,6 +1665,20 @@ npm run lint && npm run lint:i18n
 # Dashboard Menus → pick venue → add item + modifier → Publish → POS updates without refresh
 ```
 
+### 2026-06-10 — Background sync retry worker (30s)
+**Phase:** 6
+**What:** Failed `sync_queue` jobs auto re-queued and replayed every 30s (online or LAN relay); reconnect re-queues failed; POS removed red “sync failed / Review” banner — subtle “sync in progress” only.
+**Files:** `sync-retry-worker.js`, `sync-processor.js`, `reconnect.js`, `index.js`, `PosWorkspace.jsx`, `packages/shared/src/sync.js`
+**Verify:** `npm run test -w @venue-pos/local-agent` · induce failed sync → banner clears within ~30s without Review click
+**Notes:** `SyncFailedModal` kept in codebase but no POS entry point; hub can still use `/v1/sync/failed` API.
+
+### 2026-06-10 — Background menu sync worker (30s)
+**Phase:** 6 · **Story:** US-7.4 (menu publish drain)
+**What:** Menu publish queue and stale cache drain automatically every 30s while online; POS no longer blocked on pending publish when cache exists; removed manual POS menu sync and cheque-open drain.
+**Files:** `menu-sync-worker.js`, `menu-publish-queue.js`, `menu-gate.js`, `ws-client.js`, `index.js`, `usePosMenu.js`, `packages/shared/src/sync.js`
+**Verify:** `npm run test -w @venue-pos/local-agent` · publish menu from dashboard → POS keeps taking orders; menu updates within ~30s if WS sync fails · offline publish queues until reconnect
+**Notes:** Gate blocks only `MENU_NOT_CACHED` (empty cache). Transactional `sync_queue` replay unchanged (10s worker + reconnect handshake).
+
 ---
 
 ## Quick reference — Phase 0 deliverables

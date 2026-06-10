@@ -335,19 +335,18 @@ describe('Phase 6 manual matrix', () => {
     db.close();
   });
 
-  test('7 — menu stale gate blocks new orders until sync', () => {
+  test('7 — menu stale with cache allows orders; empty cache blocks', () => {
     const db = createDatabase(':memory:');
     seedMenuCache(db, VENUE);
     setCloudOnline(true);
     markMenuStale(db, true);
+    assert.doesNotThrow(() => assertMenuReadyForWrite(db, VENUE));
 
+    db.prepare(`DELETE FROM menu_cache WHERE venue_id = ?`).run(VENUE);
     assert.throws(
       () => assertMenuReadyForWrite(db, VENUE),
-      (err) => err.code === 'MENU_STALE',
+      (err) => err.code === 'MENU_NOT_CACHED',
     );
-
-    markMenuStale(db, false);
-    assert.doesNotThrow(() => assertMenuReadyForWrite(db, VENUE));
     db.close();
   });
 
