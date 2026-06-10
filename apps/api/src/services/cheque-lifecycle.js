@@ -56,7 +56,7 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
     const businessDate = resolveBusinessDate();
     cheque = await prisma.$transaction(async (tx) => {
       const chequeNumber = await nextChequeNumber(tx, businessDate);
-      const created = await tx.cheque.create({
+      return tx.cheque.create({
         data: {
           venueId,
           terminalId,
@@ -68,7 +68,6 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
           status: 'open',
         },
       });
-      return created;
     });
 
     const draft = await createOrder({

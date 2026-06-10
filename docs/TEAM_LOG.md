@@ -1622,8 +1622,8 @@ npm run test -w @venue-pos/api
 ### 2026-06-10 — Hub tables + Orders deep-link fix
 
 **Phase:** API / Dashboard · **Story:** US-4.7
-**What:** Hub-wide floor tables with `floorTableId` on cheques/orders, global occupancy (cross-sell siblings exempt), manager hub table CRUD, Orders `chequeId` list filter + UI deep-link shields, Settings hub tables + all-venue tax matrix, local-agent `floor_table_id` cache columns.
-**Files:** migration `20260610140000_hub_floor_tables`, `hub-table-service.js`, `floor-table-service.js`, `cheque-lifecycle.js`, `order-explorer-service.js`, `manager-hub-tables.js`, `OrdersPage.jsx`, `HubTablesSection.jsx`, `HubTaxMatrixSection.jsx`, `VenueSettingsPage.jsx`, `local-agent` schema/floor-locks, `hub-tables.test.js`, i18n
+**What:** Hub-wide floor tables with `floorTableId` on cheques/orders, global occupancy (cross-sell siblings exempt), manager hub table CRUD, Orders `chequeId` list filter + UI deep-link shields, Settings hub tables + all-venue tax matrix, local-agent `floor_table_id` cache columns, POS real-time hub table list via agent SSE.
+**Files:** migration `20260610140000_hub_floor_tables`, `hub-table-service.js`, `floor-table-service.js`, `cheque-lifecycle.js`, `order-explorer-service.js`, `manager-hub-tables.js`, `OrdersPage.jsx`, `HubTablesSection.jsx`, `HubTaxMatrixSection.jsx`, `VenueSettingsPage.jsx`, `local-agent` schema/floor-locks/events, `hub-tables.test.js`, i18n
 **Verify:**
 ```bash
 npm run migrate:dev
