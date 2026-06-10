@@ -31,7 +31,7 @@ export function usePosWorkspace(cashier) {
   const orderLookup = useOrderLookup();
   const printerOk = usePrinterHealth();
   const agentStatus = useAgentStatus();
-  const { features } = useFeatures();
+  const { features } = useFeatures({ agentReachable: agentStatus.agentReachable });
   const homeVenueId = features.anchorVenue?.id ?? null;
   const floorEnabled =
     agentStatus.agentReachable && (agentStatus.online || agentStatus.coordinatorActive);
@@ -45,8 +45,8 @@ export function usePosWorkspace(cashier) {
     online: agentStatus.online,
   });
   useFloorSocket({
-    enabled: agentStatus.online,
-    online: agentStatus.online,
+    enabled: floorEnabled,
+    agentReachable: agentStatus.agentReachable,
     onFloorUpdate: refreshFloor,
   });
   const { kitchenWatch, setKitchenWatch } = useKitchenSocket(features.kdsEnabled);

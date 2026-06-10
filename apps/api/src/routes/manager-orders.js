@@ -24,6 +24,7 @@ function parseListQuery(request) {
     q: q.q,
     orderNumber: q.orderNumber,
     chequeNumber: q.chequeNumber,
+    chequeId: q.chequeId,
     tableLabel: q.tableLabel,
     cashier: q.cashier,
     status: q.status,

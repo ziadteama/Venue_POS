@@ -7,6 +7,20 @@ import {
   releaseFloorLock,
 } from '../services/floor-locks.js';
 import { lanFetch } from '../services/lan-fetch.js';
+import { publishAgentEvent } from '../services/agent-events.js';
+
+function relayFloorEvent(result) {
+  if (!result?.tableLabel) return;
+  publishAgentEvent('floor:table_updated', {
+    tableLabel: result.tableLabel,
+    floorTableId: result.floorTableId ?? result.id ?? null,
+    occupiedByChequeId: result.occupiedByChequeId ?? result.chequeId ?? null,
+    occupiedCrossVenueGroupId: result.occupiedCrossVenueGroupId ?? null,
+    isOccupied: result.isOccupied ?? Boolean(result.occupiedByChequeId ?? result.chequeId),
+    venueId: result.venueId ?? null,
+    updatedAt: result.updatedAt ?? new Date().toISOString(),
+  });
+}
 
 function isLeaderNode(ctx) {
   const cluster = ctx.getClusterState?.() ?? {};
@@ -40,23 +54,29 @@ export function registerFloorRoutes(app, routeCtx) {
     });
 
     app.post('/v1/floor/tables/occupy', async (request, reply) => {
-      const { tableLabel, chequeId, venueId } = request.body ?? {};
-      if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
+      const { tableLabel, floorTableId, chequeId, crossVenueGroupId, venueId } = request.body ?? {};
+      if (!tableLabel && !floorTableId) {
+        return reply.status(400).send({ error: 'tableLabel or floorTableId required' });
+      }
       if (isCloudOnline()) {
-        return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/occupy', {
+        const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/occupy', {
           method: 'POST',
-          body: JSON.stringify({ tableLabel, chequeId }),
+          body: JSON.stringify({ tableLabel, floorTableId, chequeId, crossVenueGroupId, venueId }),
         });
+        relayFloorEvent(result);
+        return result;
       }
       const leaderHost = getLeaderHost(routeCtx);
       if (leaderHost) {
         try {
-          return await lanFetch(leaderHost, '/v1/floor/tables/occupy', {
+          const result = await lanFetch(leaderHost, '/v1/floor/tables/occupy', {
             lanPort: routeCtx.lanPort,
             lanSecret: routeCtx.lanSecret,
             method: 'POST',
-            body: { tableLabel, chequeId, terminalId, venueId },
+            body: { tableLabel, floorTableId, chequeId, crossVenueGroupId, terminalId, venueId },
           });
+          relayFloorEvent(result);
+          return result;
         } catch (err) {
           return reply.status(err.statusCode ?? 503).send({ error: err.message });
         }
@@ -68,20 +88,24 @@ export function registerFloorRoutes(app, routeCtx) {
       const { tableLabel, chequeId } = request.body ?? {};
       if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
       if (isCloudOnline()) {
-        return apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/release', {
+        const result = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/floor/tables/release', {
           method: 'POST',
           body: JSON.stringify({ tableLabel, chequeId }),
         });
+        relayFloorEvent(result ?? { tableLabel, isOccupied: false });
+        return result;
       }
       const leaderHost = getLeaderHost(routeCtx);
       if (leaderHost) {
         try {
-          return await lanFetch(leaderHost, '/v1/floor/tables/release', {
+          const result = await lanFetch(leaderHost, '/v1/floor/tables/release', {
             lanPort: routeCtx.lanPort,
             lanSecret: routeCtx.lanSecret,
             method: 'POST',
             body: { tableLabel, chequeId },
           });
+          relayFloorEvent(result ?? { tableLabel, isOccupied: false });
+          return result;
         } catch (err) {
           return reply.status(err.statusCode ?? 503).send({ error: err.message });
         }
@@ -94,11 +118,14 @@ export function registerFloorRoutes(app, routeCtx) {
   app.get('/v1/floor/tables', async () => listFloorLocks(db));
 
   app.post('/v1/floor/tables/occupy', async (request, reply) => {
-    const { tableLabel, chequeId, venueId } = request.body ?? {};
-    if (!tableLabel) return reply.status(400).send({ error: 'tableLabel required' });
+    const { tableLabel, floorTableId, chequeId, venueId } = request.body ?? {};
+    if (!tableLabel && !floorTableId) {
+      return reply.status(400).send({ error: 'tableLabel or floorTableId required' });
+    }
     try {
       return occupyFloorLock(db, {
         tableLabel,
+        floorTableId,
         chequeId,
         terminalId: request.body?.terminalId ?? terminalId,
         venueId,

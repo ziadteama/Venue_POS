@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { io } from 'socket.io-client';
+import { apiFetch } from './api-fetch.js';
 import { syncMenuFromServer } from './menu-sync.js';
 import { syncVenueConfigFromServer } from './venue-config-sync.js';
 import { isCloudOnline } from './cloud-health.js';
-import { setAgentMeta } from './terminal-cache.js';
+import { publishAgentEvent } from './agent-events.js';
+import { patchFeaturesTables, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
 
 function enqueueMenuPublish(db, payload) {
   const id = randomUUID();
@@ -43,12 +45,29 @@ export function connectTerminalSocket({
     transports: ['websocket'],
   });
 
+  async function refreshHubTablesFromCloud() {
+    try {
+      const data = await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/features');
+      saveFeaturesCache(db, venueId, data);
+      if (Array.isArray(data?.tables)) {
+        publishAgentEvent('hub:tables_updated', {
+          tables: data.tables,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      log.info({ count: data?.tables?.length ?? 0 }, 'Hub tables synced on cloud connect');
+    } catch (err) {
+      log.warn({ err }, 'Hub tables sync on connect failed');
+    }
+  }
+
   socket.on('connect', () => {
     log.info('Terminal WebSocket connected');
     if (isCloudOnline()) {
       drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log }).catch(
         (err) => log.warn({ err }, 'Menu publish drain on connect failed'),
       );
+      refreshHubTablesFromCloud().catch(() => {});
     }
   });
 
@@ -75,6 +94,24 @@ export function connectTerminalSocket({
       log.warn({ err }, 'Menu refresh after WS event failed');
       enqueueMenuPublish(db, payload);
     }
+  });
+
+  socket.on('hub:tables_updated', (msg) => {
+    const payload = msg?.payload ?? msg;
+    if (!Array.isArray(payload?.tables)) return;
+    patchFeaturesTables(db, venueId, payload.tables);
+    publishAgentEvent('hub:tables_updated', {
+      tables: payload.tables,
+      updatedAt: payload.updatedAt ?? new Date().toISOString(),
+    });
+    log.info({ count: payload.tables.length }, 'Hub table list refreshed from WebSocket');
+  });
+
+  socket.on('floor:table_updated', (msg) => {
+    const payload = msg?.payload ?? msg;
+    if (!payload?.tableLabel) return;
+    publishAgentEvent('floor:table_updated', payload);
+    log.debug({ table: payload.tableLabel }, 'Floor table update relayed to POS');
   });
 
   socket.on('venue:config_updated', async (msg) => {

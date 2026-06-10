@@ -25,6 +25,7 @@ export function initSchema(db) {
       cashier_id TEXT NOT NULL,
       terminal_id TEXT,
       table_label TEXT NOT NULL,
+      floor_table_id TEXT,
       cheque_number INTEGER,
       status TEXT NOT NULL DEFAULT 'open',
       discount_amount REAL NOT NULL DEFAULT 0,
@@ -45,6 +46,7 @@ export function initSchema(db) {
       terminal_id TEXT,
       order_number INTEGER,
       table_label TEXT,
+      floor_table_id TEXT,
       status TEXT NOT NULL DEFAULT 'draft',
       opened_at TEXT NOT NULL,
       synced_at TEXT,
@@ -52,6 +54,7 @@ export function initSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS floor_locks (
       table_label TEXT PRIMARY KEY,
+      floor_table_id TEXT,
       cheque_id TEXT,
       terminal_id TEXT,
       venue_id TEXT,
@@ -120,6 +123,21 @@ export function initSchema(db) {
   }
   try {
     db.exec(`ALTER TABLE order_items ADD COLUMN billing_cheque_id TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    db.exec(`ALTER TABLE cheques ADD COLUMN floor_table_id TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    db.exec(`ALTER TABLE orders ADD COLUMN floor_table_id TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    db.exec(`ALTER TABLE floor_locks ADD COLUMN floor_table_id TEXT`);
   } catch {
     /* column exists */
   }

@@ -4,6 +4,7 @@ import { saveStaffCache, saveFeaturesCache, setAgentMeta } from './terminal-cach
 import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount, setSyncDrainProgress, clearSyncDrainProgress } from './sync-processor.js';
 import { hydrateOpenCheques } from './cheque-hydration.js';
 import { reconcileLocalChequePrices } from './menu-reconcile.js';
+import { publishAgentEvent } from './agent-events.js';
 import { drainMenuPublishQueue } from './ws-client.js';
 
 export async function runReconnectHandshake({
@@ -29,7 +30,15 @@ export async function runReconnectHandshake({
   });
 
   if (handshake.staff?.length) saveStaffCache(db, handshake.staff);
-  if (handshake.features) saveFeaturesCache(db, venueId, handshake.features);
+  if (handshake.features) {
+    saveFeaturesCache(db, venueId, handshake.features);
+    if (Array.isArray(handshake.features.tables)) {
+      publishAgentEvent('hub:tables_updated', {
+        tables: handshake.features.tables,
+        updatedAt: handshake.serverTime ?? new Date().toISOString(),
+      });
+    }
+  }
   if (handshake.terminal?.name) {
     setAgentMeta(db, 'hub_device_label', handshake.terminal.name);
   }

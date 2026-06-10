@@ -229,16 +229,21 @@ model SyncEvent {
   @@map("sync_events")
 }
 
-/// Hub-wide physical table occupancy (WAN up — Slice D).
+/// Hub-wide physical table master + occupancy (one table, all venues).
 model FloorTable {
-  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tableLabel         String   @unique @map("table_label") @db.VarChar(50)
-  venueId            String?  @map("venue_id") @db.Uuid
-  occupiedByChequeId String?  @map("occupied_by_cheque_id") @db.Uuid
-  lockedByTerminalId String?  @map("locked_by_terminal_id") @db.Uuid
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tableLabel                String   @unique @map("table_label") @db.VarChar(50)
+  sortOrder                 Int      @default(0) @map("sort_order")
+  isActive                  Boolean  @default(true) @map("is_active")
+  venueId                   String?  @map("venue_id") @db.Uuid
+  occupiedByChequeId        String?  @map("occupied_by_cheque_id") @db.Uuid
+  occupiedCrossVenueGroupId String?  @map("occupied_cross_venue_group_id") @db.Uuid
+  lockedByTerminalId        String?  @map("locked_by_terminal_id") @db.Uuid
+  updatedAt                 DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  venue Venue? @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  venue   Venue?   @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  cheques Cheque[]
+  orders  Order[]
 
   @@index([venueId], map: "idx_floor_tables_venue")
   @@map("floor_tables")
@@ -370,6 +375,7 @@ model Order {
   orderNumber  Int         @map("order_number")
   businessDate DateTime    @map("business_date") @db.Date
   tableLabel   String?     @map("table_label") @db.VarChar(50)
+  floorTableId String?     @map("floor_table_id") @db.Uuid
   status       OrderStatus @default(draft)
   sentAt       DateTime?   @map("sent_at") @db.Timestamptz(6)
   openedAt     DateTime    @default(now()) @map("opened_at") @db.Timestamptz(6)
@@ -380,6 +386,7 @@ model Order {
   venue      Venue           @relation(fields: [venueId], references: [id])
   terminal   Terminal?       @relation(fields: [terminalId], references: [id])
   cashier    User            @relation(fields: [cashierId], references: [id])
+  floorTable FloorTable?     @relation(fields: [floorTableId], references: [id], onDelete: SetNull)
   items      OrderItem[]
   voidAudit  OrderVoidAudit?
   chequeLink ChequeOrder?
@@ -388,6 +395,7 @@ model Order {
   @@index([venueId], map: "idx_orders_venue")
   @@index([venueId, businessDate], map: "idx_orders_venue_business_date")
   @@index([status], map: "idx_orders_status")
+  @@index([floorTableId], map: "idx_orders_floor_table")
   @@map("orders")
 }
 
@@ -467,6 +475,7 @@ model Cheque {
   chequeNumber      Int          @map("cheque_number")  
   businessDate      DateTime     @map("business_date") @db.Date
   tableLabel        String       @map("table_label") @db.VarChar(50)
+  floorTableId      String?      @map("floor_table_id") @db.Uuid
   splitLabel        String?      @map("split_label") @db.VarChar(50)
   splitAmount       Decimal?     @map("split_amount") @db.Decimal(10, 2)
   discountAmount    Decimal      @default(0) @map("discount_amount") @db.Decimal(10, 2)
@@ -482,6 +491,7 @@ model Cheque {
   venue             Venue                     @relation(fields: [venueId], references: [id])
   terminal          Terminal?                 @relation(fields: [terminalId], references: [id])
   cashier           User                      @relation("ChequeCashier", fields: [cashierId], references: [id])
+  floorTable        FloorTable?               @relation(fields: [floorTableId], references: [id], onDelete: SetNull)
   orders            ChequeOrder[]
   payments          Payment[]
   compAudits        OrderItemCompAudit[]
@@ -500,6 +510,7 @@ model Cheque {
   @@index([venueId, tableLabel], map: "idx_cheques_venue_table")
   @@index([parentChequeId], map: "idx_cheques_parent")
   @@index([crossVenueGroupId], map: "idx_cheques_cross_group")
+  @@index([floorTableId, status], map: "idx_cheques_floor_table_status")
   @@map("cheques")
 }
 

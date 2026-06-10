@@ -318,24 +318,27 @@ export async function repairStaleSplitCheques(venueId) {
   return repaired;
 }
 
-/** Clear floor locks that point at missing or closed cheques. */
-export async function releaseStaleFloorLocks(venueId) {
+/** Clear floor locks that point at missing or closed cheques (hub-wide). */
+export async function releaseStaleFloorLocks() {
   const floors = await prisma.floorTable.findMany({
-    where: { venueId, occupiedByChequeId: { not: null } },
+    where: { occupiedByChequeId: { not: null } },
   });
   if (!floors.length) return 0;
 
   let released = 0;
   for (const floor of floors) {
-    const cheque = await prisma.cheque.findUnique({
-      where: { id: floor.occupiedByChequeId },
-      select: { id: true, status: true, venueId: true },
+    const openOnTable = await prisma.cheque.count({
+      where: { floorTableId: floor.id, status: 'open', parentChequeId: null },
     });
-    const stale = !cheque || cheque.status !== 'open' || cheque.venueId !== venueId;
-    if (!stale) continue;
+    if (openOnTable > 0) continue;
     await prisma.floorTable.update({
       where: { id: floor.id },
-      data: { occupiedByChequeId: null, lockedByTerminalId: null },
+      data: {
+        occupiedByChequeId: null,
+        occupiedCrossVenueGroupId: null,
+        lockedByTerminalId: null,
+        venueId: null,
+      },
     });
     released += 1;
   }
@@ -451,7 +454,7 @@ export async function reconcileVenueOpenCheques(venueId, { pruneEmptyParents = f
   await pruneEmptyOrphanDrafts(venueId);
   await pruneEmptyLinkedDraftOrders(venueId);
   await closeOrdersStuckOnPaidCheques(venueId);
-  await releaseStaleFloorLocks(venueId);
+  await releaseStaleFloorLocks();
   await repairStaleSplitCheques(venueId);
   await consolidateDuplicateOpenCheques(venueId);
   if (pruneEmptyParents) {

@@ -137,6 +137,7 @@ export function PosModals({
           openCheques={openCheques}
           currentCheque={cheque}
           currentChequeId={cheque?.id}
+          currentCrossVenueGroupId={cheque?.crossVenueGroupId}
           currentTable={tableLabel}
           floorByLabel={floorByLabel}
           t={t}
@@ -176,6 +177,7 @@ export function PosModals({
         <TransferModal
           cheque={cheque}
           openCheques={openCheques}
+          venueTables={features.tables}
           language={language}
           t={t}
           onCancel={() => setShowTransferModal(false)}
@@ -188,6 +190,7 @@ export function PosModals({
           cheque={cheque}
           openCheques={openCheques}
           venueTables={features.tables}
+          floorByLabel={floorByLabel}
           t={t}
           onCancel={() => setShowMoveTableModal(false)}
           onConfirm={onConfirmMoveTable}

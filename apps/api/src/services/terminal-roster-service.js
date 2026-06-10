@@ -1,8 +1,8 @@
 import { ROLES } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
-import { serializeVenueTableLabels } from '../utils/venue-tables.js';
 import { getEnabledTargets } from './billing-config-service.js';
+import { listHubTableLabels } from './hub-table-service.js';
 import { getPublishedMenuForVenue } from './menu-service.js';
 import { buildVenueLanConfig } from './terminal-lan-service.js';
 
@@ -12,9 +12,11 @@ const OFFLINE_PIN_ROLES = [ROLES.CASHIER, ROLES.VENUE_MANAGER];
 export async function getTerminalRoster(venueId, terminalId = null) {
   const venue = await prisma.venue.findUnique({
     where: { id: venueId },
-    select: { tables: true, type: true, nameEn: true, nameAr: true },
+    select: { type: true, nameEn: true, nameAr: true },
   });
   if (!venue) return null;
+
+  const hubTables = await listHubTableLabels();
 
   const staff = await prisma.user.findMany({
     where: {
@@ -38,7 +40,7 @@ export async function getTerminalRoster(venueId, terminalId = null) {
     discounts: config.featureDiscountsEnabled,
     refunds: config.featureRefundsEnabled,
     autoReceiptPrint: config.featureAutoReceiptPrint,
-    tables: serializeVenueTableLabels(venue.tables),
+    tables: hubTables,
     crossVenueBilling: config.featureCrossVenueBilling && crossVenueTargets.length > 0,
     isAnchor: venue.type === 'anchor',
     crossVenueTargets,

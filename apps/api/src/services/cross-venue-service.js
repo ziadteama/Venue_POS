@@ -86,7 +86,14 @@ async function assertMenuItemForVenue(menuItemId, venueId) {
 
 async function createCrossVenueDraftOrderInTx(
   tx,
-  { venueId, terminalId, cashierId, tableLabel, businessDate = resolveBusinessDate() },
+  {
+    venueId,
+    terminalId,
+    cashierId,
+    tableLabel,
+    floorTableId,
+    businessDate = resolveBusinessDate(),
+  },
 ) {
   const last = await tx.order.findFirst({
     where: { venueId, businessDate },
@@ -102,6 +109,7 @@ async function createCrossVenueDraftOrderInTx(
       orderNumber,
       businessDate,
       tableLabel: tableLabel ?? null,
+      floorTableId: floorTableId ?? null,
       status: 'draft',
     },
   });
@@ -608,7 +616,9 @@ export async function ensureVenueChequeInGroup({
   const existing = members.find((m) => m.venueId === targetVenueId && m.status === 'open');
   if (existing) return existing;
 
-  const label = tableLabel ?? members[0]?.tableLabel ?? null;
+  const anchor = members.find((m) => m.floorTableId) ?? members[0];
+  const label = tableLabel ?? anchor?.tableLabel ?? null;
+  const floorTableId = anchor?.floorTableId ?? null;
 
   const anchorBusinessDate = members[0]?.businessDate ?? resolveBusinessDate();
   const sharedChequeNumber = members[0]?.chequeNumber;
@@ -622,6 +632,7 @@ export async function ensureVenueChequeInGroup({
         chequeNumber,
         businessDate: anchorBusinessDate,
         tableLabel: label,
+        floorTableId,
         status: 'open',
         crossVenueGroupId: groupId,
         isCrossVenue: true,
@@ -632,6 +643,7 @@ export async function ensureVenueChequeInGroup({
       terminalId: anchorTerminalId,
       cashierId,
       tableLabel: label,
+      floorTableId,
       businessDate: anchorBusinessDate,
     });
     await tx.chequeOrder.create({ data: { chequeId: created.id, orderId: order.id } });

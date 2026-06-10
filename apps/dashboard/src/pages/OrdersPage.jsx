@@ -120,7 +120,7 @@ export function OrdersPage() {
   const deepShiftId = searchParams.get('shiftId');
   const deepVenueId = searchParams.get('venueId');
   const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState(user?.venueId ?? '');
+  const [venueId, setVenueId] = useState(deepVenueId || user?.venueId || '');
   const [filters, setFilters] = useState(emptyFilters);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
@@ -158,8 +158,9 @@ export function OrdersPage() {
     if (filters.to) params.set('to', filters.to);
     if (filters.minAmount.trim()) params.set('minAmount', filters.minAmount.trim());
     if (filters.maxAmount.trim()) params.set('maxAmount', filters.maxAmount.trim());
+    if (deepChequeId) params.set('chequeId', deepChequeId);
     return params.toString();
-  }, [page, filters, venueId, canPickVenue, user?.venueId]);
+  }, [page, filters, venueId, canPickVenue, user?.venueId, deepChequeId]);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -183,10 +184,19 @@ export function OrdersPage() {
   }, [loadList]);
 
   useEffect(() => {
-    if (deepChequeId && result) {
-      setSelectedKey(deepChequeId);
+    if (deepVenueId && canPickVenue) {
+      setVenueId(deepVenueId);
     }
-  }, [deepChequeId, result]);
+  }, [deepVenueId, canPickVenue]);
+
+  useEffect(() => {
+    if (!deepChequeId) return;
+    setSelectedKey(deepChequeId);
+    setFilters((prev) => {
+      if (!prev.tableLabel && !prev.chequeNumber) return prev;
+      return { ...prev, tableLabel: '', chequeNumber: '' };
+    });
+  }, [deepChequeId]);
 
   useEffect(() => {
     if (!deepShiftId || !result?.shifts?.length) return;
@@ -584,12 +594,17 @@ export function OrdersPage() {
         />
       ) : null}
 
-      {loading && !result ? (
+      {loading && !result && !deepChequeId ? (
         <TableSkeleton rows={8} cols={5} />
-      ) : result?.shifts?.length ? (
+      ) : result?.shifts?.length || deepChequeId ? (
         <div className="grid gap-4 xl:grid-cols-[1fr_min(22rem,38%)]">
           <div className="min-w-0 space-y-5">
-            {result.shifts.map((shift) => (
+            {result?.shifts?.length ? null : deepChequeId ? (
+              <div className="surface-card px-5 py-4 text-sm text-slate-600">
+                {t('orders.chequeNotInListHint')}
+              </div>
+            ) : null}
+            {(result?.shifts ?? []).map((shift) => (
               <section
                 key={shift.shiftId ?? 'unassigned'}
                 id={shift.shiftId ? `shift-${shift.shiftId}` : undefined}
@@ -647,35 +662,37 @@ export function OrdersPage() {
               </section>
             ))}
 
-            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
-              <span className="text-slate-500">
-                {t('orders.pageInfoShifts', {
-                  page: result.page,
-                  totalPages: result.totalPages,
-                  total: result.total,
-                  cheques: result.totalCheques,
-                  orders: result.totalOrders,
-                })}
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  {t('orders.prev')}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={page >= result.totalPages}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  {t('orders.next')}
-                </Button>
+            {result?.shifts?.length ? (
+              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+                <span className="text-slate-500">
+                  {t('orders.pageInfoShifts', {
+                    page: result.page,
+                    totalPages: result.totalPages,
+                    total: result.total,
+                    cheques: result.totalCheques,
+                    orders: result.totalOrders,
+                  })}
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    {t('orders.prev')}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= result.totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    {t('orders.next')}
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
 
           <aside className="surface-card p-5 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">

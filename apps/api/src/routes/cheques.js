@@ -172,9 +172,11 @@ export async function chequeRoutes(app) {
     );
 
     await occupyFloorTable({
-      tableLabel: parsed.data.tableLabel,
+      tableLabel: result.tableLabel ?? parsed.data.tableLabel,
+      floorTableId: result.floorTableId,
       venueId: request.terminal.venueId,
       chequeId: result.id,
+      crossVenueGroupId: result.crossVenueGroupId,
       terminalId: request.terminal.id,
       io: request.server.io,
     });

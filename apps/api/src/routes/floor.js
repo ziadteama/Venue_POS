@@ -8,10 +8,12 @@ import {
 } from '../services/floor-table-service.js';
 
 const occupySchema = z.object({
-  tableLabel: z.string().min(1).max(50),
+  tableLabel: z.string().min(1).max(50).optional(),
+  floorTableId: z.string().uuid().optional(),
   chequeId: z.string().uuid().optional(),
+  crossVenueGroupId: z.string().uuid().optional(),
   venueId: z.string().uuid().optional(),
-});
+}).refine((d) => d.tableLabel || d.floorTableId, { message: 'tableLabel or floorTableId required' });
 
 export async function floorRoutes(app) {
   app.get('/api/v1/floor/tables', { preHandler: authenticateTerminal }, async () => {

@@ -168,6 +168,12 @@ contextBridge.exposeInMainWorld('venuePos', {
     socket.on('floor:table_updated', listener);
     return () => socket.off('floor:table_updated', listener);
   },
+  onHubTablesUpdated(handler) {
+    const socket = ensurePosSocket();
+    const listener = (msg) => handler(msg?.payload ?? msg);
+    socket.on('hub:tables_updated', listener);
+    return () => socket.off('hub:tables_updated', listener);
+  },
   onManagerNotification(handler) {
     const socket = ensurePosSocket();
     const listener = (msg) => handler(msg?.payload ?? msg);

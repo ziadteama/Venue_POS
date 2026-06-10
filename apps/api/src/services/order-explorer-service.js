@@ -1,5 +1,6 @@
 import { prisma } from '../db/prisma.js';
 import { ORDER_STATUSES } from '@venue-pos/shared';
+import { findHubTableByLabel } from './hub-table-service.js';
 import { notFound, validationError } from '../utils/errors.js';
 import { serializeOrder, decimalToNumber } from '../utils/serialize.js';
 import { filterOrderForCheque } from './cheque-shared.js';
@@ -65,7 +66,7 @@ function serializeListRow(order) {
     venueNameEn: order.venue.nameEn,
     venueNameAr: order.venue.nameAr,
     orderNumber: order.orderNumber,
-    tableLabel: order.tableLabel,
+    tableLabel: cheque?.tableLabel ?? order.tableLabel,
     status: order.status,
     cashierId: order.cashierId,
     cashierUsername: order.cashier.username,
@@ -130,10 +131,45 @@ function buildChequeLinkFilter(chequeNumber, venueId) {
   return { cheque: chequeFilter };
 }
 
-function buildWhere(filters) {
+async function buildTableLabelWhere(tableLabel) {
+  const trimmed = tableLabel?.trim();
+  if (!trimmed) return null;
+  const hubTable = await findHubTableByLabel(trimmed);
+  if (hubTable) {
+    return {
+      OR: [
+        { floorTableId: hubTable.id },
+        { tableLabel: { contains: hubTable.tableLabel, mode: 'insensitive' } },
+        {
+          chequeLink: {
+            cheque: {
+              OR: [
+                { floorTableId: hubTable.id },
+                { tableLabel: { contains: hubTable.tableLabel, mode: 'insensitive' } },
+              ],
+            },
+          },
+        },
+      ],
+    };
+  }
+  return {
+    OR: [
+      { tableLabel: { contains: trimmed, mode: 'insensitive' } },
+      { chequeLink: { cheque: { tableLabel: { contains: trimmed, mode: 'insensitive' } } } },
+    ],
+  };
+}
+
+async function buildWhere(filters) {
   const where = {};
 
   if (filters.venueId) where.venueId = filters.venueId;
+
+  if (filters.chequeId?.trim()) {
+    where.chequeLink = { chequeId: filters.chequeId.trim() };
+    return where;
+  }
 
   if (filters.orderNumber != null) {
     const num = Number(filters.orderNumber);
@@ -148,7 +184,10 @@ function buildWhere(filters) {
   }
 
   if (filters.tableLabel?.trim()) {
-    where.tableLabel = { contains: filters.tableLabel.trim(), mode: 'insensitive' };
+    const tableWhere = await buildTableLabelWhere(filters.tableLabel);
+    if (tableWhere) {
+      where.AND = [...(where.AND ?? []), tableWhere];
+    }
   }
 
   if (filters.status) {
@@ -255,7 +294,7 @@ export async function searchOrders(filters = {}) {
 
   const page = Math.max(1, Number(filters.page ?? 1));
   const limit = Math.min(PAGE_SIZE, Math.max(1, Number(filters.limit ?? PAGE_SIZE)));
-  const where = appendNonEmptyDraftFilter(buildWhere(filters));
+  const where = appendNonEmptyDraftFilter(await buildWhere(filters));
 
   const minAmount = filters.minAmount != null ? Number(filters.minAmount) : null;
   const maxAmount = filters.maxAmount != null ? Number(filters.maxAmount) : null;
@@ -349,7 +388,7 @@ function groupOrdersIntoCheques(orderRecords) {
 }
 
 async function fetchMatchingOrders(filters) {
-  const where = appendNonEmptyDraftFilter(buildWhere(filters));
+  const where = appendNonEmptyDraftFilter(await buildWhere(filters));
   const minAmount = filters.minAmount != null ? Number(filters.minAmount) : null;
   const maxAmount = filters.maxAmount != null ? Number(filters.maxAmount) : null;
   const hasAmountFilter = minAmount != null || maxAmount != null;

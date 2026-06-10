@@ -210,6 +210,7 @@ export function serializeCheque(cheque) {
     chequeNumber: cheque.chequeNumber,
     businessDate: cheque.businessDate,
     tableLabel: cheque.tableLabel,
+    floorTableId: cheque.floorTableId ?? null,
     splitLabel: cheque.splitLabel ?? null,
     splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
     discountAmount,
@@ -297,7 +298,10 @@ export async function linkDraftOrder(chequeId, orderId) {
   await prisma.chequeOrder.create({ data: { chequeId, orderId } });
 }
 
-export async function ensureDraftOrder(cheque, { venueId, terminalId, cashierId }) {
+export async function ensureDraftOrder(
+  cheque,
+  { venueId, terminalId, cashierId, tableLabel, floorTableId } = {},
+) {
   const draft = findDraftOrder(cheque);
   if (draft) return draft;
 
@@ -305,7 +309,8 @@ export async function ensureDraftOrder(cheque, { venueId, terminalId, cashierId 
     venueId,
     terminalId,
     cashierId,
-    tableLabel: cheque.tableLabel,
+    tableLabel: tableLabel ?? cheque.tableLabel,
+    floorTableId: floorTableId ?? cheque.floorTableId ?? null,
     businessDate: cheque.businessDate,
     skipValidation: true,
   });

@@ -5,6 +5,7 @@ import {
   parseVenueTables,
   serializeVenueTableLabels,
 } from '../utils/venue-tables.js';
+import { listHubTableLabels, resolveHubTable } from './hub-table-service.js';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
 const VENUE_TYPES = ['standard', 'anchor'];
@@ -53,19 +54,8 @@ export function serializeTerminalVenueSettings(venue) {
   };
 }
 
-export async function assertTableAssigned(venueId, tableLabel) {
-  const trimmed = tableLabel?.trim();
-  if (!trimmed) throw validationError('Table label is required');
-
-  const venue = await prisma.venue.findUnique({
-    where: { id: venueId },
-    select: { tables: true },
-  });
-  const assigned = serializeVenueTableLabels(venue?.tables);
-  if (assigned.length === 0) return;
-
-  const ok = assigned.some((label) => label.toLowerCase() === trimmed.toLowerCase());
-  if (!ok) throw validationError('Table is not assigned for this venue');
+export async function assertTableAssigned(_venueId, tableLabel) {
+  await resolveHubTable(tableLabel);
 }
 
 export async function getVenueConfig(venueId) {
@@ -77,7 +67,9 @@ export async function getVenueConfig(venueId) {
 export async function getTerminalVenueSettings(venueId) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   if (!venue?.isActive) throw notFound('Venue not found');
-  return serializeTerminalVenueSettings(venue);
+  const settings = serializeTerminalVenueSettings(venue);
+  settings.tables = await listHubTableLabels();
+  return settings;
 }
 
 function buildUpdateData(body) {

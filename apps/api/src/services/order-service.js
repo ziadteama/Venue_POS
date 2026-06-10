@@ -36,6 +36,7 @@ export async function createOrder({
   terminalId,
   cashierId,
   tableLabel,
+  floorTableId,
   businessDate = resolveBusinessDate(),
   skipValidation = false,
 }) {
@@ -70,6 +71,7 @@ export async function createOrder({
         orderNumber,
         businessDate,
         tableLabel,
+        floorTableId: floorTableId ?? null,
         status: 'draft',
       },
       include: orderInclude,

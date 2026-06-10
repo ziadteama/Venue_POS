@@ -12,6 +12,7 @@ import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
 import { registerFloorRoutes } from './routes/floor.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerPeerRoutes, registerRelayRoutes } from './routes/peer.js';
+import { registerEventRoutes } from './routes/events.js';
 
 export async function buildAgentApp({ db, config, logger = false }) {
   const app = Fastify({
@@ -62,6 +63,7 @@ export async function buildAgentApp({ db, config, logger = false }) {
   };
 
   registerHealthRoutes(app, { ...routeCtx, clusterManager });
+  registerEventRoutes(app, { corsOrigins });
   registerAuthRoutes(app, routeCtx);
   registerFloorRoutes(app, routeCtx);
   registerMenuRoutes(app, routeCtx);
