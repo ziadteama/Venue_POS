@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ORDER_STATUSES, isHubStaff } from '@venue-pos/shared';
+import { ORDER_STATUSES, isHubManager, isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { CrossVenueBadge, CrossVenueGroupPanel } from '../components/CrossVenueBadge.jsx';
+import { ChequeActionModals } from '../components/cheques/ChequeActionModals.jsx';
+import { OpsBreadcrumb } from '../components/dashboard/OpsBreadcrumb.jsx';
+import { managerActionMethod, managerActionPath } from '../utils/chequeActions.js';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { FilterBar, SearchInput } from '../components/ui/FilterBar.jsx';
 import { Field, Input, Select } from '../components/ui/Field.jsx';
@@ -124,9 +127,12 @@ export function OrdersPage() {
   const [receipt, setReceipt] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [actionTarget, setActionTarget] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const canPickVenue = isHubStaff(user?.role);
+  const canManageOrders = isHubManager(user?.role);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -249,7 +255,45 @@ export function OrdersPage() {
     setReceipt(data.text);
   }
 
+  async function reloadDetail() {
+    if (!selectedKey) return;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
+    const venueQuery = scopedVenue ? `?venueId=${scopedVenue}` : '';
+    if (selectedKey.startsWith('orphan:')) {
+      const orderId = selectedKey.replace('orphan:', '');
+      setDetail(await apiFetch(`/api/v1/manager/orders/${orderId}${venueQuery}`));
+      return;
+    }
+    setDetail(await apiFetch(`/api/v1/manager/orders/by-cheque/${selectedKey}${venueQuery}`));
+  }
+
+  async function runOrderAction(body) {
+    const target = actionTarget;
+    const path = managerActionPath(target);
+    if (!path) return;
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
+    setActionBusy(true);
+    setError('');
+    try {
+      const q = scopedVenue ? `?venueId=${scopedVenue}` : '';
+      await apiFetch(`${path}${q}`, {
+        method: managerActionMethod(target),
+        body: JSON.stringify(body),
+      });
+      setActionTarget(null);
+      await reloadDetail();
+      await loadList();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
   const chequeOrders = detail?.chequeOrders ?? (detail?.items ? [detail] : []);
+  const chequeStatus = detail?.cheque?.status;
+  const showOrderActions =
+    canManageOrders && (chequeStatus === 'open' || chequeStatus === 'paid');
 
   const chequeColumns = [
     {
@@ -425,6 +469,23 @@ export function OrdersPage() {
         </div>
       ) : null}
 
+      <ChequeActionModals
+        actionTarget={actionTarget}
+        discountForm={{
+          mode: 'amount',
+          amount: '',
+          percent: '',
+          setMode: () => {},
+          setAmount: () => {},
+          setPercent: () => {},
+        }}
+        onClose={() => setActionTarget(null)}
+        onSubmit={runOrderAction}
+        t={t}
+        error={error}
+        busy={actionBusy}
+      />
+
       {loading && !result ? (
         <TableSkeleton rows={8} cols={5} />
       ) : result?.shifts?.length ? (
@@ -533,18 +594,18 @@ export function OrdersPage() {
         footer={
           detail?.cheque?.id ? (
             <div className="flex flex-wrap gap-2">
-              <Link
-                to={`/cheques?chequeId=${detail.cheque.id}&venueId=${detail.venueId ?? venueId}`}
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {t('orders.openInCheques')}
-              </Link>
               <Button
                 variant="secondary"
                 onClick={() => reprintCheque().catch((e) => setError(friendlyError(e)))}
               >
                 {t('orders.reprintCheque')}
               </Button>
+              <Link
+                to={`/cheques?chequeId=${detail.cheque.id}&venueId=${detail.venueId ?? venueId}`}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {t('orders.chequeActions')} →
+              </Link>
             </div>
           ) : null
         }
@@ -553,6 +614,18 @@ export function OrdersPage() {
           <p className="text-sm text-slate-500">{t('common.loading')}</p>
         ) : (
           <div className="space-y-4 text-sm">
+            {detail.cheque?.id ? (
+              <OpsBreadcrumb
+                items={[
+                  { label: t('nav.cheques'), to: '/cheques' },
+                  {
+                    label: t('cheque.number', { number: detail.cheque.chequeNumber }),
+                    to: `/cheques?chequeId=${detail.cheque.id}&venueId=${detail.venueId ?? venueId}`,
+                  },
+                  { label: t('nav.orders') },
+                ]}
+              />
+            ) : null}
             {detail.cheque?.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
 
             {detail.voidAudit ? (
@@ -648,13 +721,63 @@ export function OrdersPage() {
                       </p>
                     ) : null}
                     <OrderLineItems items={chequeOrder.items} t={t} i18n={i18n} locale={locale} />
-                    <button
-                      type="button"
-                      onClick={() => reprintOrder(chequeOrder.id).catch((e) => setError(friendlyError(e)))}
-                      className="mt-2 text-xs font-medium text-accent-600 hover:text-accent-700 hover:underline"
-                    >
-                      {t('orders.reprintOrder')}
-                    </button>
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          reprintOrder(chequeOrder.id).catch((e) => setError(friendlyError(e)))
+                        }
+                        className="text-xs font-medium text-accent-600 hover:text-accent-700 hover:underline"
+                      >
+                        {t('orders.reprintOrder')}
+                      </button>
+                      {showOrderActions &&
+                      chequeOrder.status !== 'voided' &&
+                      chequeOrder.items?.length > 0 ? (
+                        <>
+                          {chequeOrder.items.map((item) =>
+                            !item.isComped ? (
+                              <button
+                                key={item.id}
+                                type="button"
+                                disabled={actionBusy}
+                                onClick={() =>
+                                  setActionTarget({
+                                    type: 'comp',
+                                    chequeId: detail.cheque.id,
+                                    orderId: chequeOrder.id,
+                                    itemId: item.id,
+                                    itemName:
+                                      i18n.language === 'ar' ? item.nameAr : item.nameEn,
+                                  })
+                                }
+                                className="text-xs font-medium text-amber-700 hover:text-amber-800 disabled:opacity-50"
+                              >
+                                {t('orders.compItem', {
+                                  name:
+                                    i18n.language === 'ar' ? item.nameAr : item.nameEn,
+                                })}
+                              </button>
+                            ) : null,
+                          )}
+                          <button
+                            type="button"
+                            disabled={actionBusy}
+                            onClick={() =>
+                              setActionTarget({
+                                type: 'round',
+                                chequeId: detail.cheque.id,
+                                orderId: chequeOrder.id,
+                                orderNumber: chequeOrder.orderNumber,
+                              })
+                            }
+                            className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                          >
+                            {t('orders.voidRound')}
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>

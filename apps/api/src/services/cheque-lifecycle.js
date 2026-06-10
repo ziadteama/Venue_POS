@@ -134,7 +134,43 @@ export async function listOpenCheques(venueId) {
   );
 }
 
-export async function listChequesForVenue(venueId, { status = 'open', limit = 50, q } = {}) {
+async function chequeIdsForShift(shiftId, venueId, status) {
+  const shift = await prisma.shift.findFirst({
+    where: { id: shiftId, venueId },
+    select: { id: true, cashierId: true, terminalId: true, openedAt: true, closedAt: true },
+  });
+  if (!shift) return [];
+
+  const ids = new Set();
+
+  const paymentRows = await prisma.payment.findMany({
+    where: { shiftId, cheque: { venueId, status } },
+    select: { chequeId: true },
+    distinct: ['chequeId'],
+  });
+  for (const row of paymentRows) ids.add(row.chequeId);
+
+  if (status === 'open') {
+    const openRows = await prisma.cheque.findMany({
+      where: {
+        venueId,
+        status: 'open',
+        cashierId: shift.cashierId,
+        ...(shift.terminalId ? { terminalId: shift.terminalId } : {}),
+        openedAt: {
+          gte: shift.openedAt,
+          ...(shift.closedAt ? { lte: shift.closedAt } : {}),
+        },
+      },
+      select: { id: true },
+    });
+    for (const row of openRows) ids.add(row.id);
+  }
+
+  return [...ids];
+}
+
+export async function listChequesForVenue(venueId, { status = 'open', limit = 50, q, shiftId } = {}) {
   const where = { venueId, status };
   const trimmed = q?.trim();
   if (trimmed) {
@@ -147,6 +183,12 @@ export async function listChequesForVenue(venueId, { status = 'open', limit = 50
     } else {
       where.tableLabel = { contains: trimmed, mode: 'insensitive' };
     }
+  }
+
+  if (shiftId) {
+    const shiftChequeIds = await chequeIdsForShift(shiftId, venueId, status);
+    if (!shiftChequeIds.length) return [];
+    where.id = { in: shiftChequeIds };
   }
 
   const cheques = await prisma.cheque.findMany({
