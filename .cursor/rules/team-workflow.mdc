@@ -12,7 +12,8 @@ alwaysApply: true
 
 ## While coding
 - Smallest vertical slice: Prisma schema → migrate → service → route → test → UI
-- Shared constants/errors → `packages/shared`
+- **Till/write paths:** follow `.cursor/skills/offline-sync/SKILL.md` — local SQLite + `enqueueSync` + API replay (not API-only)
+- Shared constants/errors → `packages/shared` (sync event types → `packages/shared/src/sync.js`)
 - New UI strings → `packages/i18n/locales/en.json` + `ar.json` (run `npm run lint:i18n`)
 
 ## Commits
@@ -35,7 +36,9 @@ Append to `docs/TEAM_LOG.md`:
 
 ## PR checklist
 - [ ] Prisma migration included if schema changed
+- [ ] Offline sync considered for till-facing changes (local-agent + sync replay tests)
 - [ ] `npm run lint` + `npm run lint:i18n` pass
 - [ ] API tests pass (`npm run test -w @venue-pos/api`)
+- [ ] Agent tests pass (`npm run test -w @venue-pos/local-agent`) if agent/sync touched
 - [ ] `.env.example` updated if new env vars
 - [ ] `TEAM_LOG.md` entry added

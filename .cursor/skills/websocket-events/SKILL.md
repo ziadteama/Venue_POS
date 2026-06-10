@@ -22,3 +22,10 @@ Stack: Socket.IO 4. JWT on connect. Terminals: `X-Terminal-ID` + `X-Terminal-Sec
 - Validate JWT role before joining rooms
 - Venue-scoped broadcasts only
 - POS offline banner when WS disconnected
+
+## Offline interaction
+
+- `menu:updated` while offline → queued in `menu_publish_queue`; `menu_stale` set; drained on reconnect (`ws-client.js`)
+- `venue:config_updated` → sync when online; cached offline
+- Floor table updates: WebSocket when WAN up; LAN coordinator when WAN down (see `offline-sync` skill)
+- Do not assume WS delivery for till correctness — local-agent SQLite + sync_queue is source of truth until replay succeeds

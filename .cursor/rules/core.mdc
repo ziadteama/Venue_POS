@@ -15,7 +15,8 @@ alwaysApply: true
 Node 20 · Fastify · Prisma 6 · PostgreSQL 16 · React 18 · Vite 5 · Electron 30 · Socket.IO 4 · Tailwind 3 · Zod · JWT RS256
 
 ## Hard rules
-- POS → local-agent IPC only; offline-first sync
+- POS → local-agent IPC only; offline-first sync (see `.cursor/skills/offline-sync/SKILL.md` for any new write path)
+- Till writes: local SQLite + `sync_queue` + idempotent replay — not API-only
 - Menu read-only on POS; Prisma for server DB
 - Bilingual via `@venue-pos/i18n` + `nameEn`/`nameAr` in schema
 - Update `docs/TEAM_LOG.md` after every feature
