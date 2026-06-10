@@ -360,7 +360,7 @@ test('GET /api/v1/manager/shifts/:id returns detail with report', async () => {
   assert.equal(detail.id, first.id);
   assert.ok(detail.report);
   assert.ok(detail.paymentsByMethod);
-  assert.equal(detail.totalRevenue, null);
+  assert.equal(typeof detail.totalRevenue, 'number');
 });
 
 test('GET /api/v1/manager/shifts CSV export is owner account only', async () => {

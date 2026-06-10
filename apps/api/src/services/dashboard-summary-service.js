@@ -554,7 +554,7 @@ export async function buildOperationsDashboard({ venueId } = {}, io) {
     today: {
       date: eodToday.date,
       netRevenue: eodToday.netRevenue,
-      grossRevenue: eodToday.totalRevenue,
+      grossRevenue: eodToday.grossRevenue ?? eodToday.totalRevenue,
       totalRefunds: eodToday.totalRefunds,
       discountTotal: eodToday.discountTotal,
       paymentCount: eodToday.paymentCount,

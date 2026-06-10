@@ -185,6 +185,7 @@ function aggregateShiftRows(rows) {
     openShiftCount: rows.filter((r) => r.status === 'open').length,
     closedShiftCount: rows.filter((r) => r.status === 'closed').length,
     totalRevenue: 0,
+    grossRevenue: 0,
     totalRefunds: 0,
     netRevenue: 0,
     totalOverShort: 0,
@@ -210,9 +211,11 @@ function aggregateShiftRows(rows) {
     }
   }
 
-  totals.netRevenue = Number((totals.totalRevenue - totals.totalRefunds).toFixed(2));
+  // Per-shift totalRevenue is already net (payments − refunds); do not subtract refunds again.
   totals.totalRevenue = Number(totals.totalRevenue.toFixed(2));
   totals.totalRefunds = Number(totals.totalRefunds.toFixed(2));
+  totals.netRevenue = totals.totalRevenue;
+  totals.grossRevenue = Number((totals.totalRevenue + totals.totalRefunds).toFixed(2));
   totals.discountTotal = Number(totals.discountTotal.toFixed(2));
   totals.totalOverShort = Number(totals.totalOverShort.toFixed(2));
   for (const method of ['cash', 'card', 'voucher']) {
