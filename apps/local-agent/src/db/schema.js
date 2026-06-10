@@ -108,4 +108,19 @@ export function initSchema(db) {
   } catch {
     /* column exists */
   }
+  try {
+    db.exec(`ALTER TABLE cheques ADD COLUMN parent_cheque_id TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    db.exec(`ALTER TABLE cheques ADD COLUMN split_label TEXT`);
+  } catch {
+    /* column exists */
+  }
+  try {
+    db.exec(`ALTER TABLE order_items ADD COLUMN billing_cheque_id TEXT`);
+  } catch {
+    /* column exists */
+  }
 }

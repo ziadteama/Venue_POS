@@ -137,6 +137,7 @@ export function getLocalOrder(db, orderId) {
       unitPrice: item.unit_price,
       nameEn: item.name_en,
       nameAr: item.name_ar,
+      billingChequeId: item.billing_cheque_id ?? null,
       modifiersSnapshot: item.modifiers_json ? JSON.parse(item.modifiers_json) : [],
     })),
     subtotal,

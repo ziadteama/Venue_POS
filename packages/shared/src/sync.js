@@ -10,10 +10,15 @@ export const SYNC_EVENT_TYPES = {
   CHEQUE_PAY: 'cheque.pay',
   CHEQUE_DISCOUNT: 'cheque.discount',
   CHEQUE_CLEAR: 'cheque.clear',
+  CHEQUE_VOID: 'cheque.void',
+  CHEQUE_TABLE_MOVE: 'cheque.table_move',
+  CHEQUE_TRANSFER: 'cheque.transfer',
+  CHEQUE_SPLIT: 'cheque.split',
   SHIFT_OPEN: 'shift.open',
   SHIFT_CLOSE: 'shift.close',
   PAYMENT_CREATE: 'payment.create',
   CROSS_VENUE_GROUP_PAY: 'cross_venue.group_pay',
+  CROSS_VENUE_GROUP_REPLAY: 'cross_venue.group_replay',
 };
 
 export const SYNC_QUEUE_STATUS = {

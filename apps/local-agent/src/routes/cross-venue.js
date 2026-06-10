@@ -1,11 +1,19 @@
+import { randomUUID } from 'node:crypto';
 import { ERROR_CODES } from '@venue-pos/shared';
 import { apiFetch, sendApiError } from '../services/api-fetch.js';
 import { isCloudOnline } from '../services/cloud-health.js';
 import {
   getCoordinatorGroup,
-  saveCoordinatorGroup,
+  startCoordinatorGroup,
+  addCoordinatorGroupItem,
+  editCoordinatorGroupItem,
+  removeCoordinatorGroupItem,
+  fireCoordinatorGroup,
+  payCoordinatorGroup,
   newGroupId,
 } from '../services/coordinator-cross-venue.js';
+import { enqueueSync } from '../services/sync-processor.js';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { getLinkedMenuCache } from '../services/linked-menu-sync.js';
 import { proxyToCoordinator } from '../services/coordinator-proxy.js';
 import { printCustomerReceipt } from '../services/kitchen-printer.js';
@@ -159,20 +167,13 @@ export function registerCrossVenueRoutes(app, routeCtx) {
     if (proxied) return proxied;
     if (canCoordinatorOffline() && isCoordinator) {
       const groupId = newGroupId();
-      const group = {
+      return startCoordinatorGroup(db, {
         groupId,
         anchorVenueId: venueId,
-        cheques: [],
-        status: 'open',
-        offline: true,
-      };
-      saveCoordinatorGroup(db, {
-        groupId,
-        anchorChequeId: groupId,
-        anchorVenueId: venueId,
-        groupJson: group,
+        anchorTerminalId: terminalId,
+        cashierId,
+        tableLabel: request.body?.tableLabel,
       });
-      return group;
     }
     try {
       return await apiFetch(apiUrl, terminalId, terminalSecret, '/api/v1/cross-venue/order', {
@@ -205,10 +206,27 @@ export function registerCrossVenueRoutes(app, routeCtx) {
   });
 
   app.post('/v1/cross-venue/order/:groupId/items', async (request, reply) => {
-    const { cashierId, venueId, menuItemId } = request.body ?? {};
+    const { cashierId, venueId, menuItemId, quantity, modifiers } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
     if (!venueId) return reply.status(400).send({ error: 'venueId required' });
     if (!menuItemId) return reply.status(400).send({ error: 'menuItemId required' });
+    const proxied = await maybeProxy(`/v1/cross-venue/order/${request.params.groupId}/items`, {
+      method: 'POST',
+      body: JSON.stringify(request.body),
+    });
+    if (proxied) return proxied;
+    if (canCoordinatorOffline() && isCoordinator) {
+      try {
+        return addCoordinatorGroupItem(db, request.params.groupId, {
+          venueId,
+          menuItemId,
+          quantity,
+          modifiers,
+        });
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
     try {
       return await apiFetch(
         apiUrl,
@@ -218,6 +236,7 @@ export function registerCrossVenueRoutes(app, routeCtx) {
         { method: 'POST', body: JSON.stringify(request.body) },
       );
     } catch (err) {
+      if (canCoordinatorOffline()) return offlineCrossSell(reply);
       return sendApiError(reply, err);
     }
   });
@@ -225,6 +244,22 @@ export function registerCrossVenueRoutes(app, routeCtx) {
   app.patch('/v1/cross-venue/order/:groupId/items/:itemId', async (request, reply) => {
     const venueId = request.query?.venueId;
     if (!venueId) return reply.status(400).send({ error: 'venueId query required' });
+    const proxied = await maybeProxy(
+      `/v1/cross-venue/order/${request.params.groupId}/items/${request.params.itemId}?venueId=${venueId}`,
+      { method: 'PATCH', body: JSON.stringify(request.body) },
+    );
+    if (proxied) return proxied;
+    if (canCoordinatorOffline() && isCoordinator) {
+      try {
+        return editCoordinatorGroupItem(db, request.params.groupId, {
+          venueId,
+          itemId: request.params.itemId,
+          quantity: request.body?.quantity,
+        });
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
     try {
       return await apiFetch(
         apiUrl,
@@ -234,6 +269,7 @@ export function registerCrossVenueRoutes(app, routeCtx) {
         { method: 'PATCH', body: JSON.stringify(request.body) },
       );
     } catch (err) {
+      if (canCoordinatorOffline()) return offlineCrossSell(reply);
       return sendApiError(reply, err);
     }
   });
@@ -241,6 +277,21 @@ export function registerCrossVenueRoutes(app, routeCtx) {
   app.delete('/v1/cross-venue/order/:groupId/items/:itemId', async (request, reply) => {
     const venueId = request.query?.venueId;
     if (!venueId) return reply.status(400).send({ error: 'venueId query required' });
+    const proxied = await maybeProxy(
+      `/v1/cross-venue/order/${request.params.groupId}/items/${request.params.itemId}?venueId=${venueId}`,
+      { method: 'DELETE' },
+    );
+    if (proxied) return proxied;
+    if (canCoordinatorOffline() && isCoordinator) {
+      try {
+        return removeCoordinatorGroupItem(db, request.params.groupId, {
+          venueId,
+          itemId: request.params.itemId,
+        });
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
     try {
       return await apiFetch(
         apiUrl,
@@ -250,13 +301,38 @@ export function registerCrossVenueRoutes(app, routeCtx) {
         { method: 'DELETE' },
       );
     } catch (err) {
+      if (canCoordinatorOffline()) return offlineCrossSell(reply);
       return sendApiError(reply, err);
     }
   });
 
   app.post('/v1/cross-venue/order/:groupId/fire', async (request, reply) => {
-    const { cashierId } = request.body ?? {};
+    const { cashierId, venueId } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const proxied = await maybeProxy(`/v1/cross-venue/order/${request.params.groupId}/fire`, {
+      method: 'POST',
+      body: JSON.stringify(request.body),
+    });
+    if (proxied) return proxied;
+    if (canCoordinatorOffline() && isCoordinator) {
+      try {
+        const result = fireCoordinatorGroup(db, request.params.groupId, { venueId });
+        const printers = getPrinterConfig();
+        for (const sent of result.sentOrders ?? []) {
+          printCustomerReceipt(
+            `KITCHEN ${sent.venueId}\n${sent.items.map((i) => `${i.quantity}x ${i.nameEn}`).join('\n')}`,
+            {
+              host: printers.kitchenPrinterHost,
+              port: printers.kitchenPrinterPort,
+              log: app.log,
+            },
+          ).catch(() => {});
+        }
+        return result;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
     try {
       return await apiFetch(
         apiUrl,
@@ -266,6 +342,7 @@ export function registerCrossVenueRoutes(app, routeCtx) {
         { method: 'POST', body: JSON.stringify(request.body) },
       );
     } catch (err) {
+      if (canCoordinatorOffline()) return offlineCrossSell(reply);
       return sendApiError(reply, err);
     }
   });
@@ -285,8 +362,42 @@ export function registerCrossVenueRoutes(app, routeCtx) {
   });
 
   app.post('/v1/cross-venue/order/:groupId/pay', async (request, reply) => {
-    const { cashierId } = request.body ?? {};
+    const { cashierId, payments, method, tendered, managerPin } = request.body ?? {};
     if (!cashierId) return reply.status(400).send({ error: 'cashierId required' });
+    const syncId = randomUUID();
+    const proxied = await maybeProxy(`/v1/cross-venue/order/${request.params.groupId}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(request.body),
+    });
+    if (proxied) return proxied;
+    if (canCoordinatorOffline() && isCoordinator) {
+      try {
+        const result = payCoordinatorGroup(db, request.params.groupId, {
+          cashierId,
+          payments,
+          method,
+          tendered,
+          managerPin,
+        });
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY,
+          result.replayPayload,
+          syncId,
+        );
+        if (result.receipt && autoReceiptPrint) {
+          const printers = getPrinterConfig();
+          printCustomerReceipt(result.receipt, {
+            host: printers.receiptPrinterHost,
+            port: printers.receiptPrinterPort,
+            log: app.log,
+          }).catch((err) => app.log.warn({ err }, 'Cross-venue receipt print failed'));
+        }
+        return result;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
+    }
     try {
       const result = await apiFetch(
         apiUrl,
@@ -305,6 +416,7 @@ export function registerCrossVenueRoutes(app, routeCtx) {
       }
       return result;
     } catch (err) {
+      if (canCoordinatorOffline()) return offlineCrossSell(reply);
       return sendApiError(reply, err);
     }
   });

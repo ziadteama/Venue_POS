@@ -203,3 +203,61 @@ test('shift open and close replay via sync batch', async () => {
   assert.equal(closedShift?.status, 'closed');
   assert.equal(Number(closedShift?.closeFloat), 200);
 });
+
+test('sync batch handles cheque clear and table move event types', async () => {
+  const clearSyncId = '00000000-0000-4000-8000-000000000093';
+  const moveSyncId = '00000000-0000-4000-8000-000000000094';
+
+  const clearRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: terminalHeaders,
+    payload: {
+      events: [
+        {
+          syncId: clearSyncId,
+          eventType: SYNC_EVENT_TYPES.CHEQUE_CLEAR,
+          payload: { chequeId: '00000000-0000-4000-8000-0000000000ff' },
+        },
+      ],
+    },
+  });
+  assert.equal(clearRes.statusCode, 404);
+
+  const moveRes = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: terminalHeaders,
+    payload: {
+      events: [
+        {
+          syncId: moveSyncId,
+          eventType: SYNC_EVENT_TYPES.CHEQUE_TABLE_MOVE,
+          payload: {
+            chequeId: '00000000-0000-4000-8000-0000000000fe',
+            targetTableLabel: 'T2',
+          },
+        },
+      ],
+    },
+  });
+  assert.equal(moveRes.statusCode, 404);
+});
+
+test('unsupported sync event type still rejected', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: terminalHeaders,
+    payload: {
+      events: [
+        {
+          syncId: '00000000-0000-4000-8000-000000000095',
+          eventType: 'unknown.event',
+          payload: {},
+        },
+      ],
+    },
+  });
+  assert.equal(res.statusCode, 400);
+});

@@ -114,7 +114,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–5 and Phase 4 complete.** **Phase 6 v1.1 shipped** (dynamic LAN cluster, cheque hydration, shift replay, device profile). **Dashboard v2** (executive + operations overview). Floor manager PIN for POS discount/refund + venue-wide refund notifications. Remaining Epic 7 / Slice C: `docs/TEAM_LOG.md` § **Roadmap**. Plan: `docs/PHASE6_OFFLINE_PLAN.md`.
+**Phases 0–5 and Phase 4 complete.** **Phase 6 complete** (full offline ops, cross-sell via coordinator, manager ops replay, test harness). **Dashboard v2** (executive + operations overview). Floor manager PIN for POS discount/refund + venue-wide refund notifications. See `docs/TEAM_LOG.md` § **2026-06-10 Phase 6 sign-off**. Plan: `docs/PHASE6_OFFLINE_PLAN.md`.
 
 ## POS app layout (`apps/pos`)
 

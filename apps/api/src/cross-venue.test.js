@@ -1,6 +1,8 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
+import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
 import { config } from './config.js';
@@ -551,4 +553,73 @@ test('cross-venue proportional split pay records cash and card per venue', async
   assert.equal(Number(methodTotals.cash.toFixed(2)), cashTender);
   assert.equal(Number(methodTotals.card.toFixed(2)), cardTender);
   assert.equal(Number((methodTotals.cash + methodTotals.card).toFixed(2)), combinedTotal);
+});
+
+test('atomic cross-venue group replay via sync creates and pays once', async () => {
+  await ensureAnchorShift();
+  const groupId = randomUUID();
+  const syncId = randomUUID();
+  const tableLabel = `CV-REPLAY-${Date.now()}`;
+
+  const replay = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: anchorHeaders,
+    payload: {
+      events: [
+        {
+          syncId,
+          eventType: SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY,
+          payload: {
+            groupId,
+            anchorVenueId: ANCHOR_VENUE,
+            anchorTerminalId: ANCHOR_TERMINAL,
+            cashierId: ANCHOR_CASHIER,
+            tableLabel,
+            pay: true,
+            method: 'cash',
+            tendered: 500,
+            venues: [
+              {
+                venueId: ANCHOR_VENUE,
+                fired: true,
+                items: [{ menuItemId: anchorMenuItemId, quantity: 1 }],
+              },
+              {
+                venueId: TARGET_VENUE,
+                fired: true,
+                items: [{ menuItemId: targetMenuItemId, quantity: 1 }],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+  assert.equal(replay.statusCode, 200, replay.body);
+
+  const members = await prisma.cheque.findMany({
+    where: { crossVenueGroupId: groupId },
+    include: { payments: true },
+  });
+  assert.equal(members.length, 2);
+  assert.ok(members.every((m) => m.status === 'paid'));
+  assert.ok(members.every((m) => m.payments.length >= 1));
+
+  const duplicate = await app.inject({
+    method: 'POST',
+    url: '/api/v1/sync/events',
+    headers: anchorHeaders,
+    payload: {
+      events: [
+        {
+          syncId,
+          eventType: SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY,
+          payload: { groupId, anchorVenueId: ANCHOR_VENUE, cashierId: ANCHOR_CASHIER, tableLabel },
+        },
+      ],
+    },
+  });
+  assert.equal(duplicate.statusCode, 409);
+  assert.equal(duplicate.json().error.code, 'DUPLICATE_SYNC_ID');
 });

@@ -411,7 +411,12 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       };
     } catch (err) {
       const msg = parseApiError(err?.message ?? '');
-      if (msg.toLowerCase().includes('pin')) {
+      if (
+        msg.toLowerCase().includes('hub connection') ||
+        msg.includes('OFFLINE_MODE')
+      ) {
+        setError(t('pos.offline.refundRequiresHub'));
+      } else if (msg.toLowerCase().includes('pin')) {
         setError(t('pos.refundInvalidPin'));
       } else if (msg.toLowerCase().includes('exceeds') || msg.toLowerCase().includes('no ')) {
         setError(msg);

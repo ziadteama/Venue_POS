@@ -475,14 +475,14 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Cashier, **I want** to create orders when the internet is down, **so that** business continues uninterrupted.
 
 **Acceptance Criteria:**
-- [ ] POS functions fully during internet outage
-- [ ] Orders written to local SQLite first
-- [ ] Sync queue table stores all write operations
-- [ ] Each queue item: UUID, timestamp, event_type, payload_json
-- [ ] FIFO ordering preserved
-- [ ] UI banner: "Offline — working locally" when disconnected
-- [ ] Banner auto-dismisses on reconnection
-- [ ] No data loss on terminal power loss (SQLite WAL mode)
+- [x] POS functions fully during internet outage
+- [x] Orders written to local SQLite first
+- [x] Sync queue table stores all write operations
+- [x] Each queue item: UUID, timestamp, event_type, payload_json
+- [x] FIFO ordering preserved
+- [x] UI banner: "Offline — working locally" when disconnected
+- [x] Banner auto-dismisses on reconnection
+- [x] No data loss on terminal power loss (SQLite WAL mode)
 
 **Priority:** P0 | **Effort:** 5 days
 
@@ -490,14 +490,14 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Cashier, **I want** to process payments offline, **so that** customers can still pay.
 
 **Acceptance Criteria:**
-- [ ] Cash payments process normally offline
-- [ ] Card payments: manual entry only (no integrated terminal)
-- [ ] Payment records queued in sync_queue
-- [ ] Queue depth visible in POS UI (indicator)
-- [ ] Payments sync automatically on reconnect
-- [ ] Duplicate payment detection via UUID (idempotent)
-- [ ] Failed queue items flagged but not dropped
-- [ ] Operator notification for repeatedly failing items
+- [x] Cash payments process normally offline
+- [x] Card payments: manual entry only (no integrated terminal)
+- [x] Payment records queued in sync_queue
+- [x] Queue depth visible in POS UI (indicator)
+- [x] Payments sync automatically on reconnect
+- [x] Duplicate payment detection via UUID (idempotent)
+- [x] Failed queue items flagged but not dropped
+- [x] Operator notification for repeatedly failing items
 
 **Priority:** P0 | **Effort:** 4 days
 
@@ -505,15 +505,15 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Cashier, **I want** all offline data to sync when connectivity returns, **so that** the server is up to date.
 
 **Acceptance Criteria:**
-- [ ] Background sync worker polls every 5 seconds when online
-- [ ] Queue drained in order on successful connection
-- [ ] Server sync endpoint idempotent (client UUID deduplication)
-- [ ] Terminal announces last_sync_at on reconnect
-- [ ] Server responds with missed menu/config changes
-- [ ] Version hash comparison detects stale menus
-- [ ] Mandatory menu sync before accepting new orders post-reconnect
-- [ ] Conflict resolution: server price wins, originating terminal wins for order modifications
-- [ ] Sync progress indicator in POS UI
+- [x] Background sync worker polls every 5 seconds when online
+- [x] Queue drained in order on successful connection
+- [x] Server sync endpoint idempotent (client UUID deduplication)
+- [x] Terminal announces last_sync_at on reconnect
+- [x] Server responds with missed menu/config changes
+- [x] Version hash comparison detects stale menus
+- [x] Mandatory menu sync before accepting new orders post-reconnect
+- [x] Conflict resolution: server price wins, originating terminal wins for order modifications
+- [x] Sync progress indicator in POS UI
 
 **Priority:** P0 | **Effort:** 5 days
 
@@ -521,12 +521,12 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** Cashier, **I want** to access the menu offline, **so that** I can continue taking orders.
 
 **Acceptance Criteria:**
-- [ ] Full menu cached locally in SQLite
-- [ ] Menu functional indefinitely offline
-- [ ] Cached menu includes: items, categories, modifiers, prices, tax rates
-- [ ] Menu refreshed on every successful sync or menu_update event
-- [ ] Price conflicts: server price wins on reconciliation
-- [ ] Stale menu detection via version_hash
+- [x] Full menu cached locally in SQLite
+- [x] Menu functional indefinitely offline
+- [x] Cached menu includes: items, categories, modifiers, prices, tax rates
+- [x] Menu refreshed on every successful sync or menu_update event
+- [x] Price conflicts: server price wins on reconciliation
+- [x] Stale menu detection via version_hash
 - [ ] Menu publish events queued if terminal offline at publish time
 
 **Priority:** P0 | **Effort:** 3 days
@@ -537,14 +537,14 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **Context:** Star topology — non-coordinator agents call the coordinator’s `local-agent` on a fixed LAN IP. **Not** agent-to-agent gossip. See `docs/PHASE6_OFFLINE_PLAN.md`.
 
 **Acceptance Criteria:**
-- [ ] Hub can mark one terminal as **coordinator** (Settings or terminal record)
-- [ ] All agents probe cloud health; on failure, failover to `COORDINATOR_LAN_HOST` for floor/coordination APIs
-- [ ] Coordinator agent exposes hub-wide **floor table locks** (one physical table = one occupancy state across anchors)
-- [ ] POS shows banner: offline mode + whether coordinator or cloud is active
-- [ ] Coordinator runs as a stable service where possible (survives Electron close on lead till)
-- [ ] v1: static coordinator IP — no peer mesh, no leader election
-- [ ] On WAN return: queued events replay to cloud with idempotent `syncId`; Postgres remains audit source of truth
-- [ ] Cross-sell: disabled or routed via coordinator per Phase 6 slice (documented in plan)
+- [x] Hub can mark one terminal as **coordinator** (Settings or terminal record)
+- [x] All agents probe cloud health; on failure, failover to `COORDINATOR_LAN_HOST` for floor/coordination APIs
+- [x] Coordinator agent exposes hub-wide **floor table locks** (one physical table = one occupancy state across anchors)
+- [x] POS shows banner: offline mode + whether coordinator or cloud is active
+- [x] Coordinator runs as a stable service where possible (survives Electron close on lead till)
+- [x] v1: static coordinator IP — no peer mesh, no leader election (v1.1 adds optional LAN gossip/relay)
+- [x] On WAN return: queued events replay to cloud with idempotent `syncId`; Postgres remains audit source of truth
+- [x] Cross-sell offline: coordinator buffers group lifecycle; atomic `CROSS_VENUE_GROUP_REPLAY` on reconnect
 
 **Priority:** P0 (Phase 6) | **Effort:** 8 days (with US-7.1–7.3)
 

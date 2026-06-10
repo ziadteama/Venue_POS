@@ -416,12 +416,13 @@ export async function startCrossVenueOrder({
   anchorTerminalId,
   cashierId,
   tableLabel,
+  groupId: clientGroupId,
 }) {
   ensureFeatureEnabled();
   await assertAnchorVenue(anchorVenueId);
   await assertAnchorCashier(anchorVenueId, cashierId);
 
-  const groupId = randomUUID();
+  const groupId = clientGroupId ?? randomUUID();
 
   const businessDate = resolveBusinessDate();
   await prisma.$transaction(async (tx) => {
@@ -1151,4 +1152,77 @@ export async function payCrossVenueGroup({
     change,
     combinedTotal,
   };
+}
+
+/** Atomic offline replay — idempotent by groupId (crossVenueGroupId). */
+export async function replayCrossVenueGroup(payload) {
+  ensureFeatureEnabled();
+  const {
+    groupId,
+    anchorVenueId,
+    anchorTerminalId,
+    cashierId,
+    tableLabel,
+    venues = [],
+    pay = false,
+    payments,
+    method,
+    cardLast4,
+    tendered,
+    managerPin,
+  } = payload;
+
+  if (!groupId) throw validationError('groupId is required');
+
+  let members = await loadGroupMembers(groupId);
+  if (!members.length) {
+    await startCrossVenueOrder({
+      groupId,
+      anchorVenueId,
+      anchorTerminalId,
+      cashierId,
+      tableLabel,
+    });
+
+    for (const venueBlock of venues) {
+      for (const item of venueBlock.items ?? []) {
+        await addCrossVenueItem({
+          groupId,
+          venueId: venueBlock.venueId,
+          anchorVenueId,
+          anchorTerminalId,
+          cashierId,
+          menuItemId: item.menuItemId,
+          quantity: item.quantity ?? 1,
+          modifiers: item.modifiers ?? [],
+        });
+      }
+      if (venueBlock.fired !== false && (venueBlock.items?.length ?? 0) > 0) {
+        await fireCrossVenueGroup({
+          groupId,
+          anchorVenueId,
+          anchorTerminalId,
+          cashierId,
+          venueId: venueBlock.venueId,
+        });
+      }
+    }
+    members = await loadGroupMembers(groupId);
+  }
+
+  if (pay && members.some((m) => m.status === 'open')) {
+    return payCrossVenueGroup({
+      groupId,
+      anchorVenueId,
+      anchorTerminalId,
+      cashierId,
+      payments,
+      method,
+      cardLast4,
+      tendered,
+      managerPin,
+    });
+  }
+
+  return { group: serializeCrossVenueGroup(groupId, anchorVenueId, members) };
 }

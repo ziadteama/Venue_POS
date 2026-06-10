@@ -301,7 +301,7 @@ Append an entry to [TEAM_LOG.md](TEAM_LOG.md) after each feature. See `.cursor/r
 | 3 Cheques & payments | ✅ Closed (`phase-3`) | Open tabs, pay, split, shifts, discounts/refunds — [TEAM_LOG.md](TEAM_LOG.md) |
 | 4 Cross-venue billing | ✅ Closed | Cross-sell, split pay, group % discount, itemized receipt — US-4.1–4.3, US-8.6 — [TEAM_LOG.md](TEAM_LOG.md) |
 | 5 Dashboard (Epic 8) | ✅ Done | Epic 8 complete (US-8.6 shipped in Phase 4) — [TEAM_LOG.md](TEAM_LOG.md) |
-| 6 Offline sync | ✅ v1.1 | Dynamic LAN cluster, cheque hydration, shift replay — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
+| 6 Offline sync | ✅ Complete | Full offline ops, cross-sell coordinator, test harness — [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md) |
 
 ## Phase 6 — offline sync & LAN coordinator
 
@@ -352,3 +352,19 @@ cd apps/local-agent && pm2 start src/index.js --name venue-pos-agent
 2. Stop API (`dev:api`) → PIN login (cached roster), open table, add items, cash pay.
 3. Start API → agent drains queue; one server cheque.
 4. `npm run test -w @venue-pos/api` (includes `phase6-offline.test.js`).
+5. `npm run test -w @venue-pos/local-agent` (unit + E2E harness).
+
+### Phase 6 manual test matrix (no production env)
+
+| # | Scenario | Steps | Expected |
+|---|----------|-------|----------|
+| 1 | Single-venue offline pay | Online login → stop API → open table → send → pay cash → start API | One server cheque; queue empty; offline banner clears |
+| 2 | Coordinator floor lock | Two POS agents; mark coordinator; stop API; occupy Table 5 on POS A | POS B floor shows Table 5 busy via coordinator |
+| 3 | Cross-sell offline | Enable billing matrix; coordinator + linked menus cached; stop API; Cross-sell → add anchor + target items → send → pay | Group paid locally; one atomic replay on reconnect |
+| 4 | Manager ops offline | Offline: clear draft, move table, split, line transfer (floor manager PIN) | Ops succeed locally; replay without duplicates |
+| 5 | Refund blocked offline | Offline: attempt refund on paid cheque | Clear “Refunds require hub connection” message (no crash) |
+| 6 | Failed sync review | Force bad queue row → banner Review → retry/dismiss | Operator can clear or retry |
+| 7 | Menu stale gate | Reconnect with stale menu hash | New orders blocked until menu sync completes |
+| 8 | Power-loss | Kill agent mid-order → restart agent | SQLite WAL intact; open cheque + queue preserved |
+| 9 | Cloud flap | Toggle API on/off rapidly | Cluster mode hysteresis; no split-brain floor state |
+| 10 | Duplicate replay | Replay same `syncId` twice | 409 `DUPLICATE_SYNC_ID`; no double payment |
