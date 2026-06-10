@@ -971,7 +971,7 @@
   "hubTables.deactivate": "إيقاف",
   "hubTables.activate": "تفعيل",
   "hubTables.confirmDelete": "حذف الطاولة {{label}}؟",
-  "hubTax.title": "الضريبة والخدمة (كل الفروع)",
-  "hubTax.hint": "اضبط النسب لكل فرع في شاشة واحدة دون تبديل الفرع أولاً.",
-  "hubTax.saved": "تم حفظ الضريبة والخدمة لـ {{venue}}."
+  "hubTax.title": "ضريبة وخدمة المركز",
+  "hubTax.hint": "نسبة ضريبة وخدمة واحدة لجميع الفروع — مثل طاولات المركز.",
+  "hubTax.saved": "تم حفظ إعدادات ضريبة وخدمة المركز."
 }

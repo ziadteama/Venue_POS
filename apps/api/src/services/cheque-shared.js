@@ -5,6 +5,7 @@ import { serializeOrder } from '../utils/serialize.js';
 import { computeVenueCharges } from '../utils/venue-charges.js';
 import { createOrder } from './order-service.js';
 import { resolveBusinessDate } from '../utils/business-date.js';
+import { overlayHubBillingOnCheque } from './hub-billing-service.js';
 
 export const chequeOrderInclude = {
   order: {
@@ -263,7 +264,7 @@ export async function loadCheque(chequeId) {
     include: chequeInclude,
   });
   if (!cheque) throw notFound('Cheque not found');
-  return cheque;
+  return overlayHubBillingOnCheque(cheque);
 }
 
 /** Allocate next hub-wide cheque number for a business date (all venues share one sequence). */

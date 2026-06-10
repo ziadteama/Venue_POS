@@ -5,6 +5,7 @@ import {
   parseVenueTables,
   serializeVenueTableLabels,
 } from '../utils/venue-tables.js';
+import { getHubBilling } from './hub-billing-service.js';
 import { listHubTableLabels, resolveHubTable } from './hub-table-service.js';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
@@ -15,7 +16,22 @@ function decimalToNumber(value) {
   return Number(value);
 }
 
-export function serializeVenueConfig(venue) {
+function hubBillingFields(hub) {
+  return {
+    taxRate: hub.taxRate,
+    taxInclusive: hub.taxInclusive,
+    serviceRate: hub.serviceRate,
+    serviceEnabled: hub.serviceEnabled,
+  };
+}
+
+export function serializeVenueConfig(venue, hub) {
+  const billing = hub ? hubBillingFields(hub) : {
+    taxRate: decimalToNumber(venue.taxRate),
+    taxInclusive: venue.taxInclusive,
+    serviceRate: decimalToNumber(venue.serviceRate),
+    serviceEnabled: venue.serviceEnabled,
+  };
   return {
     id: venue.id,
     nameEn: venue.nameEn,
@@ -23,10 +39,7 @@ export function serializeVenueConfig(venue) {
     type: venue.type,
     currency: venue.currency,
     isActive: venue.isActive,
-    taxRate: decimalToNumber(venue.taxRate),
-    taxInclusive: venue.taxInclusive,
-    serviceRate: decimalToNumber(venue.serviceRate),
-    serviceEnabled: venue.serviceEnabled,
+    ...billing,
     receiptTemplate: venue.receiptTemplate,
     kitchenPrinterHost: venue.kitchenPrinterHost,
     kitchenPrinterPort: venue.kitchenPrinterPort,
@@ -37,13 +50,16 @@ export function serializeVenueConfig(venue) {
   };
 }
 
-export function serializeTerminalVenueSettings(venue) {
-  return {
-    venueId: venue.id,
+export function serializeTerminalVenueSettings(venue, hub) {
+  const billing = hub ? hubBillingFields(hub) : {
     taxRate: decimalToNumber(venue.taxRate),
     taxInclusive: venue.taxInclusive,
     serviceRate: decimalToNumber(venue.serviceRate),
     serviceEnabled: venue.serviceEnabled,
+  };
+  return {
+    venueId: venue.id,
+    ...billing,
     receiptTemplate: venue.receiptTemplate,
     kitchenPrinterHost: venue.kitchenPrinterHost,
     kitchenPrinterPort: venue.kitchenPrinterPort,
@@ -61,13 +77,15 @@ export async function assertTableAssigned(_venueId, tableLabel) {
 export async function getVenueConfig(venueId) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   if (!venue) throw notFound('Venue not found');
-  return serializeVenueConfig(venue);
+  const hub = await getHubBilling();
+  return serializeVenueConfig(venue, hub);
 }
 
 export async function getTerminalVenueSettings(venueId) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   if (!venue?.isActive) throw notFound('Venue not found');
-  const settings = serializeTerminalVenueSettings(venue);
+  const hub = await getHubBilling();
+  const settings = serializeTerminalVenueSettings(venue, hub);
   settings.tables = await listHubTableLabels();
   return settings;
 }
@@ -89,25 +107,13 @@ function buildUpdateData(body) {
     if (!VENUE_TYPES.includes(body.type)) throw validationError('Invalid venue type');
     data.type = body.type;
   }
-  if (body.taxRate != null) {
-    const taxRate = Number(body.taxRate);
-    if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 1) {
-      throw validationError('Tax rate must be between 0 and 1');
-    }
-    data.taxRate = taxRate;
-  }
-  if (body.taxInclusive != null) {
-    data.taxInclusive = Boolean(body.taxInclusive);
-  }
-  if (body.serviceRate != null) {
-    const serviceRate = Number(body.serviceRate);
-    if (!Number.isFinite(serviceRate) || serviceRate < 0 || serviceRate > 1) {
-      throw validationError('Service rate must be between 0 and 1');
-    }
-    data.serviceRate = serviceRate;
-  }
-  if (body.serviceEnabled != null) {
-    data.serviceEnabled = Boolean(body.serviceEnabled);
+  if (
+    body.taxRate != null ||
+    body.taxInclusive != null ||
+    body.serviceRate != null ||
+    body.serviceEnabled != null
+  ) {
+    throw validationError('Tax and service are hub-wide — use Settings → Tax & service');
   }
   if (body.receiptTemplate != null) {
     if (!RECEIPT_TEMPLATES.includes(body.receiptTemplate)) {
@@ -173,8 +179,9 @@ export async function updateVenueConfig(venueId, body, userId) {
     return updated;
   });
 
+  const hub = await getHubBilling();
   return {
-    config: serializeVenueConfig(venue),
+    config: serializeVenueConfig(venue, hub),
     changes: Object.keys(changes),
   };
 }

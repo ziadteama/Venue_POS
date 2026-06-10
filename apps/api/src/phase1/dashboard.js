@@ -403,15 +403,27 @@ test('hub manager can read and update venue config', async () => {
   assert.equal(getRes.statusCode, 200);
   assert.equal(getRes.json().id, VENUE_ID);
 
-  const patchRes = await fx.app.inject({
+  const hubBillingRes = await fx.app.inject({
     method: 'PATCH',
-    url: `/api/v1/manager/venues/${VENUE_ID}/config`,
+    url: '/api/v1/manager/hub/billing',
     headers: { authorization: `Bearer ${fx.managerToken}` },
     payload: {
       taxRate: 0.14,
       taxInclusive: true,
       serviceRate: 0.12,
       serviceEnabled: true,
+    },
+  });
+  assert.equal(hubBillingRes.statusCode, 200);
+  assert.equal(hubBillingRes.json().taxRate, 0.14);
+  assert.equal(hubBillingRes.json().serviceRate, 0.12);
+  assert.equal(hubBillingRes.json().serviceEnabled, true);
+
+  const patchRes = await fx.app.inject({
+    method: 'PATCH',
+    url: `/api/v1/manager/venues/${VENUE_ID}/config`,
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+    payload: {
       kitchenPrinterHost: '192.168.1.99',
       kitchenPrinterPort: 9100,
       receiptTemplate: 'compact',
@@ -449,7 +461,7 @@ test('venue manager cannot patch venue config', async () => {
     method: 'PATCH',
     url: `/api/v1/manager/venues/${VENUE_ID}/config`,
     headers: { authorization: `Bearer ${fx.venueManagerToken}` },
-    payload: { taxRate: 0.2 },
+    payload: { kitchenPrinterHost: '10.0.0.1' },
   });
   assert.equal(res.statusCode, 403);
 });

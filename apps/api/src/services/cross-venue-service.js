@@ -12,6 +12,7 @@ import {
   removeOrderItem,
   sendOrderToKitchen,
 } from './order-service.js';
+import { overlayHubBillingOnCheques } from './hub-billing-service.js';
 import {
   BILLABLE_ORDER_STATUSES,
   chequeInclude,
@@ -134,7 +135,7 @@ async function loadGroupMembers(groupId) {
     },
     orderBy: { venueId: 'asc' },
   });
-  return cheques;
+  return overlayHubBillingOnCheques(cheques);
 }
 
 function draftSubtotal(draftOrder) {

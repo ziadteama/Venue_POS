@@ -30,10 +30,6 @@ function emptyForm() {
     nameEn: '',
     nameAr: '',
     type: 'standard',
-    taxRate: '0',
-    taxInclusive: false,
-    serviceRate: '0',
-    serviceEnabled: false,
     receiptTemplate: 'standard',
     kitchenPrinterHost: '',
     kitchenPrinterPort: '9100',
@@ -90,10 +86,6 @@ export function VenueSettingsPage() {
         nameEn: config.nameEn,
         nameAr: config.nameAr,
         type: config.type,
-        taxRate: String((config.taxRate ?? 0) * 100),
-        taxInclusive: config.taxInclusive,
-        serviceRate: String((config.serviceRate ?? 0) * 100),
-        serviceEnabled: config.serviceEnabled ?? false,
         receiptTemplate: config.receiptTemplate,
         kitchenPrinterHost: config.kitchenPrinterHost ?? '',
         kitchenPrinterPort: String(config.kitchenPrinterPort ?? 9100),
@@ -134,18 +126,12 @@ export function VenueSettingsPage() {
     setError('');
     setSuccess('');
     try {
-      const taxPercent = Number(form.taxRate);
-      const servicePercent = Number(form.serviceRate);
       const result = await apiFetch(`/api/v1/manager/venues/${venueId}/config`, {
         method: 'PATCH',
         body: JSON.stringify({
           nameEn: form.nameEn.trim(),
           nameAr: form.nameAr.trim(),
           type: form.type,
-          taxRate: taxPercent / 100,
-          taxInclusive: form.taxInclusive,
-          serviceRate: servicePercent / 100,
-          serviceEnabled: form.serviceEnabled,
           receiptTemplate: form.receiptTemplate,
           kitchenPrinterHost: form.kitchenPrinterHost.trim() || null,
           kitchenPrinterPort: Number(form.kitchenPrinterPort),

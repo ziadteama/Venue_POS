@@ -249,6 +249,18 @@ model FloorTable {
   @@map("floor_tables")
 }
 
+/// Hub-wide tax and service charge (one rate for all venues).
+model HubBilling {
+  id             String   @id @default("hub") @db.VarChar(16)
+  taxRate        Decimal  @default(0) @map("tax_rate") @db.Decimal(5, 4)
+  taxInclusive   Boolean  @default(false) @map("tax_inclusive")
+  serviceRate    Decimal  @default(0) @map("service_rate") @db.Decimal(5, 4)
+  serviceEnabled Boolean  @default(false) @map("service_enabled")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("hub_billing")
+}
+
 model MenuTemplate {
   id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nameEn      String     @map("name_en") @db.VarChar(255)

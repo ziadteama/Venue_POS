@@ -20,6 +20,7 @@ import { managerOrderRoutes } from './routes/manager-orders.js';
 import { managerShiftsRoutes } from './routes/manager-shifts.js';
 import { managerVenueConfigRoutes } from './routes/manager-venue-config.js';
 import { managerHubTableRoutes } from './routes/manager-hub-tables.js';
+import { managerHubBillingRoutes } from './routes/manager-hub-billing.js';
 import { managerBillingRoutes } from './routes/manager-billing.js';
 import { managerUsersRoutes } from './routes/manager-users.js';
 import { managerAuditRoutes } from './routes/manager-audit.js';
@@ -64,6 +65,7 @@ export async function buildApp() {
   await app.register(managerShiftsRoutes);
   await app.register(managerVenueConfigRoutes);
   await app.register(managerHubTableRoutes);
+  await app.register(managerHubBillingRoutes);
   await app.register(managerBillingRoutes);
   await app.register(managerUsersRoutes);
   await app.register(managerAuditRoutes);

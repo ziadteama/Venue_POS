@@ -971,7 +971,7 @@
   "hubTables.deactivate": "Deactivate",
   "hubTables.activate": "Activate",
   "hubTables.confirmDelete": "Delete table {{label}}?",
-  "hubTax.title": "Tax & service (all venues)",
-  "hubTax.hint": "Set rates per venue on one screen — no need to switch venue first.",
-  "hubTax.saved": "Saved tax & service for {{venue}}."
+  "hubTax.title": "Hub tax & service",
+  "hubTax.hint": "One tax and service rate for every venue — same as the hub table floor.",
+  "hubTax.saved": "Hub tax and service settings saved."
 }
