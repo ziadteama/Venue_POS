@@ -7,6 +7,12 @@ import { Field, Input } from './ui/Field.jsx';
 import { Button } from './ui/Button.jsx';
 import { RevenueIcon, AlertIcon, CheckCircleIcon } from './dashboard/icons.jsx';
 
+/** Decimal rate (0.14) → percent string for inputs without float noise. */
+function rateToPercentInput(rate) {
+  const pct = Math.round(Number(rate ?? 0) * 10000) / 100;
+  return String(pct);
+}
+
 const emptyForm = () => ({
   taxRate: '0',
   taxInclusive: false,
@@ -28,9 +34,9 @@ export function HubTaxMatrixSection() {
     try {
       const config = await apiFetch('/api/v1/manager/hub/billing');
       setForm({
-        taxRate: String((config.taxRate ?? 0) * 100),
+        taxRate: rateToPercentInput(config.taxRate),
         taxInclusive: config.taxInclusive,
-        serviceRate: String((config.serviceRate ?? 0) * 100),
+        serviceRate: rateToPercentInput(config.serviceRate),
         serviceEnabled: config.serviceEnabled ?? false,
       });
     } catch (err) {

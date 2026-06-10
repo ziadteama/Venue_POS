@@ -178,6 +178,7 @@ test('terminal can fetch published venue menu', async () => {
   });
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().venueId, VENUE_ID);
+  assert.ok(res.json().versionHash);
   assert.ok(res.json().categories.length >= 1);
   const item = res.json().categories[0].items[0];
   assert.equal(item.nameEn, 'Espresso');

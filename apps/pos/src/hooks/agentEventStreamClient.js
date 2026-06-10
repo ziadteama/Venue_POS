@@ -42,11 +42,7 @@ function connect() {
 
   eventSource.addEventListener('menu:updated', (event) => {
     try {
-      const payload = JSON.parse(event.data);
-      // #region agent log
-      fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'E',location:'agentEventStreamClient.js:menu:updated',message:'POS received menu SSE',data:payload,timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      notifyMenu(payload);
+      notifyMenu(JSON.parse(event.data));
     } catch {
       /* ignore malformed payload */
     }

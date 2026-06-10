@@ -380,11 +380,11 @@ export async function getPublishedMenuForVenue(venueId) {
   });
   if (!venue) throw notFound('Venue not found');
 
-  const menu = serializeVenueMenu(venue);
+  const menu = serializeVenueMenu({ ...venue, venueMenu });
   return {
     venueId,
-    versionHash: menu.versionHash,
-    publishedAt: menu.publishedAt,
+    versionHash: venueMenu.versionHash,
+    publishedAt: venueMenu.publishedAt?.toISOString?.() ?? venueMenu.publishedAt ?? null,
     categories: menu.categories.map((category) => ({
       ...category,
       items: category.items

@@ -193,11 +193,6 @@ export function serializeCheque(cheque) {
   const subtotalBeforeDiscount = computeChequeSubtotal(cheque);
   const discountAmount = Number(cheque.discountAmount ?? 0);
   const fees = computeChequeFeeBreakdown(cheque);
-  // #region agent log
-  if (cheque.status === 'open' && subtotalBeforeDiscount > 0) {
-    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'G,H',location:'cheque-shared.js:serializeCheque',message:'cheque fee breakdown',data:{chequeId:cheque.id,subtotalBeforeDiscount,taxRate:Number(cheque.venue?.taxRate??0),serviceRate:Number(cheque.venue?.serviceRate??0),serviceEnabled:cheque.venue?.serviceEnabled,serviceAmount:fees.serviceAmount,taxAmount:fees.taxAmount,total:fees.total},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
   let total = fees.total;
 
   if (cheque.status === 'paid' && cheque.payments?.length) {

@@ -12,6 +12,9 @@ export async function syncMenuFromServer({ db, apiUrl, venueId, terminalId, term
   }
 
   const menu = await res.json();
+  if (!menu?.versionHash) {
+    throw new Error('Menu sync response missing versionHash');
+  }
   const cached = db
     .prepare('SELECT version_hash AS versionHash FROM menu_cache WHERE venue_id = ?')
     .get(venueId);

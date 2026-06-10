@@ -10,9 +10,6 @@ export function assertMenuReadyForWrite(db, venueId) {
     .get().n;
   const staleFlag = getAgentMeta(db, 'menu_stale');
   const cloudOnline = isCloudOnline();
-  // #region agent log
-  fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',hypothesisId:'A,B,C',location:'menu-gate.js:assertMenuReadyForWrite',message:'menu gate check',data:{venueId,pendingPublish,staleFlag,cloudOnline,categoryCount:menu?.categories?.length??0,versionHash:menu?.versionHash??null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!menu?.categories?.length) {
     const err = new Error('Menu not cached — connect to hub to sync menu before taking orders');
     err.code = 'MENU_NOT_CACHED';
