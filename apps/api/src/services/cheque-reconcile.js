@@ -178,7 +178,7 @@ async function ensureOpenChequeForOrphanTable(venueId, tableLabel) {
 
   const businessDate = resolveBusinessDate();
   const cheque = await prisma.$transaction(async (tx) => {
-    const chequeNumber = await nextChequeNumber(tx, venueId, businessDate);
+    const chequeNumber = await nextChequeNumber(tx, businessDate);
     return tx.cheque.create({
       data: {
         venueId,

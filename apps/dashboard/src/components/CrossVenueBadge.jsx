@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 /** Small pill badge for cheques settled as part of a cross-venue group. */
 export function CrossVenueBadge({ t, className = '' }) {
   return (
@@ -13,17 +15,58 @@ function venueLabel(member, language) {
   return language === 'ar' ? member.venueNameAr || member.venueNameEn : member.venueNameEn;
 }
 
-export function CrossVenueGroupPanel({ group, t, language, locale, formatMoney }) {
-  if (!group?.members?.length) return null;
+function normalizeMembers(group) {
+  if (group?.members?.length) return group.members;
+  if (group?.cheques?.length) {
+    return group.cheques.map((c) => ({
+      id: c.id,
+      chequeNumber: c.chequeNumber,
+      venueId: c.venueId,
+      venueNameEn: c.venueNameEn,
+      venueNameAr: c.venueNameAr,
+      tableLabel: c.tableLabel,
+      status: c.status,
+      total: c.total ?? c.firedSubtotal ?? 0,
+    }));
+  }
+  return [];
+}
+
+export function CrossVenueGroupPanel({
+  group,
+  t,
+  language,
+  locale,
+  formatMoney,
+  linkMembers = false,
+}) {
+  const members = normalizeMembers(group);
+  if (!members.length) return null;
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
-      <p className="mb-2 text-sm font-semibold text-violet-900">{t('crossVenue.linkedCheques')}</p>
+      <p className="mb-2 text-sm font-semibold text-violet-900">
+        {t('crossVenue.linkedCheques')}
+        {group.groupChequeNumber != null ? (
+          <span className="ms-2 font-normal text-violet-700">
+            #{group.groupChequeNumber}
+          </span>
+        ) : null}
+      </p>
       <ul className="space-y-1.5 text-sm">
-        {group.members.map((member) => (
+        {members.map((member) => (
           <li key={member.id} className="flex items-center justify-between gap-2 text-violet-950">
-            <span>
-              {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
-            </span>
+            {linkMembers ? (
+              <Link
+                to={`/cheques?chequeId=${member.id}&venueId=${member.venueId}`}
+                className="hover:underline"
+              >
+                {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
+              </Link>
+            ) : (
+              <span>
+                {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
+              </span>
+            )}
             <span className="shrink-0 font-medium">
               {formatMoney(member.total, locale)} {t('pos.currency')}
             </span>

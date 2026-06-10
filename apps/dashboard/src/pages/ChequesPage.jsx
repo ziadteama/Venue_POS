@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth.js';
 import { useChequeManager } from '../hooks/useChequeManager.js';
 import { ChequesPageHeader } from '../components/cheques/ChequesPageHeader.jsx';
 import { ChequesSidebar } from '../components/cheques/ChequesSidebar.jsx';
+import { CrossVenueChequesSidebar } from '../components/cheques/CrossVenueChequesSidebar.jsx';
 import { ChequeDetailView } from '../components/cheques/ChequeDetailView.jsx';
 import { ChequeActionModals } from '../components/cheques/ChequeActionModals.jsx';
 
@@ -18,6 +19,11 @@ export function ChequesPage() {
         i18n={i18n}
         user={user}
         statusTab={manager.statusTab}
+        isCrossTab={manager.isCrossTab}
+        crossGroupStatus={manager.crossGroupStatus}
+        onCrossGroupStatusChange={manager.setCrossGroupStatus}
+        searchQ={manager.searchQ}
+        onSearchChange={manager.setSearch}
         venues={manager.venues}
         venueId={manager.venueId}
         onTabChange={manager.changeTab}
@@ -41,18 +47,28 @@ export function ChequesPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
-        <ChequesSidebar
-          t={t}
-          statusTab={manager.statusTab}
-          cheques={manager.cheques}
-          selectedId={manager.selectedId}
-          onSelect={manager.setSelectedId}
-        />
+        {manager.isCrossTab ? (
+          <CrossVenueChequesSidebar
+            groups={manager.crossGroups}
+            selectedMemberId={manager.selectedId}
+            onSelectMember={manager.selectCrossMember}
+            crossGroupStatus={manager.crossGroupStatus}
+            t={t}
+            language={i18n.language}
+          />
+        ) : (
+          <ChequesSidebar
+            t={t}
+            statusTab={manager.statusTab}
+            cheques={manager.cheques}
+            selectedId={manager.selectedId}
+            onSelect={manager.setSelectedId}
+          />
+        )}
 
         <section className="surface-card p-6">
           <ChequeDetailView
             detail={manager.detail}
-            statusTab={manager.statusTab}
             busy={manager.busy}
             language={i18n.language}
             userRole={user?.role}

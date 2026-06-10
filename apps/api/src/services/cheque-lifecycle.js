@@ -25,6 +25,7 @@ import {
   clearCrossVenueGroupDrafts,
   fireCrossVenueGroupByCheque,
   getCrossVenueGroup,
+  getCrossVenueGroupSummary,
 } from './cross-venue-service.js';
 import { config } from '../config.js';
 import { resolveBusinessDate } from '../utils/business-date.js';
@@ -44,7 +45,7 @@ export async function openOrResumeCheque({ venueId, terminalId, cashierId, table
   if (!cheque) {
     const businessDate = resolveBusinessDate();
     cheque = await prisma.$transaction(async (tx) => {
-      const chequeNumber = await nextChequeNumber(tx, venueId, businessDate);
+      const chequeNumber = await nextChequeNumber(tx, businessDate);
       return tx.cheque.create({
         data: {
           venueId,
@@ -134,9 +135,23 @@ export async function listOpenCheques(venueId) {
   );
 }
 
-export async function listChequesForVenue(venueId, { status = 'open', limit = 50 } = {}) {
+export async function listChequesForVenue(venueId, { status = 'open', limit = 50, q } = {}) {
+  const where = { venueId, status };
+  const trimmed = q?.trim();
+  if (trimmed) {
+    const asNum = Number(trimmed);
+    if (!Number.isNaN(asNum) && String(asNum) === trimmed) {
+      where.OR = [
+        { chequeNumber: asNum },
+        { tableLabel: { contains: trimmed, mode: 'insensitive' } },
+      ];
+    } else {
+      where.tableLabel = { contains: trimmed, mode: 'insensitive' };
+    }
+  }
+
   const cheques = await prisma.cheque.findMany({
-    where: { venueId, status },
+    where,
     include: chequeInclude,
     orderBy: status === 'paid' ? { closedAt: 'desc' } : { openedAt: 'asc' },
     take: limit,
@@ -149,7 +164,7 @@ export async function getCheque(chequeId, venueId) {
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
   const crossVenueGroup =
     cheque.crossVenueGroupId && config.featureCrossVenueBilling
-      ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId)
+      ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
       : null;
   return { ...serializeCheque(cheque), crossVenueGroup };
 }

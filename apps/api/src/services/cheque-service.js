@@ -1,4 +1,5 @@
 export { serializeCheque } from './cheque-shared.js';
+export { listCrossVenueChequeGroups } from './cross-venue-service.js';
 export {
   openOrResumeCheque,
   listOpenCheques,

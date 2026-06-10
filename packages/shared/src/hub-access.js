@@ -6,6 +6,7 @@ export const CEO_DASHBOARD_PATHS = new Set(['/', '/analytics']);
 
 /** Hub manager — full back office (no executive overview or analytics). */
 export const HUB_MANAGER_DASHBOARD_PATHS = new Set([
+  '/',
   '/menus',
   '/users',
   '/settings',
@@ -56,7 +57,7 @@ export function canAccessDashboardPath(role, pathname, user) {
 
 export function defaultDashboardPath(role) {
   if (isCeo(role)) return '/';
-  if (isHubManager(role)) return '/menus';
+  if (isHubManager(role)) return '/';
   return '/login';
 }
 

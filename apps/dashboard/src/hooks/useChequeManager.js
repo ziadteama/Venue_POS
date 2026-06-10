@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { managerActionMethod, managerActionPath } from '../utils/chequeActions.js';
 
 export function useChequeManager({ user }) {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState(user?.venueId ?? '');
+  const [venueId, setVenueId] = useState(searchParams.get('venueId') || user?.venueId || '');
   const [statusTab, setStatusTab] = useState('open');
+  const [crossGroupStatus, setCrossGroupStatus] = useState('open');
+  const [searchQ, setSearchQ] = useState('');
   const [cheques, setCheques] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+  const [crossGroups, setCrossGroups] = useState([]);
+  const [selectedId, setSelectedId] = useState(searchParams.get('chequeId'));
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -18,43 +23,74 @@ export function useChequeManager({ user }) {
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountPercent, setDiscountPercent] = useState('');
 
-  const venueQuery = venueId ? `?venueId=${venueId}` : '';
-  const listQuery = venueId
-    ? `?status=${statusTab}&venueId=${venueId}`
-    : `?status=${statusTab}`;
+  const isCrossTab = statusTab === 'cross_sell';
+
+  const syncUrl = useCallback(
+    (chequeId, vId) => {
+      const next = new URLSearchParams(searchParams);
+      if (chequeId) next.set('chequeId', chequeId);
+      else next.delete('chequeId');
+      if (vId) next.set('venueId', vId);
+      else next.delete('venueId');
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
   const load = useCallback(async () => {
     setError('');
-    const [list, venueList] = await Promise.all([
-      apiFetch(`/api/v1/manager/cheques${listQuery}`),
-      apiFetch('/api/v1/venues'),
-    ]);
-    setCheques(list);
+    const venueList = await apiFetch('/api/v1/venues');
     setVenues(venueList);
+
+    if (isCrossTab) {
+      const groups = await apiFetch(
+        `/api/v1/manager/cheques/cross-venue?status=${crossGroupStatus}`,
+      );
+      setCrossGroups(groups);
+      setCheques([]);
+      return groups;
+    }
+
+    const params = new URLSearchParams({ status: statusTab });
+    if (venueId) params.set('venueId', venueId);
+    if (searchQ.trim()) params.set('q', searchQ.trim());
+    const list = await apiFetch(`/api/v1/manager/cheques?${params}`);
+    setCheques(list);
+    setCrossGroups([]);
+
     if (!venueId && venueList[0]) setVenueId(venueList[0].id);
+
     if (!selectedId && list[0]) setSelectedId(list[0].id);
     else if (selectedId && !list.some((c) => c.id === selectedId)) {
       setSelectedId(list[0]?.id ?? null);
       setDetail(null);
     }
     return list;
-  }, [listQuery, venueId, selectedId]);
+  }, [isCrossTab, crossGroupStatus, statusTab, venueId, searchQ, selectedId]);
 
-  const loadDetail = useCallback(
-    async (id) => {
-      if (!id) return;
-      setDetail(await apiFetch(`/api/v1/manager/cheques/${id}${venueQuery}`));
-    },
-    [venueQuery],
-  );
+  const loadDetail = useCallback(async (id, vId = venueId) => {
+    if (!id || !vId) return;
+    const q = `?venueId=${vId}`;
+    setDetail(await apiFetch(`/api/v1/manager/cheques/${id}${q}`));
+  }, [venueId]);
 
   useEffect(() => {
     load().catch((e) => setError(friendlyError(e)));
   }, [load]);
 
   useEffect(() => {
-    if (selectedId) loadDetail(selectedId).catch((e) => setError(friendlyError(e)));
-  }, [selectedId, loadDetail]);
+    const urlChequeId = searchParams.get('chequeId');
+    const urlVenueId = searchParams.get('venueId');
+    if (urlChequeId) setSelectedId(urlChequeId);
+    if (urlVenueId) setVenueId(urlVenueId);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (selectedId && venueId) {
+      loadDetail(selectedId, venueId).catch((e) => setError(friendlyError(e)));
+      syncUrl(selectedId, venueId);
+    }
+  }, [selectedId, venueId, loadDetail, syncUrl]);
 
   const closeAction = useCallback(() => setActionTarget(null), []);
 
@@ -67,27 +103,22 @@ export function useChequeManager({ user }) {
       setBusy(true);
       setError('');
       try {
-        await apiFetch(`${path}${venueQuery}`, {
+        const q = venueId ? `?venueId=${venueId}` : '';
+        await apiFetch(`${path}${q}`, {
           method: managerActionMethod(target),
           body: JSON.stringify(body),
         });
         setActionTarget(null);
-        const list = await load();
+        await load();
         const actedId = target.chequeId;
-        if (actedId && list.some((c) => c.id === actedId)) {
-          await loadDetail(actedId);
-        } else {
-          const nextId = list[0]?.id ?? null;
-          if (nextId) await loadDetail(nextId);
-          else setDetail(null);
-        }
+        if (actedId) await loadDetail(actedId, venueId);
       } catch (e) {
         setError(friendlyError(e));
       } finally {
         setBusy(false);
       }
     },
-    [actionTarget, venueQuery, load, loadDetail],
+    [actionTarget, venueId, load, loadDetail],
   );
 
   const openDiscountRequest = useCallback((cheque, actionType = 'discount') => {
@@ -124,13 +155,39 @@ export function useChequeManager({ user }) {
     });
   }, []);
 
-  const changeTab = useCallback((tab) => {
-    setStatusTab(tab);
-    setSelectedId(null);
-  }, []);
+  const changeTab = useCallback(
+    (tab) => {
+      setStatusTab(tab);
+      if (tab !== 'cross_sell') {
+        setSelectedId(null);
+        setDetail(null);
+        syncUrl(null, venueId);
+      }
+    },
+    [venueId, syncUrl],
+  );
 
-  const changeVenue = useCallback((id) => {
-    setVenueId(id);
+  const changeVenue = useCallback(
+    (id) => {
+      setVenueId(id);
+      setSelectedId(null);
+      syncUrl(null, id);
+    },
+    [syncUrl],
+  );
+
+  const selectCrossMember = useCallback(
+    (member) => {
+      setVenueId(member.venueId);
+      setSelectedId(member.chequeId);
+      syncUrl(member.chequeId, member.venueId);
+      loadDetail(member.chequeId, member.venueId).catch((e) => setError(friendlyError(e)));
+    },
+    [loadDetail, syncUrl],
+  );
+
+  const setSearch = useCallback((q) => {
+    setSearchQ(q);
     setSelectedId(null);
   }, []);
 
@@ -138,9 +195,17 @@ export function useChequeManager({ user }) {
     venues,
     venueId,
     statusTab,
+    crossGroupStatus,
+    setCrossGroupStatus,
+    searchQ,
     cheques,
+    crossGroups,
+    isCrossTab,
     selectedId,
-    setSelectedId,
+    setSelectedId: (id) => {
+      setSelectedId(id);
+      syncUrl(id, venueId);
+    },
     detail,
     error,
     busy,
@@ -152,6 +217,8 @@ export function useChequeManager({ user }) {
     openRefundRequest,
     changeTab,
     changeVenue,
+    selectCrossMember,
+    setSearch,
     setActionTarget,
     discountForm: {
       mode: discountMode,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ORDER_STATUSES, isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
@@ -110,6 +111,9 @@ function shiftStatusLabel(status, t) {
 export function OrdersPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const deepChequeId = searchParams.get('chequeId');
+  const deepShiftId = searchParams.get('shiftId');
   const [venues, setVenues] = useState([]);
   const [venueId, setVenueId] = useState(user?.venueId ?? '');
   const [filters, setFilters] = useState(emptyFilters);
@@ -166,6 +170,18 @@ export function OrdersPage() {
   useEffect(() => {
     loadList();
   }, [loadList]);
+
+  useEffect(() => {
+    if (deepChequeId && result) {
+      setSelectedKey(deepChequeId);
+    }
+  }, [deepChequeId, result]);
+
+  useEffect(() => {
+    if (!deepShiftId || !result?.shifts?.length) return;
+    const el = document.getElementById(`shift-${deepShiftId}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [deepShiftId, result]);
 
   useEffect(() => {
     if (!selectedKey) {
@@ -415,7 +431,13 @@ export function OrdersPage() {
         <>
           <div className="space-y-5">
             {result.shifts.map((shift) => (
-              <section key={shift.shiftId ?? 'unassigned'} className="surface-card overflow-hidden">
+              <section
+                key={shift.shiftId ?? 'unassigned'}
+                id={shift.shiftId ? `shift-${shift.shiftId}` : undefined}
+                className={`surface-card overflow-hidden ${
+                  deepShiftId && shift.shiftId === deepShiftId ? 'ring-2 ring-accent-500' : ''
+                }`}
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
                   <div className="flex items-start gap-3">
                     <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
@@ -510,12 +532,20 @@ export function OrdersPage() {
         subtitle={detail ? formatDate(detail.openedAt, locale) : undefined}
         footer={
           detail?.cheque?.id ? (
-            <Button
-              variant="secondary"
-              onClick={() => reprintCheque().catch((e) => setError(friendlyError(e)))}
-            >
-              {t('orders.reprintCheque')}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to={`/cheques?chequeId=${detail.cheque.id}&venueId=${detail.venueId ?? venueId}`}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                {t('orders.openInCheques')}
+              </Link>
+              <Button
+                variant="secondary"
+                onClick={() => reprintCheque().catch((e) => setError(friendlyError(e)))}
+              >
+                {t('orders.reprintCheque')}
+              </Button>
+            </div>
           ) : null
         }
       >
@@ -539,6 +569,7 @@ export function OrdersPage() {
                 language={i18n.language}
                 locale={locale}
                 formatMoney={formatMoney}
+                linkMembers
               />
             ) : null}
 

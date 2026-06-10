@@ -451,12 +451,20 @@ model OrderItemCompAudit {
   @@map("order_item_comp_audits")
 }
 
+/// Hub-wide daily cheque number sequence (shared across all venues).
+model ChequeNumberCounter {
+  businessDate DateTime @id @map("business_date") @db.Date
+  lastNumber   Int      @default(0) @map("last_number")
+
+  @@map("cheque_number_counters")
+}
+
 model Cheque {
   id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   venueId           String       @map("venue_id") @db.Uuid
   terminalId        String?      @map("terminal_id") @db.Uuid
   cashierId         String       @map("cashier_id") @db.Uuid
-  chequeNumber      Int          @map("cheque_number")
+  chequeNumber      Int          @map("cheque_number")  
   businessDate      DateTime     @map("business_date") @db.Date
   tableLabel        String       @map("table_label") @db.VarChar(50)
   splitLabel        String?      @map("split_label") @db.VarChar(50)

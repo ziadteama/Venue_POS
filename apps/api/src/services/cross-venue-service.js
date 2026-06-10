@@ -196,6 +196,7 @@ export function serializeCrossVenueGroup(groupId, anchorVenueId, members) {
   return {
     groupId,
     anchorVenueId,
+    groupChequeNumber: members[0]?.chequeNumber ?? null,
     status,
     tableLabel,
     combinedTotal,
@@ -215,6 +216,7 @@ export async function getCrossVenueGroupSummary(groupId) {
   if (!members.length) return null;
   return {
     groupId,
+    groupChequeNumber: members[0]?.chequeNumber ?? null,
     members: members.map((m) => {
       const serialized = serializeCheque(m);
       return {
@@ -229,6 +231,73 @@ export async function getCrossVenueGroupSummary(groupId) {
       };
     }),
   };
+}
+
+/** Hub manager: cross-sell groups with member cheques per venue. */
+export async function listCrossVenueChequeGroups({ status = 'open', limit = 50 } = {}) {
+  if (!config.featureCrossVenueBilling) return [];
+
+  const cheques = await prisma.cheque.findMany({
+    where: {
+      isCrossVenue: true,
+      crossVenueGroupId: { not: null },
+      status,
+    },
+    include: {
+      ...chequeInclude,
+      venue: {
+        select: {
+          id: true,
+          nameEn: true,
+          nameAr: true,
+          taxRate: true,
+          taxInclusive: true,
+          serviceRate: true,
+          serviceEnabled: true,
+        },
+      },
+    },
+    orderBy: status === 'paid' ? { closedAt: 'desc' } : { openedAt: 'asc' },
+  });
+
+  const byGroup = new Map();
+  for (const row of cheques) {
+    const gid = row.crossVenueGroupId;
+    if (!byGroup.has(gid)) byGroup.set(gid, []);
+    byGroup.get(gid).push(row);
+  }
+
+  const groups = [...byGroup.entries()].map(([groupId, members]) => {
+    const serializedMembers = members.map((m) => {
+      const s = serializeCheque(m);
+      return {
+        chequeId: s.id,
+        venueId: s.venueId,
+        venueNameEn: m.venue?.nameEn ?? null,
+        venueNameAr: m.venue?.nameAr ?? null,
+        chequeNumber: s.chequeNumber,
+        tableLabel: s.tableLabel,
+        status: s.status,
+        total: s.total,
+      };
+    });
+    const combinedTotal = Number(
+      serializedMembers.reduce((sum, m) => sum + Number(m.total ?? 0), 0).toFixed(2),
+    );
+    const groupStatus = members.every((m) => m.status === 'paid') ? 'paid' : 'open';
+    return {
+      groupId,
+      chequeNumber: members[0]?.chequeNumber ?? null,
+      tableLabel: members[0]?.tableLabel ?? null,
+      status: groupStatus,
+      combinedTotal,
+      members: serializedMembers,
+    };
+  });
+
+  return groups
+    .sort((a, b) => (b.chequeNumber ?? 0) - (a.chequeNumber ?? 0))
+    .slice(0, limit);
 }
 
 export async function getCrossVenueGroupByAnchorCheque(anchorChequeId, anchorVenueId) {
@@ -426,7 +495,7 @@ export async function startCrossVenueOrder({
 
   const businessDate = resolveBusinessDate();
   await prisma.$transaction(async (tx) => {
-    const chequeNumber = await nextChequeNumber(tx, anchorVenueId, businessDate);
+    const chequeNumber = await nextChequeNumber(tx, businessDate);
     const cheque = await tx.cheque.create({
       data: {
         venueId: anchorVenueId,
@@ -485,8 +554,9 @@ export async function ensureVenueChequeInGroup({
   const label = tableLabel ?? members[0]?.tableLabel ?? null;
 
   const anchorBusinessDate = members[0]?.businessDate ?? resolveBusinessDate();
+  const sharedChequeNumber = members[0]?.chequeNumber;
   const cheque = await prisma.$transaction(async (tx) => {
-    const chequeNumber = await nextChequeNumber(tx, targetVenueId, anchorBusinessDate);
+    const chequeNumber = sharedChequeNumber ?? (await nextChequeNumber(tx, anchorBusinessDate));
     const created = await tx.cheque.create({
       data: {
         venueId: targetVenueId,

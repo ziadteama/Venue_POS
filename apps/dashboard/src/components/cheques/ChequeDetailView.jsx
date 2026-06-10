@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { isHubManager } from '@venue-pos/shared';
 import { billableOrders } from '../../utils/chequeActions.js';
 import { CrossVenueBadge, CrossVenueGroupPanel } from '../CrossVenueBadge.jsx';
@@ -17,6 +18,12 @@ function ChequeDetailHeader({ detail, t }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 pb-4">
       <div>
+        <Link
+          to={`/orders?chequeId=${detail.id}`}
+          className="mb-2 inline-block text-sm font-medium text-accent-700 hover:underline"
+        >
+          {t('cheque.viewInOrders')}
+        </Link>
         <h3 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-slate-900">
           {t('cheque.number', { number: detail.chequeNumber })}
           <StatusBadge
@@ -269,7 +276,6 @@ function ChequeActionToolbar({
 
 export function ChequeDetailView({
   detail,
-  statusTab,
   busy,
   language,
   userRole,
@@ -282,8 +288,8 @@ export function ChequeDetailView({
     return <EmptyState icon={ChequeIcon} title={t('cheque.selectCheque')} className="py-16" />;
   }
 
-  const isOpenTab = statusTab === 'open';
-  const isPaidTab = statusTab === 'paid';
+  const isOpenTab = detail.status === 'open';
+  const isPaidTab = detail.status === 'paid';
   const canManage = isHubManager(userRole);
   const orders = billableOrders(detail);
 
@@ -299,6 +305,7 @@ export function ChequeDetailView({
             language={language}
             locale={language === 'ar' ? 'ar-EG' : 'en-EG'}
             formatMoney={formatMoney}
+            linkMembers
           />
         </div>
       ) : null}

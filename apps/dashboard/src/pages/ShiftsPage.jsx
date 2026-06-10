@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { isHubStaff, canSeeFinancials } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
@@ -583,6 +584,13 @@ export function ShiftsPage() {
                   : detail.discountCount}
               </DetailRow>
             </dl>
+
+            <Link
+              to={`/orders?shiftId=${detail.id}`}
+              className="inline-flex items-center text-sm font-medium text-accent-700 hover:underline"
+            >
+              {t('shifts.viewOrders')}
+            </Link>
 
             {showFinancials ? (
               <div className="rounded-xl border border-slate-100 bg-surface-overlay p-3">
