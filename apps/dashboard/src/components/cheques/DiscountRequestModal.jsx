@@ -5,6 +5,7 @@ export function DiscountRequestModal({
   mode,
   amount,
   percent,
+  percentOnly = false,
   onModeChange,
   onAmountChange,
   onPercentChange,
@@ -15,6 +16,7 @@ export function DiscountRequestModal({
   confirmLabelKey = 'cheque.applyDiscount',
   subtitle,
 }) {
+  const effectiveMode = percentOnly ? 'percent' : mode;
   return (
     <RequestActionModal
       title={t(titleKey, { number: chequeNumber })}
@@ -26,32 +28,34 @@ export function DiscountRequestModal({
       onCancel={onCancel}
       onConfirm={({ reason }) => {
         const payload = { reason };
-        if (mode === 'percent') payload.percent = Number(percent);
+        if (effectiveMode === 'percent') payload.percent = Number(percent);
         else payload.amount = Number(amount);
         onConfirm(payload);
       }}
     >
-      <div className="mb-3 flex gap-2 text-sm">
-        <button
-          type="button"
-          onClick={() => onModeChange('amount')}
-          className={`flex-1 rounded border px-2 py-1.5 ${
-            mode === 'amount' ? 'border-amber-500 bg-amber-50' : ''
-          }`}
-        >
-          {t('cheque.discountAmount')}
-        </button>
-        <button
-          type="button"
-          onClick={() => onModeChange('percent')}
-          className={`flex-1 rounded border px-2 py-1.5 ${
-            mode === 'percent' ? 'border-amber-500 bg-amber-50' : ''
-          }`}
-        >
-          {t('cheque.discountPercent')}
-        </button>
-      </div>
-      {mode === 'amount' ? (
+      {!percentOnly ? (
+        <div className="mb-3 flex gap-2 text-sm">
+          <button
+            type="button"
+            onClick={() => onModeChange('amount')}
+            className={`flex-1 rounded border px-2 py-1.5 ${
+              mode === 'amount' ? 'border-amber-500 bg-amber-50' : ''
+            }`}
+          >
+            {t('cheque.discountAmount')}
+          </button>
+          <button
+            type="button"
+            onClick={() => onModeChange('percent')}
+            className={`flex-1 rounded border px-2 py-1.5 ${
+              mode === 'percent' ? 'border-amber-500 bg-amber-50' : ''
+            }`}
+          >
+            {t('cheque.discountPercent')}
+          </button>
+        </div>
+      ) : null}
+      {effectiveMode === 'amount' ? (
         <label className="mb-3 block text-sm">
           <span className="mb-1 block text-secondary">{t('cheque.discountAmount')}</span>
           <input

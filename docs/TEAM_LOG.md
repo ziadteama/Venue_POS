@@ -1576,6 +1576,13 @@ npm run lint && npm run lint:i18n
 ```
 **Notes:** Watchdog launches configurable `WATCHDOG_POS_COMMAND` (npm dev now, packaged exe later). GUI POS should use kiosk shell or NSSM with `-KioskUser`. Coordinator agent still uses NSSM per DEVELOPMENT.md.
 
+### 2026-06-10 — Cheques page: drop Cross-sell tab
+
+**Phase:** Dashboard
+**What:** Removed dedicated Cross-sell tab; cross-venue cheques show in Open/Paid per venue with badge + linked panel in detail. Venue picker + search unchanged; cross-venue discount stays percent-only in modal.
+**Files:** `ChequesPage.jsx`, `ChequesPageHeader.jsx`, `useChequeManager.js`, removed `CrossVenueChequesSidebar.jsx`
+**Verify:** Hub manager → Cheques → switch venue → cross-sell rows show badge; detail panel links to sibling venues.
+
 ### 2026-06-10 — Dashboard ops navigation: Shifts → Cheques → Orders
 
 **Phase:** Dashboard · **Stories:** US-4.6 (nav refinement)
