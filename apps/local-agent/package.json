@@ -7,7 +7,7 @@
     "dev": "node ../../scripts/node20.mjs --watch src/index.js",
     "start": "node ../../scripts/node20.mjs src/index.js",
     "build": "echo \"No build step yet\"",
-    "test": "node --test src/services/*.test.js src/db/*.test.js test/e2e/*.test.js"
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "@venue-pos/shared": "*",

@@ -4,6 +4,7 @@ import { saveStaffCache, saveFeaturesCache, setAgentMeta } from './terminal-cach
 import { processSyncQueue, getSyncQueueDepth, getFailedSyncCount, setSyncDrainProgress, clearSyncDrainProgress } from './sync-processor.js';
 import { hydrateOpenCheques } from './cheque-hydration.js';
 import { reconcileLocalChequePrices } from './menu-reconcile.js';
+import { drainMenuPublishQueue } from './ws-client.js';
 
 export async function runReconnectHandshake({
   db,
@@ -43,6 +44,8 @@ export async function runReconnectHandshake({
   } else {
     setAgentMeta(db, 'menu_stale', 'false');
   }
+
+  await drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log });
 
   reconcileLocalChequePrices(db, venueId);
 

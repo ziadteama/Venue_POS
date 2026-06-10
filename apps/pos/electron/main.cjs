@@ -32,6 +32,21 @@ function createWindow() {
     mainWindow = null;
   });
 
+  if (isKiosk) {
+    mainWindow.removeMenu();
+    mainWindow.webContents.on('context-menu', (event) => event.preventDefault());
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+      const key = input.key?.toLowerCase();
+      if (input.key === 'F12') event.preventDefault();
+      if (input.control && input.shift && key === 'i') event.preventDefault();
+      if (input.control && input.shift && key === 'j') event.preventDefault();
+      if (input.alt && key === 'f4') event.preventDefault();
+    });
+    mainWindow.webContents.on('devtools-opened', () => {
+      mainWindow.webContents.closeDevTools();
+    });
+  }
+
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[pos] Renderer process gone:', details);
     if (mainWindow && !mainWindow.isDestroyed()) {

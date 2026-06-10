@@ -13,7 +13,7 @@ function enqueueMenuPublish(db, payload) {
   ).run(id, payload.versionHash ?? '', JSON.stringify(payload));
 }
 
-export async function drainMenuPublishQueue(db, { apiUrl, venueId, terminalId, terminalSecret, log }) {
+export async function drainMenuPublishQueue({ db, apiUrl, venueId, terminalId, terminalSecret, log }) {
   const pending = db
     .prepare(`SELECT * FROM menu_publish_queue WHERE status = 'pending' ORDER BY created_at ASC`)
     .all();

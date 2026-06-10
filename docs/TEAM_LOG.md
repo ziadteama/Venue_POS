@@ -1536,6 +1536,19 @@ npm run lint && npm run lint:i18n
 ```
 **Notes:** Refunds remain online-only (audit). Comp offline deferred — hub manager route only. Menu publish backlog while offline still open (US-7.4). All 10 manual-matrix scenarios automated in `test/e2e/phase6-matrix.test.js` (two live agent processes for floor LAN).
 
+### 2026-06-10 — Post–Phase 6: US-7.4 menu publish drain + kiosk hardening (US-9.1 slice)
+
+**Phase:** 7 (kickoff) · **Stories:** US-7.4 (close), US-9.1 (partial)
+**What:** `drainMenuPublishQueue` on reconnect handshake; unit test for offline publish queue drain; POS kiosk blocks context menu, DevTools, Alt+F4 when `ELECTRON_IS_KIOSK=true`; PRD checkboxes updated for shipped US-8.9/8.10 and US-7.4.
+**Files:** `reconnect.js`, `menu-publish-queue.test.js`, `apps/pos/electron/main.cjs`, `docs/PRD.md`
+**Verify:**
+```bash
+npm run setup:node20
+npm run test -w @venue-pos/local-agent
+# Kiosk: ELECTRON_IS_KIOSK=true npm run dev -w @venue-pos/pos
+```
+**Notes:** Epic 9 watchdog (US-9.2) and GP/BIOS (US-9.3) still open. Run `npm run setup:node20` after switching Node versions (better-sqlite3).
+
 ---
 
 ## Quick reference — Phase 0 deliverables

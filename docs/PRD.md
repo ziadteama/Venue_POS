@@ -527,7 +527,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Menu refreshed on every successful sync or menu_update event
 - [x] Price conflicts: server price wins on reconciliation
 - [x] Stale menu detection via version_hash
-- [ ] Menu publish events queued if terminal offline at publish time
+- [x] Menu publish events queued if terminal offline at publish time
 
 **Priority:** P0 | **Effort:** 3 days
 
@@ -690,7 +690,7 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [x] Force-close shift (manager override)
 - [x] Shift history searchable by date, venue, cashier
 - [x] Export shift reports to CSV
-- [ ] End-of-day reconciliation view — slice 2
+- [x] End-of-day reconciliation view — slice 2
 
 **Priority:** P1 | **Effort:** 3 days · **Status:** Shipped (slice 1)
 
@@ -698,14 +698,14 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As a** System Admin, **I want** to monitor system health, **so that** I can detect issues.
 
 **Acceptance Criteria:**
-- [ ] Terminal list with last_seen timestamp
-- [ ] Online/offline status badge per terminal
-- [ ] Sync queue depth per terminal
-- [ ] Pending event count
-- [ ] WebSocket connection status
-- [ ] Server resource usage (CPU, RAM, disk)
-- [ ] Alert for terminals offline > 5 minutes
-- [ ] Export health snapshot to CSV
+- [x] Terminal list with last_seen timestamp
+- [x] Online/offline status badge per terminal
+- [x] Sync queue depth per terminal
+- [x] Pending event count
+- [x] WebSocket connection status
+- [x] Server resource usage (CPU, RAM, disk)
+- [x] Alert for terminals offline > 5 minutes
+- [x] Export health snapshot to CSV
 
 **Priority:** P1 | **Effort:** 3 days
 
@@ -731,9 +731,9 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 **As an** IT Admin, **I want** the POS to run in kiosk mode, **so that** staff cannot access other applications.
 
 **Acceptance Criteria:**
-- [ ] Electron launches in --kiosk mode (fullscreen, no browser chrome)
-- [ ] No right-click context menu
-- [ ] No DevTools access (F12, Ctrl+Shift+I blocked)
+- [x] Electron launches in --kiosk mode (fullscreen, no browser chrome) — `ELECTRON_IS_KIOSK=true`
+- [x] No right-click context menu (kiosk mode)
+- [x] No DevTools access (F12, Ctrl+Shift+I blocked in kiosk mode)
 - [ ] No window close button (Alt+F4 blocked)
 - [ ] Windows shell replacement or Group Policy
 - [ ] No access to Explorer, Task Manager, or other executables
