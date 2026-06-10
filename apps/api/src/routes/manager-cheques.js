@@ -12,6 +12,7 @@ import {
 import {
   listOpenCheques,
   listChequesForVenue,
+  searchChequesHubWide,
   listCrossVenueChequeGroups,
   getCheque,
   voidChequeRound,
@@ -88,6 +89,24 @@ export async function managerChequeRoutes(app) {
         limit: Number(request.query?.limit ?? 50),
         q: request.query?.q,
         shiftId: request.query?.shiftId,
+      });
+    },
+  );
+
+  app.get(
+    '/api/v1/manager/cheques/hub-search',
+    { preHandler: hubManagerPreHandler },
+    async (request) => {
+      const status = request.query?.status ?? 'open';
+      if (!['open', 'paid', 'voided'].includes(status)) {
+        throw validationError('Invalid status filter');
+      }
+      const q = request.query?.q;
+      if (!q?.trim()) throw validationError('Search query is required');
+      return searchChequesHubWide({
+        status,
+        q,
+        limit: Number(request.query?.limit ?? 50),
       });
     },
   );

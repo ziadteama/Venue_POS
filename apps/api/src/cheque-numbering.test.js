@@ -185,4 +185,22 @@ test('manager cross-venue list and cheque search', async () => {
   });
   assert.equal(search.statusCode, 200);
   assert.ok(search.json().some((c) => c.tableLabel?.includes('T-cross')));
+
+  const crossRow = await prisma.cheque.findFirst({
+    where: { tableLabel: 'T-cross-num', venueId: VENUE_A },
+    select: { chequeNumber: true },
+  });
+  assert.ok(crossRow, 'cross-sell anchor from prior test');
+  const hubSearch = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/cheques/hub-search?status=open&q=${crossRow.chequeNumber}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(hubSearch.statusCode, 200);
+  const hubHits = hubSearch.json();
+  const venueIds = new Set(hubHits.map((c) => c.venueId));
+  assert.ok(hubHits.length >= 2, 'shared cheque number should match both venues');
+  assert.ok(hubHits.every((c) => c.chequeNumber === crossRow.chequeNumber));
+  assert.ok(venueIds.has(VENUE_A));
+  assert.ok(venueIds.has(VENUE_B));
 });

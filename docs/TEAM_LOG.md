@@ -1576,6 +1576,13 @@ npm run lint && npm run lint:i18n
 ```
 **Notes:** Watchdog launches configurable `WATCHDOG_POS_COMMAND` (npm dev now, packaged exe later). GUI POS should use kiosk shell or NSSM with `-KioskUser`. Coordinator agent still uses NSSM per DEVELOPMENT.md.
 
+### 2026-06-10 — Dashboard ops navigation polish (context, search, palette)
+
+**Phase:** Dashboard
+**What:** Orders context bars (cheque/shift deep links); cheque # links in Orders table; hub-wide numeric cheque search API + Cheques UI; sidebar quick Orders button; split-panel Orders inspector; Ctrl+K command palette; cross-venue panel highlights current venue + group total.
+**Files:** `cheque-lifecycle.js`, `manager-cheques.js`, `OrdersPage.jsx`, `OrderDetailPanel.jsx`, `CommandPalette.jsx`, `ChequesSidebar.jsx`, `useChequeManager.js`, `Layout.jsx`, i18n
+**Verify:** `npm run lint && npm run lint:i18n`; hub-search test in `cheque-numbering.test.js`; Ctrl+K jump to cheque #; Shifts → Cheques → Orders chain.
+
 ### 2026-06-10 — Cheques page: drop Cross-sell tab
 
 **Phase:** Dashboard

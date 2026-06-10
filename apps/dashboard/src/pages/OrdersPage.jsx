@@ -5,16 +5,17 @@ import { ORDER_STATUSES, isHubManager, isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
-import { CrossVenueBadge, CrossVenueGroupPanel } from '../components/CrossVenueBadge.jsx';
+import { CrossVenueBadge } from '../components/CrossVenueBadge.jsx';
 import { ChequeActionModals } from '../components/cheques/ChequeActionModals.jsx';
-import { OpsBreadcrumb } from '../components/dashboard/OpsBreadcrumb.jsx';
+import { ShiftContextBar } from '../components/cheques/ShiftContextBar.jsx';
+import { OpsContextBar } from '../components/dashboard/OpsContextBar.jsx';
+import { OrderDetailPanel } from '../components/orders/OrderDetailPanel.jsx';
 import { managerActionMethod, managerActionPath } from '../utils/chequeActions.js';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { FilterBar, SearchInput } from '../components/ui/FilterBar.jsx';
 import { Field, Input, Select } from '../components/ui/Field.jsx';
 import { Button } from '../components/ui/Button.jsx';
 import { DataTable } from '../components/ui/DataTable.jsx';
-import { Drawer } from '../components/ui/Drawer.jsx';
 import { StatusBadge } from '../components/ui/Badge.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
 import { TableSkeleton } from '../components/dashboard/Skeleton.jsx';
@@ -114,9 +115,10 @@ function shiftStatusLabel(status, t) {
 export function OrdersPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const deepChequeId = searchParams.get('chequeId');
   const deepShiftId = searchParams.get('shiftId');
+  const deepVenueId = searchParams.get('venueId');
   const [venues, setVenues] = useState([]);
   const [venueId, setVenueId] = useState(user?.venueId ?? '');
   const [filters, setFilters] = useState(emptyFilters);
@@ -129,10 +131,13 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [actionTarget, setActionTarget] = useState(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [chequeContext, setChequeContext] = useState(null);
+  const [shiftContext, setShiftContext] = useState(null);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const canPickVenue = isHubStaff(user?.role);
   const canManageOrders = isHubManager(user?.role);
+  const scopedVenue = canPickVenue ? venueId : user?.venueId;
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -190,14 +195,38 @@ export function OrdersPage() {
   }, [deepShiftId, result]);
 
   useEffect(() => {
+    if (!deepChequeId) {
+      setChequeContext(null);
+      return;
+    }
+    const vId = deepVenueId || scopedVenue;
+    if (!vId) return;
+    apiFetch(`/api/v1/manager/cheques/${deepChequeId}?venueId=${vId}`)
+      .then(setChequeContext)
+      .catch(() => setChequeContext(null));
+  }, [deepChequeId, deepVenueId, scopedVenue]);
+
+  useEffect(() => {
+    if (!deepShiftId) {
+      setShiftContext(null);
+      return;
+    }
+    const vId = deepVenueId || scopedVenue;
+    if (!vId) return;
+    apiFetch(`/api/v1/manager/shifts/${deepShiftId}?venueId=${vId}`)
+      .then(setShiftContext)
+      .catch(() => setShiftContext(null));
+  }, [deepShiftId, deepVenueId, scopedVenue]);
+
+  useEffect(() => {
     if (!selectedKey) {
       setDetail(null);
       setReceipt('');
       return;
     }
 
-    const scopedVenue = canPickVenue ? venueId : user?.venueId;
-    const venueQuery = scopedVenue ? `?venueId=${scopedVenue}` : '';
+    const detailVenue = deepVenueId || scopedVenue;
+    const venueQuery = detailVenue ? `?venueId=${detailVenue}` : '';
 
     if (selectedKey.startsWith('orphan:')) {
       const orderId = selectedKey.replace('orphan:', '');
@@ -210,7 +239,7 @@ export function OrdersPage() {
     apiFetch(`/api/v1/manager/orders/by-cheque/${selectedKey}${venueQuery}`)
       .then(setDetail)
       .catch((err) => setError(friendlyError(err)));
-  }, [selectedKey, venueId, canPickVenue, user?.venueId]);
+  }, [selectedKey, venueId, deepVenueId, scopedVenue, canPickVenue, user?.venueId]);
 
   function updateFilter(key, value) {
     setPage(1);
@@ -222,8 +251,34 @@ export function OrdersPage() {
     setFilters(emptyFilters);
   }
 
+  function syncSelectionUrl(group) {
+    const next = new URLSearchParams(searchParams);
+    if (group?.chequeId) {
+      next.set('chequeId', group.chequeId);
+      if (group.venueId) next.set('venueId', group.venueId);
+    } else {
+      next.delete('chequeId');
+    }
+    setSearchParams(next, { replace: true });
+  }
+
   function selectGroup(group) {
     setSelectedKey(groupKey(group));
+    syncSelectionUrl(group);
+  }
+
+  function clearChequeFilter() {
+    setSelectedKey(null);
+    setDetail(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('chequeId');
+    setSearchParams(next, { replace: true });
+  }
+
+  function clearShiftFilter() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('shiftId');
+    setSearchParams(next, { replace: true });
   }
 
   async function exportCsv() {
@@ -257,8 +312,8 @@ export function OrdersPage() {
 
   async function reloadDetail() {
     if (!selectedKey) return;
-    const scopedVenue = canPickVenue ? venueId : user?.venueId;
-    const venueQuery = scopedVenue ? `?venueId=${scopedVenue}` : '';
+    const detailVenue = deepVenueId || scopedVenue;
+    const venueQuery = detailVenue ? `?venueId=${detailVenue}` : '';
     if (selectedKey.startsWith('orphan:')) {
       const orderId = selectedKey.replace('orphan:', '');
       setDetail(await apiFetch(`/api/v1/manager/orders/${orderId}${venueQuery}`));
@@ -299,12 +354,21 @@ export function OrdersPage() {
     {
       key: 'chequeNumber',
       header: t('orders.chequeNumber'),
-      render: (group) => (
-        <span className="inline-flex flex-wrap items-center gap-1.5 font-medium text-slate-900">
-          {group.chequeNumber != null ? `#${group.chequeNumber}` : t('orders.noCheque')}
-          {group.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
-        </span>
-      ),
+      render: (group) =>
+        group.chequeId && group.chequeNumber != null ? (
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <Link
+              to={`/cheques?chequeId=${group.chequeId}&venueId=${group.venueId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="font-medium text-accent-700 hover:underline"
+            >
+              #{group.chequeNumber}
+            </Link>
+            {group.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
+          </span>
+        ) : (
+          <span className="font-medium text-slate-900">{t('orders.noCheque')}</span>
+        ),
     },
     {
       key: 'rounds',
@@ -486,11 +550,45 @@ export function OrdersPage() {
         busy={actionBusy}
       />
 
+      {deepChequeId && chequeContext ? (
+        <OpsContextBar
+          breadcrumb={[
+            { label: t('nav.cheques'), to: '/cheques' },
+            {
+              label: t('cheque.number', { number: chequeContext.chequeNumber }),
+              to: `/cheques?chequeId=${chequeContext.id}&venueId=${chequeContext.venueId}`,
+            },
+            { label: t('nav.orders') },
+          ]}
+          hint={t('orders.chequeContextHint', {
+            table: chequeContext.tableLabel,
+            status: chequeContext.status === 'paid' ? t('cheque.statusPaid') : t('cheque.statusOpen'),
+          })}
+          backTo={`/cheques?chequeId=${chequeContext.id}&venueId=${chequeContext.venueId}`}
+          backLabel={t('orders.backToCheque')}
+          onClear={clearChequeFilter}
+          clearLabel={t('orders.clearChequeFilter')}
+        />
+      ) : null}
+
+      {deepShiftId && !deepChequeId ? (
+        <ShiftContextBar
+          shiftContext={shiftContext}
+          shiftId={deepShiftId}
+          chequeCount={
+            result?.shifts?.find((s) => s.shiftId === deepShiftId)?.chequeCount ?? 0
+          }
+          t={t}
+          onClear={clearShiftFilter}
+          hintKey="orders.shiftFilterHint"
+        />
+      ) : null}
+
       {loading && !result ? (
         <TableSkeleton rows={8} cols={5} />
       ) : result?.shifts?.length ? (
-        <>
-          <div className="space-y-5">
+        <div className="grid gap-4 xl:grid-cols-[1fr_min(22rem,38%)]">
+          <div className="min-w-0 space-y-5">
             {result.shifts.map((shift) => (
               <section
                 key={shift.shiftId ?? 'unassigned'}
@@ -529,6 +627,14 @@ export function OrdersPage() {
                     <div className="mt-0.5 text-sm font-semibold tabular-nums text-slate-900">
                       {formatMoney(shift.totalSubtotal, locale)} {t('pos.currency')}
                     </div>
+                    {shift.shiftId && scopedVenue ? (
+                      <Link
+                        to={`/cheques?shiftId=${shift.shiftId}&venueId=${scopedVenue}`}
+                        className="mt-1 inline-block text-xs font-medium text-accent-700 hover:underline"
+                      >
+                        {t('orders.viewShiftCheques')}
+                      </Link>
+                    ) : null}
                   </div>
                 </div>
                 <DataTable
@@ -540,257 +646,71 @@ export function OrdersPage() {
                 />
               </section>
             ))}
-          </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
-            <span className="text-slate-500">
-              {t('orders.pageInfoShifts', {
-                page: result.page,
-                totalPages: result.totalPages,
-                total: result.total,
-                cheques: result.totalCheques,
-                orders: result.totalOrders,
-              })}
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                {t('orders.prev')}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= result.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                {t('orders.next')}
-              </Button>
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+              <span className="text-slate-500">
+                {t('orders.pageInfoShifts', {
+                  page: result.page,
+                  totalPages: result.totalPages,
+                  total: result.total,
+                  cheques: result.totalCheques,
+                  orders: result.totalOrders,
+                })}
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  {t('orders.prev')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={page >= result.totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  {t('orders.next')}
+                </Button>
+              </div>
             </div>
           </div>
-        </>
+
+          <aside className="surface-card p-5 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+            <OrderDetailPanel
+              detail={detail}
+              chequeOrders={chequeOrders}
+              receipt={receipt}
+              locale={locale}
+              venueId={scopedVenue}
+              t={t}
+              i18n={i18n}
+              showOrderActions={showOrderActions}
+              actionBusy={actionBusy}
+              onReprintCheque={() =>
+                reprintCheque().catch((e) => setError(friendlyError(e)))
+              }
+              onReprintOrder={(orderId) =>
+                reprintOrder(orderId).catch((e) => setError(friendlyError(e)))
+              }
+              onCompItem={(target) =>
+                setActionTarget({ type: 'comp', ...target })
+              }
+              onVoidRound={(target) =>
+                setActionTarget({ type: 'round', ...target })
+              }
+              OrderLineItems={OrderLineItems}
+            />
+          </aside>
+        </div>
       ) : (
         <div className="surface-card">
           <EmptyState icon={OrdersIcon} title={t('orders.empty')} className="py-16" />
         </div>
       )}
 
-      <Drawer
-        open={Boolean(selectedKey)}
-        onClose={() => setSelectedKey(null)}
-        size="xl"
-        icon={OrdersIcon}
-        title={
-          detail
-            ? detail.cheque?.chequeNumber != null
-              ? t('pos.chequeNumber', { number: detail.cheque.chequeNumber })
-              : t('pos.orderNumber', { number: detail.orderNumber })
-            : t('orders.selectCheque')
-        }
-        subtitle={detail ? formatDate(detail.openedAt, locale) : undefined}
-        footer={
-          detail?.cheque?.id ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => reprintCheque().catch((e) => setError(friendlyError(e)))}
-              >
-                {t('orders.reprintCheque')}
-              </Button>
-              <Link
-                to={`/cheques?chequeId=${detail.cheque.id}&venueId=${detail.venueId ?? venueId}`}
-                className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                {t('orders.chequeActions')} →
-              </Link>
-            </div>
-          ) : null
-        }
-      >
-        {!detail ? (
-          <p className="text-sm text-slate-500">{t('common.loading')}</p>
-        ) : (
-          <div className="space-y-4 text-sm">
-            {detail.cheque?.id ? (
-              <OpsBreadcrumb
-                items={[
-                  { label: t('nav.cheques'), to: '/cheques' },
-                  {
-                    label: t('cheque.number', { number: detail.cheque.chequeNumber }),
-                    to: `/cheques?chequeId=${detail.cheque.id}&venueId=${detail.venueId ?? venueId}`,
-                  },
-                  { label: t('nav.orders') },
-                ]}
-              />
-            ) : null}
-            {detail.cheque?.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
-
-            {detail.voidAudit ? (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                <p className="font-medium text-amber-900">{t('orders.voided')}</p>
-                <p className="mt-1 text-amber-800">{detail.voidAudit.reason}</p>
-              </div>
-            ) : null}
-
-            {detail.crossVenueGroup ? (
-              <CrossVenueGroupPanel
-                group={detail.crossVenueGroup}
-                t={t}
-                language={i18n.language}
-                locale={locale}
-                formatMoney={formatMoney}
-                linkMembers
-              />
-            ) : null}
-
-            {detail.cheque ? (
-              <div className="space-y-2 rounded-xl border border-slate-100 bg-surface-overlay p-3">
-                {detail.cheque.parentCheque ? (
-                  <p className="text-slate-500">
-                    {t('orders.splitFrom', { number: detail.cheque.parentCheque.chequeNumber })}
-                  </p>
-                ) : null}
-                {detail.cheque.childCheques?.length > 0 ? (
-                  <ul className="list-inside list-disc text-slate-500">
-                    {detail.cheque.childCheques.map((c) => (
-                      <li key={c.id}>
-                        {t('orders.splitChild', {
-                          label: c.splitLabel ?? c.chequeNumber,
-                          number: c.chequeNumber,
-                        })}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-                {detail.cheque.payments?.length > 0 ? (
-                  <div>
-                    <p className="font-medium text-slate-700">{t('orders.payments')}</p>
-                    <ul className="mt-1 space-y-1 text-slate-600">
-                      {detail.cheque.payments.map((p) => (
-                        <li key={p.id}>
-                          {t(`orders.method.${p.method}`, p.method)} —{' '}
-                          {formatMoney(p.amount, locale)} {t('pos.currency')}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-                {detail.totalSubtotal != null ? (
-                  <p className="font-semibold text-slate-900">
-                    {t('orders.chequeTotal')}: {formatMoney(detail.totalSubtotal, locale)}{' '}
-                    {t('pos.currency')}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div>
-              <p className="mb-2 font-medium text-slate-700">
-                {chequeOrders.length > 1
-                  ? t('orders.ordersOnCheque', {
-                      count: chequeOrders.length,
-                      number: detail.cheque?.chequeNumber ?? '—',
-                    })
-                  : t('orders.lineItems')}
-              </p>
-              <div className="space-y-4">
-                {chequeOrders
-                  .filter(
-                    (chequeOrder) =>
-                      chequeOrder.items?.length > 0 ||
-                      chequeOrder.status === 'voided' ||
-                      chequeOrder.voidReason,
-                  )
-                  .map((chequeOrder) => (
-                  <div key={chequeOrder.id} className="rounded-xl border border-slate-200 bg-white p-3">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="font-medium text-slate-900">
-                        {t('orders.roundOnCheque', { number: chequeOrder.orderNumber })}
-                      </span>
-                      <span className="text-xs text-slate-500">
-                        {t(`orders.status.${chequeOrder.status}`, chequeOrder.status)} ·{' '}
-                        {formatMoney(chequeOrder.subtotal, locale)} {t('pos.currency')}
-                      </span>
-                    </div>
-                    {chequeOrder.voidReason || chequeOrder.voidAudit?.reason ? (
-                      <p className="mb-2 text-xs text-amber-800">
-                        {chequeOrder.voidReason ?? chequeOrder.voidAudit?.reason}
-                      </p>
-                    ) : null}
-                    <OrderLineItems items={chequeOrder.items} t={t} i18n={i18n} locale={locale} />
-                    <div className="mt-2 flex flex-wrap items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          reprintOrder(chequeOrder.id).catch((e) => setError(friendlyError(e)))
-                        }
-                        className="text-xs font-medium text-accent-600 hover:text-accent-700 hover:underline"
-                      >
-                        {t('orders.reprintOrder')}
-                      </button>
-                      {showOrderActions &&
-                      chequeOrder.status !== 'voided' &&
-                      chequeOrder.items?.length > 0 ? (
-                        <>
-                          {chequeOrder.items.map((item) =>
-                            !item.isComped ? (
-                              <button
-                                key={item.id}
-                                type="button"
-                                disabled={actionBusy}
-                                onClick={() =>
-                                  setActionTarget({
-                                    type: 'comp',
-                                    chequeId: detail.cheque.id,
-                                    orderId: chequeOrder.id,
-                                    itemId: item.id,
-                                    itemName:
-                                      i18n.language === 'ar' ? item.nameAr : item.nameEn,
-                                  })
-                                }
-                                className="text-xs font-medium text-amber-700 hover:text-amber-800 disabled:opacity-50"
-                              >
-                                {t('orders.compItem', {
-                                  name:
-                                    i18n.language === 'ar' ? item.nameAr : item.nameEn,
-                                })}
-                              </button>
-                            ) : null,
-                          )}
-                          <button
-                            type="button"
-                            disabled={actionBusy}
-                            onClick={() =>
-                              setActionTarget({
-                                type: 'round',
-                                chequeId: detail.cheque.id,
-                                orderId: chequeOrder.id,
-                                orderNumber: chequeOrder.orderNumber,
-                              })
-                            }
-                            className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
-                          >
-                            {t('orders.voidRound')}
-                          </button>
-                        </>
-                      ) : null}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {receipt ? (
-              <pre className="scrollbar-slim max-h-64 overflow-auto whitespace-pre-wrap rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
-                {receipt}
-              </pre>
-            ) : null}
-          </div>
-        )}
-      </Drawer>
     </div>
   );
 }

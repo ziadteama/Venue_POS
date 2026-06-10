@@ -29,14 +29,16 @@ import {
   ArrowUpRightIcon,
   RefreshIcon,
   ShiftIcon,
+  OrdersIcon,
   MenuIcon,
   PowerIcon,
 } from '../components/dashboard/icons.jsx';
 import { formatMoney, formatShortDate } from '../utils/dashboardFormat.js';
 
 const QUICK_ACTIONS = [
-  { to: '/cheques', labelKey: 'nav.cheques', Icon: ChequeIcon },
   { to: '/shifts', labelKey: 'nav.shifts', Icon: ShiftIcon },
+  { to: '/cheques', labelKey: 'nav.cheques', Icon: ChequeIcon },
+  { to: '/orders', labelKey: 'nav.orders', Icon: OrdersIcon },
   { to: '/menus', labelKey: 'nav.menus', Icon: MenuIcon },
   { to: '/health', labelKey: 'nav.health', Icon: HealthIcon },
 ];

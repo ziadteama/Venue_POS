@@ -4,6 +4,7 @@ export {
   openOrResumeCheque,
   listOpenCheques,
   listChequesForVenue,
+  searchChequesHubWide,
   getCheque,
   fireChequeRound,
   clearChequeDraft,
