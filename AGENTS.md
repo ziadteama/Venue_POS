@@ -114,7 +114,7 @@ npm run lint && npm run lint:i18n
 
 ## Status
 
-**Phases 0–6 complete** (offline ops, cross-sell coordinator, test harness). **Phase 7 kickoff:** kiosk hardening (US-9.1 partial), US-7.4 menu publish drain on reconnect. **Dashboard v2** (executive + operations overview). See `docs/TEAM_LOG.md` § **2026-06-10** entries. Plan: `docs/PHASE6_OFFLINE_PLAN.md` (closed); next: Epic 9 kiosk/watchdog in PRD.
+**Phases 0–6 complete** (offline ops, cross-sell coordinator, test harness). **Phase 7:** Epic 9 kiosk/watchdog shipped — `apps/watchdog`, `ops/windows/` (NSSM, kiosk user, firewall). US-7.4 menu publish drain on reconnect. **Dashboard v2** (executive + operations overview). `.exe` packaging deferred to final release. See `docs/TEAM_LOG.md` § **2026-06-10** entries.
 
 ## POS app layout (`apps/pos`)
 

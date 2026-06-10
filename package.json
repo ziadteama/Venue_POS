@@ -33,6 +33,7 @@
     "lint:i18n": "node scripts/lint-i18n.mjs",
     "test": "npm run test -w @venue-pos/api --if-present",
     "test:agent": "npm run test -w @venue-pos/local-agent",
+    "test:watchdog": "npm run test -w @venue-pos/watchdog",
     "docker:up": "docker compose up -d postgres redis",
     "docker:down": "docker compose down",
     "docker:redis": "docker compose up -d redis"

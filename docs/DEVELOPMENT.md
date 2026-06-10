@@ -343,10 +343,27 @@ nssm set VenuePosAgent AppDirectory "Z:\Plegmo\Venue_POS\apps\local-agent"
 nssm set VenuePosAgent AppEnvironmentExtra "IS_COORDINATOR=true" "COORDINATOR_FALLBACK_ENABLED=true"
 nssm start VenuePosAgent
 
-# Option B: pm2
+# Option B: pm2 (dev convenience only — production tills use NSSM)
 npm i -g pm2
 cd apps/local-agent && pm2 start src/index.js --name venue-pos-agent
 ```
+
+### Windows POS watchdog + kiosk (Phase 7)
+
+See **`ops/windows/README.md`** for full deploy order.
+
+```powershell
+# Dev — watchdog relaunches POS on crash
+$env:ELECTRON_IS_KIOSK="true"
+npm run start -w @venue-pos/watchdog
+
+# Production kiosk till (admin PowerShell)
+cd ops\windows
+.\setup-kiosk-user.ps1 -Password "YourSecurePassword"
+.\firewall-lockdown.ps1 -HubServerIp "203.0.113.10"
+```
+
+Tests: `npm run test -w @venue-pos/watchdog`
 
 ### Verify offline
 
