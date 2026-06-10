@@ -21,7 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16-alpine
+        # Docker Hub often times out on GHA; ECR public mirror is the same official image.
+        image: public.ecr.aws/docker/library/postgres:16-alpine
         env:
           POSTGRES_USER: hub_pos
           POSTGRES_PASSWORD: hub_pos_test
