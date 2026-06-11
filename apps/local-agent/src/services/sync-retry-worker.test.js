@@ -16,7 +16,7 @@ test('runSyncBackgroundRetry re-queues failed jobs when online', async () => {
   db.prepare(`UPDATE sync_queue SET status = 'failed', retry_count = 10 WHERE id = ?`).run(id);
 
   const originalFetch = global.fetch;
-  global.fetch = async (url, init) => {
+  global.fetch = async (url) => {
     if (String(url).includes('/api/v1/cheques/open')) {
       return { ok: true, status: 200, json: async () => ({ id: 'srv-1' }) };
     }

@@ -10,7 +10,7 @@ import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js'
 import { AdjustmentsIcon, ClearIcon, PrinterIcon } from './icons.jsx';
 import { SplitSettlePanel } from './SplitSettlePanel.jsx';
 
-function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId, editable }) {
+function ReceiptLine({ line, language, onChangeQty, order, t, venueId, editable }) {
   return (
     <li className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-gradient text-sm font-bold text-white">
@@ -116,7 +116,6 @@ function CrossVenueReceiptBody({ group, cheque, language, t, onChangeQty }) {
                       key={line.id}
                       line={line}
                       language={language}
-                      readOnly={false}
                       editable
                       onChangeQty={onChangeQty}
                       order={member.draftOrder}
@@ -141,7 +140,6 @@ export function ReceiptPanel({
   cheque,
   crossVenueGroup,
   order,
-  tableLabel,
   printerOk,
   sending,
   paying,
@@ -322,7 +320,6 @@ export function ReceiptPanel({
                           key={line.id}
                           line={line}
                           language={language}
-                      readOnly={false}
                       editable={!line.isComped}
                       onChangeQty={onChangeQty}
                       order={order}
