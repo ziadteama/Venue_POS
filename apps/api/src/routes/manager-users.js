@@ -95,8 +95,11 @@ export async function managerUsersRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
       const actor = await actorFromRequest(request);
       const venueId = optionalVenueId(request);
-      if (request.user.role === ROLES.HUB_MANAGER && parsed.data.role !== 'cashier') {
-        throw validationError('Hub managers can only add cashiers');
+      if (
+        request.user.role === ROLES.HUB_MANAGER &&
+        !['cashier', 'venue_manager'].includes(parsed.data.role)
+      ) {
+        throw validationError('Hub managers can only add cashiers and floor managers');
       }
       return createManagedUser(actor, venueId, parsed.data);
     },

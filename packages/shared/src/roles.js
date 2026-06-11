@@ -17,8 +17,8 @@ export const PRODUCT_ROLES = {
 /** Staff roles hub manager can create per venue (POS/KDS). */
 export const VENUE_STAFF_ROLES = [ROLES.CASHIER, ROLES.KITCHEN_STAFF, ROLES.VENUE_MANAGER];
 
-/** Roles a hub manager may provision (cashiers only). */
-export const MANAGER_PROVISION_ROLES = [ROLES.CASHIER];
+/** Roles a hub manager may provision (POS floor staff). */
+export const MANAGER_PROVISION_ROLES = [ROLES.CASHIER, ROLES.VENUE_MANAGER];
 
 /** Roles the CEO (hub_owner) may provision. */
 export const OWNER_PROVISION_ROLES = [ROLES.HUB_OWNER, ROLES.HUB_MANAGER, ROLES.CASHIER];

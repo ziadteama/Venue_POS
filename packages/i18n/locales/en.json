@@ -957,7 +957,7 @@
   "users.subtitle": "Add cashiers and kitchen staff for your venue. Set PINs and RFID cards.",
   "users.subtitleHub": "Add cashiers and kitchen staff per venue. Floor managers run service on the POS.",
   "users.subtitleOwner": "Add owners, hub managers, and cashiers. Dashboard users sign in with a password; cashiers use a POS PIN.",
-  "users.subtitleManager": "Add cashiers for your venues. Set PINs and RFID cards.",
+  "users.subtitleManager": "Add cashiers and floor managers per venue. Floor manager PINs authorize refunds and voids on the POS.",
   "users.venue": "Venue",
   "users.assignVenue": "Assign to venue",
   "users.assignVenueHint": "This staff member belongs to the selected venue.",
