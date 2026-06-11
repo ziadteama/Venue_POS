@@ -5,6 +5,7 @@ import { authenticateTerminal } from '../middleware/terminal.js';
 import { validationError, forbidden } from '../utils/errors.js';
 import { emitVenueConfigUpdated } from '../plugins/socket.js';
 import {
+  createVenue,
   getVenueConfig,
   getTerminalVenueSettings,
   updateVenueConfig,
@@ -12,6 +13,12 @@ import {
 } from '../services/venue-config-service.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+
+const createVenueSchema = z.object({
+  nameEn: z.string().min(1).max(255),
+  nameAr: z.string().min(1).max(255),
+  type: z.enum(['standard', 'anchor']).optional(),
+});
 
 const updateConfigSchema = z.object({
   nameEn: z.string().min(1).max(255).optional(),
@@ -37,6 +44,16 @@ const updateConfigSchema = z.object({
 });
 
 export async function managerVenueConfigRoutes(app) {
+  app.post(
+    '/api/v1/manager/venues',
+    { preHandler: hubManagerPreHandler },
+    async (request) => {
+      const parsed = createVenueSchema.safeParse(request.body ?? {});
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return createVenue(parsed.data, request.user.sub);
+    },
+  );
+
   app.get(
     '/api/v1/manager/venues/:id/config',
     { preHandler: hubManagerPreHandler },

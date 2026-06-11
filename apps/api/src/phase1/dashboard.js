@@ -456,6 +456,42 @@ test('terminal can fetch venue settings', async () => {
   assert.ok(typeof res.json().taxRate === 'number');
 });
 
+test('hub manager can create a new restaurant', async () => {
+  const res = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/manager/venues',
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+    payload: {
+      nameEn: 'Test Bistro',
+      nameAr: 'مطعم تجريبي',
+      type: 'standard',
+    },
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  const body = res.json();
+  assert.equal(body.nameEn, 'Test Bistro');
+  assert.equal(body.nameAr, 'مطعم تجريبي');
+  assert.equal(body.type, 'standard');
+  assert.ok(body.id);
+
+  const listRes = await fx.app.inject({
+    method: 'GET',
+    url: '/api/v1/venues',
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+  });
+  assert.ok(listRes.json().some((v) => v.id === body.id));
+});
+
+test('hub owner cannot create restaurants', async () => {
+  const res = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/manager/venues',
+    headers: { authorization: `Bearer ${fx.ownerToken}` },
+    payload: { nameEn: 'Blocked', nameAr: 'محظور' },
+  });
+  assert.equal(res.statusCode, 403);
+});
+
 test('venue manager cannot patch venue config', async () => {
   const res = await fx.app.inject({
     method: 'PATCH',

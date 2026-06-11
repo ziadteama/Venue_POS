@@ -21,6 +21,7 @@ import {
   ActivityIcon,
   AlertIcon,
   CheckCircleIcon,
+  PlusIcon,
 } from '../components/dashboard/icons.jsx';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
@@ -48,7 +49,11 @@ function tablesToText(tables) {
 }
 
 const FORM_SECTIONS = ['general', 'printers'];
-const HUB_SECTIONS = ['tax', 'tables'];
+const HUB_SECTIONS = ['tax', 'tables', 'restaurants'];
+
+function emptyNewVenue() {
+  return { nameEn: '', nameAr: '', type: 'standard' };
+}
 
 export function VenueSettingsPage() {
   const { t, i18n } = useTranslation();
@@ -61,11 +66,20 @@ export function VenueSettingsPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newVenue, setNewVenue] = useState(emptyNewVenue());
   const [section, setSection] = useState('general');
+
+  const loadVenues = useCallback(async () => {
+    const list = await apiFetch('/api/v1/venues');
+    setVenues(list);
+    return list;
+  }, []);
 
   const sections = useMemo(
     () => [
-      { id: 'general', label: t('venueConfig.general'), icon: StoreIcon },
+      { id: 'restaurants', label: t('venueConfig.restaurants'), icon: StoreIcon },
+      { id: 'general', label: t('venueConfig.general'), icon: SettingsIcon },
       { id: 'tax', label: t('venueConfig.taxAndService'), icon: RevenueIcon },
       { id: 'tables', label: t('venueConfig.tables'), icon: TablesIcon },
       { id: 'printers', label: t('venueConfig.printers'), icon: PrinterIcon },
@@ -108,17 +122,45 @@ export function VenueSettingsPage() {
 
   useEffect(() => {
     if (user?.role !== 'hub_manager') return;
-    apiFetch('/api/v1/venues')
+    loadVenues()
       .then((list) => {
-        setVenues(list);
-        if (list[0]?.id) setVenueId(list[0].id);
+        setVenueId((current) => current || list[0]?.id || '');
       })
       .catch((err) => setError(friendlyError(err)));
-  }, [user?.role]);
+  }, [user?.role, loadVenues]);
 
   useEffect(() => {
     if (venueId) load(venueId);
   }, [venueId, load]);
+
+  async function createRestaurant(e) {
+    e.preventDefault();
+    setCreating(true);
+    setError('');
+    setSuccess('');
+    try {
+      const created = await apiFetch('/api/v1/manager/venues', {
+        method: 'POST',
+        body: JSON.stringify({
+          nameEn: newVenue.nameEn.trim(),
+          nameAr: newVenue.nameAr.trim(),
+          type: newVenue.type,
+        }),
+      });
+      const list = await loadVenues();
+      setVenueId(created.id);
+      setNewVenue(emptyNewVenue());
+      setSection('general');
+      setSuccess(t('venueConfig.restaurantCreated', { name: created.nameEn }));
+      if (!list.some((v) => v.id === created.id)) {
+        setVenues((prev) => [...prev, { id: created.id, nameEn: created.nameEn, nameAr: created.nameAr, type: created.type }]);
+      }
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setCreating(false);
+    }
+  }
 
   async function save(e) {
     e.preventDefault();
@@ -218,6 +260,77 @@ export function VenueSettingsPage() {
             <SectionCard>
               <p className="text-sm text-slate-500">{t('common.loading')}</p>
             </SectionCard>
+          ) : section === 'restaurants' ? (
+            <div className="space-y-6">
+              <SectionCard title={t('venueConfig.restaurants')} icon={StoreIcon}>
+                <p className="mb-4 text-sm text-slate-500">{t('venueConfig.restaurantsHint')}</p>
+                {venues.length > 0 ? (
+                  <ul className="mb-6 divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {venues.map((v) => (
+                      <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {v.type === 'anchor'
+                              ? t('venueConfig.typeAnchor')
+                              : t('venueConfig.typeStandard')}
+                          </p>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            setVenueId(v.id);
+                            setSection('general');
+                          }}
+                        >
+                          {t('venueConfig.configureRestaurant')}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mb-6 text-sm text-slate-500">{t('venueConfig.noRestaurants')}</p>
+                )}
+              </SectionCard>
+
+              <SectionCard title={t('venueConfig.addRestaurant')} icon={PlusIcon}>
+                <form onSubmit={createRestaurant} className="grid gap-4 sm:grid-cols-2">
+                  <Field label={t('venueConfig.nameEn')}>
+                    <Input
+                      required
+                      value={newVenue.nameEn}
+                      onChange={(e) => setNewVenue((v) => ({ ...v, nameEn: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label={t('venueConfig.nameAr')}>
+                    <Input
+                      required
+                      dir="rtl"
+                      value={newVenue.nameAr}
+                      onChange={(e) => setNewVenue((v) => ({ ...v, nameAr: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label={t('venueConfig.type')}>
+                    <Select
+                      value={newVenue.type}
+                      onChange={(e) => setNewVenue((v) => ({ ...v, type: e.target.value }))}
+                    >
+                      <option value="standard">{t('venueConfig.typeStandard')}</option>
+                      <option value="anchor">{t('venueConfig.typeAnchor')}</option>
+                    </Select>
+                  </Field>
+                  <div className="flex items-end sm:col-span-2">
+                    <Button type="submit" variant="primary" loading={creating}>
+                      <PlusIcon className="h-4 w-4" />
+                      {t('venueConfig.createRestaurant')}
+                    </Button>
+                  </div>
+                </form>
+              </SectionCard>
+            </div>
           ) : section === 'tables' ? (
             <HubTablesSection />
           ) : section === 'tax' ? (

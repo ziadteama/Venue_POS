@@ -81,6 +81,42 @@ export async function getVenueConfig(venueId) {
   return serializeVenueConfig(venue, hub);
 }
 
+export async function createVenue(body, userId) {
+  const nameEn = String(body.nameEn ?? '').trim();
+  const nameAr = String(body.nameAr ?? '').trim();
+  if (!nameEn) throw validationError('English name is required');
+  if (!nameAr) throw validationError('Arabic name is required');
+
+  const type = body.type ?? 'standard';
+  if (!VENUE_TYPES.includes(type)) throw validationError('Invalid venue type');
+
+  const hub = await getHubBilling();
+
+  const venue = await prisma.$transaction(async (tx) => {
+    const created = await tx.venue.create({
+      data: {
+        nameEn,
+        nameAr,
+        type,
+        tables: [],
+      },
+    });
+    await tx.venueMenu.create({
+      data: { venueId: created.id, status: 'draft' },
+    });
+    await tx.venueConfigAudit.create({
+      data: {
+        venueId: created.id,
+        userId,
+        changes: { created: { nameEn, nameAr, type } },
+      },
+    });
+    return created;
+  });
+
+  return serializeVenueConfig(venue, hub);
+}
+
 export async function getTerminalVenueSettings(venueId) {
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   if (!venue?.isActive) throw notFound('Venue not found');
