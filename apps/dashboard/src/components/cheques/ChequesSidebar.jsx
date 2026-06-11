@@ -8,7 +8,7 @@ import { chequeTableLabel } from '../../utils/chequeDisplay.js';
 import { combinedChequeTotal } from '../../utils/chequeTotals.js';
 import { ChequeTotalsBlock } from './ChequeTotalsBlock.jsx';
 
-function venueName(c, language) {
+function chequeVenueName(c, language) {
   return language === 'ar' ? c.venueNameAr || c.venueNameEn : c.venueNameEn;
 }
 
@@ -64,7 +64,7 @@ export function ChequesSidebar({
                     ) : null}
                     {showVenueName && c.venueNameEn ? (
                       <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                        {venueName(c, language)}
+                        {chequeVenueName(c, language)}
                       </p>
                     ) : null}
                     <div className="flex min-w-0 flex-wrap items-center gap-1.5">

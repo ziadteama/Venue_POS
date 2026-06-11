@@ -28,7 +28,7 @@ test('writeConfig marks setup complete when saved', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pos-config-'));
   const saved = writeConfig(tmp, {
     apiUrl: 'https://hub.example.com',
-    terminalId: 'tid',
+    terminalId: '00000000-0000-4000-8000-000000000099',
     terminalSecret: 'sec',
     setupComplete: true,
   });

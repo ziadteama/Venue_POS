@@ -219,6 +219,31 @@ contextBridge.exposeInMainWorld('venuePos', {
     socket.on('manager:notification', listener);
     return () => socket.off('manager:notification', listener);
   },
+
+  onUpdateEvent(handler) {
+    const channels = [
+      'update:available',
+      'update:downloaded',
+      'update:not-available',
+      'update:error',
+      'update:download-progress',
+      'update:status',
+    ];
+    const listeners = channels.map((channel) => {
+      const fn = (_event, payload) => handler(channel, payload ?? {});
+      ipcRenderer.on(channel, fn);
+      return { channel, fn };
+    });
+    return () => {
+      for (const { channel, fn } of listeners) {
+        ipcRenderer.removeListener(channel, fn);
+      }
+    };
+  },
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  quitAndInstall: () => ipcRenderer.invoke('updater:quitAndInstall'),
+  getUpdateStatus: () => ipcRenderer.invoke('updater:status'),
 });
 
 loadConfig().catch(() => {});

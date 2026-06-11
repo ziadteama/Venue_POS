@@ -37,6 +37,7 @@ export function PosModals({
   onAddItemWithModifiers,
   refreshOpenCheques,
   refreshFloor,
+  onShiftClosed,
 }) {
   const {
     modifierItem,
@@ -274,7 +275,10 @@ export function PosModals({
           t={t}
           closing={closing}
           onCancel={() => setShowCloseModal(false)}
-          onConfirm={closeShift}
+          onConfirm={async (body) => {
+            const result = await closeShift(body);
+            if (result) await onShiftClosed?.();
+          }}
         />
       )}
 
