@@ -142,12 +142,16 @@ export async function executeRefund(
         })
       : null;
 
+  // POS cash refunds attach to the open till shift; dashboard (and post-close) refunds
+  // attribute to the shift that recorded the original payment.
+  const shiftId = activeShift?.id ?? matchingPayment?.shiftId ?? null;
+
   const refund = await prisma.refund.create({
     data: {
       chequeId,
       paymentId: matchingPayment?.id ?? null,
       cashierId: resolvedCashierId,
-      shiftId: activeShift?.id ?? null,
+      shiftId,
       initiatorId,
       approverId,
       method: refundMethod,

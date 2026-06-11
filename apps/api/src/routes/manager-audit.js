@@ -1,8 +1,7 @@
 import { ROLES } from '@venue-pos/shared';
 import { requireRoles, requestCanSeeFinancials } from '../middleware/auth.js';
 import { forbidden } from '../utils/errors.js';
-import { listFullAuditLog, auditLogToCsv } from '../services/audit-log-service.js';
-import { redactAuditFinancials } from '../services/financial-redact.js';
+import { getAuditEventDetail, listFullAuditLog, auditLogToCsv } from '../services/audit-log-service.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
@@ -35,7 +34,15 @@ export async function managerAuditRoutes(app) {
         reply.header('Content-Disposition', 'attachment; filename="audit-log.csv"');
         return auditLogToCsv(result);
       }
-      return (await requestCanSeeFinancials(request)) ? result : redactAuditFinancials(result);
+      return result;
+    },
+  );
+
+  app.get(
+    '/api/v1/manager/audit/event',
+    { preHandler: hubManagerPreHandler },
+    async (request) => {
+      return getAuditEventDetail(request.query?.eventId, resolveVenueId(request));
     },
   );
 }

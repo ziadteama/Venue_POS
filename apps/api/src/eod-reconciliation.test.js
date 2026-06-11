@@ -454,6 +454,34 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
   assert.ok(Array.isArray(detail.voids));
   assert.ok(Array.isArray(detail.comps));
 
+  const dashboardRefund = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/cheques/${cheques.D}/refund?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+    payload: { amount: 5, method: 'cash', reason: 'Dashboard post-close adjustment' },
+  });
+  assert.equal(dashboardRefund.statusCode, 200, dashboardRefund.body);
+  const dashboardRefundRow = await prisma.refund.findUnique({
+    where: { id: dashboardRefund.json().refund.id },
+  });
+  assert.equal(dashboardRefundRow.shiftId, shiftId, 'dashboard refund attributes to payment shift');
+
+  const shiftDetailAfterRefund = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/shifts/${shiftId}?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(shiftDetailAfterRefund.statusCode, 200);
+  assert.ok(
+    shiftDetailAfterRefund.json().refunds.some((r) => Number(r.amount) === 5),
+    'post-close dashboard refund appears on shift detail',
+  );
+
+  // Post-close dashboard refund rolls into day/EOD totals but not the frozen close report
+  expected.totalRefunds += 5;
+  expected.cashRefunds += 5;
+  const dayNet = Number((expected.grossPayments - expected.totalRefunds).toFixed(2));
+
   const shiftCsv = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts/${shiftId}?venueId=${VENUE_ID}&format=csv`,
@@ -484,10 +512,10 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
   const eodBody = eod.json();
   const eodShift = eodBody.shifts.find((s) => s.id === shiftId);
   assert.ok(eodShift, 'shift appears on EOD for open day');
-  assert.equal(eodShift.totalRevenue, expectedNet);
+  assert.equal(eodShift.totalRevenue, dayNet);
   assert.equal(eodShift.totalRefunds, expected.totalRefunds);
   assert.equal(eodShift.discountTotal, expected.discountTotal);
-  assert.equal(eodBody.netRevenue, expectedNet);
+  assert.equal(eodBody.netRevenue, dayNet);
   assert.equal(eodBody.totalRefunds, expected.totalRefunds);
   assert.equal(eodBody.discountTotal, expected.discountTotal);
 
@@ -499,10 +527,10 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
   });
   assert.equal(analytics.statusCode, 200);
   const analyticsBody = analytics.json();
-  assert.equal(analyticsBody.totalRevenue, expectedNet);
+  assert.equal(analyticsBody.totalRevenue, dayNet);
   const venueRow = analyticsBody.byVenue.find((v) => v.venueId === VENUE_ID);
   assert.ok(venueRow);
-  assert.equal(venueRow.revenue, expectedNet);
+  assert.equal(venueRow.revenue, dayNet);
 
   // Operations dashboard
   const ops = await app.inject({
@@ -512,13 +540,13 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
   });
   assert.equal(ops.statusCode, 200);
   const opsToday = ops.json().today;
-  assert.equal(opsToday.netRevenue, expectedNet);
+  assert.equal(opsToday.netRevenue, dayNet);
   assert.equal(opsToday.totalRefunds, expected.totalRefunds);
   assert.equal(opsToday.discountTotal, expected.discountTotal);
   assert.equal(opsToday.grossRevenue, expected.grossPayments);
 
-  // Cross-check invariant
-  assert.equal(analyticsBody.totalRevenue, closeReport.totalRevenue);
+  // Cross-check day surfaces (close report frozen at shift close)
+  assert.equal(closeReport.totalRevenue, expectedNet);
   assert.equal(analyticsBody.totalRevenue, eodBody.netRevenue);
   assert.equal(analyticsBody.totalRevenue, opsToday.netRevenue);
 
@@ -554,8 +582,14 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
     headers: { authorization: `Bearer ${managerToken}` },
   });
   assert.equal(chequeDDetail.statusCode, 200);
-  assert.ok(chequeDDetail.json().refunds?.length >= 1);
-  assert.equal(Number(chequeDDetail.json().refunds[0].amount), 20);
+  const chequeDRefunds = chequeDDetail.json().refunds ?? [];
+  assert.ok(chequeDRefunds.length >= 2);
+  assert.equal(
+    chequeDRefunds.reduce((sum, r) => sum + Number(r.amount), 0),
+    25,
+  );
+  assert.ok(chequeDRefunds.some((r) => Number(r.amount) === 20));
+  assert.ok(chequeDRefunds.some((r) => Number(r.amount) === 5));
 
   const shiftCheques = await app.inject({
     method: 'GET',

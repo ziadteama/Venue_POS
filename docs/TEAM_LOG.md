@@ -1751,6 +1751,15 @@ Dashboard → Shifts → open shift → Payments/Refunds/Discounts tabs · Downl
 
 ---
 
+### 2026-06-11 — Dashboard refunds on shift CSV + activity detail drawer
+**Phase:** 8
+**What:** Dashboard (Cheques) refunds attribute to the original payment shift in shift CSV/detail; Activity rows open a detail drawer with structured fields and links to cheque/shift.
+**Files:** `cheque-refund.js`, `audit-log-service.js`, `manager-audit.js`, `ActivityPage.jsx`, `eod-reconciliation.test.js`, i18n
+**Verify:** Dashboard → Cheques → refund paid cheque → Shifts → export CSV shows refund on original shift · Activity → click row → detail drawer + View cheque
+**Notes:** POS cash refunds still prefer the open till shift when applicable.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

@@ -253,3 +253,35 @@ test('GET shift detail CSV is allowed for hub manager', async () => {
 
   await prisma.shift.delete({ where: { id: shift.id } });
 });
+
+test('GET audit event detail returns structured fields and cheque link', async () => {
+  const log = await appendAuditLog({
+    venueId: VENUE_ID,
+    actorUsername: 'shift_csv_cashier',
+    action: 'check.pre_pay_adjust',
+    entityType: 'cheque',
+    entityId: '00000000-0000-4000-8000-0000000000e3',
+    summary: 'Pre-pay adjust #12: Burger 2 → 1',
+    details: {
+      chequeNumber: 12,
+      tableLabel: 'T5',
+      orderNumber: 3,
+      itemName: 'Burger',
+      previousQty: 2,
+      newQty: 1,
+    },
+  });
+
+  const res = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/audit/event?eventId=log:${log.id}&venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(res.statusCode, 200);
+  const body = res.json();
+  assert.equal(body.type, 'check_pre_pay_adjust');
+  assert.ok(body.fields.some((f) => f.key === 'quantityChange' && f.value === '2 → 1'));
+  assert.ok(body.links.some((l) => l.type === 'cheque'));
+
+  await prisma.auditLog.delete({ where: { id: log.id } });
+});

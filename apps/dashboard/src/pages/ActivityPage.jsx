@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { isHubManager, canSeeFinancials } from '@venue-pos/shared';
+import { isHubManager } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
@@ -10,6 +11,7 @@ import { Field, Input, Select } from '../components/ui/Field.jsx';
 import { Button } from '../components/ui/Button.jsx';
 import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { Drawer } from '../components/ui/Drawer.jsx';
 import { PanelSkeleton } from '../components/dashboard/Skeleton.jsx';
 import { DownloadIcon, ActivityIcon, AlertIcon } from '../components/dashboard/icons.jsx';
 
@@ -57,6 +59,11 @@ function typeLabel(type, t) {
   return label === key ? type : label;
 }
 
+function fieldLabel(key, t) {
+  const label = t(`activity.detail.${key}`);
+  return label === `activity.detail.${key}` ? key : label;
+}
+
 function formatWhen(iso, locale) {
   return new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
@@ -90,16 +97,18 @@ function isReviewHighlight(ev) {
   return ev.amount != null && Boolean(ev.reason?.trim());
 }
 
-function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
+function ActivityRow({ ev, t, locale, currencyLabel, onSelect, selected }) {
   const badge = TYPE_BADGE[ev.type] ?? 'bg-slate-100 text-slate-800 ring-slate-200';
   const actor = ev.actor ?? ev.manager;
   const highlighted = isReviewHighlight(ev);
 
   return (
-    <article
-      className={`surface-card p-4 transition duration-200 ease-premium hover:border-slate-300/70 hover:shadow-card-hover ${
+    <button
+      type="button"
+      onClick={() => onSelect(ev)}
+      className={`surface-card w-full cursor-pointer p-4 text-start transition duration-200 ease-premium hover:border-slate-300/70 hover:shadow-card-hover ${
         highlighted ? 'border-amber-300 bg-amber-50/50 ring-1 ring-amber-200' : ''
-      }`}
+      } ${selected ? 'border-accent-400 ring-2 ring-accent-200' : ''}`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 gap-3">
@@ -126,7 +135,7 @@ function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
           </div>
         </div>
         <div className="shrink-0 sm:text-end">
-          {showAmounts && ev.amount != null ? (
+          {ev.amount != null ? (
             <p className="text-lg font-bold tabular-nums text-accent-700">
               {Number(ev.amount).toFixed(2)} {currencyLabel}
             </p>
@@ -139,7 +148,98 @@ function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
           ) : null}
         </div>
       </div>
-    </article>
+    </button>
+  );
+}
+
+function ActivityDetailDrawer({ detail, loading, t, locale, currencyLabel, onClose }) {
+  if (!detail && !loading) return null;
+
+  const badge = detail ? TYPE_BADGE[detail.type] ?? 'bg-slate-100 text-slate-800 ring-slate-200' : '';
+
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      size="lg"
+      icon={ActivityIcon}
+      title={detail ? typeLabel(detail.type, t) : t('activity.detailTitle')}
+      subtitle={detail ? formatWhen(detail.at, locale) : undefined}
+    >
+      {loading && !detail ? (
+        <p className="text-sm text-slate-500">{t('common.loading')}</p>
+      ) : detail ? (
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset ${badge}`}
+            >
+              {typeLabel(detail.type, t)}
+            </span>
+            {detail.venueName ? (
+              <span className="text-sm text-slate-500">{detail.venueName}</span>
+            ) : null}
+          </div>
+
+          <p className="text-base font-medium text-slate-900">{detail.summary ?? detail.detail}</p>
+
+          {detail.amount != null ? (
+            <p className="text-2xl font-bold tabular-nums text-accent-700">
+              {Number(detail.amount).toFixed(2)} {currencyLabel}
+            </p>
+          ) : null}
+
+          {detail.fields?.length ? (
+            <dl className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+              {detail.fields.map((row) => (
+                <div key={row.key} className="grid gap-1 px-4 py-3 sm:grid-cols-[10rem_1fr]">
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {fieldLabel(row.key, t)}
+                  </dt>
+                  <dd className="text-sm font-medium text-slate-800">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+
+          <div className="flex flex-wrap gap-2">
+            {detail.links?.map((link) => {
+              if (link.type === 'cheque') {
+                const label =
+                  link.labelKey === 'targetCheque'
+                    ? t('activity.viewTargetCheque')
+                    : t('activity.viewCheque');
+                return (
+                  <Link
+                    key={`${link.type}-${link.chequeId}`}
+                    to={`/cheques?chequeId=${link.chequeId}&venueId=${link.venueId}`}
+                    className="inline-flex"
+                  >
+                    <Button variant="secondary" size="sm">
+                      {label}
+                    </Button>
+                  </Link>
+                );
+              }
+              if (link.type === 'shift') {
+                return (
+                  <Link
+                    key={`${link.type}-${link.shiftId}`}
+                    to={`/shifts?venueId=${link.venueId}`}
+                    className="inline-flex"
+                  >
+                    <Button variant="secondary" size="sm">
+                      {t('activity.viewShift')}
+                    </Button>
+                  </Link>
+                );
+              }
+              return null;
+            })}
+          </div>
+        </div>
+      ) : null}
+    </Drawer>
   );
 }
 
@@ -157,10 +257,12 @@ export function ActivityPage() {
   const [keyword, setKeyword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-GB';
   const currencyLabel = t('pos.currency');
-  const showFinancials = canSeeFinancials(user);
   const effectiveType = viewMode === 'needs_review' ? 'needs_review' : typeFilter;
 
   const load = useCallback(async () => {
@@ -202,6 +304,34 @@ export function ActivityPage() {
     if (!isHubManager(user?.role) || !venueId) return;
     load();
   }, [load, user?.role, venueId]);
+
+  useEffect(() => {
+    if (!selectedEvent) {
+      setDetail(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDetailLoading(true);
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          eventId: selectedEvent.id,
+          venueId: venueId === 'all' ? selectedEvent.venueId ?? 'all' : venueId,
+        });
+        const data = await apiFetch(`/api/v1/manager/audit/event?${params}`);
+        if (!cancelled) setDetail(data);
+      } catch (e) {
+        if (!cancelled) setError(friendlyError(e));
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEvent, venueId]);
 
   const grouped = useMemo(() => groupByDay(events, locale), [events, locale]);
 
@@ -255,12 +385,10 @@ export function ActivityPage() {
           viewMode === 'needs_review' ? t('activity.subtitleNeedsReview') : t('activity.subtitleFull')
         }
         actions={
-          showFinancials ? (
-            <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
-              <DownloadIcon className="h-4 w-4" />
-              {t('activity.exportCsv')}
-            </Button>
-          ) : null
+          <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
+            <DownloadIcon className="h-4 w-4" />
+            {t('activity.exportCsv')}
+          </Button>
         }
       />
 
@@ -345,7 +473,8 @@ export function ActivityPage() {
                     t={t}
                     locale={locale}
                     currencyLabel={currencyLabel}
-                    showAmounts={showFinancials}
+                    onSelect={setSelectedEvent}
+                    selected={selectedEvent?.id === ev.id}
                   />
                 ))}
               </div>
@@ -353,6 +482,17 @@ export function ActivityPage() {
           ))}
         </div>
       )}
+
+      {selectedEvent ? (
+        <ActivityDetailDrawer
+          detail={detail}
+          loading={detailLoading}
+          t={t}
+          locale={locale}
+          currencyLabel={currencyLabel}
+          onClose={() => setSelectedEvent(null)}
+        />
+      ) : null}
     </div>
   );
 }

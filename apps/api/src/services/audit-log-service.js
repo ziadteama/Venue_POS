@@ -393,6 +393,274 @@ async function fetchShiftEvents(venueId, filters) {
   return mapped;
 }
 
+export async function getAuditEventDetail(eventId, venueScopeId) {
+  if (!eventId?.trim()) throw validationError('eventId is required');
+
+  if (eventId.startsWith('log:')) {
+    const id = eventId.slice(4);
+    const row = await prisma.auditLog.findUnique({ where: { id } });
+    if (!row) throw notFound('Event not found');
+    if (venueScopeId && row.venueId !== venueScopeId) throw notFound('Event not found');
+    let targetUsername = null;
+    if (row.entityType === 'user' && row.entityId) {
+      const user = await prisma.user.findUnique({
+        where: { id: row.entityId },
+        select: { username: true },
+      });
+      targetUsername = user?.username ?? null;
+    }
+    return finalizeAuditEvent({
+      id: `log:${row.id}`,
+      type: auditEventType(row.action),
+      action: row.action,
+      at: row.createdAt.toISOString(),
+      venueId: row.venueId,
+      actor: row.actorUsername,
+      summary: row.summary,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      details: row.details,
+      chequeId: resolveChequeId(row),
+      chequeNumber: row.details?.chequeNumber ?? null,
+      tableLabel: row.details?.tableLabel ?? null,
+      amount: row.details?.amount ?? null,
+      method: row.details?.method ?? null,
+      reason: row.details?.reason ?? null,
+      initiator: row.details?.initiator ?? null,
+      approver: row.details?.approver ?? null,
+      itemName: row.details?.itemName ?? null,
+      orderNumber: row.details?.orderNumber ?? null,
+      targetUsername,
+      manager: row.actorUsername,
+      detail: row.summary,
+    });
+  }
+
+  if (eventId.startsWith('domain:')) {
+    const [, type, id] = eventId.split(':');
+    if (!type || !id) throw notFound('Event not found');
+
+    if (['discount', 'discount_change', 'discount_remove'].includes(type)) {
+      const row = await prisma.chequeDiscountAudit.findUnique({
+        where: { id },
+        include: {
+          cheque: { select: { id: true, chequeNumber: true, tableLabel: true, venueId: true } },
+          initiator: { select: { username: true } },
+          approver: { select: { username: true } },
+        },
+      });
+      if (!row) throw notFound('Event not found');
+      if (venueScopeId && row.cheque.venueId !== venueScopeId) throw notFound('Event not found');
+      return finalizeAuditEvent({
+        id: eventId,
+        type,
+        action: type,
+        at: row.createdAt.toISOString(),
+        venueId: row.cheque.venueId,
+        chequeId: row.chequeId,
+        chequeNumber: row.cheque.chequeNumber,
+        tableLabel: row.cheque.tableLabel,
+        amount: Number(row.amount),
+        previousAmount: row.previousAmount != null ? Number(row.previousAmount) : null,
+        percent: row.percent != null ? Number(row.percent) : null,
+        reason: row.reason,
+        initiator: row.initiator.username,
+        approver: row.approver.username,
+        actor: row.approver.username,
+        manager: row.approver.username,
+        summary: row.reason,
+        detail: row.reason,
+        entityType: 'cheque',
+        entityId: row.chequeId,
+      });
+    }
+
+    if (type === 'refund') {
+      const row = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          cheque: { select: { id: true, chequeNumber: true, tableLabel: true, venueId: true } },
+          initiator: { select: { username: true } },
+          approver: { select: { username: true } },
+        },
+      });
+      if (!row) throw notFound('Event not found');
+      if (venueScopeId && row.cheque.venueId !== venueScopeId) throw notFound('Event not found');
+      return finalizeAuditEvent({
+        id: eventId,
+        type,
+        action: type,
+        at: row.processedAt.toISOString(),
+        venueId: row.cheque.venueId,
+        chequeId: row.chequeId,
+        chequeNumber: row.cheque.chequeNumber,
+        tableLabel: row.cheque.tableLabel,
+        amount: Number(row.amount),
+        method: row.method,
+        reason: row.reason,
+        initiator: row.initiator.username,
+        approver: row.approver.username,
+        actor: row.approver.username,
+        manager: row.approver.username,
+        summary: row.reason,
+        detail: row.method,
+        entityType: 'cheque',
+        entityId: row.chequeId,
+        shiftId: row.shiftId,
+      });
+    }
+
+    if (type === 'comp') {
+      const row = await prisma.orderItemCompAudit.findUnique({
+        where: { id },
+        include: {
+          cheque: { select: { id: true, chequeNumber: true, tableLabel: true, venueId: true } },
+          orderItem: { include: { menuItem: { select: { nameEn: true } } } },
+          cashier: { select: { username: true } },
+          approver: { select: { username: true } },
+        },
+      });
+      if (!row) throw notFound('Event not found');
+      if (venueScopeId && row.cheque.venueId !== venueScopeId) throw notFound('Event not found');
+      return finalizeAuditEvent({
+        id: eventId,
+        type,
+        action: type,
+        at: row.createdAt.toISOString(),
+        venueId: row.cheque.venueId,
+        chequeId: row.chequeId,
+        chequeNumber: row.cheque.chequeNumber,
+        tableLabel: row.cheque.tableLabel,
+        itemName: row.orderItem.menuItem.nameEn,
+        reason: row.reason,
+        cashier: row.cashier.username,
+        approver: row.approver.username,
+        actor: row.approver.username,
+        manager: row.approver.username,
+        summary: row.reason,
+        detail: row.orderItem.menuItem.nameEn,
+        entityType: 'cheque',
+        entityId: row.chequeId,
+      });
+    }
+
+    if (type === 'void') {
+      const row = await prisma.orderVoidAudit.findUnique({
+        where: { id },
+        include: {
+          order: {
+            select: {
+              orderNumber: true,
+              tableLabel: true,
+              venueId: true,
+              chequeLink: {
+                select: {
+                  chequeId: true,
+                  cheque: { select: { chequeNumber: true, tableLabel: true } },
+                },
+              },
+            },
+          },
+          cashier: { select: { username: true } },
+          approver: { select: { username: true } },
+        },
+      });
+      if (!row) throw notFound('Event not found');
+      if (venueScopeId && row.order.venueId !== venueScopeId) throw notFound('Event not found');
+      const chequeId = row.order.chequeLink?.chequeId ?? null;
+      return finalizeAuditEvent({
+        id: eventId,
+        type,
+        action: type,
+        at: row.createdAt.toISOString(),
+        venueId: row.order.venueId,
+        chequeId,
+        chequeNumber: row.order.chequeLink?.cheque?.chequeNumber ?? null,
+        tableLabel: row.order.tableLabel ?? row.order.chequeLink?.cheque?.tableLabel ?? null,
+        orderNumber: row.order.orderNumber,
+        reason: row.reason,
+        cashier: row.cashier.username,
+        approver: row.approver.username,
+        actor: row.approver.username,
+        manager: row.approver.username,
+        summary: row.reason,
+        detail: `Round #${row.order.orderNumber}`,
+        entityType: chequeId ? 'cheque' : 'order',
+        entityId: chequeId ?? row.orderId,
+      });
+    }
+
+    if (type === 'transfer') {
+      const row = await prisma.chequeItemTransferAudit.findUnique({
+        where: { id },
+        include: {
+          sourceCheque: { select: { id: true, chequeNumber: true, tableLabel: true, venueId: true } },
+          targetCheque: { select: { id: true, chequeNumber: true, tableLabel: true } },
+          orderItem: { include: { menuItem: { select: { nameEn: true } } } },
+          cashier: { select: { username: true } },
+          approver: { select: { username: true } },
+        },
+      });
+      if (!row) throw notFound('Event not found');
+      if (venueScopeId && row.sourceCheque.venueId !== venueScopeId) throw notFound('Event not found');
+      return finalizeAuditEvent({
+        id: eventId,
+        type,
+        action: type,
+        at: row.createdAt.toISOString(),
+        venueId: row.sourceCheque.venueId,
+        chequeId: row.sourceChequeId,
+        targetChequeId: row.targetChequeId,
+        chequeNumber: row.sourceCheque.chequeNumber,
+        targetChequeNumber: row.targetCheque.chequeNumber,
+        tableLabel: row.sourceCheque.tableLabel,
+        targetTable: row.targetCheque.tableLabel,
+        itemName: row.orderItem.menuItem?.nameEn ?? null,
+        reason: row.reason,
+        cashier: row.cashier.username,
+        approver: row.approver.username,
+        actor: row.approver.username,
+        manager: row.approver.username,
+        summary: row.reason ?? `Transfer to #${row.targetCheque.chequeNumber}`,
+        detail: row.orderItem.menuItem?.nameEn ?? null,
+        entityType: 'cheque',
+        entityId: row.sourceChequeId,
+      });
+    }
+  }
+
+  if (eventId.startsWith('shift:')) {
+    const id = eventId.slice(6);
+    const row = await prisma.shiftEvent.findUnique({
+      where: { id },
+      include: {
+        user: { select: { username: true } },
+        shift: { select: { id: true, venueId: true } },
+      },
+    });
+    if (!row) throw notFound('Event not found');
+    if (venueScopeId && row.shift.venueId !== venueScopeId) throw notFound('Event not found');
+    const forced = row.details?.forcedByManager === true;
+    return finalizeAuditEvent({
+      id: eventId,
+      type: forced ? 'shift_force_close' : row.action === 'open' ? 'shift_open' : 'shift_close',
+      action: forced ? 'shift.force_close' : `shift.${row.action}`,
+      at: row.createdAt.toISOString(),
+      venueId: row.shift.venueId,
+      shiftId: row.shift.id,
+      actor: row.user.username,
+      summary: forced ? 'Shift force-closed by manager' : `Shift ${row.action}`,
+      details: row.details,
+      manager: row.user.username,
+      detail: forced ? 'Shift force-closed by manager' : `Shift ${row.action}`,
+      amount: row.details?.overShortAmount ?? null,
+      reason: forced ? 'Manager force-close' : null,
+    });
+  }
+
+  throw notFound('Event not found');
+}
+
 export async function listFullAuditLog(venueId, filters = {}) {
   const page = Math.max(1, Number(filters.page ?? 1));
   const limit = Math.min(PAGE_SIZE, Math.max(1, Number(filters.limit ?? PAGE_SIZE)));
