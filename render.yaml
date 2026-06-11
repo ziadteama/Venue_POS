@@ -67,4 +67,4 @@ databases:
     user: hub_pos
     region: frankfurt  # closest Render region to Egypt — matches service region
     plan: basic-1gb    # new flexible plan — cheapest paid tier, no expiry, PITR included
-    storage: 10        # GB — minimum on flexible plans; increase later without downtime
+    # storage is set in the Render dashboard after creation (not a blueprint field)
