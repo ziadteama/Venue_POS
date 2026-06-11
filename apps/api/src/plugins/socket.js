@@ -68,6 +68,9 @@ export function registerSocket(app) {
     ) {
       socket.join('dashboard:hub');
     }
+    if (socket.data.role === 'system_admin' && socket.data.clientType === 'dashboard') {
+      socket.join('ops:team');
+    }
   });
 
   app.io = io;
@@ -315,6 +318,27 @@ export function emitCrossVenueBilled(io, { groupId, anchorVenueId, cheques, comb
   io.to('dashboard:hub').emit('cheque:cross_billed', {
     event: 'cheque:cross_billed',
     payload,
+  });
+}
+
+export function emitOpsAlert(io, event) {
+  if (!io?.to) return;
+  io.to('ops:team').emit('ops:alert', {
+    event: 'ops:alert',
+    payload: event,
+  });
+}
+
+export function emitOpsHealthTick(io, health) {
+  if (!io?.to) return;
+  io.to('ops:team').emit('ops:health_tick', {
+    event: 'ops:health_tick',
+    payload: {
+      checkedAt: health.checkedAt,
+      summary: health.summary,
+      server: health.server,
+      alerts: health.alerts,
+    },
   });
 }
 

@@ -40,4 +40,6 @@ export const config = {
   featureCrossVenueBilling: process.env.FEATURE_CROSS_VENUE_BILLING === 'true',
   /** How long (ms) an anchor terminal holds a soft lock on a target order during assembly */
   crossVenueLockTtlMs: Number(process.env.CROSS_VENUE_LOCK_TTL_MS ?? 30000),
+  /** Shared secret for watchdog/agent → POST /api/v1/ops/events */
+  opsIngestSecret: process.env.OPS_INGEST_SECRET ?? 'dev-ops-ingest-secret',
 };

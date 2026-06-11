@@ -3,12 +3,15 @@ import { config } from './config.js';
 import { disconnectPrisma } from './db/prisma.js';
 import { registerSocket } from './plugins/socket.js';
 import { startMetricsTicker } from './plugins/metrics-ticker.js';
+import { startOpsMonitor } from './plugins/ops-monitor.js';
 
 const app = await buildApp();
 let stopMetricsTicker;
+let stopOpsMonitor;
 
 async function shutdown() {
   stopMetricsTicker?.();
+  stopOpsMonitor?.();
   if (app.io) app.io.close();
   await app.close();
   await disconnectPrisma();
@@ -22,6 +25,7 @@ try {
   await app.listen({ port: config.port, host: config.host });
   registerSocket(app);
   stopMetricsTicker = startMetricsTicker(app);
+  stopOpsMonitor = startOpsMonitor(app);
   app.log.info(`API listening on ${config.host}:${config.port}`);
   app.log.info('WebSocket ready at /socket.io');
 } catch (err) {

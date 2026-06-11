@@ -1,4 +1,5 @@
 import {
+  OPS_ALERT_DEDUPE_MS,
   OPS_EVENT_TYPES,
   OPS_MEMORY_WARN_PERCENT,
   OPS_SEVERITY,
@@ -17,7 +18,7 @@ function dedupeKey(type, venueId, terminalId) {
 function shouldEmit(type, venueId, terminalId) {
   const key = dedupeKey(type, venueId, terminalId);
   const last = recentAlertAt.get(key) ?? 0;
-  if (Date.now() - last < 15 * 60 * 1000) return false;
+  if (Date.now() - last < OPS_ALERT_DEDUPE_MS) return false;
   recentAlertAt.set(key, Date.now());
   return true;
 }
