@@ -6,7 +6,9 @@ import { config } from '../config.js';
 
 const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
-function loadKey(relativePath) {
+function loadKey(envVarContent, relativePath) {
+  // Prefer inline env var content (production / Render) over file path
+  if (envVarContent) return envVarContent.replace(/\\n/g, '\n');
   const path = resolve(apiRoot, relativePath);
   try {
     return readFileSync(path, 'utf8');
@@ -15,8 +17,8 @@ function loadKey(relativePath) {
   }
 }
 
-let privateKey = loadKey(config.jwt.privateKeyPath);
-let publicKey = loadKey(config.jwt.publicKeyPath);
+let privateKey = loadKey(process.env.JWT_PRIVATE_KEY, config.jwt.privateKeyPath);
+let publicKey = loadKey(process.env.JWT_PUBLIC_KEY, config.jwt.publicKeyPath);
 
 export function ensureKeys() {
   if (!privateKey || !publicKey) {
