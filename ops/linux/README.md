@@ -87,8 +87,18 @@ Output: `dist/venue-pos-till-<version>.tar.gz` — copy to USB.
 
 - Packaged AppImage only (`app.isPackaged`); dev/USB raw electron skips updater.
 - **Default feed:** [GitHub Releases](https://github.com/ziadteama/Venue_POS/releases) (`ziadteama/Venue_POS`) — tag releases with `v*` and attach `latest-linux.yml` + AppImage (CI/`electron-builder --publish`).
-- Override: `POS_UPDATE_FEED_URL` (generic CDN) or `updateFeedUrl` in `pos-config.json`.
-- Till firewall must allow outbound **443** to `github.com` (and your Render API).
+- **Private repo:** set the GitHub PAT in the **setup wizard** (Hub step → GitHub update token), or manually in **`/opt/venue-pos/pos/.env.updater`**:
+  ```bash
+  sudo nano /opt/venue-pos/pos/.env.updater
+  # GH_TOKEN=github_pat_your_fine_grained_token
+  sudo chown venuepos:venuepos /opt/venue-pos/pos/.env.updater
+  sudo chmod 600 /opt/venue-pos/pos/.env.updater
+  sudo reboot
+  ```
+  Create the token: GitHub → Settings → Developer settings → Fine-grained tokens → **Contents: Read-only** on `Venue_POS`.
+- **CI publish:** GitHub Actions → repo **Settings → Secrets → Actions** → `GH_TOKEN` (same PAT or `GITHUB_TOKEN` for workflow releases).
+- Override feed: `POS_UPDATE_FEED_URL` (public CDN) or `updateFeedUrl` in `pos-config.json`.
+- Till firewall must allow outbound **443** to `github.com` and `api.github.com` (and your Render API).
 - Checks after shift close + ~60s after startup; download/install prompts in POS UI.
 
 ## Fresh VM smoke checklist

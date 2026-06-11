@@ -77,6 +77,14 @@ fi
 find "${INSTALL_ROOT}/pos/node_modules/.bin" -type f -exec chmod +x {} + 2>/dev/null || true
 chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 
+echo "==> Updater token template (private GitHub releases)"
+UPDATER_ENV="${INSTALL_ROOT}/pos/.env.updater"
+if [[ ! -f "${UPDATER_ENV}" && -f "${SCRIPT_DIR}/.env.updater.example" ]]; then
+  cp -f "${SCRIPT_DIR}/.env.updater.example" "${UPDATER_ENV}"
+  chown "${USER_NAME}:${USER_NAME}" "${UPDATER_ENV}"
+  chmod 600 "${UPDATER_ENV}"
+fi
+
 echo "==> Registering systemd service"
 cp -f "${SCRIPT_DIR}/venue-pos-agent.service" /etc/systemd/system/venue-pos-agent.service
 systemctl daemon-reload
@@ -101,8 +109,9 @@ Install complete.
 
 Next steps:
 1. Reboot (or log in as venuepos with Openbox session)
-2. Complete the on-screen setup wizard (hub URL, terminal ID/secret)
-3. Verify agent: systemctl status venue-pos-agent
+2. Edit /opt/venue-pos/pos/.env.updater — set GH_TOKEN for private GitHub releases
+3. Complete the on-screen setup wizard (hub URL, terminal ID/secret)
+4. Verify agent: systemctl status venue-pos-agent
 
 Hub API must be reachable over HTTPS before PIN login works online.
 

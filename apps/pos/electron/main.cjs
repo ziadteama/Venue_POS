@@ -1,11 +1,29 @@
+const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
+
+/** Private GitHub releases — GH_TOKEN in .env.updater (never commit). */
+function loadUpdaterEnv() {
+  const candidates = [
+    path.join(__dirname, '../.env.updater'),
+    '/opt/venue-pos/pos/.env.updater',
+  ];
+  for (const filePath of candidates) {
+    if (fs.existsSync(filePath)) {
+      require('dotenv').config({ path: filePath });
+      return;
+    }
+  }
+}
+loadUpdaterEnv();
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const {
   readConfig,
   writeConfig,
   writeAgentEnv,
+  writeUpdaterEnv,
+  sanitizeConfigForRenderer,
   testConnections,
   restartAgentService,
   isConfigComplete,
@@ -86,7 +104,7 @@ function loadPos(win) {
 function registerIpc() {
   ipcMain.handle('config:get', () => {
     const cfg = readConfig(getUserDataPath());
-    return { ...cfg, detectedLanHost: detectLanHost() };
+    return { ...sanitizeConfigForRenderer(cfg), detectedLanHost: detectLanHost() };
   });
 
   ipcMain.handle('config:isComplete', () => isConfigComplete(readConfig(getUserDataPath())));
@@ -94,8 +112,9 @@ function registerIpc() {
   ipcMain.handle('config:save', async (_event, partial) => {
     const saved = writeConfig(getUserDataPath(), partial);
     const envPath = writeAgentEnv(saved);
+    const updaterEnv = writeUpdaterEnv(saved);
     const restart = restartAgentService();
-    return { config: saved, envPath, restart };
+    return { config: sanitizeConfigForRenderer(saved), envPath, updaterEnv, restart };
   });
 
   ipcMain.handle('config:test', async (_event, partial) => {

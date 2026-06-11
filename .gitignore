@@ -10,6 +10,8 @@ coverage/
 apps/api/.env
 apps/dashboard/.env
 apps/pos/.env
+apps/pos/.env.updater
+**/pos/.env.updater
 apps/local-agent/.env
 *.log
 .DS_Store

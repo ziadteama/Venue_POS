@@ -26,6 +26,7 @@ function emptyForm(detectedLanHost = '') {
     coordinatorFallbackEnabled: false,
     kioskMode: true,
     deviceLabel: '',
+    githubUpdateToken: '',
   };
 }
 
@@ -38,6 +39,7 @@ export function SetupWizard({ onComplete }) {
   const [testResult, setTestResult] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [hasGithubUpdateToken, setHasGithubUpdateToken] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -58,7 +60,9 @@ export function SetupWizard({ onComplete }) {
             cfg.coordinatorFallbackEnabled ?? f.coordinatorFallbackEnabled,
           kioskMode: cfg.kioskMode ?? f.kioskMode,
           deviceLabel: cfg.deviceLabel || f.deviceLabel,
+          githubUpdateToken: '',
         }));
+        setHasGithubUpdateToken(Boolean(cfg.hasGithubUpdateToken));
       } else if (window.venuePos?.detectLanHost) {
         const host = await window.venuePos.detectLanHost();
         setForm((f) => ({ ...f, agentLanHost: host || f.agentLanHost }));
@@ -100,7 +104,11 @@ export function SetupWizard({ onComplete }) {
     setSaving(true);
     setError('');
     try {
-      await window.venuePos.saveConfig({ ...form, setupComplete: true });
+      const payload = { ...form, setupComplete: true };
+      if (!payload.githubUpdateToken?.trim()) {
+        delete payload.githubUpdateToken;
+      }
+      await window.venuePos.saveConfig(payload);
       await reload();
       onComplete?.();
     } catch (err) {
@@ -152,6 +160,20 @@ export function SetupWizard({ onComplete }) {
               />
             </label>
             <p className="text-xs text-slate-500">{t('setup.apiUrlHint')}</p>
+            <label className="block">
+              <span className="text-sm text-slate-300">{t('setup.githubUpdateToken')}</span>
+              <input
+                type="password"
+                autoComplete="off"
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 font-mono text-sm"
+                placeholder={
+                  hasGithubUpdateToken ? t('setup.githubUpdateTokenKeep') : t('setup.githubUpdateTokenPlaceholder')
+                }
+                value={form.githubUpdateToken}
+                onChange={(e) => update({ githubUpdateToken: e.target.value })}
+              />
+            </label>
+            <p className="text-xs text-slate-500">{t('setup.githubUpdateTokenHint')}</p>
           </section>
         ) : null}
 
@@ -284,6 +306,12 @@ export function SetupWizard({ onComplete }) {
             <p>
               <span className="text-slate-400">{t('setup.kioskMode')}:</span>{' '}
               {form.kioskMode ? t('common.yes') : t('common.no')}
+            </p>
+            <p>
+              <span className="text-slate-400">{t('setup.githubUpdateToken')}:</span>{' '}
+              {form.githubUpdateToken || hasGithubUpdateToken
+                ? t('setup.githubUpdateTokenConfigured')
+                : t('setup.githubUpdateTokenNotSet')}
             </p>
           </section>
         ) : null}
