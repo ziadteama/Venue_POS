@@ -13,6 +13,7 @@ import { registerFloorRoutes } from './routes/floor.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerPeerRoutes, registerRelayRoutes } from './routes/peer.js';
 import { registerEventRoutes } from './routes/events.js';
+import { registerHardwareRoutes } from './routes/hardware.js'; 
 
 export async function buildAgentApp({ db, config, logger = false }) {
   const app = Fastify({
@@ -74,6 +75,7 @@ export async function buildAgentApp({ db, config, logger = false }) {
   registerShiftRoutes(app, { db, apiUrl, terminalId, terminalSecret });
   registerFeatureRoutes(app, routeCtx);
   registerOrderExplorerRoutes(app, routeCtx);
+  registerHardwareRoutes(app, routeCtx);
 
   if (clusterManager) {
     registerPeerRoutes(app, { clusterManager, getOwnLanHost });

@@ -16,6 +16,7 @@ import { useAppUpdater } from './useAppUpdater.js';
 import { useAgentStatus } from './useAgentStatus.js';
 import { useFloorTables } from './useFloorTables.js';
 import { useFloorSocket } from './useFloorSocket.js';
+import { callAgent } from '../api/agent.js';
 
 /**
  * Composes POS session hooks, cross-sell menu wiring, and action handlers.
@@ -27,9 +28,10 @@ export function usePosWorkspace(cashier) {
   const [managerNotice, setManagerNotice] = useState(null);
   const [clock, setClock] = useState(() => new Date());
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [drawerBusy, setDrawerBusy] = useState(false);
 
   const orderLookup = useOrderLookup();
-  const printerOk = usePrinterHealth();
+  const { printerOk, cashDrawerEnabled } = usePrinterHealth();
   const agentStatus = useAgentStatus();
   const { features } = useFeatures({ agentReachable: agentStatus.agentReachable });
   const homeVenueId = features.anchorVenue?.id ?? null;
@@ -281,6 +283,24 @@ export function usePosWorkspace(cashier) {
     await printChequeReceipt('full');
   }
 
+  const openDrawer = useCallback(async () => {
+    if (!shift) {
+      setShiftError(t('pos.openDrawerNoShift'));
+      return;
+    }
+    setDrawerBusy(true);
+    try {
+      await callAgent('/v1/hardware/open-drawer', {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: cashier.id }),
+      });
+    } catch {
+      setError(t('pos.openDrawerFailed'));
+    } finally {
+      setDrawerBusy(false);
+    }
+  }, [shift, cashier.id, t, setShiftError, setError]);
+
   const timeLabel = clock.toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-GB', {
     hour: '2-digit',
     minute: '2-digit',
@@ -306,6 +326,9 @@ export function usePosWorkspace(cashier) {
     setShowLogoutModal,
     orderLookup,
     printerOk,
+    cashDrawerEnabled,
+    drawerBusy,
+    openDrawer,
     features,
     crossSell,
     homeVenueId,

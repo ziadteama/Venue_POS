@@ -1836,6 +1836,19 @@ Packaged till: shift close → update prompt · publish to [GitHub Releases](htt
 
 ---
 
+### 2026-06-11 — USB receipt printer + cash drawer (Windows till)
+**Phase:** 7 · **Story:** till hardware
+**What:** Windows USB ESC/POS receipt printer (spooler RAW) + RJ11 cash drawer. Pay always prints receipt; drawer opens on cash pay. Manual **Drawer** header button during open shift (no PIN). Kitchen IP printing unchanged.
+**Files:** `receipt-printer.js`, `cash-drawer.js`, `payment-tender.js`, `routes/hardware.js`, `receipt-print.js`, `cheques.js`, `health.js`, `PosHeader.jsx`, `usePosWorkspace.js`, `usePrinterHealth.js`, `config-store.cjs`, `ops/windows/README.md`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/local-agent -- --test src/services/receipt-printer.test.js src/services/cash-drawer.test.js
+```
+Till: open shift (no drawer) → header **Drawer** → pay cash (receipt + drawer) → pay card (receipt only)
+**Notes:** Agent env `RECEIPT_PRINTER_MODE=windows`, `FEATURE_CASH_DRAWER=true` (wizard). Optional `RECEIPT_PRINTER_NAME`. Health: `receiptPrinter` separate from kitchen `printer`.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

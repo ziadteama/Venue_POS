@@ -25,8 +25,10 @@ import { hydrateOpenCheques } from '../services/cheque-hydration.js';
 import { assertMenuReadyForWrite } from '../services/menu-gate.js';
 import { occupyFloorUpstream, releaseFloorUpstream } from '../services/floor-upstream.js';
 import { verifyCachedManagerPin } from '../services/terminal-cache.js';
-import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
-import { maybePrintReceipt, maybePrintPayReceipts } from '../services/receipt-print.js';
+import { printKitchenTicket } from '../services/kitchen-printer.js';
+import { printReceiptText } from '../services/receipt-printer.js';
+import { openDrawerIfCashPayment } from '../services/cash-drawer.js';
+import { maybePrintReceipt, printPayReceipts } from '../services/receipt-print.js';
 
 export function registerChequeRoutes(app, routeCtx) {
   const {
@@ -285,7 +287,7 @@ export function registerChequeRoutes(app, routeCtx) {
             : (bundle.separate ?? []).map((row) => row.text);
         for (const text of texts) {
           if (!text) continue;
-          await printCustomerReceipt(text, {
+          await printReceiptText(text, {
             host: printers.receiptPrinterHost,
             port: printers.receiptPrinterPort,
             log: app.log,
@@ -306,7 +308,7 @@ export function registerChequeRoutes(app, routeCtx) {
           body: JSON.stringify({ cashierId, syncId }),
         },
       );
-      await printCustomerReceipt(result.text, {
+      await printReceiptText(result.text, {
         host: printers.receiptPrinterHost,
         port: printers.receiptPrinterPort,
         log: app.log,
@@ -327,7 +329,7 @@ export function registerChequeRoutes(app, routeCtx) {
         syncId,
       );
       const text = buildLocalReceiptText(db, targetId, { preview: true });
-      await printCustomerReceipt(text, {
+      await printReceiptText(text, {
         host: printers.receiptPrinterHost,
         port: printers.receiptPrinterPort,
         log: app.log,
@@ -533,12 +535,13 @@ export function registerChequeRoutes(app, routeCtx) {
         },
       );
       const printers = getPrinterConfig();
-      maybePrintPayReceipts(result, {
-        autoReceiptPrint,
-        receiptPrinterHost: printers.receiptPrinterHost,
-        receiptPrinterPort: printers.receiptPrinterPort,
+      const printerOpts = {
+        host: printers.receiptPrinterHost,
+        port: printers.receiptPrinterPort,
         log: app.log,
-      });
+      };
+      printPayReceipts(result, printerOpts);
+      openDrawerIfCashPayment(payBody, app.log, printerOpts);
       if (
         result.tableSettled &&
         result.cheque?.tableLabel &&
@@ -569,18 +572,19 @@ export function registerChequeRoutes(app, routeCtx) {
           syncId,
         );
         const printers = getPrinterConfig();
-        maybePrintPayReceipts(
+        const printerOpts = {
+          host: printers.receiptPrinterHost,
+          port: printers.receiptPrinterPort,
+          log: app.log,
+        };
+        printPayReceipts(
           {
             ...result,
             restaurantReceipt: result.restaurantReceipt ?? result.receipt,
           },
-          {
-            autoReceiptPrint,
-            receiptPrinterHost: printers.receiptPrinterHost,
-            receiptPrinterPort: printers.receiptPrinterPort,
-            log: app.log,
-          },
+          printerOpts,
         );
+        openDrawerIfCashPayment(payBody, app.log, printerOpts);
         app.log.warn({ err }, 'Cheque payment stored locally');
         return result;
       } catch (localErr) {

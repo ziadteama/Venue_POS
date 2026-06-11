@@ -187,6 +187,8 @@ function buildAgentEnv(cfg) {
     `AGENT_DEVICE_LABEL=${cfg.deviceLabel || ''}`,
     `KITCHEN_PRINTER_HOST=${cfg.kitchenPrinterHost || ''}`,
     `KITCHEN_PRINTER_PORT=${cfg.kitchenPrinterPort}`,
+    'RECEIPT_PRINTER_MODE=windows',
+    'FEATURE_CASH_DRAWER=true',
     `COORDINATOR_TERMINAL_ID=${cfg.isCoordinator ? cfg.terminalId : ''}`,
     `COORDINATOR_LAN_HOST=${cfg.isCoordinator ? cfg.agentLanHost || detectLanHost() : ''}`,
     `COORDINATOR_FALLBACK_ENABLED=${cfg.coordinatorFallbackEnabled ? 'true' : 'false'}`,

@@ -23,6 +23,7 @@
     "build:kds": "npm run build -w @venue-pos/kds",
     "build:agent": "npm run build -w @venue-pos/local-agent",
     "build:till-bundle": "node scripts/build-till-bundle.mjs",
+    "build:till-bundle:windows": "node scripts/build-till-bundle-windows.mjs",
     "migrate": "npm run migrate -w @venue-pos/api",
     "migrate:dev": "npm run migrate:dev -w @venue-pos/api",
     "db:generate": "node scripts/prisma-generate.mjs",

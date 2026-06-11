@@ -82,9 +82,26 @@ Manual steps per till (document in site runbook):
 - Disable **autorun/autoplay** (Windows: Settings → Devices → AutoPlay off; GPO `Turn off Autoplay`).
 - Block external storage: GPO **Removable Disks: Deny read/write** or registry `Deny_All` under `HKLM\SOFTWARE\Policies\Microsoft\Windows\RemovableStorageDevices`.
 
+### Receipt printer + cash drawer (USB)
+
+1. Connect **USB Type B** from the till to the ESC/POS receipt printer.
+2. Connect the **RJ11** cash drawer cable to the printer kick/DK port.
+3. In Windows **Settings → Printers**, confirm the USB printer appears (Generic / Text Only or vendor ESC/POS driver).
+4. Optional override: set `RECEIPT_PRINTER_NAME` in `apps/local-agent/.env`.
+5. Wizard writes `RECEIPT_PRINTER_MODE=windows` and `FEATURE_CASH_DRAWER=true` into agent `.env`.
+
+**Verify after install:**
+
+- Open shift — drawer must **not** auto-open.
+- Tap **Drawer** in the POS header (shift open) — drawer opens with no PIN.
+- **Pay (cash)** — receipt prints and drawer opens.
+- **Pay (card only)** — receipt prints; drawer stays closed.
+
+Kitchen printer remains **LAN IP** (`KITCHEN_PRINTER_HOST`); receipt USB does not need a firewall rule.
+
 ### Network
 
-- Run `firewall-lockdown.ps1 -HubServerIp <api-ip> -PrinterIps "192.168.1.50,192.168.1.51"`.
+- Run `firewall-lockdown.ps1 -HubServerIp <api-ip> -PrinterIps "192.168.1.50"` (kitchen printer IPs only).
 - Hub API: **HTTPS only** (port 443) to server IP.
 - LAN: allow TCP **3456** for local-agent / coordinator gossip.
 - No general outbound HTTP/HTTPS to the internet.
