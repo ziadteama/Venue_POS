@@ -65,7 +65,8 @@ function venueLabel(venue, language) {
   return name ?? 'Venue';
 }
 
-function CrossVenueReceiptBody({ group, language, t, onChangeQty }) {
+function CrossVenueReceiptBody({ group, cheque, language, t, onChangeQty }) {
+  const canEditFired = cheque?.status === 'open';
   return (
     <div className="space-y-4">
       {(group.cheques ?? []).map((member) => {
@@ -92,10 +93,10 @@ function CrossVenueReceiptBody({ group, language, t, onChangeQty }) {
                       key={line.id}
                       line={line}
                       language={language}
-                      readOnly={cheque?.status !== 'open'}
-                      editable={cheque?.status === 'open'}
+                      editable={canEditFired && !line.isComped}
                       onChangeQty={onChangeQty}
                       order={round}
+                      venueId={member.venueId}
                       t={t}
                     />
                   ))}
@@ -281,6 +282,7 @@ export function ReceiptPanel({
             {isCrossVenue ? (
               <CrossVenueReceiptBody
                 group={crossVenueGroup}
+                cheque={cheque}
                 language={language}
                 t={t}
                 onChangeQty={onChangeQty}
@@ -298,7 +300,8 @@ export function ReceiptPanel({
                           key={line.id}
                           line={line}
                           language={language}
-                          readOnly
+                          editable={cheque?.status === 'open' && !line.isComped}
+                          onChangeQty={onChangeQty}
                           order={round}
                           t={t}
                         />
@@ -320,7 +323,7 @@ export function ReceiptPanel({
                           line={line}
                           language={language}
                       readOnly={false}
-                      editable
+                      editable={!line.isComped}
                       onChangeQty={onChangeQty}
                       order={order}
                       t={t}
