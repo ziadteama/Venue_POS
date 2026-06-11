@@ -443,6 +443,44 @@ export function transferLocalChequeItems(
   };
 }
 
+function normalizeLocalSplitAllocations(split) {
+  if (split.items?.length) {
+    return split.items.map((row) => ({
+      itemId: row.itemId,
+      quantity: Number(row.quantity),
+    }));
+  }
+  return (split.itemIds ?? []).map((itemId) => ({ itemId, quantity: null }));
+}
+
+function allocateLocalItemToCheque(db, source, quantity, childChequeId) {
+  const take = quantity ?? source.quantity;
+  if (take <= 0 || take > source.quantity) throw new Error('Invalid quantity for split item');
+
+  if (take === source.quantity) {
+    db.prepare(`UPDATE order_items SET billing_cheque_id = ? WHERE id = ?`).run(childChequeId, source.id);
+    source.quantity = 0;
+    return;
+  }
+
+  db.prepare(`UPDATE order_items SET quantity = ? WHERE id = ?`).run(source.quantity - take, source.id);
+  db.prepare(
+    `INSERT INTO order_items (id, order_id, menu_item_id, quantity, unit_price, name_en, name_ar, modifiers_json, billing_cheque_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    randomUUID(),
+    source.order_id,
+    source.menu_item_id,
+    take,
+    source.unit_price,
+    source.name_en,
+    source.name_ar,
+    source.modifiers_json ?? null,
+    childChequeId,
+  );
+  source.quantity -= take;
+}
+
 export function splitLocalChequeByItems(db, chequeId, { splits }, venueId) {
   const cheque = db.prepare(`SELECT * FROM cheques WHERE id = ?`).get(chequeId);
   if (!cheque || cheque.venue_id !== venueId) throw new Error('Cheque not found');
@@ -455,17 +493,28 @@ export function splitLocalChequeByItems(db, chequeId, { splits }, venueId) {
     if (order?.items?.length) throw new Error('Send or clear the current round before splitting');
   }
 
-  const allocatable = transferableItemRows(db, chequeId);
-  const requested = new Set();
+  const allocatable = transferableItemRows(db, chequeId).map((row) => ({ ...row }));
+  const allocatableById = new Map(allocatable.map((row) => [row.id, row]));
+  const demand = new Map();
+
   for (const split of splits ?? []) {
     if (!split.label?.trim()) throw new Error('Each split needs a label');
-    for (const itemId of split.itemIds ?? []) {
-      if (requested.has(itemId)) throw new Error('An item cannot appear in multiple splits');
-      requested.add(itemId);
-      if (!allocatable.some((i) => i.id === itemId)) {
-        throw new Error('Invalid or already allocated item');
+    const allocations = normalizeLocalSplitAllocations(split);
+    if (!allocations.length) throw new Error('Each split needs at least one item');
+    for (const { itemId, quantity } of allocations) {
+      const source = allocatableById.get(itemId);
+      if (!source) throw new Error('Invalid or already allocated item');
+      const take = quantity ?? source.quantity;
+      if (!Number.isInteger(take) || take <= 0 || take > source.quantity) {
+        throw new Error('Invalid quantity for split item');
       }
+      demand.set(itemId, (demand.get(itemId) ?? 0) + take);
     }
+  }
+
+  for (const [itemId, qty] of demand) {
+    const source = allocatableById.get(itemId);
+    if (!source || qty > source.quantity) throw new Error('Split quantities exceed available items');
   }
 
   const tx = db.transaction(() => {
@@ -487,8 +536,10 @@ export function splitLocalChequeByItems(db, chequeId, { splits }, venueId) {
         split.label.trim(),
         now,
       );
-      for (const itemId of split.itemIds) {
-        db.prepare(`UPDATE order_items SET billing_cheque_id = ? WHERE id = ?`).run(childId, itemId);
+      for (const { itemId, quantity } of normalizeLocalSplitAllocations(split)) {
+        const source = allocatableById.get(itemId);
+        if (!source || source.quantity <= 0) throw new Error('Invalid or already allocated item');
+        allocateLocalItemToCheque(db, source, quantity, childId);
       }
     }
   });

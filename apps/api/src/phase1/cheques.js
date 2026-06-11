@@ -624,3 +624,55 @@ test('cheque split by item: pay sub-cheques closes parent', async () => {
     2,
   );
 });
+
+test('cheque split by item: partial quantity on one line', async () => {
+  await ensureOpenShift();
+  const { group, option } = await getPhase1Modifier();
+  const modifier = {
+    groupId: group.id,
+    optionId: option.id,
+    nameEn: option.nameEn,
+    nameAr: option.nameAr,
+    priceDelta: option.priceDelta,
+  };
+
+  const openRes = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/cheques/open',
+    headers: terminalHeaders,
+    payload: { cashierId: CASHIER_ID, tableLabel: 'SPQ' },
+  });
+  const parentId = openRes.json().id;
+  const draftId = openRes.json().draftOrder.id;
+
+  await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/orders/${draftId}/items`,
+    headers: terminalHeaders,
+    payload: { menuItemId: fx.menuItemId, quantity: 2, modifiers: [modifier] },
+  });
+  const fireRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${parentId}/fire`,
+    headers: terminalHeaders,
+  });
+  const lineId = fireRes.json().sentOrder.items[0].id;
+
+  const splitRes = await fx.app.inject({
+    method: 'POST',
+    url: `/api/v1/cheques/${parentId}/split`,
+    headers: terminalHeaders,
+    payload: {
+      splits: [
+        { label: 'Guest 1', items: [{ itemId: lineId, quantity: 1 }] },
+        { label: 'Guest 2', items: [{ itemId: lineId, quantity: 1 }] },
+      ],
+    },
+  });
+  assert.equal(splitRes.statusCode, 200);
+  const guest1 = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest 1');
+  const guest2 = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest 2');
+  assert.equal(guest1.items.length, 1);
+  assert.equal(guest1.items[0].quantity, 1);
+  assert.equal(guest2.items[0].quantity, 1);
+});

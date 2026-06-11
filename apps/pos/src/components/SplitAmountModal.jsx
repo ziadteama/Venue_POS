@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react';
 import { OverlayPortal } from './ModalFrame.jsx';
 
 export function SplitAmountModal({ cheque, onConfirm, onCancel, t }) {
-  const total = cheque?.total ?? 0;
+  const netSubtotal = Math.max(
+    0,
+    Number(cheque?.subtotalBeforeDiscount ?? 0) - Number(cheque?.discountAmount ?? 0),
+  );
+  const total = netSubtotal > 0 ? netSubtotal : Number(cheque?.total ?? 0);
   const [guests, setGuests] = useState(() => [
     { label: t('pos.splitGuest', { n: 1 }), amount: '' },
     { label: t('pos.splitGuest', { n: 2 }), amount: '' },
