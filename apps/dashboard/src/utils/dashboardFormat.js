@@ -16,6 +16,19 @@ export function formatShortDate(iso, locale) {
   }).format(new Date(iso));
 }
 
+export function formatDateTime(value, locale) {
+  if (!value) return '—';
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+export function formatBusinessDate(value, locale) {
+  if (!value) return '—';
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(value));
+}
+
 export function formatPercent(value) {
   const num = Number(value ?? 0);
   return `${num > 0 ? '+' : ''}${num}%`;

@@ -18,6 +18,7 @@ import { Button } from '../components/ui/Button.jsx';
 import { DataTable } from '../components/ui/DataTable.jsx';
 import { StatusBadge } from '../components/ui/Badge.jsx';
 import { EmptyState } from '../components/ui/EmptyState.jsx';
+import { Drawer } from '../components/ui/Drawer.jsx';
 import { TableSkeleton } from '../components/dashboard/Skeleton.jsx';
 import { DownloadIcon, OrdersIcon, AlertIcon, ClockIcon } from '../components/dashboard/icons.jsx';
 
@@ -284,9 +285,14 @@ export function OrdersPage() {
   function clearChequeFilter() {
     setSelectedKey(null);
     setDetail(null);
+    setReceipt('');
     const next = new URLSearchParams(searchParams);
     next.delete('chequeId');
     setSearchParams(next, { replace: true });
+  }
+
+  function clearMobileSelection() {
+    clearChequeFilter();
   }
 
   function clearShiftFilter() {
@@ -363,6 +369,30 @@ export function OrdersPage() {
   const chequeStatus = detail?.cheque?.status;
   const showOrderActions =
     canManageOrders && (chequeStatus === 'open' || chequeStatus === 'paid');
+
+  const orderDetailPanelProps = {
+    detail,
+    chequeOrders,
+    receipt,
+    locale,
+    venueId: scopedVenue,
+    t,
+    i18n,
+    showOrderActions,
+    actionBusy,
+    onReprintCheque: () => reprintCheque().catch((e) => setError(friendlyError(e))),
+    onReprintOrder: (orderId) => reprintOrder(orderId).catch((e) => setError(friendlyError(e))),
+    onCompItem: (target) => setActionTarget({ type: 'comp', ...target }),
+    onVoidRound: (target) => setActionTarget({ type: 'round', ...target }),
+    OrderLineItems,
+  };
+
+  const mobileDrawerTitle =
+    detail?.cheque?.chequeNumber != null
+      ? t('pos.chequeNumber', { number: detail.cheque.chequeNumber })
+      : detail?.orderNumber != null
+        ? t('pos.orderNumber', { number: detail.orderNumber })
+        : t('orders.title');
 
   const chequeColumns = [
     {
@@ -452,10 +482,10 @@ export function OrdersPage() {
               value={filters.q}
               onChange={(v) => updateFilter('q', v)}
               placeholder={t('orders.searchPlaceholder')}
-              className="w-full sm:w-64"
+              className="sm:col-span-2 lg:w-64"
             />
             <Select
-              className="w-auto py-2"
+              className="py-2"
               value={filters.status}
               onChange={(e) => updateFilter('status', e.target.value)}
             >
@@ -467,7 +497,7 @@ export function OrdersPage() {
               ))}
             </Select>
             <Select
-              className="w-auto py-2"
+              className="py-2"
               value={filters.paymentMethod}
               onChange={(e) => updateFilter('paymentMethod', e.target.value)}
             >
@@ -478,7 +508,7 @@ export function OrdersPage() {
             </Select>
             {canPickVenue ? (
               <Select
-                className="w-auto py-2"
+                className="py-2"
                 value={venueId}
                 onChange={(e) => {
                   setPage(1);
@@ -643,7 +673,7 @@ export function OrdersPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="text-end text-xs text-slate-500">
+                  <div className="w-full text-xs text-slate-500 sm:w-auto sm:text-end">
                     {t('orders.chequesInShift', {
                       cheques: shift.chequeCount,
                       orders: shift.totalOrders,
@@ -672,7 +702,7 @@ export function OrdersPage() {
             ))}
 
             {result?.shifts?.length ? (
-              <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm">
+              <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
                 <span className="text-slate-500">
                   {t('orders.pageInfoShifts', {
                     page: result.page,
@@ -704,31 +734,8 @@ export function OrdersPage() {
             ) : null}
           </div>
 
-          <aside className="surface-card p-5 xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
-            <OrderDetailPanel
-              detail={detail}
-              chequeOrders={chequeOrders}
-              receipt={receipt}
-              locale={locale}
-              venueId={scopedVenue}
-              t={t}
-              i18n={i18n}
-              showOrderActions={showOrderActions}
-              actionBusy={actionBusy}
-              onReprintCheque={() =>
-                reprintCheque().catch((e) => setError(friendlyError(e)))
-              }
-              onReprintOrder={(orderId) =>
-                reprintOrder(orderId).catch((e) => setError(friendlyError(e)))
-              }
-              onCompItem={(target) =>
-                setActionTarget({ type: 'comp', ...target })
-              }
-              onVoidRound={(target) =>
-                setActionTarget({ type: 'round', ...target })
-              }
-              OrderLineItems={OrderLineItems}
-            />
+          <aside className="hidden surface-card p-5 xl:block xl:sticky xl:top-24 xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
+            <OrderDetailPanel {...orderDetailPanelProps} />
           </aside>
         </div>
       ) : (
@@ -736,6 +743,20 @@ export function OrdersPage() {
           <EmptyState icon={OrdersIcon} title={t('orders.empty')} className="py-16" />
         </div>
       )}
+
+      {selectedKey && detail ? (
+        <div className="xl:hidden">
+          <Drawer
+            open
+            onClose={clearMobileSelection}
+            icon={OrdersIcon}
+            title={mobileDrawerTitle}
+            size="2xl"
+          >
+            <OrderDetailPanel {...orderDetailPanelProps} />
+          </Drawer>
+        </div>
+      ) : null}
 
     </div>
   );

@@ -99,6 +99,17 @@ export function redactAuditFinancials(result) {
   };
 }
 
+export function redactRefundsTodayList(result) {
+  if (!result || typeof result !== 'object') return result;
+  return {
+    ...result,
+    total: null,
+    refunds: Array.isArray(result.refunds)
+      ? result.refunds.map((row) => ({ ...row, amount: null }))
+      : result.refunds,
+  };
+}
+
 export function redactExecutiveDashboardFinancials(result) {
   if (!result || typeof result !== 'object') return result;
 

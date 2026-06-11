@@ -3,6 +3,7 @@ import {
   displayChequeLocation,
   firedOrders,
   hasOpenSplitChildren,
+  canDeleteCheque,
   isTakeawayCheque,
   parentPayableTotal,
 } from '../utils/cheque.js';
@@ -456,16 +457,13 @@ export function ReceiptPanel({
                   ? t('common.loading')
                   : t('pos.payAmount', { amount: payButtonAmount.toFixed(2) })}
               </button>
-            ) : !hasReceiptLines &&
-              onFreeTable &&
-              !cheque?.parentChequeId &&
-              !isTakeawayCheque(cheque) ? (
+            ) : canDeleteCheque(cheque) && onFreeTable ? (
               <button
                 type="button"
                 onClick={onFreeTable}
                 className="w-full rounded-xl bg-emerald-500 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-emerald-600 active:scale-95"
               >
-                {t('pos.freeTable')}
+                {isTakeawayCheque(cheque) ? t('pos.closeTakeAway') : t('pos.freeTable')}
               </button>
             ) : !hasOpenSplitChildren(cheque) && !hasDraftItems ? (
               <div className="rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">

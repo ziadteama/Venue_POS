@@ -7,6 +7,8 @@ import { Button } from '../ui/Button.jsx';
 import { StatusBadge } from '../ui/Badge.jsx';
 import { EmptyState } from '../ui/EmptyState.jsx';
 import { ChequeIcon } from '../dashboard/icons.jsx';
+import { formatBusinessDate, formatDateTime } from '../../utils/dashboardFormat.js';
+import { chequeTableLabel } from '../../utils/chequeDisplay.js';
 
 function formatMoney(value, locale) {
   return new Intl.NumberFormat(locale, {
@@ -15,7 +17,7 @@ function formatMoney(value, locale) {
   }).format(Number(value ?? 0));
 }
 
-function ChequeDetailHeader({ detail, shiftId, t }) {
+function ChequeDetailHeader({ detail, shiftId, t, locale }) {
   const breadcrumb = [
     ...(shiftId
       ? [{ label: t('nav.shifts'), to: '/shifts' }]
@@ -37,20 +39,74 @@ function ChequeDetailHeader({ detail, shiftId, t }) {
             {detail.isCrossVenue ? <CrossVenueBadge t={t} /> : null}
           </h3>
           <p className="mt-1 text-sm text-slate-500">
-            {t('cheque.table', { label: detail.tableLabel })}
-            {detail.splitLabel ? ` · ${detail.splitLabel}` : ''}
+            {t('cheque.table', { label: chequeTableLabel(detail, t) })}
           </p>
           {detail.parentCheque ? (
             <p className="text-xs text-slate-400">
               {t('cheque.splitFrom', { number: detail.parentCheque.chequeNumber })}
             </p>
           ) : null}
+          <dl className="mt-2 space-y-0.5 text-xs text-slate-500">
+            <div>
+              <span className="text-slate-400">{t('cheque.businessDate')}: </span>
+              {formatBusinessDate(detail.businessDate, locale)}
+            </div>
+            <div>
+              <span className="text-slate-400">{t('cheque.openedAt')}: </span>
+              {formatDateTime(detail.openedAt, locale)}
+            </div>
+            {detail.closedAt ? (
+              <div>
+                <span className="text-slate-400">{t('cheque.closedAt')}: </span>
+                {formatDateTime(detail.closedAt, locale)}
+              </div>
+            ) : null}
+          </dl>
         </div>
         <div className="text-end">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('cheque.total')}</p>
           <p className="text-2xl font-bold tabular-nums text-accent-700">
             {detail.total.toFixed(2)} {t('pos.currency')}
           </p>
+          {detail.status === 'open' &&
+          ((detail.discountAmount ?? 0) > 0 ||
+            (detail.serviceAmount ?? 0) > 0 ||
+            (detail.taxAmount ?? 0) > 0) ? (
+            <dl className="mt-2 space-y-0.5 text-xs text-slate-500">
+              {(detail.subtotalBeforeDiscount ?? 0) > 0 ? (
+                <div className="flex justify-end gap-3">
+                  <dt>{t('cheque.itemsSubtotal')}</dt>
+                  <dd className="tabular-nums">
+                    {detail.subtotalBeforeDiscount.toFixed(2)} {t('pos.currency')}
+                  </dd>
+                </div>
+              ) : null}
+              {(detail.discountAmount ?? 0) > 0 ? (
+                <div className="flex justify-end gap-3 text-amber-800">
+                  <dt>{t('cheque.discountLine')}</dt>
+                  <dd className="tabular-nums">
+                    -{detail.discountAmount.toFixed(2)} {t('pos.currency')}
+                  </dd>
+                </div>
+              ) : null}
+              {(detail.serviceAmount ?? 0) > 0 ? (
+                <div className="flex justify-end gap-3">
+                  <dt>{t('pos.serviceCharge')}</dt>
+                  <dd className="tabular-nums">
+                    {detail.serviceAmount.toFixed(2)} {t('pos.currency')}
+                  </dd>
+                </div>
+              ) : null}
+              {(detail.taxAmount ?? 0) > 0 ? (
+                <div className="flex justify-end gap-3">
+                  <dt>{t('pos.tax')}</dt>
+                  <dd className="tabular-nums">
+                    {detail.taxAmount.toFixed(2)} {t('pos.currency')}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
         </div>
       </div>
     </div>
@@ -81,7 +137,6 @@ function ChildChequesPanel({ childCheques, t }) {
 function ChequeOrdersSummary({ detail, t }) {
   const orders = billableOrders(detail);
   if (!orders.length) return null;
-  const subtotal = orders.reduce((sum, order) => sum + Number(order.subtotal ?? 0), 0);
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -91,22 +146,17 @@ function ChequeOrdersSummary({ detail, t }) {
           </p>
           <p className="text-xs text-slate-500">{t('cheque.ordersManageHint')}</p>
         </div>
-        <div className="text-end">
-          <p className="text-sm font-semibold tabular-nums text-slate-900">
-            {subtotal.toFixed(2)} {t('pos.currency')}
-          </p>
-          <Link to={`/orders?chequeId=${detail.id}&venueId=${detail.venueId}`}>
-            <Button variant="secondary" size="sm">
-              {t('cheque.viewOrders')}
-            </Button>
-          </Link>
-        </div>
+        <Link to={`/orders?chequeId=${detail.id}&venueId=${detail.venueId}`}>
+          <Button variant="secondary" size="sm">
+            {t('cheque.viewOrders')}
+          </Button>
+        </Link>
       </div>
     </div>
   );
 }
 
-function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, onDiscountAction }) {
+function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, locale, onDiscountAction }) {
   const hasDiscount = (detail.discountAmount ?? 0) > 0;
   const canDiscount = canManage && isOpenTab && !detail.draftOrder?.items?.length;
 
@@ -161,9 +211,16 @@ function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, onDiscountAct
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
           <p className="mb-1 font-medium text-slate-700">{t('cheque.payments')}</p>
           {detail.payments.map((p) => (
-            <div key={p.id} className="flex justify-between text-slate-600">
-              <span>{p.method}</span>
-              <span className="tabular-nums">
+            <div key={p.id} className="flex min-w-0 justify-between gap-2 text-slate-600">
+              <span className="min-w-0">
+                {p.method}
+                {p.processedAt ? (
+                  <span className="ms-1 text-xs text-slate-400">
+                    · {formatDateTime(p.processedAt, locale)}
+                  </span>
+                ) : null}
+              </span>
+              <span className="shrink-0 tabular-nums">
                 {p.amount.toFixed(2)} {t('pos.currency')}
               </span>
             </div>
@@ -174,11 +231,11 @@ function ChequeMetaPanels({ detail, isOpenTab, canManage, busy, t, onDiscountAct
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm">
           <p className="mb-1 font-medium text-red-800">{t('cheque.refunds')}</p>
           {detail.refunds.map((r) => (
-            <div key={r.id} className="flex justify-between text-red-700">
-              <span>
+            <div key={r.id} className="flex min-w-0 justify-between gap-2 text-red-700">
+              <span className="min-w-0 break-words">
                 {r.method} — {r.reason}
               </span>
-              <span className="tabular-nums">
+              <span className="shrink-0 tabular-nums">
                 -{r.amount.toFixed(2)} {t('pos.currency')}
               </span>
             </div>
@@ -255,7 +312,7 @@ export function ChequeDetailView({
 
   return (
     <div className="space-y-4">
-      <ChequeDetailHeader detail={detail} shiftId={shiftId} t={t} />
+      <ChequeDetailHeader detail={detail} shiftId={shiftId} t={t} locale={locale} />
       <ChildChequesPanel childCheques={detail.childCheques} t={t} />
       {detail.crossVenueGroup ? (
         <CrossVenueGroupPanel
@@ -275,6 +332,7 @@ export function ChequeDetailView({
         canManage={canManage}
         busy={busy}
         t={t}
+        locale={locale}
         onDiscountAction={onDiscountAction}
       />
       <ChequeActionToolbar

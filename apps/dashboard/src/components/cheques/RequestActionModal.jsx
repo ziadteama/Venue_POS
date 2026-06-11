@@ -21,7 +21,7 @@ export function RequestActionModal({
   }
 
   return (
-    <ModalShell>
+    <ModalShell layer="critical">
       <form onSubmit={handleSubmit}>
         <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
         <p className="mb-4 text-sm text-secondary">

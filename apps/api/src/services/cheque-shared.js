@@ -94,10 +94,14 @@ export function computeChequeSubtotal(cheque) {
   }
 
   const isParent = !cheque.parentChequeId;
+  const forDisplay = cheque.status !== 'open';
+  const orderFilter = forDisplay
+    ? (o) => o.status !== 'voided' && o.status !== 'draft'
+    : (o) => BILLABLE_ORDER_STATUSES.includes(o.status);
   let itemTotal = billingOrdersFromCheque(cheque)
-    .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+    .filter(orderFilter)
     .flatMap((o) => o.items)
-    .filter((item) => itemBelongsToCheque(item, cheque.id, isParent))
+    .filter((item) => itemBelongsToCheque(item, cheque.id, isParent, forDisplay))
     .reduce((sum, item) => sum + itemLineTotal(item), 0);
 
   if (isParent && cheque.childCheques?.length) {

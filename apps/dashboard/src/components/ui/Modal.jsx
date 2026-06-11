@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { MODAL_Z } from '@venue-pos/shared';
 import { CloseIcon } from '../dashboard/icons.jsx';
 
 const SIZES = {
@@ -43,7 +44,10 @@ export function Modal({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 flex min-h-[100dvh] items-center justify-center p-4"
+      style={{ zIndex: MODAL_Z.critical }}
+    >
       <button
         type="button"
         aria-hidden="true"

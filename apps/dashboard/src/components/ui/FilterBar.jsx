@@ -38,9 +38,11 @@ export function FilterBar({
 
   return (
     <section className={`surface-card p-4 ${className}`}>
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2.5">{primary}</div>
-        <div className="flex shrink-0 items-center gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-2.5 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center [&>*]:min-w-0 [&>*]:w-full sm:[&>*]:w-auto">
+          {primary}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-slate-100 pt-3 lg:border-t-0 lg:pt-0">
           {advanced ? (
             <Button
               variant="subtle"

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { MODAL_Z } from '@venue-pos/shared';
 import { CloseIcon } from '../dashboard/icons.jsx';
 
 const SIZES = {
@@ -12,6 +13,7 @@ const SIZES = {
 /**
  * Side drawer anchored to the inline-end edge (RTL-aware). Full-width on mobile,
  * fixed width on >= sm. Use for detail panes and edit forms (progressive disclosure).
+ * Sits below action modals (MODAL_Z.stacked+) so dialogs opened from drawer content stack correctly.
  */
 export function Drawer({
   open = true,
@@ -40,18 +42,31 @@ export function Drawer({
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[80]">
+    <div
+      className="fixed inset-0 min-h-[100dvh] overflow-hidden"
+      style={{ zIndex: MODAL_Z.drawer }}
+    >
       <button
         type="button"
         aria-hidden="true"
         tabIndex={-1}
         onClick={onClose}
         className="absolute inset-0 cursor-default bg-ink-900/45 backdrop-blur-sm animate-fade-in"
+        style={{
+          marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))',
+          marginBottom: 'calc(-1 * env(safe-area-inset-bottom, 0px))',
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
       />
       <div
         role="dialog"
         aria-modal="true"
-        className={`absolute inset-y-0 end-0 z-10 flex w-full ${SIZES[size] ?? SIZES.lg} animate-fade-up flex-col border-s border-slate-200 bg-surface-base shadow-elevated`}
+        className={`absolute end-0 top-0 flex h-full min-h-[100dvh] w-full ${SIZES[size] ?? SIZES.lg} animate-fade-up flex-col border-s border-slate-200 bg-surface-base shadow-elevated`}
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
           <div className="flex min-w-0 items-start gap-3">

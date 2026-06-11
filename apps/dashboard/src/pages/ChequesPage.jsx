@@ -6,11 +6,26 @@ import { ShiftContextBar } from '../components/cheques/ShiftContextBar.jsx';
 import { ChequesSidebar } from '../components/cheques/ChequesSidebar.jsx';
 import { ChequeDetailView } from '../components/cheques/ChequeDetailView.jsx';
 import { ChequeActionModals } from '../components/cheques/ChequeActionModals.jsx';
+import { Drawer } from '../components/ui/Drawer.jsx';
+import { ChequeIcon } from '../components/dashboard/icons.jsx';
+import { chequeTableLabel } from '../utils/chequeDisplay.js';
 
 export function ChequesPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const manager = useChequeManager({ user });
+  const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
+
+  function closeMobileDetail() {
+    manager.clearSelection();
+  }
+
+  const drawerTitle = manager.detail
+    ? t('cheque.number', { number: manager.detail.chequeNumber })
+    : t('cheque.title');
+  const drawerSubtitle = manager.detail
+    ? t('cheque.table', { label: chequeTableLabel(manager.detail, t) })
+    : undefined;
 
   return (
     <div className="space-y-4">
@@ -61,16 +76,17 @@ export function ChequesPage() {
 
       <div className="grid gap-4 lg:grid-cols-[14rem_1fr]">
         <ChequesSidebar
-            t={t}
-            statusTab={manager.statusTab}
-            cheques={manager.cheques}
-            selectedId={manager.selectedId}
-            onSelect={manager.setSelectedId}
-            showVenueName={manager.hubSearchActive}
-            language={i18n.language}
-          />
+          t={t}
+          statusTab={manager.statusTab}
+          cheques={manager.cheques}
+          selectedId={manager.selectedId}
+          onSelect={manager.setSelectedId}
+          showVenueName={manager.hubSearchActive}
+          language={i18n.language}
+          locale={locale}
+        />
 
-        <section className="surface-card p-5">
+        <section className="hidden surface-card p-5 lg:block">
           <ChequeDetailView
             detail={manager.detail}
             busy={manager.busy}
@@ -88,6 +104,35 @@ export function ChequesPage() {
           />
         </section>
       </div>
+
+      {manager.selectedId && manager.detail ? (
+        <div className="lg:hidden">
+          <Drawer
+            open
+            onClose={closeMobileDetail}
+            icon={ChequeIcon}
+            title={drawerTitle}
+            subtitle={drawerSubtitle}
+            size="2xl"
+          >
+            <ChequeDetailView
+              detail={manager.detail}
+              busy={manager.busy}
+              language={i18n.language}
+              userRole={user?.role}
+              shiftId={manager.shiftId}
+              t={t}
+              onAction={manager.setActionTarget}
+              onDiscountAction={(type) => {
+                if (!manager.detail) return;
+                if (type === 'discount_remove') manager.openDiscountRemove(manager.detail);
+                else manager.openDiscountRequest(manager.detail, type);
+              }}
+              onRefund={manager.openRefundRequest}
+            />
+          </Drawer>
+        </div>
+      ) : null}
     </div>
   );
 }

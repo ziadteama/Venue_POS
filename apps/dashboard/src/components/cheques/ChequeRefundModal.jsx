@@ -64,7 +64,7 @@ export function ChequeRefundModal({
 
   if (summary.remainingTotal <= 0.009) {
     return (
-      <ModalShell>
+      <ModalShell layer="critical">
         <h3 className="mb-2 text-lg font-semibold text-slate-900">
           {t('cheque.refundTitle', { number: chequeNumber })}
         </h3>

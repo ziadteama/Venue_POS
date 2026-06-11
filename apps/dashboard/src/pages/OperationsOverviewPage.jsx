@@ -34,6 +34,7 @@ import {
   PowerIcon,
 } from '../components/dashboard/icons.jsx';
 import { formatMoney, formatShortDate } from '../utils/dashboardFormat.js';
+import { RefundsTodayDrawer } from '../components/dashboard/RefundsTodayDrawer.jsx';
 
 const QUICK_ACTIONS = [
   { to: '/shifts', labelKey: 'nav.shifts', Icon: ShiftIcon },
@@ -51,6 +52,7 @@ export function OperationsOverviewPage() {
   const [venues, setVenues] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refundsOpen, setRefundsOpen] = useState(false);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const currencyLabel = t('pos.currency');
@@ -179,6 +181,10 @@ export function OperationsOverviewPage() {
               hint={t('dashboard.refundsTodayHint', { count: summary.today?.refundCount ?? 0 })}
               icon={RefundIcon}
               tone="amber"
+              interactive={(summary.today?.refundCount ?? 0) > 0}
+              onClick={
+                (summary.today?.refundCount ?? 0) > 0 ? () => setRefundsOpen(true) : undefined
+              }
             />
             <StatCard
               label={t('dashboard.openOperations')}
@@ -335,6 +341,13 @@ export function OperationsOverviewPage() {
           </div>
         </div>
       ) : null}
+      <RefundsTodayDrawer
+        open={refundsOpen}
+        onClose={() => setRefundsOpen(false)}
+        venueId={venueId || undefined}
+        metric="eod"
+        userRole={user?.role}
+      />
     </div>
   );
 }

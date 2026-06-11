@@ -575,3 +575,81 @@ export async function buildOperationsDashboard({ venueId } = {}, io) {
     venues: eodToday.venues ?? null,
   };
 }
+
+export async function listRefundsToday({ venueId, metric = 'calendar' } = {}) {
+  const venueRecords = venueId
+    ? await prisma.venue.findMany({
+        where: { id: venueId, isActive: true },
+        select: { id: true, nameEn: true, nameAr: true },
+      })
+    : await prisma.venue.findMany({
+        where: { isActive: true },
+        select: { id: true, nameEn: true, nameAr: true },
+        orderBy: { nameEn: 'asc' },
+      });
+
+  const venueIds = venueIdList(venueRecords);
+  if (!venueIds.length) {
+    return { total: 0, count: 0, refunds: [] };
+  }
+
+  let where;
+  if (metric === 'eod') {
+    const { from, to } = resolveDateRange({ preset: 'today' });
+    const shifts = await prisma.shift.findMany({
+      where: {
+        ...(venueId ? { venueId } : { venueId: { in: venueIds } }),
+        openedAt: { gte: from, lte: to },
+      },
+      select: { id: true },
+    });
+    const shiftIds = shifts.map((s) => s.id);
+    if (!shiftIds.length) {
+      return { total: 0, count: 0, refunds: [] };
+    }
+    where = { shiftId: { in: shiftIds }, cheque: venueWhere(venueIds) };
+  } else {
+    const todayRange = resolveDateRange({ preset: 'today' });
+    where = {
+      processedAt: { gte: todayRange.from, lte: todayRange.to },
+      cheque: venueWhere(venueIds),
+    };
+  }
+
+  const rows = await prisma.refund.findMany({
+    where,
+    orderBy: { processedAt: 'desc' },
+    take: 100,
+    include: {
+      cheque: {
+        select: {
+          chequeNumber: true,
+          tableLabel: true,
+          venueId: true,
+          venue: { select: { nameEn: true, nameAr: true } },
+        },
+      },
+      initiator: { select: { username: true } },
+      approver: { select: { username: true } },
+    },
+  });
+
+  const refunds = rows.map((row) => ({
+    id: row.id,
+    chequeId: row.chequeId,
+    venueId: row.cheque.venueId,
+    venueNameEn: row.cheque.venue.nameEn,
+    venueNameAr: row.cheque.venue.nameAr,
+    chequeNumber: row.cheque.chequeNumber,
+    tableLabel: row.cheque.tableLabel,
+    amount: Number(row.amount),
+    method: row.method,
+    reason: row.reason,
+    processedAt: row.processedAt.toISOString(),
+    initiator: row.initiator.username,
+    approver: row.approver.username,
+  }));
+
+  const total = Number(refunds.reduce((sum, r) => sum + r.amount, 0).toFixed(2));
+  return { total, count: refunds.length, refunds };
+}

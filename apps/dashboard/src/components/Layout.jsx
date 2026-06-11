@@ -5,9 +5,10 @@ import { canAccessDashboardPath, canSeeFinancials, defaultDashboardPath, isCeo }
 import { Sidebar } from './Sidebar.jsx';
 import { ErrorBoundary } from './ErrorBoundary.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
-import { BellIcon } from './dashboard/icons.jsx';
+import { BellIcon, FullscreenExitIcon, FullscreenIcon } from './dashboard/icons.jsx';
 import { useAuth } from '../hooks/useAuth.js';
 import { useHubNotifications } from '../hooks/useHubNotifications.js';
+import { useFullscreen } from '../hooks/useFullscreen.js';
 import { CommandPalette } from './dashboard/CommandPalette.jsx';
 
 const SECTION_TITLES = {
@@ -56,6 +57,9 @@ export function Layout() {
   const { notice, setNotice } = useHubNotifications(token);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [installHintShown, setInstallHintShown] = useState(false);
+  const { active: fullscreenActive, supported: fullscreenSupported, toggle: toggleFullscreen } =
+    useFullscreen();
 
   useEffect(() => {
     setMobileOpen(false);
@@ -86,7 +90,7 @@ export function Layout() {
     'dashboard.title';
 
   return (
-    <div className="min-h-screen bg-surface-base">
+    <div className="min-h-screen bg-surface-base pt-[env(safe-area-inset-top)] pe-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] ps-[env(safe-area-inset-left)]">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-[17rem] lg:block">
         <Sidebar onLogout={handleLogout} />
@@ -122,6 +126,30 @@ export function Layout() {
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!fullscreenSupported && !installHintShown) {
+                    setInstallHintShown(true);
+                    window.alert(t('dashboard.installHint'));
+                    return;
+                  }
+                  await toggleFullscreen();
+                }}
+                className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 shadow-sm transition hover:bg-slate-50 lg:hidden"
+                aria-label={
+                  fullscreenActive ? t('dashboard.fullscreenExit') : t('dashboard.fullscreenEnter')
+                }
+                title={
+                  fullscreenActive ? t('dashboard.fullscreenExit') : t('dashboard.fullscreenEnter')
+                }
+              >
+                {fullscreenActive ? (
+                  <FullscreenExitIcon className="h-5 w-5" />
+                ) : (
+                  <FullscreenIcon className="h-5 w-5" />
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => setCommandOpen(true)}

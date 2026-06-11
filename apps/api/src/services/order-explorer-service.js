@@ -3,7 +3,7 @@ import { ORDER_STATUSES } from '@venue-pos/shared';
 import { findHubTableByLabel } from './hub-table-service.js';
 import { notFound, validationError } from '../utils/errors.js';
 import { serializeOrder, decimalToNumber } from '../utils/serialize.js';
-import { filterOrderForCheque } from './cheque-shared.js';
+import { filterOrderForCheque, loadCheque, serializeCheque } from './cheque-shared.js';
 import { getOrderReceipt } from './order-service.js';
 import { getChequeReceipt } from './cheque-pay.js';
 import { getCrossVenueGroupSummary } from './cross-venue-service.js';
@@ -614,6 +614,7 @@ export async function getChequeExplorerDetail(chequeId, venueId) {
   const crossVenueGroup = cheque.crossVenueGroupId
     ? await getCrossVenueGroupSummary(cheque.crossVenueGroupId)
     : null;
+  const serializedCheque = serializeCheque(await loadCheque(chequeId));
 
   return {
     chequeId: cheque.id,
@@ -624,6 +625,7 @@ export async function getChequeExplorerDetail(chequeId, venueId) {
     venueNameEn: cheque.venue.nameEn,
     venueNameAr: cheque.venue.nameAr,
     tableLabel: cheque.tableLabel,
+    chequeTotal: serializedCheque.total,
     totalSubtotal: chequeOrders.reduce((sum, o) => sum + billableOrderSubtotal(o), 0),
     openedAt: chequeOrders[0]?.openedAt ?? cheque.openedAt,
   };

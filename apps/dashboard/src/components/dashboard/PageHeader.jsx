@@ -14,7 +14,7 @@ export function PageHeader({ title, subtitle, actions, meta, eyebrow }) {
         {meta ? <p className="mt-2 text-xs font-medium text-slate-400">{meta}</p> : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{actions}</div>
       ) : null}
     </div>
   );

@@ -82,13 +82,9 @@ export function useChequeManager({ user }) {
 
     if (!venueId && venueList[0] && !useHubSearch) setVenueId(venueList[0].id);
 
-    if (!selectedId && list[0]) {
-      setSelectedId(list[0].id);
-      if (useHubSearch && list[0].venueId) setVenueId(list[0].venueId);
-    } else if (selectedId && !list.some((c) => c.id === selectedId)) {
-      setSelectedId(list[0]?.id ?? null);
+    if (selectedId && !list.some((c) => c.id === selectedId)) {
+      setSelectedId(null);
       setDetail(null);
-      if (list[0]?.venueId) setVenueId(list[0].venueId);
     }
     return list;
   }, [statusTab, venueId, searchQ, shiftId, selectedId, user?.role]);
@@ -124,6 +120,8 @@ export function useChequeManager({ user }) {
     if (selectedId && venueId) {
       loadDetail(selectedId, venueId).catch((e) => setError(friendlyError(e)));
       syncUrl(selectedId, venueId);
+    } else if (!selectedId) {
+      setDetail(null);
     }
   }, [selectedId, venueId, loadDetail, syncUrl]);
 
@@ -228,6 +226,12 @@ export function useChequeManager({ user }) {
     [venueId, syncUrl],
   );
 
+  const clearSelection = useCallback(() => {
+    setSelectedId(null);
+    setDetail(null);
+    syncUrl(null, venueId);
+  }, [venueId, syncUrl]);
+
   const setSearch = useCallback((q) => {
     setSearchQ(q);
     setSelectedId(null);
@@ -248,11 +252,13 @@ export function useChequeManager({ user }) {
     setSelectedId: (id) => {
       const cheque = cheques.find((c) => c.id === id);
       if (cheque) selectCheque(cheque);
+      else if (id == null) clearSelection();
       else {
         setSelectedId(id);
         syncUrl(id, venueId);
       }
     },
+    clearSelection,
     detail,
     error,
     busy,
