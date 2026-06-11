@@ -126,6 +126,7 @@ model Venue {
   approvalRequests ManagerApprovalRequest[]
   configAudits     VenueConfigAudit[]
   auditLogs        AuditLog[]
+  opsEvents        OpsEvent[]
   billingAsAnchor  VenueBillingConfig[]     @relation("BillingAnchor")
   billingAsTarget  VenueBillingConfig[]     @relation("BillingTarget")
   floorTables      FloorTable[]
@@ -216,6 +217,7 @@ model Terminal {
   cheques    Cheque[]
   shifts     Shift[]
   syncEvents SyncEvent[]
+  opsEvents  OpsEvent[]
 
   @@index([venueId], map: "idx_terminals_venue")
   @@map("terminals")
@@ -721,4 +723,25 @@ model AuditLog {
   @@index([venueId, createdAt], map: "idx_audit_logs_venue_at")
   @@index([action, createdAt], map: "idx_audit_logs_action_at")
   @@map("audit_logs")
+}
+
+/// Internal ops / dev monitoring — terminal health, crashes, performance.
+model OpsEvent {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type       String   @db.VarChar(64)
+  severity   String   @db.VarChar(16)
+  source     String?  @db.VarChar(64)
+  venueId    String?  @map("venue_id") @db.Uuid
+  terminalId String?  @map("terminal_id") @db.Uuid
+  title      String   @db.VarChar(200)
+  message    String   @db.VarChar(1000)
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  venue    Venue?    @relation(fields: [venueId], references: [id])
+  terminal Terminal? @relation(fields: [terminalId], references: [id])
+
+  @@index([createdAt], map: "idx_ops_events_created")
+  @@index([type, createdAt], map: "idx_ops_events_type_at")
+  @@map("ops_events")
 }

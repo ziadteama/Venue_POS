@@ -1,6 +1,7 @@
 export * from './constants.js';
 export * from './roles.js';
 export * from './hub-access.js';
+export * from './ops.js';
 export * from './financial-access.js';
 export * from './errors.js';
 export * from './api-error.js';

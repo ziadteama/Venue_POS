@@ -10,8 +10,8 @@ export const ROLES = {
   SYSTEM_ADMIN: 'system_admin',
 };
 
-/** Web dashboard: CEO + hub manager. Cashiers use POS PIN only. */
-export const DASHBOARD_ROLES = [ROLES.HUB_OWNER, ROLES.HUB_MANAGER];
+/** Web dashboard: CEO, hub manager, and internal ops (system_admin). Cashiers use POS PIN only. */
+export const DASHBOARD_ROLES = [ROLES.HUB_OWNER, ROLES.HUB_MANAGER, ROLES.SYSTEM_ADMIN];
 
 export const VENUE_TYPES = {
   STANDARD: 'standard',
