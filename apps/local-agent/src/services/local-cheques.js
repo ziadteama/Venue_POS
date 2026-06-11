@@ -69,6 +69,7 @@ export function serializeLocalCheque(db, chequeId) {
     floorTableId: cheque.floor_table_id ?? null,
     serviceMode: cheque.service_mode ?? CHEQUE_SERVICE_MODES.DINE_IN,
     status: cheque.status,
+    prePaymentCheckPrintCount: cheque.pre_payment_check_print_count ?? 0,
     discountAmount: totals.discount,
     subtotalBeforeDiscount: totals.subtotal,
     serviceAmount: totals.service,
@@ -478,14 +479,55 @@ export function splitLocalChequeByItems(db, chequeId, { splits }, venueId) {
   return serializeLocalCheque(db, chequeId);
 }
 
-export function buildLocalReceiptText(db, chequeId) {
+const BILLABLE_LOCAL_STATUSES = new Set(['sent', 'partially_ready', 'ready', 'served']);
+
+export function recordLocalCheckPrint(db, chequeId) {
+  db.prepare(
+    `UPDATE cheques SET pre_payment_check_print_count = pre_payment_check_print_count + 1 WHERE id = ?`,
+  ).run(chequeId);
+  return serializeLocalCheque(db, chequeId);
+}
+
+export function adjustLocalPrePaymentItemQty(db, chequeId, orderId, itemId, quantity) {
+  const cheque = db.prepare(`SELECT status FROM cheques WHERE id = ?`).get(chequeId);
+  if (!cheque || cheque.status !== 'open') throw new Error('Only open cheques can be adjusted');
+
+  const order = db
+    .prepare(`SELECT status FROM orders WHERE id = ? AND cheque_id = ?`)
+    .get(orderId, chequeId);
+  if (!order || !BILLABLE_LOCAL_STATUSES.has(order.status)) {
+    throw new Error('Only fired rounds can be adjusted before payment');
+  }
+
+  if (quantity <= 0) {
+    db.prepare(`DELETE FROM order_items WHERE id = ? AND order_id = ?`).run(itemId, orderId);
+  } else {
+    db.prepare(`UPDATE order_items SET quantity = ? WHERE id = ? AND order_id = ?`).run(
+      quantity,
+      itemId,
+      orderId,
+    );
+  }
+  return serializeLocalCheque(db, chequeId);
+}
+
+export function buildLocalReceiptText(db, chequeId, { preview = true } = {}) {
   const cheque = serializeLocalCheque(db, chequeId);
   if (!cheque) return '';
-  const lines = [`OFFLINE RECEIPT`, `Table ${cheque.tableLabel}`, `Total ${cheque.total.toFixed(2)}`];
-  for (const order of cheque.orders) {
-    for (const item of order.items) {
-      lines.push(`${item.quantity}x ${item.nameEn}`);
+  const printCount = cheque.prePaymentCheckPrintCount ?? 0;
+  const lines = [
+    ...(preview ? ['*** PRE-PAYMENT CHECK ***'] : []),
+    ...(preview && printCount > 1 ? [`COPY #${printCount}`] : []),
+    cheque.chequeNumber != null ? `Cheque #${cheque.chequeNumber}` : 'Cheque',
+    `Table ${cheque.tableLabel}`,
+    '---',
+  ];
+  for (const order of cheque.orders ?? []) {
+    if (order.status === 'draft') continue;
+    for (const item of order.items ?? []) {
+      lines.push(`${item.quantity}x ${item.nameEn} ${(item.unitPrice * item.quantity).toFixed(2)}`);
     }
   }
+  lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`, '---', preview ? 'Not a payment receipt' : 'Thank you!');
   return lines.join('\n');
 }

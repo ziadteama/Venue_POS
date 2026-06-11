@@ -10,7 +10,7 @@ import { displayInitial, lineTotal, modifierLabel } from '../utils/orderLine.js'
 import { AdjustmentsIcon, ClearIcon, PrinterIcon } from './icons.jsx';
 import { SplitSettlePanel } from './SplitSettlePanel.jsx';
 
-function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId }) {
+function ReceiptLine({ line, language, onChangeQty, order, t, venueId, editable }) {
   return (
     <li className="flex gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-gradient text-sm font-bold text-white">
@@ -29,11 +29,11 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId 
         {modifierLabel(line, language) && (
           <p className="mt-0.5 truncate text-xs text-secondary">{modifierLabel(line, language)}</p>
         )}
-        {!readOnly && order?.status === 'draft' && (
+        {editable && onChangeQty && (
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onChangeQty(line.id, line.quantity - 1, { venueId })}
+              onClick={() => onChangeQty(line.id, line.quantity - 1, { venueId, orderId: order?.id })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
               aria-label="-"
             >
@@ -42,7 +42,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId 
             <span className="min-w-[1.25rem] text-center text-sm font-medium">{line.quantity}</span>
             <button
               type="button"
-              onClick={() => onChangeQty(line.id, line.quantity + 1, { venueId })}
+              onClick={() => onChangeQty(line.id, line.quantity + 1, { venueId, orderId: order?.id })}
               className="flex h-7 w-7 items-center justify-center rounded border border-secondary/40 bg-white text-slate-700"
               aria-label="+"
             >
@@ -50,7 +50,7 @@ function ReceiptLine({ line, language, readOnly, onChangeQty, order, t, venueId 
             </button>
           </div>
         )}
-        {readOnly && (
+        {!editable && (
           <p className="mt-1 text-xs text-secondary">
             {line.quantity}x
           </p>
@@ -65,7 +65,8 @@ function venueLabel(venue, language) {
   return name ?? 'Venue';
 }
 
-function CrossVenueReceiptBody({ group, language, t, onChangeQty }) {
+function CrossVenueReceiptBody({ group, cheque, language, t, onChangeQty }) {
+  const canEditFired = cheque?.status === 'open';
   return (
     <div className="space-y-4">
       {(group.cheques ?? []).map((member) => {
@@ -92,8 +93,10 @@ function CrossVenueReceiptBody({ group, language, t, onChangeQty }) {
                       key={line.id}
                       line={line}
                       language={language}
-                      readOnly
+                      editable={canEditFired && !line.isComped}
+                      onChangeQty={onChangeQty}
                       order={round}
+                      venueId={member.venueId}
                       t={t}
                     />
                   ))}
@@ -113,7 +116,7 @@ function CrossVenueReceiptBody({ group, language, t, onChangeQty }) {
                       key={line.id}
                       line={line}
                       language={language}
-                      readOnly={false}
+                      editable
                       onChangeQty={onChangeQty}
                       order={member.draftOrder}
                       venueId={member.venueId}
@@ -137,7 +140,6 @@ export function ReceiptPanel({
   cheque,
   crossVenueGroup,
   order,
-  tableLabel,
   printerOk,
   sending,
   paying,
@@ -187,6 +189,9 @@ export function ReceiptPanel({
     ? Number(crossVenueGroup?.groupDiscountTotal ?? 0)
     : Number(cheque?.discountAmount ?? 0);
   const groupDiscountPercent = crossVenueGroup?.groupDiscountPercent ?? null;
+  const canPrintCheck =
+    !isCrossVenue && sentRounds.length > 0 && onPrintCheck && !hasOpenSplitChildren(cheque);
+  const checkPrintCount = cheque?.prePaymentCheckPrintCount ?? 0;
 
   if (!cheque) {
     return (
@@ -275,6 +280,7 @@ export function ReceiptPanel({
             {isCrossVenue ? (
               <CrossVenueReceiptBody
                 group={crossVenueGroup}
+                cheque={cheque}
                 language={language}
                 t={t}
                 onChangeQty={onChangeQty}
@@ -292,7 +298,8 @@ export function ReceiptPanel({
                           key={line.id}
                           line={line}
                           language={language}
-                          readOnly
+                          editable={cheque?.status === 'open' && !line.isComped}
+                          onChangeQty={onChangeQty}
                           order={round}
                           t={t}
                         />
@@ -313,10 +320,10 @@ export function ReceiptPanel({
                           key={line.id}
                           line={line}
                           language={language}
-                          readOnly={false}
-                          onChangeQty={onChangeQty}
-                          order={order}
-                          t={t}
+                      editable={!line.isComped}
+                      onChangeQty={onChangeQty}
+                      order={order}
+                      t={t}
                         />
                       ))}
                     </ul>
@@ -396,7 +403,7 @@ export function ReceiptPanel({
         </div>
 
         {hasDraftItems ? (
-          <div className="flex gap-2">
+          <div className="mb-2 flex gap-2">
             <button
               type="button"
               onClick={onClear}
@@ -414,18 +421,25 @@ export function ReceiptPanel({
               {sending ? t('common.loading') : t('pos.sendKitchen')}
             </button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {!hasDraftItems && hasReceiptLines && onPrintCheck && !hasOpenSplitChildren(cheque) ? (
-              <button
-                type="button"
-                disabled={printing || !printerOk}
-                onClick={() => onPrintCheck(cheque.id)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-              >
-                <PrinterIcon className="h-4 w-4" />
-                {t('pos.printCheck')}
-              </button>
+        ) : null}
+        <div className="space-y-2">
+            {canPrintCheck ? (
+              <>
+                {checkPrintCount > 0 ? (
+                  <p className="text-center text-xs text-secondary">
+                    {t('pos.checkPrintedCount', { count: checkPrintCount })}
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={printing || !printerOk}
+                  onClick={() => onPrintCheck(cheque.id)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                >
+                  <PrinterIcon className="h-4 w-4" />
+                  {checkPrintCount > 0 ? t('pos.reprintCheck') : t('pos.printCheck')}
+                </button>
+              </>
             ) : null}
             {canPay ? (
               <button
@@ -449,7 +463,7 @@ export function ReceiptPanel({
               >
                 {t('pos.freeTable')}
               </button>
-            ) : !hasOpenSplitChildren(cheque) ? (
+            ) : !hasOpenSplitChildren(cheque) && !hasDraftItems ? (
               <div className="rounded-xl border border-dashed border-slate-200 py-3.5 text-center text-sm text-secondary">
                 {t('pos.addItemsHint')}
               </div>
@@ -463,7 +477,6 @@ export function ReceiptPanel({
               {t('pos.actionsTitle')}
             </button>
           </div>
-        )}
       </div>
     </aside>
   );

@@ -171,6 +171,67 @@ describe('processSyncQueue', () => {
     assert.equal(db.prepare(`SELECT status FROM sync_queue`).get().status, 'done');
   });
 
+  it('replays cheque.check_print with POST', async () => {
+    let url;
+    let method;
+    global.fetch = async (fetchUrl, options = {}) => {
+      url = fetchUrl;
+      method = options.method;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ printCount: 1, text: 'PREVIEW' }),
+      };
+    };
+
+    enqueueSync(db, SYNC_EVENT_TYPES.CHEQUE_CHECK_PRINT, {
+      chequeId: 'ch1',
+      cashierId: 'c1',
+    });
+    const results = await processSyncQueue({
+      db,
+      apiUrl: 'http://api',
+      terminalId: 't1',
+      terminalSecret: 'secret',
+    });
+
+    assert.equal(results[0].status, 'done');
+    assert.equal(method, 'POST');
+    assert.match(url, /\/api\/v1\/cheques\/ch1\/check-print$/);
+  });
+
+  it('replays cheque.pre_pay_adjust with PATCH', async () => {
+    let url;
+    let method;
+    global.fetch = async (fetchUrl, options = {}) => {
+      url = fetchUrl;
+      method = options.method;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'ch1' }),
+      };
+    };
+
+    enqueueSync(db, SYNC_EVENT_TYPES.CHEQUE_PRE_PAY_ADJUST, {
+      chequeId: 'ch1',
+      orderId: 'o1',
+      itemId: 'i1',
+      quantity: 1,
+      cashierId: 'c1',
+    });
+    const results = await processSyncQueue({
+      db,
+      apiUrl: 'http://api',
+      terminalId: 't1',
+      terminalSecret: 'secret',
+    });
+
+    assert.equal(results[0].status, 'done');
+    assert.equal(method, 'PATCH');
+    assert.match(url, /\/api\/v1\/cheques\/ch1\/orders\/o1\/items\/i1$/);
+  });
+
   it('isReplaySkippableError detects permanent 400/404', () => {
     assert.ok(
       isReplaySkippableError({

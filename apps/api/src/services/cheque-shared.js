@@ -223,6 +223,7 @@ export function serializeCheque(cheque) {
     isCrossVenue: Boolean(cheque.isCrossVenue),
     crossVenueGroupId: cheque.crossVenueGroupId ?? null,
     status: cheque.status,
+    prePaymentCheckPrintCount: cheque.prePaymentCheckPrintCount ?? 0,
     openedAt: cheque.openedAt,
     closedAt: cheque.closedAt ?? null,
     total,

@@ -96,14 +96,25 @@ async function maybeFinalizeSplitParent(tx, parentChequeId) {
   });
 }
 
-export async function getChequeReceipt(chequeId, venueId, { tendered, change, preview } = {}) {
+export async function getChequeReceipt(
+  chequeId,
+  venueId,
+  { tendered, change, preview, copyNumber } = {},
+) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
 
   const venue = await prisma.venue.findUnique({ where: { id: venueId } });
   const serialized = serializeCheque(cheque);
+  const resolvedCopy =
+    copyNumber ?? (preview ? serialized.prePaymentCheckPrintCount || undefined : undefined);
   return {
-    text: buildChequeReceiptText(serialized, venue, { tendered, change, preview }),
+    text: buildChequeReceiptText(serialized, venue, {
+      tendered,
+      change,
+      preview,
+      copyNumber: resolvedCopy,
+    }),
     cheque: serialized,
   };
 }

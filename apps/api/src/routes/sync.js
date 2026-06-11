@@ -12,6 +12,8 @@ import {
   moveChequeTable,
   splitChequeByItems,
   transferChequeItems,
+  adjustPrePaymentItemQty,
+  recordCheckPrint,
 } from '../services/cheque-service.js';
 import { replayCrossVenueGroup } from '../services/cross-venue-service.js';
 import { executeChequeDiscount } from '../services/cheque-discount.js';
@@ -143,6 +145,21 @@ async function processSyncEvent(request, { syncId, eventType, payload }) {
           anchorVenueId: payload.anchorVenueId ?? venueId,
           anchorTerminalId: payload.anchorTerminalId ?? terminalId,
         });
+      case SYNC_EVENT_TYPES.CHEQUE_CHECK_PRINT:
+        return recordCheckPrint(
+          payload.chequeId ?? payload.id,
+          { cashierId: payload.cashierId, terminalId },
+          venueId,
+        );
+      case SYNC_EVENT_TYPES.CHEQUE_PRE_PAY_ADJUST:
+        return adjustPrePaymentItemQty(
+          payload.chequeId,
+          payload.orderId,
+          payload.itemId,
+          payload.quantity,
+          { cashierId: payload.cashierId, terminalId },
+          venueId,
+        );
       default:
         throw validationError(`Unsupported sync event type: ${eventType}`);
     }

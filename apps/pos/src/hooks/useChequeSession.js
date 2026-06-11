@@ -202,7 +202,7 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     }
   }
 
-  async function changeQty(itemId, quantity, { venueId } = {}) {
+  async function changeQty(itemId, quantity, { venueId, orderId } = {}) {
     const useGroup =
       crossVenueGroup &&
       venueId &&
@@ -230,12 +230,30 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
       return;
     }
 
-    const updated = await callAgent(`/v1/orders/${order.id}/items/${itemId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ quantity }),
-    });
-    applyDraftOrder(updated);
-    if (crossVenueGroup) await refreshCheque();
+    const targetOrderId = orderId ?? order?.id;
+    const targetOrder =
+      orderId != null
+        ? (cheque?.orders ?? []).find((row) => row.id === orderId) ?? order
+        : order;
+
+    if (targetOrder?.status === 'draft') {
+      const updated = await callAgent(`/v1/orders/${targetOrderId}/items/${itemId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity }),
+      });
+      applyDraftOrder(updated);
+      if (crossVenueGroup) await refreshCheque();
+      return;
+    }
+
+    const updated = await callAgent(
+      `/v1/cheques/${cheque.id}/orders/${targetOrderId}/items/${itemId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity, cashierId }),
+      },
+    );
+    applyChequePayload(updated);
   }
 
   async function handleSend() {
@@ -494,10 +512,12 @@ export function useChequeSession({ menu, loading, cashierId, homeVenueId }) {
     if (!cheque?.id) return { ok: false };
     setError('');
     try {
-      await callAgent(`/v1/cheques/${cheque.id}/print-receipt`, {
+      const result = await callAgent(`/v1/cheques/${cheque.id}/print-receipt`, {
         method: 'POST',
-        body: JSON.stringify({ mode, chequeId }),
+        body: JSON.stringify({ mode, chequeId, cashierId }),
       });
+      if (result?.cheque) applyChequePayload(result.cheque);
+      else await refreshCheque();
       return { ok: true };
     } catch (err) {
       setError(fail(err, 'pos.printFailed'));

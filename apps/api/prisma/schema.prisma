@@ -485,8 +485,9 @@ model Cheque {
   parentChequeId    String?      @map("parent_cheque_id") @db.Uuid
   isCrossVenue      Boolean      @default(false) @map("is_cross_venue")
   crossVenueGroupId String?      @map("cross_venue_group_id") @db.Uuid
-  status            ChequeStatus @default(open)
-  openedAt          DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
+  status                      ChequeStatus @default(open)
+  prePaymentCheckPrintCount   Int          @default(0) @map("pre_payment_check_print_count")
+  openedAt                    DateTime     @default(now()) @map("opened_at") @db.Timestamptz(6)
   closedAt          DateTime?    @map("closed_at") @db.Timestamptz(6)
   createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)

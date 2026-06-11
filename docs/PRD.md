@@ -798,6 +798,9 @@ A unified Point-of-Sale and Management System for multi-venue food & beverage hu
 - [ ] Manager report template configurable
 - [ ] Print triggered automatically on payment completion
 - [ ] Reprint available from order explorer
+- [x] Pre-payment **check** (preview slip) distinct from official payment receipt
+- [x] Cashier can adjust fired line qty on open cheque before pay (audit logged, no manager PIN)
+- [x] Print / reprint check audited on hub manager Activity page (`check.print`, `check.reprint`, `check.pre_pay_adjust`)
 
 **Priority:** P0 | **Effort:** 3 days
 

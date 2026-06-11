@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import { apiFetch } from './api-fetch.js';
 import { runMenuBackgroundSync } from './menu-sync-worker.js';
-import { enqueueMenuPublish, markMenuPublishQueueDrained } from './menu-publish-queue.js';
+import { enqueueMenuPublish } from './menu-publish-queue.js';
 import { syncVenueConfigFromServer } from './venue-config-sync.js';
 import { isCloudOnline } from './cloud-health.js';
 import { publishAgentEvent } from './agent-events.js';

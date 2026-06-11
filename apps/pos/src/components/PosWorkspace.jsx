@@ -224,7 +224,6 @@ export function PosWorkspace({ cashier, onLogout }) {
           cheque={ws.cheque}
           crossVenueGroup={ws.crossVenueGroup}
           order={ws.order}
-          tableLabel={ws.tableLabel}
           printerOk={ws.printerOk}
           sending={ws.sending}
           paying={ws.paying}

@@ -15,6 +15,8 @@ const CHEQUE_SYNC_TYPES = new Set([
   SYNC_EVENT_TYPES.CHEQUE_TABLE_MOVE,
   SYNC_EVENT_TYPES.CHEQUE_TRANSFER,
   SYNC_EVENT_TYPES.CHEQUE_SPLIT,
+  SYNC_EVENT_TYPES.CHEQUE_CHECK_PRINT,
+  SYNC_EVENT_TYPES.CHEQUE_PRE_PAY_ADJUST,
   SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_PAY,
   SYNC_EVENT_TYPES.CROSS_VENUE_GROUP_REPLAY,
 ]);
@@ -265,6 +267,34 @@ async function replayJob(apiUrl, terminalId, terminalSecret, job, payload, syncI
       {
         method: 'POST',
         body: JSON.stringify({ ...payload.payBody, syncId }),
+      },
+    );
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.CHEQUE_CHECK_PRINT) {
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${payload.chequeId}/check-print`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ cashierId: payload.cashierId, syncId }),
+      },
+    );
+  }
+  if (job.event_type === SYNC_EVENT_TYPES.CHEQUE_PRE_PAY_ADJUST) {
+    return apiFetch(
+      apiUrl,
+      terminalId,
+      terminalSecret,
+      `/api/v1/cheques/${payload.chequeId}/orders/${payload.orderId}/items/${payload.itemId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          quantity: payload.quantity,
+          cashierId: payload.cashierId,
+          syncId,
+        }),
       },
     );
   }
