@@ -15,6 +15,7 @@ const DEFAULT_FEATURES = {
   isAnchor: false,
   crossVenueTargets: [],
   anchorVenue: null,
+  posUpdate: null,
 };
 
 export function useFeatures({ agentReachable = true } = {}) {
@@ -49,6 +50,7 @@ export function useFeatures({ agentReachable = true } = {}) {
         isAnchor: Boolean(data?.isAnchor),
         crossVenueTargets: Array.isArray(data?.crossVenueTargets) ? data.crossVenueTargets : [],
         anchorVenue: data?.anchorVenue ?? null,
+        posUpdate: data?.posUpdate ?? null,
       });
     }
 

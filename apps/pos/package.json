@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ziadteama/Venue_POS.git"
+  },
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite --port 5174",
@@ -54,8 +58,9 @@
       "executableName": "venue-pos"
     },
     "publish": {
-      "provider": "generic",
-      "url": "${env.POS_UPDATE_FEED_URL}"
+      "provider": "github",
+      "owner": "ziadteama",
+      "repo": "Venue_POS"
     }
   }
 }

@@ -1831,8 +1831,8 @@ Hub manager: `/` → tap Refunds today · `/cheques` on phone (drawer) · header
 npm run test -w @venue-pos/pos
 BUILD_POS_APPIMAGE=1 POS_UPDATE_FEED_URL=https://releases.example.com/venue-pos npm run build:till-bundle
 ```
-Packaged till: shift close → update prompt · publish `latest-linux.yml` + AppImage to CDN/Releases (not Render API)
-**Notes:** Unpackaged dev/USB electron skips updater (`app.isPackaged`). Set feed at build or in `pos-config.json` `updateFeedUrl`.
+Packaged till: shift close → update prompt · publish to [GitHub Releases](https://github.com/ziadteama/Venue_POS/releases) (`ziadteama/Venue_POS`)
+**Notes:** Unpackaged dev/USB electron skips updater (`app.isPackaged`). Default feed is GitHub; override via `POS_UPDATE_FEED_URL` or `updateFeedUrl`.
 
 ---
 
