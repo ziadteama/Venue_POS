@@ -45,6 +45,7 @@ const TYPE_BADGE = {
   user: 'bg-pink-100 text-pink-800 ring-pink-200',
   shift_open: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
   shift_close: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
+  shift_force_close: 'bg-orange-100 text-orange-900 ring-orange-200',
   check_print: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
   check_reprint: 'bg-amber-100 text-amber-900 ring-amber-200',
   check_pre_pay_adjust: 'bg-orange-100 text-orange-900 ring-orange-200',
@@ -85,12 +86,21 @@ function groupByDay(events, locale) {
   return groups;
 }
 
+function isFraudHighlight(ev) {
+  return ev.amount != null && Boolean(ev.reason?.trim());
+}
+
 function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
   const badge = TYPE_BADGE[ev.type] ?? 'bg-slate-100 text-slate-800 ring-slate-200';
   const actor = ev.actor ?? ev.manager;
+  const highlighted = isFraudHighlight(ev);
 
   return (
-    <article className="surface-card p-4 transition duration-200 ease-premium hover:border-slate-300/70 hover:shadow-card-hover">
+    <article
+      className={`surface-card p-4 transition duration-200 ease-premium hover:border-slate-300/70 hover:shadow-card-hover ${
+        highlighted ? 'border-amber-300 bg-amber-50/50 ring-1 ring-amber-200' : ''
+      }`}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 flex-1 gap-3">
           <span
@@ -109,7 +119,7 @@ function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
               <p className="mt-1 text-sm text-slate-500">{ev.venueName}</p>
             ) : null}
             {ev.reason ? (
-              <p className="mt-1 text-sm text-slate-500">
+              <p className={`mt-1 text-sm ${highlighted ? 'font-medium text-amber-900' : 'text-slate-500'}`}>
                 {t('activity.reason')}: {ev.reason}
               </p>
             ) : null}
@@ -138,6 +148,7 @@ export function ActivityPage() {
   const { user } = useAuth();
   const [venues, setVenues] = useState([]);
   const [venueId, setVenueId] = useState('all');
+  const [viewMode, setViewMode] = useState('fraud_watch');
   const [events, setEvents] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('');
@@ -150,6 +161,7 @@ export function ActivityPage() {
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-GB';
   const currencyLabel = t('pos.currency');
   const showFinancials = canSeeFinancials(user);
+  const effectiveType = viewMode === 'fraud_watch' ? 'fraud_watch' : typeFilter;
 
   const load = useCallback(async () => {
     if (!venueId) return;
@@ -157,7 +169,7 @@ export function ActivityPage() {
     setError('');
     try {
       const params = new URLSearchParams({ venueId, limit: '100' });
-      if (typeFilter !== 'all') params.set('type', typeFilter);
+      if (effectiveType !== 'all') params.set('type', effectiveType);
       if (userFilter.trim()) params.set('user', userFilter.trim());
       if (from) params.set('from', from);
       if (to) params.set('to', to);
@@ -174,7 +186,7 @@ export function ActivityPage() {
     } finally {
       setLoading(false);
     }
-  }, [venueId, typeFilter, userFilter, from, to, keyword]);
+  }, [venueId, effectiveType, userFilter, from, to, keyword]);
 
   useEffect(() => {
     if (!isHubManager(user?.role)) return;
@@ -203,7 +215,7 @@ export function ActivityPage() {
 
   async function exportCsv() {
     const params = new URLSearchParams({ venueId, format: 'csv' });
-    if (typeFilter !== 'all') params.set('type', typeFilter);
+    if (effectiveType !== 'all') params.set('type', effectiveType);
     if (userFilter.trim()) params.set('user', userFilter.trim());
     if (from) params.set('from', from);
     if (to) params.set('to', to);
@@ -230,11 +242,18 @@ export function ActivityPage() {
     label: type === 'all' ? t('activity.filterAll') : typeLabel(type, t),
   }));
 
+  const viewOptions = [
+    { value: 'fraud_watch', label: t('activity.viewFraudWatch') },
+    { value: 'all', label: t('activity.viewAllActivity') },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
         title={t('activity.title')}
-        subtitle={t('activity.subtitleFull')}
+        subtitle={
+          viewMode === 'fraud_watch' ? t('activity.subtitleFraudWatch') : t('activity.subtitleFull')
+        }
         actions={
           showFinancials ? (
             <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
@@ -288,7 +307,11 @@ export function ActivityPage() {
         }
       />
 
-      <SegmentedControl variant="pill" options={typeOptions} value={typeFilter} onChange={setTypeFilter} />
+      <SegmentedControl variant="pill" options={viewOptions} value={viewMode} onChange={setViewMode} />
+
+      {viewMode === 'all' ? (
+        <SegmentedControl variant="pill" options={typeOptions} value={typeFilter} onChange={setTypeFilter} />
+      ) : null}
 
       {error ? (
         <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -301,7 +324,11 @@ export function ActivityPage() {
         <PanelSkeleton rows={5} />
       ) : events.length === 0 ? (
         <div className="surface-card">
-          <EmptyState icon={ActivityIcon} title={t('activity.empty')} className="py-16" />
+          <EmptyState
+            icon={ActivityIcon}
+            title={viewMode === 'fraud_watch' ? t('activity.emptyFraudWatch') : t('activity.empty')}
+            className="py-16"
+          />
         </div>
       ) : (
         <div className="space-y-8">

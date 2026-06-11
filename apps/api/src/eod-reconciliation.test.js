@@ -443,6 +443,36 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
   assert.equal(detail.totalRefunds, expected.totalRefunds);
   assert.equal(detail.discountTotal, expected.discountTotal);
   assert.equal(detail.report.totalRevenue, expectedNet);
+  assert.ok(Array.isArray(detail.payments));
+  assert.ok(detail.payments.length >= 4);
+  assert.ok(detail.payments.every((p) => p.chequeNumber != null && p.method));
+  assert.ok(Array.isArray(detail.refunds));
+  assert.ok(detail.refunds.length >= 1);
+  assert.ok(detail.refunds[0].reason);
+  assert.ok(Array.isArray(detail.discounts));
+  assert.ok(detail.discounts.length >= 1);
+  assert.ok(Array.isArray(detail.voids));
+  assert.ok(Array.isArray(detail.comps));
+
+  const shiftCsv = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/shifts/${shiftId}?venueId=${VENUE_ID}&format=csv`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(shiftCsv.statusCode, 200);
+  assert.match(shiftCsv.headers['content-type'], /text\/csv/);
+  assert.match(shiftCsv.body, /SHIFT SUMMARY/);
+  assert.match(shiftCsv.body, /PAYMENTS/);
+  assert.match(shiftCsv.body, /REFUNDS/);
+
+  const shiftsListCsv = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/shifts?venueId=${VENUE_ID}&format=csv`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(shiftsListCsv.statusCode, 200);
+  assert.match(shiftsListCsv.body, /cash_payments/);
+  assert.match(shiftsListCsv.body, /void_count/);
 
   // EOD rollup
   const eod = await app.inject({

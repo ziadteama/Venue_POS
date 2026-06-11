@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { isHubStaff, canSeeFinancials } from '@venue-pos/shared';
+import { isHubStaff, isHubManager, canSeeFinancials } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
@@ -11,6 +11,7 @@ import { SectionCard } from '../components/ui/Card.jsx';
 import { FilterBar, SearchInput } from '../components/ui/FilterBar.jsx';
 import { Field, Input, Select } from '../components/ui/Field.jsx';
 import { Button } from '../components/ui/Button.jsx';
+import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
 import { DataTable } from '../components/ui/DataTable.jsx';
 import { Drawer } from '../components/ui/Drawer.jsx';
 import { Modal } from '../components/ui/Modal.jsx';
@@ -81,6 +82,40 @@ function DetailRow({ label, children }) {
     <div>
       <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
       <dd className="font-medium tabular-nums text-slate-800">{children}</dd>
+    </div>
+  );
+}
+
+const DETAIL_TABS = ['summary', 'payments', 'refunds', 'discounts', 'adjustments'];
+
+function ItemizedTable({ columns, rows, emptyLabel }) {
+  if (!rows?.length) {
+    return <p className="text-sm text-slate-500">{emptyLabel}</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-100">
+      <table className="min-w-full text-left text-sm">
+        <thead className="bg-surface-overlay text-xs uppercase tracking-wide text-slate-400">
+          <tr>
+            {columns.map((col) => (
+              <th key={col.key} className="px-3 py-2 font-semibold">
+                {col.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((row) => (
+            <tr key={row.id} className="text-slate-700">
+              {columns.map((col) => (
+                <td key={col.key} className="px-3 py-2 align-top">
+                  {col.render(row)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -170,11 +205,13 @@ export function ShiftsPage() {
   const [loading, setLoading] = useState(true);
   const [eodDate, setEodDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [eod, setEod] = useState(null);
+  const [detailTab, setDetailTab] = useState('summary');
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const currencyLabel = t('pos.currency');
   const canPickVenue = isHubStaff(user?.role);
   const showFinancials = canSeeFinancials(user);
+  const canExportCsv = isHubManager(user?.role) || showFinancials;
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
@@ -233,6 +270,7 @@ export function ShiftsPage() {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null);
+      setDetailTab('summary');
       return;
     }
     let cancelled = false;
@@ -272,6 +310,18 @@ export function ShiftsPage() {
     const a = document.createElement('a');
     a.href = url;
     a.download = 'shifts-export.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function exportShiftCsv(shiftId) {
+    const scopedVenue = canPickVenue ? venueId : user?.venueId;
+    const qs = scopedVenue ? `?venueId=${scopedVenue}&format=csv` : '?format=csv';
+    const blob = await apiFetchBlob(`/api/v1/manager/shifts/${shiftId}${qs}`);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shift-${shiftId}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -338,10 +388,10 @@ export function ShiftsPage() {
         title={t('shifts.title')}
         subtitle={t('shifts.subtitle')}
         actions={
-          showFinancials ? (
+          canExportCsv ? (
             <Button variant="secondary" onClick={() => exportCsv().catch((e) => setError(friendlyError(e)))}>
               <DownloadIcon className="h-4 w-4" />
-              {t('shifts.exportCsv')}
+              {t('shifts.exportAllCsv')}
             </Button>
           ) : null
         }
@@ -532,10 +582,23 @@ export function ShiftsPage() {
             : undefined
         }
         footer={
-          detail?.status === 'open' ? (
-            <Button variant="danger" onClick={() => setForceCloseShift(detail)}>
-              {t('shifts.forceClose')}
-            </Button>
+          detail ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {canExportCsv ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => exportShiftCsv(detail.id).catch((e) => setError(friendlyError(e)))}
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  {t('shifts.downloadShiftCsv')}
+                </Button>
+              ) : null}
+              {detail.status === 'open' ? (
+                <Button variant="danger" onClick={() => setForceCloseShift(detail)}>
+                  {t('shifts.forceClose')}
+                </Button>
+              ) : null}
+            </div>
           ) : null
         }
       >
@@ -543,12 +606,24 @@ export function ShiftsPage() {
           <p className="text-sm text-slate-500">{t('common.loading')}</p>
         ) : (
           <div className="space-y-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <StatusBadge
                 status={detail.status === 'open' ? 'open' : 'closed'}
                 label={detail.status === 'open' ? t('shifts.statusOpen') : t('shifts.statusClosed')}
               />
+              <SegmentedControl
+                variant="pill"
+                value={detailTab}
+                onChange={setDetailTab}
+                options={DETAIL_TABS.map((tab) => ({
+                  value: tab,
+                  label: t(`shifts.detailTab.${tab}`),
+                }))}
+              />
             </div>
+
+            {detailTab === 'summary' ? (
+            <>
             <dl className="grid gap-4 text-sm sm:grid-cols-2">
               <DetailRow label={t('shifts.openFloat')}>
                 {formatMoney(detail.openFloat, locale)} {currencyLabel}
@@ -610,6 +685,101 @@ export function ShiftsPage() {
                   t={t}
                   locale={locale}
                 />
+              </div>
+            ) : null}
+            </>
+            ) : null}
+
+            {detailTab === 'payments' ? (
+              <ItemizedTable
+                emptyLabel={t('shifts.detailEmpty.payments')}
+                rows={detail.payments}
+                columns={[
+                  { key: 'cheque', header: t('activity.cheque'), render: (r) => `#${r.chequeNumber}` },
+                  { key: 'table', header: t('activity.table'), render: (r) => r.tableLabel },
+                  { key: 'method', header: t('orders.paymentMethod'), render: (r) => t(`orders.method.${r.method}`) },
+                  {
+                    key: 'amount',
+                    header: t('orders.amount'),
+                    render: (r) => `${formatMoney(r.amount, locale)} ${currencyLabel}`,
+                  },
+                  { key: 'at', header: t('shifts.openedAt'), render: (r) => formatDate(r.processedAt, locale) },
+                ]}
+              />
+            ) : null}
+
+            {detailTab === 'refunds' ? (
+              <ItemizedTable
+                emptyLabel={t('shifts.detailEmpty.refunds')}
+                rows={detail.refunds}
+                columns={[
+                  { key: 'cheque', header: t('activity.cheque'), render: (r) => `#${r.chequeNumber}` },
+                  { key: 'method', header: t('orders.paymentMethod'), render: (r) => t(`orders.method.${r.method}`) },
+                  {
+                    key: 'amount',
+                    header: t('orders.amount'),
+                    render: (r) => `${formatMoney(r.amount, locale)} ${currencyLabel}`,
+                  },
+                  { key: 'reason', header: t('activity.reason'), render: (r) => r.reason },
+                  { key: 'approver', header: t('shifts.approver'), render: (r) => r.approverUsername },
+                  { key: 'at', header: t('shifts.openedAt'), render: (r) => formatDate(r.processedAt, locale) },
+                ]}
+              />
+            ) : null}
+
+            {detailTab === 'discounts' ? (
+              <ItemizedTable
+                emptyLabel={t('shifts.detailEmpty.discounts')}
+                rows={detail.discounts}
+                columns={[
+                  { key: 'cheque', header: t('activity.cheque'), render: (r) => `#${r.chequeNumber}` },
+                  { key: 'action', header: t('shifts.discountAction'), render: (r) => r.action },
+                  {
+                    key: 'amount',
+                    header: t('orders.amount'),
+                    render: (r) => `${formatMoney(r.amount, locale)} ${currencyLabel}`,
+                  },
+                  { key: 'reason', header: t('activity.reason'), render: (r) => r.reason },
+                  { key: 'approver', header: t('shifts.approver'), render: (r) => r.approverUsername },
+                  { key: 'at', header: t('shifts.openedAt'), render: (r) => formatDate(r.createdAt, locale) },
+                ]}
+              />
+            ) : null}
+
+            {detailTab === 'adjustments' ? (
+              <div className="space-y-6">
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {t('shifts.detailTab.voids')}
+                  </h4>
+                  <ItemizedTable
+                    emptyLabel={t('shifts.detailEmpty.voids')}
+                    rows={detail.voids}
+                    columns={[
+                      { key: 'order', header: t('orders.orderNumber'), render: (r) => `#${r.orderNumber}` },
+                      { key: 'table', header: t('activity.table'), render: (r) => r.tableLabel ?? '—' },
+                      { key: 'reason', header: t('activity.reason'), render: (r) => r.reason },
+                      { key: 'approver', header: t('shifts.approver'), render: (r) => r.approverUsername },
+                      { key: 'at', header: t('shifts.openedAt'), render: (r) => formatDate(r.createdAt, locale) },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    {t('shifts.detailTab.comps')}
+                  </h4>
+                  <ItemizedTable
+                    emptyLabel={t('shifts.detailEmpty.comps')}
+                    rows={detail.comps}
+                    columns={[
+                      { key: 'cheque', header: t('activity.cheque'), render: (r) => `#${r.chequeNumber}` },
+                      { key: 'item', header: t('shifts.compItem'), render: (r) => r.itemName },
+                      { key: 'reason', header: t('activity.reason'), render: (r) => r.reason },
+                      { key: 'approver', header: t('shifts.approver'), render: (r) => r.approverUsername },
+                      { key: 'at', header: t('shifts.openedAt'), render: (r) => formatDate(r.createdAt, locale) },
+                    ]}
+                  />
+                </div>
               </div>
             ) : null}
           </div>

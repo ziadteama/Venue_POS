@@ -12,6 +12,25 @@ const DOMAIN_TYPES = new Set([
   'comp',
   'transfer',
 ]);
+const FRAUD_WATCH_DOMAIN_TYPES = new Set([
+  'discount',
+  'discount_change',
+  'discount_remove',
+  'refund',
+  'void',
+  'comp',
+  'transfer',
+]);
+const FRAUD_WATCH_AUDIT_EXACT = new Set([
+  'check.reprint',
+  'check.pre_pay_adjust',
+  'user.pin_reset',
+]);
+const FRAUD_WATCH_AUDIT_PREFIXES = ['discount', 'refund', 'void', 'comp', 'transfer'];
+
+function isFraudWatchFilter(type) {
+  return type === 'fraud_watch';
+}
 
 export async function appendAuditLog({
   venueId = null,
@@ -76,7 +95,14 @@ async function fetchAuditLogRows(venueId, filters) {
 
   const where = {};
   if (venueId) where.venueId = venueId;
-  if (filters.type && filters.type !== 'all') {
+  if (isFraudWatchFilter(filters.type)) {
+    where.OR = [
+      ...[...FRAUD_WATCH_AUDIT_EXACT].map((action) => ({ action })),
+      ...FRAUD_WATCH_AUDIT_PREFIXES.map((prefix) => ({
+        action: { startsWith: prefix },
+      })),
+    ];
+  } else if (filters.type && filters.type !== 'all') {
     if (CHECK_AUDIT_FILTERS[filters.type]) {
       where.action = CHECK_AUDIT_FILTERS[filters.type];
     } else {
@@ -123,10 +149,19 @@ async function fetchAuditLogRows(venueId, filters) {
 }
 
 async function fetchDomainActivity(venueId, filters) {
-  if (filters.type && filters.type !== 'all' && !DOMAIN_TYPES.has(filters.type)) return [];
+  if (
+    filters.type &&
+    filters.type !== 'all' &&
+    !isFraudWatchFilter(filters.type) &&
+    !DOMAIN_TYPES.has(filters.type)
+  ) {
+    return [];
+  }
   const events = await listManagerActivity(venueId, { limit: 200 });
   let filtered = events;
-  if (filters.type && filters.type !== 'all') {
+  if (isFraudWatchFilter(filters.type)) {
+    filtered = filtered.filter((ev) => FRAUD_WATCH_DOMAIN_TYPES.has(ev.type));
+  } else if (filters.type && filters.type !== 'all') {
     filtered = filtered.filter((ev) =>
       filters.type === 'discount'
         ? ev.type === 'discount' || ev.type === 'discount_change' || ev.type === 'discount_remove'
@@ -164,6 +199,7 @@ async function fetchDomainActivity(venueId, filters) {
 }
 
 async function fetchConfigAudits(venueId, filters) {
+  if (isFraudWatchFilter(filters.type)) return [];
   if (filters.type && filters.type !== 'all' && filters.type !== 'config') return [];
   const where = { venueId };
   const createdAt = parseDateRange(filters.from, filters.to);
@@ -196,13 +232,23 @@ async function fetchConfigAudits(venueId, filters) {
 }
 
 async function fetchShiftEvents(venueId, filters) {
-  if (filters.type && filters.type !== 'all' && !SHIFT_TYPE_FILTERS.has(filters.type)) {
+  if (
+    filters.type &&
+    filters.type !== 'all' &&
+    !isFraudWatchFilter(filters.type) &&
+    !SHIFT_TYPE_FILTERS.has(filters.type)
+  ) {
     return [];
   }
 
   const where = { shift: { venueId } };
-  if (filters.type === 'shift_open') where.action = 'open';
-  if (filters.type === 'shift_close') where.action = 'close';
+  if (isFraudWatchFilter(filters.type)) {
+    where.action = 'close';
+    where.details = { path: ['forcedByManager'], equals: true };
+  } else {
+    if (filters.type === 'shift_open') where.action = 'open';
+    if (filters.type === 'shift_close') where.action = 'close';
+  }
   if (filters.user?.trim()) {
     where.user = { username: { contains: filters.user.trim(), mode: 'insensitive' } };
   }
@@ -219,18 +265,23 @@ async function fetchShiftEvents(venueId, filters) {
     take: 200,
   });
 
-  let mapped = rows.map((row) => ({
-    id: `shift:${row.id}`,
-    type: row.action === 'open' ? 'shift_open' : 'shift_close',
-    action: `shift.${row.action}`,
-    at: row.createdAt.toISOString(),
-    venueId,
-    actor: row.user.username,
-    summary: `Shift ${row.action}`,
-    details: row.details,
-    manager: row.user.username,
-    detail: `Shift ${row.action}`,
-  }));
+  let mapped = rows.map((row) => {
+    const forced = row.details?.forcedByManager === true;
+    return {
+      id: `shift:${row.id}`,
+      type: forced ? 'shift_force_close' : row.action === 'open' ? 'shift_open' : 'shift_close',
+      action: forced ? 'shift.force_close' : `shift.${row.action}`,
+      at: row.createdAt.toISOString(),
+      venueId,
+      actor: row.user.username,
+      summary: forced ? 'Shift force-closed by manager' : `Shift ${row.action}`,
+      details: row.details,
+      manager: row.user.username,
+      detail: forced ? 'Shift force-closed by manager' : `Shift ${row.action}`,
+      amount: row.details?.overShortAmount ?? null,
+      reason: forced ? 'Manager force-close' : null,
+    };
+  });
 
   if (filters.q?.trim()) {
     const q = filters.q.trim().toLowerCase();
