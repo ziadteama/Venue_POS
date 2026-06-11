@@ -62,6 +62,21 @@ function copyDir(src, dest) {
   fs.cpSync(src, dest, { recursive: true });
 }
 
+function removeDirSafe(dir) {
+  if (!fs.existsSync(dir)) return;
+  try {
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
+  } catch (err) {
+    if (process.platform === 'win32' && (err.code === 'EBUSY' || err.code === 'EPERM')) {
+      const stale = `${dir}.stale-${Date.now()}`;
+      fs.renameSync(dir, stale);
+      console.warn(`Bundle dir locked — moved aside to ${path.basename(stale)}`);
+      return;
+    }
+    throw err;
+  }
+}
+
 function pruneBundle() {
   const drop = (p) => {
     if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
@@ -96,7 +111,7 @@ console.log('Building POS (vite production)...');
 runNpm(['run', 'build', '-w', '@venue-pos/pos']);
 
 console.log('Assembling Windows bundle...');
-if (fs.existsSync(outDir)) fs.rmSync(outDir, { recursive: true });
+removeDirSafe(outDir);
 fs.mkdirSync(outDir, { recursive: true });
 
 copyDir(path.join(repoRoot, 'apps', 'local-agent'), path.join(outDir, 'local-agent'));
@@ -118,7 +133,7 @@ fs.writeFileSync(path.join(outDir, 'package.json'), `${JSON.stringify(rootPkg, n
 pruneBundle();
 
 console.log('Creating zip archive...');
-if (fs.existsSync(archive)) fs.rmSync(archive, { force: true });
+removeDirSafe(archive);
 if (process.platform === 'win32') {
   run('powershell', [
     '-NoProfile',
