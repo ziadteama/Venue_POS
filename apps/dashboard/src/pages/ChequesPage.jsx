@@ -15,6 +15,12 @@ export function ChequesPage() {
   const { user } = useAuth();
   const manager = useChequeManager({ user });
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
+  const selectedVenue = manager.venues.find((v) => v.id === manager.venueId);
+  const selectedVenueName = selectedVenue
+    ? i18n.language === 'ar'
+      ? selectedVenue.nameAr || selectedVenue.nameEn
+      : selectedVenue.nameEn
+    : null;
 
   function closeMobileDetail() {
     manager.clearSelection();
@@ -82,6 +88,7 @@ export function ChequesPage() {
           selectedId={manager.selectedId}
           onSelect={manager.setSelectedId}
           showVenueName={manager.hubSearchActive}
+          venueName={manager.hubSearchActive ? null : selectedVenueName}
           language={i18n.language}
           locale={locale}
         />
@@ -93,6 +100,7 @@ export function ChequesPage() {
             language={i18n.language}
             userRole={user?.role}
             shiftId={manager.shiftId}
+            venueName={selectedVenueName}
             t={t}
             onAction={manager.setActionTarget}
             onDiscountAction={(type) => {
@@ -121,6 +129,7 @@ export function ChequesPage() {
               language={i18n.language}
               userRole={user?.role}
               shiftId={manager.shiftId}
+              venueName={selectedVenueName}
               t={t}
               onAction={manager.setActionTarget}
               onDiscountAction={(type) => {

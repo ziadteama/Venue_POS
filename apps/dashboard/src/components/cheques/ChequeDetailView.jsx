@@ -9,6 +9,8 @@ import { EmptyState } from '../ui/EmptyState.jsx';
 import { ChequeIcon } from '../dashboard/icons.jsx';
 import { formatBusinessDate, formatDateTime } from '../../utils/dashboardFormat.js';
 import { chequeTableLabel } from '../../utils/chequeDisplay.js';
+import { combinedChequeTotal } from '../../utils/chequeTotals.js';
+import { ChequeTotalsBlock } from './ChequeTotalsBlock.jsx';
 
 function formatMoney(value, locale) {
   return new Intl.NumberFormat(locale, {
@@ -17,7 +19,7 @@ function formatMoney(value, locale) {
   }).format(Number(value ?? 0));
 }
 
-function ChequeDetailHeader({ detail, shiftId, t, locale }) {
+function ChequeDetailHeader({ detail, shiftId, venueName, t, locale }) {
   const breadcrumb = [
     ...(shiftId
       ? [{ label: t('nav.shifts'), to: '/shifts' }]
@@ -41,6 +43,9 @@ function ChequeDetailHeader({ detail, shiftId, t, locale }) {
           <p className="mt-1 text-sm text-slate-500">
             {t('cheque.table', { label: chequeTableLabel(detail, t) })}
           </p>
+          {venueName ? (
+            <p className="text-xs font-medium text-slate-500">{venueName}</p>
+          ) : null}
           {detail.parentCheque ? (
             <p className="text-xs text-slate-400">
               {t('cheque.splitFrom', { number: detail.parentCheque.chequeNumber })}
@@ -64,10 +69,7 @@ function ChequeDetailHeader({ detail, shiftId, t, locale }) {
           </dl>
         </div>
         <div className="text-end">
-          <p className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('cheque.total')}</p>
-          <p className="text-2xl font-bold tabular-nums text-accent-700">
-            {detail.total.toFixed(2)} {t('pos.currency')}
-          </p>
+          <ChequeTotalsBlock total={combinedChequeTotal(detail)} t={t} size="lg" />
           {detail.status === 'open' &&
           ((detail.discountAmount ?? 0) > 0 ||
             (detail.serviceAmount ?? 0) > 0 ||
@@ -296,6 +298,7 @@ export function ChequeDetailView({
   language,
   userRole,
   shiftId,
+  venueName,
   t,
   onAction,
   onDiscountAction,
@@ -312,7 +315,13 @@ export function ChequeDetailView({
 
   return (
     <div className="space-y-4">
-      <ChequeDetailHeader detail={detail} shiftId={shiftId} t={t} locale={locale} />
+      <ChequeDetailHeader
+        detail={detail}
+        shiftId={shiftId}
+        venueName={venueName}
+        t={t}
+        locale={locale}
+      />
       <ChildChequesPanel childCheques={detail.childCheques} t={t} />
       {detail.crossVenueGroup ? (
         <CrossVenueGroupPanel
