@@ -445,6 +445,24 @@ test('hub manager can read and update venue config', async () => {
   assert.ok(audits.json().length >= 1);
 });
 
+test('hub manager can preview receipt samples', async () => {
+  for (const type of ['customer', 'restaurant', 'prePayment']) {
+    const res = await fx.app.inject({
+      method: 'GET',
+      url: `/api/v1/manager/venues/${VENUE_ID}/receipt-preview?type=${type}`,
+      headers: { authorization: `Bearer ${fx.managerToken}` },
+    });
+    assert.equal(res.statusCode, 200, res.body);
+    assert.ok(res.json().text?.length > 20, type);
+    if (type === 'restaurant') {
+      assert.ok(res.json().text.includes('RESTAURANT COPY'));
+    }
+    if (type === 'prePayment') {
+      assert.ok(res.json().text.includes('PRE-PAYMENT CHECK'));
+    }
+  }
+});
+
 test('terminal can fetch venue settings', async () => {
   const res = await fx.app.inject({
     method: 'GET',

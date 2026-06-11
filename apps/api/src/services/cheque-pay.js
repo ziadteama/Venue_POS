@@ -2,7 +2,11 @@ import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
 import { assertManualCardPaymentsAllowed } from './payment-policy.js';
-import { buildChequeReceiptText, buildFullSplitReceiptText } from '../utils/serialize.js';
+import {
+  buildChequeReceiptText,
+  buildFullSplitReceiptText,
+  buildRestaurantReceiptText,
+} from '../utils/serialize.js';
 import {
   BILLABLE_ORDER_STATUSES,
   billingOrdersFromCheque,
@@ -119,6 +123,22 @@ export async function getChequeReceipt(
   };
 }
 
+export async function getRestaurantChequeReceipt(
+  chequeId,
+  venueId,
+  { tendered, change } = {},
+) {
+  const cheque = await loadCheque(chequeId);
+  if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
+
+  const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+  const serialized = serializeCheque(cheque);
+  return {
+    text: buildRestaurantReceiptText(serialized, venue, { tendered, change }),
+    cheque: serialized,
+  };
+}
+
 export async function getSplitReceiptBundle(parentChequeId, venueId) {
   const parent = await loadCheque(parentChequeId);
   if (parent.venueId !== venueId) throw validationError('Cheque not found for this terminal');
@@ -184,12 +204,19 @@ export async function payCheque(
       tendered,
       managerPin,
     });
+    const anchorCheque =
+      result.group.cheques.find((c) => c.id === chequeId) ?? result.group.cheques[0];
+    const restaurantReceipt = result.receipt.replace(
+      /^CROSS-VENUE SETTLEMENT/m,
+      'CROSS-VENUE SETTLEMENT\n*** RESTAURANT COPY ***',
+    );
     return {
       text: result.receipt,
       receipt: result.receipt,
+      restaurantReceipt,
       change: result.change,
       crossVenueGroup: result.group,
-      cheque: result.group.cheques.find((c) => c.id === chequeId) ?? result.group.cheques[0],
+      cheque: anchorCheque,
       tableSettled: true,
     };
   }
@@ -301,12 +328,20 @@ export async function payCheque(
   });
 
   const paid = await getCheque(chequeId, venueId);
-  const receipt = await getChequeReceipt(chequeId, venueId, {
+  const receiptOpts = {
     tendered: tendered ?? undefined,
     change: change ?? undefined,
-  });
+  };
+  const receipt = await getChequeReceipt(chequeId, venueId, receiptOpts);
+  const restaurantReceipt = await getRestaurantChequeReceipt(chequeId, venueId, receiptOpts);
   const rootId = paid.parentChequeId ?? paid.id;
   const tableSettled = await isTableFullySettled(rootId, venueId);
 
-  return { cheque: paid, receipt: receipt.text, change, tableSettled };
+  return {
+    cheque: paid,
+    receipt: receipt.text,
+    restaurantReceipt: restaurantReceipt.text,
+    change,
+    tableSettled,
+  };
 }

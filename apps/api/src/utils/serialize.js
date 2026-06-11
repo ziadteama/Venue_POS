@@ -229,6 +229,42 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change, previe
   return lines.join('\n');
 }
 
+/** Paid cheque slip for the restaurant — not handed to the guest. */
+export function buildRestaurantReceiptText(cheque, venue, { tendered, change } = {}) {
+  const lines = [
+    venue?.nameEn ?? 'Venue POS',
+    '*** RESTAURANT COPY ***',
+    `Cheque #${cheque.chequeNumber}`,
+    formatTableLocationLine({
+      tableLabel: cheque.tableLabel,
+      serviceMode: cheque.serviceMode,
+    }),
+  ];
+  if (cheque.splitLabel) {
+    lines.push(`Guest: ${cheque.splitLabel}`);
+  }
+  lines.push('---');
+
+  appendChequeReceiptItems(lines, cheque);
+  lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`);
+
+  if (cheque.payments?.length) {
+    lines.push('Payments:');
+    for (const p of cheque.payments) {
+      const cardNote = p.cardLast4 ? ` ****${p.cardLast4}` : '';
+      lines.push(`  ${p.method}${cardNote}: ${Number(p.amount).toFixed(2)}`);
+    }
+  }
+
+  if (tendered != null && change != null) {
+    lines.push(`Tendered: ${Number(tendered).toFixed(2)}`);
+    lines.push(`Change: ${Number(change).toFixed(2)}`);
+  }
+
+  lines.push('---', 'For restaurant records');
+  return lines.join('\n');
+}
+
 /** One printable document listing every split guest plus any table remainder. */
 export function buildFullSplitReceiptText(parentCheque, childCheques, venue) {
   const lines = [

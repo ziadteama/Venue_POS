@@ -179,6 +179,8 @@ test('pre-pay adjust rejected on paid cheque', async () => {
   });
   assert.equal(payRes.statusCode, 200, payRes.body);
   assert.ok(!payRes.json().receipt?.includes('PRE-PAYMENT CHECK'));
+  assert.ok(payRes.json().restaurantReceipt?.includes('RESTAURANT COPY'));
+  assert.ok(payRes.json().receipt?.includes('Thank you!'));
 
   const patchRes = await app.inject({
     method: 'PATCH',

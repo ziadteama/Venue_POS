@@ -7,6 +7,7 @@ import { BillingMatrixSection } from '../components/BillingMatrixSection.jsx';
 import { HubTablesSection } from '../components/HubTablesSection.jsx';
 import { HubTaxMatrixSection } from '../components/HubTaxMatrixSection.jsx';
 import { TerminalsSection } from '../components/TerminalsSection.jsx';
+import { ReceiptPreviewSection } from '../components/ReceiptPreviewSection.jsx';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { SectionCard } from '../components/ui/Card.jsx';
 import { Field, Input, Select } from '../components/ui/Field.jsx';
@@ -23,6 +24,7 @@ import {
   AlertIcon,
   CheckCircleIcon,
   PlusIcon,
+  ReceiptIcon,
 } from '../components/dashboard/icons.jsx';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
@@ -53,7 +55,7 @@ function tablesToText(tables) {
     .join('\n');
 }
 
-const VENUE_SECTIONS = ['printers', 'billing', 'terminals', 'audit'];
+const VENUE_SECTIONS = ['printers', 'receipts', 'billing', 'terminals', 'audit'];
 
 function emptyNewVenue() {
   return { nameEn: '', nameAr: '', type: 'standard' };
@@ -90,6 +92,7 @@ export function VenueSettingsPage() {
       { id: 'tax', label: t('venueConfig.taxAndService'), icon: RevenueIcon },
       { id: 'tables', label: t('venueConfig.tables'), icon: TablesIcon },
       { id: 'printers', label: t('venueConfig.printers'), icon: PrinterIcon },
+      { id: 'receipts', label: t('receiptPreview.title'), icon: ReceiptIcon },
       { id: 'billing', label: t('billing.title'), icon: SettingsIcon },
       { id: 'terminals', label: t('terminals.title'), icon: PowerIcon },
       { id: 'audit', label: t('venueConfig.recentChanges'), icon: ActivityIcon },
@@ -455,6 +458,8 @@ export function VenueSettingsPage() {
                 </Button>
               </div>
             </form>
+          ) : section === 'receipts' ? (
+            <ReceiptPreviewSection venueId={venueId} />
           ) : section === 'billing' ? (
             venueId ? (
               <BillingMatrixSection anchorVenueId={venueId} anchorType={form.type} />

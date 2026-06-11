@@ -11,6 +11,7 @@ import {
   updateVenueConfig,
   listVenueConfigAudits,
 } from '../services/venue-config-service.js';
+import { buildReceiptPreview } from '../services/receipt-preview-service.js';
 
 const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
 
@@ -77,6 +78,15 @@ export async function managerVenueConfigRoutes(app) {
         });
       }
       return result;
+    },
+  );
+
+  app.get(
+    '/api/v1/manager/venues/:id/receipt-preview',
+    { preHandler: hubManagerPreHandler },
+    async (request) => {
+      const type = request.query?.type ?? 'customer';
+      return buildReceiptPreview(request.params.id, type);
     },
   );
 

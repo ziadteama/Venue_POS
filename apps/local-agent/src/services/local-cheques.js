@@ -185,10 +185,27 @@ export function payLocalCheque(db, chequeId, { payments, method, amount }) {
     `UPDATE cheques SET status = 'paid', total = ?, closed_at = ? WHERE id = ?`,
   ).run(total, now, chequeId);
 
+  const location =
+    cheque.service_mode === 'takeaway' ? 'Take away' : `Table ${cheque.table_label}`;
+  const customerReceipt = [
+    'OFFLINE RECEIPT',
+    location,
+    `Total ${total.toFixed(2)}`,
+    'Thank you!',
+  ].join('\n');
+  const restaurantReceipt = [
+    'OFFLINE RECEIPT',
+    '*** RESTAURANT COPY ***',
+    location,
+    `Total ${total.toFixed(2)}`,
+    'For restaurant records',
+  ].join('\n');
+
   return {
     cheque: serializeLocalCheque(db, chequeId),
     payments: lines,
-    receipt: `OFFLINE RECEIPT\nTable ${cheque.table_label}\nTotal ${total.toFixed(2)}`,
+    receipt: customerReceipt,
+    restaurantReceipt,
   };
 }
 

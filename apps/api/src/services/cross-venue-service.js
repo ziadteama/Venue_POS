@@ -1290,9 +1290,15 @@ export async function payCrossVenueGroup({
     },
   });
 
+  const restaurantReceipt = receipt.replace(
+    /^CROSS-VENUE SETTLEMENT/m,
+    'CROSS-VENUE SETTLEMENT\n*** RESTAURANT COPY ***',
+  );
+
   return {
     group: serializeCrossVenueGroup(groupId, anchorVenueId, paidMembers),
     receipt,
+    restaurantReceipt,
     change,
     combinedTotal,
   };

@@ -190,7 +190,11 @@ export function ReceiptPanel({
     : Number(cheque?.discountAmount ?? 0);
   const groupDiscountPercent = crossVenueGroup?.groupDiscountPercent ?? null;
   const canPrintCheck =
-    !isCrossVenue && sentRounds.length > 0 && onPrintCheck && !hasOpenSplitChildren(cheque);
+    !isCrossVenue &&
+    !isTakeawayCheque(cheque) &&
+    sentRounds.length > 0 &&
+    onPrintCheck &&
+    !hasOpenSplitChildren(cheque);
   const checkPrintCount = cheque?.prePaymentCheckPrintCount ?? 0;
 
   if (!cheque) {

@@ -26,15 +26,7 @@ import { assertMenuReadyForWrite } from '../services/menu-gate.js';
 import { occupyFloorUpstream, releaseFloorUpstream } from '../services/floor-upstream.js';
 import { verifyCachedManagerPin } from '../services/terminal-cache.js';
 import { printKitchenTicket, printCustomerReceipt } from '../services/kitchen-printer.js';
-
-function maybePrintReceipt(text, { autoReceiptPrint, receiptPrinterHost, receiptPrinterPort, log }) {
-  if (!autoReceiptPrint || !text) return;
-  printCustomerReceipt(text, {
-    host: receiptPrinterHost,
-    port: receiptPrinterPort,
-    log,
-  }).catch((err) => log.warn({ err }, 'Receipt print failed'));
-}
+import { maybePrintReceipt, maybePrintPayReceipts } from '../services/receipt-print.js';
 
 export function registerChequeRoutes(app, routeCtx) {
   const {
@@ -541,7 +533,7 @@ export function registerChequeRoutes(app, routeCtx) {
         },
       );
       const printers = getPrinterConfig();
-      maybePrintReceipt(result.receipt, {
+      maybePrintPayReceipts(result, {
         autoReceiptPrint,
         receiptPrinterHost: printers.receiptPrinterHost,
         receiptPrinterPort: printers.receiptPrinterPort,
@@ -577,12 +569,18 @@ export function registerChequeRoutes(app, routeCtx) {
           syncId,
         );
         const printers = getPrinterConfig();
-        maybePrintReceipt(result.receipt, {
-          autoReceiptPrint,
-          receiptPrinterHost: printers.receiptPrinterHost,
-          receiptPrinterPort: printers.receiptPrinterPort,
-          log: app.log,
-        });
+        maybePrintPayReceipts(
+          {
+            ...result,
+            restaurantReceipt: result.restaurantReceipt ?? result.receipt,
+          },
+          {
+            autoReceiptPrint,
+            receiptPrinterHost: printers.receiptPrinterHost,
+            receiptPrinterPort: printers.receiptPrinterPort,
+            log: app.log,
+          },
+        );
         app.log.warn({ err }, 'Cheque payment stored locally');
         return result;
       } catch (localErr) {

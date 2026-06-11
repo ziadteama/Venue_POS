@@ -17,6 +17,7 @@ import { SYNC_EVENT_TYPES } from '@venue-pos/shared';
 import { getLinkedMenuCache } from '../services/linked-menu-sync.js';
 import { proxyToCoordinator } from '../services/coordinator-proxy.js';
 import { printCustomerReceipt } from '../services/kitchen-printer.js';
+import { maybePrintCrossVenuePayReceipt } from '../services/receipt-print.js';
 
 function offlineCrossSell(reply) {
   return reply.status(403).send({
@@ -385,14 +386,11 @@ export function registerCrossVenueRoutes(app, routeCtx) {
           result.replayPayload,
           syncId,
         );
-        if (result.receipt && autoReceiptPrint) {
-          const printers = getPrinterConfig();
-          printCustomerReceipt(result.receipt, {
-            host: printers.receiptPrinterHost,
-            port: printers.receiptPrinterPort,
-            log: app.log,
-          }).catch((err) => app.log.warn({ err }, 'Cross-venue receipt print failed'));
-        }
+        maybePrintCrossVenuePayReceipt(result, {
+          autoReceiptPrint,
+          ...getPrinterConfig(),
+          log: app.log,
+        });
         return result;
       } catch (localErr) {
         return reply.status(400).send({ error: localErr.message });
@@ -406,14 +404,11 @@ export function registerCrossVenueRoutes(app, routeCtx) {
         `/api/v1/cross-venue/order/${request.params.groupId}/pay`,
         { method: 'POST', body: JSON.stringify(request.body) },
       );
-      if (result.receipt && autoReceiptPrint) {
-        const printers = getPrinterConfig();
-        printCustomerReceipt(result.receipt, {
-          host: printers.receiptPrinterHost,
-          port: printers.receiptPrinterPort,
-          log: app.log,
-        }).catch((err) => app.log.warn({ err }, 'Cross-venue receipt print failed'));
-      }
+      maybePrintCrossVenuePayReceipt(result, {
+        autoReceiptPrint,
+        ...getPrinterConfig(),
+        log: app.log,
+      });
       return result;
     } catch (err) {
       if (canCoordinatorOffline()) return offlineCrossSell(reply);

@@ -1722,6 +1722,21 @@ POS: fire → Print check → adjust qty → Reprint (COPY #2) → Pay (payment 
 
 ---
 
+### 2026-06-11 — Pay receipt routing + dashboard receipt preview
+**Phase:** 10 · **Story:** US-10.1 extension
+**What:** Dine-in pay prints restaurant copy only (not customer); takeaway pay prints customer + restaurant copies and hides Print check; hub manager previews sample receipts in Settings → Receipts.
+**Files:** `serialize.js`, `cheque-pay.js`, `receipt-preview-service.js`, `manager-venue-config.js`, `receipt-print.js` (agent), `ReceiptPreviewSection.jsx`, `ReceiptPanel.jsx`, `receipt-print.test.js`, i18n
+**Verify:**
+```bash
+npm run lint && npm run lint:i18n
+npm run test -w @venue-pos/api
+npm run test -w @venue-pos/local-agent
+```
+POS dine-in: pre-pay check → pay → restaurant slip only · POS takeaway: no Print check → pay → both slips · Dashboard Settings → Receipts → toggle preview types
+**Notes:** `receiptTemplate` (standard/compact/detailed) still stored but not wired to layout.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |
