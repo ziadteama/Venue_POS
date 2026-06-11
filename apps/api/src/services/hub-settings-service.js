@@ -62,3 +62,57 @@ export async function updateHubFeatures(patch) {
   });
   return resolveHubFeatures();
 }
+
+function normalizeFeedUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  return url.trim().replace(/\/+$/, '');
+}
+
+export function envDeploymentDefaults() {
+  return {
+    posUpdateFeedUrl: config.posUpdateFeedUrl ?? '',
+    posUpdateTargetVersion: '',
+    notifyTerminalsOnSave: true,
+  };
+}
+
+export async function getHubDeploymentOverrides() {
+  const row = await prisma.hubSettings.findUnique({ where: { id: SETTINGS_ID } });
+  const stored = row?.deployment;
+  return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+}
+
+export async function resolveHubDeployment() {
+  const defaults = envDeploymentDefaults();
+  const overrides = await getHubDeploymentOverrides();
+  return {
+    posUpdateFeedUrl: normalizeFeedUrl(
+      overrides.posUpdateFeedUrl ?? defaults.posUpdateFeedUrl,
+    ),
+    posUpdateTargetVersion: String(
+      overrides.posUpdateTargetVersion ?? defaults.posUpdateTargetVersion ?? '',
+    ).trim(),
+    notifyTerminalsOnSave:
+      overrides.notifyTerminalsOnSave ?? defaults.notifyTerminalsOnSave,
+  };
+}
+
+export async function updateHubDeployment(patch) {
+  const current = await getHubDeploymentOverrides();
+  const next = { ...current };
+  if (patch.posUpdateFeedUrl !== undefined) {
+    next.posUpdateFeedUrl = normalizeFeedUrl(patch.posUpdateFeedUrl);
+  }
+  if (patch.posUpdateTargetVersion !== undefined) {
+    next.posUpdateTargetVersion = String(patch.posUpdateTargetVersion ?? '').trim();
+  }
+  if (patch.notifyTerminalsOnSave !== undefined) {
+    next.notifyTerminalsOnSave = Boolean(patch.notifyTerminalsOnSave);
+  }
+  await prisma.hubSettings.upsert({
+    where: { id: SETTINGS_ID },
+    create: { id: SETTINGS_ID, deployment: next },
+    update: { deployment: next },
+  });
+  return resolveHubDeployment();
+}

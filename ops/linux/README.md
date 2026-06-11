@@ -81,19 +81,14 @@ npm run build:till-bundle
 
 On **Linux** (or `BUILD_POS_APPIMAGE=1`), the bundle also includes a packaged **AppImage** under `pos/release/` for `electron-updater`.
 
-Set the update feed when building/publishing releases:
-
-```bash
-export POS_UPDATE_FEED_URL=https://releases.example.com/venue-pos
-```
-
 Output: `dist/venue-pos-till-<version>.tar.gz` — copy to USB.
 
 ### Remote updates (electron-updater)
 
 - Packaged AppImage only (`app.isPackaged`); dev/USB raw electron skips updater.
-- Feed: generic `latest-linux.yml` + AppImage on CDN/GitHub Releases — **not** on Render API.
-- `POS_UPDATE_FEED_URL` at build time, or `updateFeedUrl` in `pos-config.json`.
+- **Default feed:** [GitHub Releases](https://github.com/ziadteama/Venue_POS/releases) (`ziadteama/Venue_POS`) — tag releases with `v*` and attach `latest-linux.yml` + AppImage (CI/`electron-builder --publish`).
+- Override: `POS_UPDATE_FEED_URL` (generic CDN) or `updateFeedUrl` in `pos-config.json`.
+- Till firewall must allow outbound **443** to `github.com` (and your Render API).
 - Checks after shift close + ~60s after startup; download/install prompts in POS UI.
 
 ## Fresh VM smoke checklist

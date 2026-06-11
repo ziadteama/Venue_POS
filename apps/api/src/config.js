@@ -52,4 +52,6 @@ export const config = {
   crossVenueLockTtlMs: Number(process.env.CROSS_VENUE_LOCK_TTL_MS ?? 30000),
   /** Shared secret for watchdog/agent → POST /api/v1/ops/events */
   opsIngestSecret: process.env.OPS_INGEST_SECRET ?? 'dev-ops-ingest-secret',
+  /** Fallback POS electron-updater feed when hub_settings.deployment is unset */
+  posUpdateFeedUrl: (process.env.POS_UPDATE_FEED_URL ?? '').trim().replace(/\/+$/, ''),
 };

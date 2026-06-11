@@ -232,6 +232,24 @@ export function emitVenueConfigUpdated(io, { venueId, changes, config }) {
   });
 }
 
+/** Hub-wide — prompt packaged POS tills to check electron-updater feed. */
+export function emitTerminalUpdateAvailable(io, { feedUrl, targetVersion }) {
+  if (!io?.to || !feedUrl) return;
+  const payload = {
+    feedUrl,
+    targetVersion: targetVersion ?? null,
+    at: new Date().toISOString(),
+  };
+  const message = { event: 'terminal:update_available', payload };
+  const rooms = io.sockets?.adapter?.rooms;
+  if (!rooms) return;
+  for (const room of rooms.keys()) {
+    if (room.startsWith('venue:') && room.endsWith(':pos')) {
+      io.to(room).emit('terminal:update_available', message);
+    }
+  }
+}
+
 export function emitHubTablesUpdated(io, { tables }) {
   if (!io?.to) return;
   const payload = {

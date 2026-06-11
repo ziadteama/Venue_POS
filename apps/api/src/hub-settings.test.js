@@ -5,7 +5,12 @@ import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
 import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
-import { resolveHubFeatures, updateHubFeatures } from './services/hub-settings-service.js';
+import {
+  resolveHubFeatures,
+  resolveHubDeployment,
+  updateHubFeatures,
+  updateHubDeployment,
+} from './services/hub-settings-service.js';
 
 const VENUE_ID = '00000000-0000-4000-8000-000000000098';
 
@@ -121,4 +126,38 @@ test('updateHubFeatures merges partial patch', async () => {
   const next = await updateHubFeatures({ lineTransfer: false });
   assert.equal(next.refunds, true);
   assert.equal(next.lineTransfer, false);
+});
+
+test('dev ops can configure POS update feed remotely', async () => {
+  const putRes = await app.inject({
+    method: 'PUT',
+    url: '/api/v1/manager/hub-settings/deployment',
+    headers: { authorization: `Bearer ${opsToken}` },
+    payload: {
+      posUpdateFeedUrl: 'https://releases.example.com/venue-pos',
+      posUpdateTargetVersion: '1.2.0',
+      notifyTerminalsOnSave: false,
+    },
+  });
+  assert.equal(putRes.statusCode, 200);
+  assert.equal(putRes.json().posUpdateFeedUrl, 'https://releases.example.com/venue-pos');
+  assert.equal(putRes.json().posUpdateTargetVersion, '1.2.0');
+
+  const resolved = await resolveHubDeployment();
+  assert.equal(resolved.posUpdateFeedUrl, 'https://releases.example.com/venue-pos');
+
+  const hubMgrRes = await app.inject({
+    method: 'PUT',
+    url: '/api/v1/manager/hub-settings/deployment',
+    headers: { authorization: `Bearer ${hubToken}` },
+    payload: { posUpdateFeedUrl: 'https://evil.example.com' },
+  });
+  assert.equal(hubMgrRes.statusCode, 403);
+});
+
+test('updateHubDeployment strips trailing slash from feed URL', async () => {
+  const next = await updateHubDeployment({
+    posUpdateFeedUrl: 'https://releases.example.com/venue-pos/',
+  });
+  assert.equal(next.posUpdateFeedUrl, 'https://releases.example.com/venue-pos');
 });

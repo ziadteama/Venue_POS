@@ -748,9 +748,10 @@ model OpsEvent {
 
 /// Hub-wide feature toggles (dashboard-managed; env vars are fallback).
 model HubSettings {
-  id        String   @id @default("singleton") @db.VarChar(32)
-  features  Json?    @map("features")
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id         String   @id @default("singleton") @db.VarChar(32)
+  features   Json?    @map("features")
+  deployment Json?    @map("deployment")
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("hub_settings")
 }

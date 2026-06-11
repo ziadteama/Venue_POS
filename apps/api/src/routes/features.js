@@ -2,7 +2,7 @@ import { prisma } from '../db/prisma.js';
 import { authenticateTerminal } from '../middleware/terminal.js';
 import { listHubTableLabels } from '../services/hub-table-service.js';
 import { getEnabledTargets } from '../services/billing-config-service.js';
-import { resolveHubFeatures } from '../services/hub-settings-service.js';
+import { resolveHubFeatures, resolveHubDeployment } from '../services/hub-settings-service.js';
 
 export async function featureRoutes(app) {
   app.get('/api/v1/features', { preHandler: authenticateTerminal }, async (request) => {
@@ -14,6 +14,7 @@ export async function featureRoutes(app) {
     const tables = await listHubTableLabels();
 
     const hubFeatures = await resolveHubFeatures();
+    const deployment = await resolveHubDeployment();
     const crossVenueTargets = hubFeatures.crossVenueBilling
       ? await getEnabledTargets(venueId)
       : [];
@@ -34,6 +35,12 @@ export async function featureRoutes(app) {
         venue?.type === 'anchor'
           ? { id: venueId, nameEn: venue.nameEn, nameAr: venue.nameAr }
           : null,
+      posUpdate: deployment.posUpdateFeedUrl
+        ? {
+            feedUrl: deployment.posUpdateFeedUrl,
+            targetVersion: deployment.posUpdateTargetVersion || null,
+          }
+        : null,
     };
   });
 }

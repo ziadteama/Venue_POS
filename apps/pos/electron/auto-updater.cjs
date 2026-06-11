@@ -1,6 +1,6 @@
 const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const { resolveFeedUrl } = require('./updater-feed.cjs');
+const { resolveUpdateFeed } = require('./updater-feed.cjs');
 
 /** @typedef {'idle'|'checking'|'available'|'downloading'|'ready'|'error'} UpdatePhase */
 
@@ -42,13 +42,17 @@ function createAutoUpdater(deps) {
 
   function configureFeed() {
     const cfg = deps.getConfig();
-    const url = resolveFeedUrl(cfg);
-    if (!url) {
-      feedConfigured = false;
-      return false;
-    }
+    const feed = resolveUpdateFeed(cfg);
     applyFeedHeaders(cfg);
-    autoUpdater.setFeedURL({ provider: 'generic', url });
+    if (feed.provider === 'github') {
+      autoUpdater.setFeedURL({
+        provider: 'github',
+        owner: feed.owner,
+        repo: feed.repo,
+      });
+    } else {
+      autoUpdater.setFeedURL({ provider: 'generic', url: feed.url });
+    }
     feedConfigured = true;
     return true;
   }
@@ -105,7 +109,7 @@ function createAutoUpdater(deps) {
       return { enabled: false, reason: 'unpackaged_or_dev' };
     }
     if (!configureFeed()) {
-      return { enabled: false, reason: 'no_feed_url' };
+      return { enabled: false, reason: 'feed_not_configured' };
     }
     try {
       const result = await autoUpdater.checkForUpdates();
@@ -119,7 +123,7 @@ function createAutoUpdater(deps) {
 
   async function downloadUpdate() {
     if (!isUpdaterEnabled() || !feedConfigured) {
-      if (!configureFeed()) return { ok: false, reason: 'no_feed_url' };
+      if (!configureFeed()) return { ok: false, reason: 'feed_not_configured' };
     }
     try {
       setPhase('downloading', { version: pendingVersion });
@@ -152,7 +156,7 @@ function createAutoUpdater(deps) {
       phase,
       version: pendingVersion,
       error: lastError,
-      feedUrl: resolveFeedUrl(deps.getConfig()),
+      feed: resolveUpdateFeed(deps.getConfig()),
     };
   }
 
@@ -184,5 +188,4 @@ function createAutoUpdater(deps) {
 module.exports = {
   createAutoUpdater,
   isUpdaterEnabled,
-  resolveFeedUrl,
 };
