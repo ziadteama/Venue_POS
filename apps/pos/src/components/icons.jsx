@@ -72,6 +72,16 @@ export function AdjustmentsIcon({ className = 'h-4 w-4' }) {
   );
 }
 
+export function DrawerIcon({ className = 'h-4 w-4' }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="6" width="18" height="12" rx="1.5" />
+      <path d="M3 10h18" strokeLinecap="round" />
+      <circle cx="17" cy="14" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function UserIcon({ className = 'h-4 w-4' }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

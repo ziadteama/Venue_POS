@@ -1,5 +1,10 @@
 import { getCachedMenu } from '../services/menu-sync.js';
 import { getPrinterHealth } from '../services/kitchen-printer.js';
+import {
+  getReceiptPrinterHealth,
+  isCashDrawerEnabled,
+  probeReceiptPrinterHealth,
+} from '../services/receipt-printer.js';
 import { isCloudOnline } from '../services/cloud-health.js';
 import {
   getSyncQueueDepth,
@@ -26,6 +31,7 @@ export function registerHealthRoutes(
     coordinatorFallback,
     clusterManager,
     getDeviceProfile,
+    getPrinterConfig,
   },
 ) {
   const clusterState = () => clusterManager?.getState?.() ?? {};
@@ -50,6 +56,11 @@ export function registerHealthRoutes(
     const cluster = clusterState();
     const deviceProfile = getDeviceProfile?.() ?? {};
     const labels = buildClusterLabels(cluster);
+    const printers = getPrinterConfig?.() ?? {};
+    await probeReceiptPrinterHealth({
+      host: printers.receiptPrinterHost,
+      port: printers.receiptPrinterPort,
+    });
     return {
       status: 'ok',
       service: 'local-agent',
@@ -61,6 +72,8 @@ export function registerHealthRoutes(
       menuCached: Boolean(getCachedMenu(db, venueId)),
       menuStale: getAgentMeta(db, 'menu_stale') === 'true',
       printer: getPrinterHealth(),
+      receiptPrinter: getReceiptPrinterHealth(),
+      cashDrawerEnabled: isCashDrawerEnabled(),
       cloudOnline: isCloudOnline(),
       isCoordinator,
       coordinatorMode: cluster.mode ?? coordinatorMode,

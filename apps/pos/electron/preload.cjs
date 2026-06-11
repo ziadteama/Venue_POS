@@ -158,6 +158,8 @@ contextBridge.exposeInMainWorld('venuePos', {
     agentFetch('/v1/shifts/open', { method: 'POST', body: JSON.stringify(body) }),
   closeShift: (body) =>
     agentFetch('/v1/shifts/close', { method: 'POST', body: JSON.stringify(body) }),
+  openCashDrawer: (body) =>
+    agentFetch('/v1/hardware/open-drawer', { method: 'POST', body: JSON.stringify(body) }),
   discountCheque: (chequeId, body) =>
     agentFetch(`/v1/cheques/${chequeId}/discount`, {
       method: 'POST',

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { LanguageToggle } from './LanguageToggle.jsx';
-import { OrdersIcon, ShiftIcon, TablesIcon, UserIcon } from './icons.jsx';
+import { DrawerIcon, OrdersIcon, ShiftIcon, TablesIcon, UserIcon } from './icons.jsx';
 
 function HeaderAccountMenu({ label, title, onLogout, t }) {
   const [open, setOpen] = useState(false);
@@ -64,6 +64,7 @@ function HeaderAction({
   variant = 'ghost',
   badge,
   className = '',
+  disabled = false,
 }) {
   const isPrimary = variant === 'primary';
 
@@ -71,8 +72,9 @@ function HeaderAction({
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       title={title ?? label}
-      className={`relative flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold transition sm:px-3 ${
+      className={`relative flex shrink-0 items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-semibold transition sm:px-3 disabled:cursor-not-allowed disabled:opacity-50 ${
         isPrimary
           ? 'bg-white text-ink-900 shadow-sm ring-1 ring-white/40 hover:bg-white/95'
           : 'bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20'
@@ -104,6 +106,10 @@ export function PosHeader({
   shift,
   onCloseShift,
   onOrderLookup,
+  onOpenDrawer,
+  drawerEnabled = false,
+  drawerBusy = false,
+  showDrawerButton = false,
   cashierUsername,
   onLogout,
 }) {
@@ -163,6 +169,17 @@ export function PosHeader({
             label={t('pos.orderLookup')}
             onClick={onOrderLookup}
             title={t('pos.orderLookupTitle')}
+          />
+        ) : null}
+
+        {showDrawerButton && shift && onOpenDrawer ? (
+          <HeaderAction
+            icon={DrawerIcon}
+            label={t('pos.openDrawer')}
+            shortLabel={t('pos.openDrawer')}
+            onClick={onOpenDrawer}
+            title={t('pos.openDrawerTitle')}
+            disabled={!drawerEnabled || drawerBusy}
           />
         ) : null}
 

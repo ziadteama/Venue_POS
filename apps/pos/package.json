@@ -13,18 +13,19 @@
     "build": "vite build",
     "build:packaged": "npm run build && electron-builder --linux AppImage --publish never",
     "electron": "cross-env NODE_ENV=development electron electron/main.cjs",
+    "electron:prod": "cross-env NODE_ENV=production electron electron/main.cjs",
     "electron:dev": "concurrently --kill-others-on-fail \"vite --port 5174\" \"wait-on tcp:5174 && cross-env NODE_ENV=development electron electron/main.cjs\"",
     "test": "node --test electron/config-store.test.cjs electron/auto-updater.test.cjs"
   },
   "dependencies": {
     "@venue-pos/i18n": "*",
-    "electron-updater": "^6.6.2",
-    "socket.io-client": "^4.8.3",
     "dotenv": "^17.4.2",
+    "electron-updater": "^6.6.2",
     "i18next": "^24.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-i18next": "^15.2.0"
+    "react-i18next": "^15.2.0",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@venue-pos/shared": "*",
@@ -32,7 +33,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^40.10.2",
+    "electron": "^40.10.3",
     "electron-builder": "^25.1.8",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
@@ -53,7 +54,9 @@
       "node_modules/**/*"
     ],
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "category": "Office",
       "executableName": "venue-pos"
     },

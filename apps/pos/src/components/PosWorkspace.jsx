@@ -103,6 +103,10 @@ export function PosWorkspace({ cashier, onLogout }) {
         shift={ws.shift}
         onCloseShift={() => ws.setShowCloseModal(true)}
         onOrderLookup={ws.orderLookup.openLookup}
+        showDrawerButton={ws.cashDrawerEnabled}
+        onOpenDrawer={ws.openDrawer}
+        drawerEnabled={ws.printerOk}
+        drawerBusy={ws.drawerBusy}
         cashierUsername={cashier.username}
         onLogout={() => ws.setShowLogoutModal(true)}
       />

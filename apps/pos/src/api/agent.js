@@ -67,6 +67,9 @@ export async function callAgent(path, options = {}) {
     if (path === '/v1/shifts/close' && method === 'POST') {
       return window.venuePos.closeShift(body);
     }
+    if (path === '/v1/hardware/open-drawer' && method === 'POST') {
+      return window.venuePos.openCashDrawer(body);
+    }
     if (path.match(/^\/v1\/cheques\/[^/]+\/discount$/) && method === 'POST') {
       return window.venuePos.discountCheque(path.split('/')[3], body);
     }
