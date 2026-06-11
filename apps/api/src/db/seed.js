@@ -340,6 +340,7 @@ async function seed() {
   console.log('Seed complete');
   console.log('  CEO (monitoring): owner / owner123');
   console.log('  Hub manager: admin / admin123 (PIN 9999 for shift/card policy)');
+  console.log('  Dev ops: devops / devops123 → dashboard /ops');
   console.log('  Venue manager: venue_mgr / venue123 (PIN 7777 for refund/discount/void on POS)');
   console.log('  Cashier PIN: 1234');
   console.log(`  Cashier ID: ${cashier.id}`);
