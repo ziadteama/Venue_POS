@@ -10,6 +10,77 @@ import {
 } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
 
+/** @typedef {{ itemId: string, quantity: number }} SplitItemAllocation */
+
+function normalizeSplitAllocations(split) {
+  if (split.items?.length) {
+    return split.items.map((row) => ({
+      itemId: row.itemId,
+      quantity: Number(row.quantity),
+    }));
+  }
+  return (split.itemIds ?? []).map((itemId) => ({ itemId, quantity: null }));
+}
+
+function validateSplitAllocations(splits, allocatable) {
+  const byId = new Map(allocatable.map((row) => [row.id, row]));
+  const demand = new Map();
+
+  for (const split of splits) {
+    const label = split.label?.trim();
+    if (!label) throw validationError('Each split needs a label');
+    const allocations = normalizeSplitAllocations(split);
+    if (!allocations.length) throw validationError('Each split needs at least one item');
+
+    for (const { itemId, quantity } of allocations) {
+      const source = byId.get(itemId);
+      if (!source) throw validationError('Invalid or already allocated item');
+      const take = quantity ?? source.quantity;
+      if (!Number.isInteger(take) || take <= 0 || take > source.quantity) {
+        throw validationError('Invalid quantity for split item');
+      }
+      demand.set(itemId, (demand.get(itemId) ?? 0) + take);
+    }
+  }
+
+  for (const [itemId, qty] of demand) {
+    const source = byId.get(itemId);
+    if (!source || qty > source.quantity) {
+      throw validationError('Split quantities exceed available items');
+    }
+  }
+}
+
+async function allocateOrderItemToCheque(tx, source, quantity, childChequeId) {
+  const take = quantity ?? source.quantity;
+  if (take === source.quantity) {
+    await tx.orderItem.update({
+      where: { id: source.id },
+      data: { billingChequeId: childChequeId },
+    });
+    source.quantity = 0;
+    return;
+  }
+
+  await tx.orderItem.update({
+    where: { id: source.id },
+    data: { quantity: source.quantity - take },
+  });
+  await tx.orderItem.create({
+    data: {
+      orderId: source.orderId,
+      menuItemId: source.menuItemId,
+      quantity: take,
+      unitPrice: source.unitPrice,
+      modifiersSnapshot: source.modifiersSnapshot ?? undefined,
+      kitchenStatus: source.kitchenStatus,
+      isComped: source.isComped,
+      billingChequeId: childChequeId,
+    },
+  });
+  source.quantity -= take;
+}
+
 export async function splitChequeByItems(chequeId, { splits }, venueId) {
   const cheque = await loadCheque(chequeId);
   if (cheque.venueId !== venueId) throw validationError('Cheque not found for this terminal');
@@ -29,25 +100,11 @@ export async function splitChequeByItems(chequeId, { splits }, venueId) {
   );
   const allocatable = billableOrders
     .flatMap((o) => o.items)
-    .filter((i) => !i.billingChequeId && !i.paidAt && !i.isComped);
+    .filter((i) => !i.billingChequeId && !i.paidAt && !i.isComped)
+    .map((row) => ({ ...row }));
 
-  const requestedIds = new Set();
-
-  for (const split of splits) {
-    const label = split.label?.trim();
-    if (!label) throw validationError('Each split needs a label');
-    if (!split.itemIds?.length) throw validationError('Each split needs at least one item');
-
-    for (const itemId of split.itemIds) {
-      if (requestedIds.has(itemId)) {
-        throw validationError('An item cannot appear in multiple splits');
-      }
-      requestedIds.add(itemId);
-      if (!allocatable.some((i) => i.id === itemId)) {
-        throw validationError('Invalid or already allocated item');
-      }
-    }
-  }
+  validateSplitAllocations(splits, allocatable);
+  const allocatableById = new Map(allocatable.map((row) => [row.id, row]));
 
   await prisma.$transaction(async (tx) => {
     for (const split of splits) {
@@ -66,10 +123,13 @@ export async function splitChequeByItems(chequeId, { splits }, venueId) {
         },
       });
 
-      await tx.orderItem.updateMany({
-        where: { id: { in: split.itemIds } },
-        data: { billingChequeId: child.id },
-      });
+      for (const { itemId, quantity } of normalizeSplitAllocations(split)) {
+        const source = allocatableById.get(itemId);
+        if (!source || source.quantity <= 0) {
+          throw validationError('Invalid or already allocated item');
+        }
+        await allocateOrderItemToCheque(tx, source, quantity, child.id);
+      }
     }
   });
 

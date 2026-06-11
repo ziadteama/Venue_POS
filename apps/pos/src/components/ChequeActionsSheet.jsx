@@ -1,4 +1,10 @@
-import { canDeleteCheque, canSplitByAmount, hasOpenSplitChildren, splittableItems, transferableItems } from '../utils/cheque.js';
+import {
+  canDeleteCheque,
+  canSplitByAmount,
+  hasOpenSplitChildren,
+  splittableUnitCount,
+  transferableItems,
+} from '../utils/cheque.js';
 import { ModalFrame } from './ModalFrame.jsx';
 
 import { CloseXIcon } from './icons.jsx';
@@ -48,7 +54,7 @@ export function ChequeActionsSheet({
   const canBillActions = !cheque?.parentChequeId && !hasDraft;
   const showRemoveTable = canDeleteCheque(cheque);
   const discountAmount = Number(cheque?.discountAmount ?? 0);
-  const showSplit = canBillActions && splittableItems(cheque).length >= 2 && !hasOpenSplitChildren(cheque);
+  const showSplit = canBillActions && splittableUnitCount(cheque) >= 2 && !hasOpenSplitChildren(cheque);
   const showSplitAmount = canBillActions && canSplitByAmount(cheque) && !hasOpenSplitChildren(cheque);
   const showTransfer =
     canBillActions && lineTransferEnabled && transferableItems(cheque).length > 0;

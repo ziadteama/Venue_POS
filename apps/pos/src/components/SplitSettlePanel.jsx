@@ -1,8 +1,21 @@
 import { PrinterIcon } from './icons.jsx';
 import { openSplitChildren, parentPayableTotal } from '../utils/cheque.js';
 
+function guestItemSummary(guest, language) {
+  if (guest.items?.length) {
+    return guest.items
+      .map((item) => {
+        const name = language === 'ar' ? item.nameAr : item.nameEn;
+        return item.quantity > 1 ? `${item.quantity}× ${name}` : name;
+      })
+      .join(', ');
+  }
+  return null;
+}
+
 export function SplitSettlePanel({
   cheque,
+  language,
   t,
   paying,
   printing,
@@ -38,42 +51,48 @@ export function SplitSettlePanel({
       </div>
 
       <div className="mt-3 space-y-2">
-        {guests.map((guest) => (
-          <div
-            key={guest.id}
-            className="flex items-center gap-2 rounded-xl border border-violet-200/70 bg-white p-3"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-semibold text-slate-900">{guest.splitLabel}</p>
-              <p className="text-xs text-secondary">
-                #{guest.chequeNumber} · {guest.total.toFixed(2)} {t('pos.currency')}
-              </p>
+        {guests.map((guest) => {
+          const itemSummary = guestItemSummary(guest, language);
+          return (
+            <div
+              key={guest.id}
+              className="flex items-center gap-2 rounded-xl border border-violet-200/70 bg-white p-3"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-slate-900">{guest.splitLabel}</p>
+                {itemSummary ? (
+                  <p className="mt-0.5 text-xs text-slate-700">{itemSummary}</p>
+                ) : null}
+                <p className="text-xs text-secondary">
+                  {guest.total.toFixed(2)} {t('pos.currency')}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={printing}
+                onClick={() => onPrintGuest(guest)}
+                className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+              >
+                {t('pos.printCheck')}
+              </button>
+              <button
+                type="button"
+                disabled={paying}
+                onClick={() => onPayGuest(guest)}
+                className="rounded-lg bg-accent-gradient px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+              >
+                {t('pos.payGuest', { amount: guest.total.toFixed(0) })}
+              </button>
             </div>
-            <button
-              type="button"
-              disabled={printing}
-              onClick={() => onPrintGuest(guest)}
-              className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              {t('pos.printCheck')}
-            </button>
-            <button
-              type="button"
-              disabled={paying}
-              onClick={() => onPayGuest(guest)}
-              className="rounded-lg bg-accent-gradient px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
-            >
-              {t('pos.payGuest', { amount: guest.total.toFixed(0) })}
-            </button>
-          </div>
-        ))}
+          );
+        })}
 
         {showRemainder ? (
           <div className="flex items-center gap-2 rounded-xl border border-dashed border-violet-300 bg-violet-50/80 p-3">
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-slate-900">{t('pos.splitRemainder')}</p>
               <p className="text-xs text-secondary">
-                #{cheque.chequeNumber} · {remainder.toFixed(2)} {t('pos.currency')}
+                {remainder.toFixed(2)} {t('pos.currency')}
               </p>
             </div>
             <button

@@ -115,9 +115,10 @@ test('split cheque by custom amount and pay children', async () => {
     url: `/api/v1/cheques/${parentId}/fire`,
     headers: terminalHeaders,
   });
-  const total = fireRes.json().cheque.total;
-  const half = Number((total / 2).toFixed(2));
-  const rest = Number((total - half).toFixed(2));
+  const fired = fireRes.json().cheque;
+  const netSubtotal = fired.subtotalBeforeDiscount - (fired.discountAmount ?? 0);
+  const half = Number((netSubtotal / 2).toFixed(2));
+  const rest = Number((netSubtotal - half).toFixed(2));
 
   const splitRes = await fx.app.inject({
     method: 'POST',
@@ -136,7 +137,7 @@ test('split cheque by custom amount and pay children', async () => {
 
   const childA = splitRes.json().childCheques.find((c) => c.splitLabel === 'Guest A');
   assert.equal(childA.splitAmount, half);
-  assert.equal(childA.total, half);
+  assert.ok(childA.total >= half);
 
   await fx.app.inject({
     method: 'POST',

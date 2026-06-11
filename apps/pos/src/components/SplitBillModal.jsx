@@ -1,31 +1,47 @@
 import { useState } from 'react';
-import { splittableItems } from '../utils/cheque.js';
+import { splittableUnits } from '../utils/cheque.js';
 import { OverlayPortal } from './ModalFrame.jsx';
 
+function aggregateUnitKeys(unitKeys) {
+  const byItem = new Map();
+  for (const key of unitKeys) {
+    const itemId = key.split(':')[0];
+    byItem.set(itemId, (byItem.get(itemId) ?? 0) + 1);
+  }
+  return [...byItem.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
 export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
-  const items = splittableItems(cheque);
+  const units = splittableUnits(cheque);
   const [guests, setGuests] = useState(() => [
-    { label: t('pos.splitGuest', { n: 1 }), itemIds: [] },
-    { label: t('pos.splitGuest', { n: 2 }), itemIds: [] },
+    { label: t('pos.splitGuest', { n: 1 }), unitKeys: [] },
+    { label: t('pos.splitGuest', { n: 2 }), unitKeys: [] },
   ]);
 
-  function toggleItem(guestIdx, itemId) {
+  function toggleUnit(guestIdx, unitKey) {
     setGuests((prev) =>
       prev.map((g, i) => {
         if (i === guestIdx) {
-          const has = g.itemIds.includes(itemId);
+          const has = g.unitKeys.includes(unitKey);
           return {
             ...g,
-            itemIds: has ? g.itemIds.filter((id) => id !== itemId) : [...g.itemIds, itemId],
+            unitKeys: has
+              ? g.unitKeys.filter((key) => key !== unitKey)
+              : [...g.unitKeys, unitKey],
           };
         }
-        return { ...g, itemIds: g.itemIds.filter((id) => id !== itemId) };
+        return { ...g, unitKeys: g.unitKeys.filter((key) => key !== unitKey) };
       }),
     );
   }
 
-  const assigned = new Set(guests.flatMap((g) => g.itemIds));
-  const splits = guests.filter((g) => g.itemIds.length > 0);
+  const assigned = new Set(guests.flatMap((g) => g.unitKeys));
+  const splits = guests
+    .map((guest) => ({
+      label: guest.label,
+      items: aggregateUnitKeys(guest.unitKeys),
+    }))
+    .filter((guest) => guest.items.length > 0);
 
   return (
     <OverlayPortal layer="stacked" className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4">
@@ -33,9 +49,7 @@ export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
         onSubmit={(e) => {
           e.preventDefault();
           if (!splits.length) return;
-          onConfirm({
-            splits: splits.map((g) => ({ label: g.label, itemIds: g.itemIds })),
-          });
+          onConfirm({ splits });
         }}
         className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl border border-slate-200 bg-white p-6 shadow-xl"
       >
@@ -47,11 +61,12 @@ export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
             <div key={guest.label} className="rounded-lg border border-slate-200 p-3">
               <p className="mb-2 font-medium text-slate-900">{guest.label}</p>
               <ul className="space-y-1">
-                {items.map((item) => {
-                  const checked = guest.itemIds.includes(item.id);
-                  const takenElsewhere = assigned.has(item.id) && !checked;
+                {units.map((unit) => {
+                  const checked = guest.unitKeys.includes(unit.unitKey);
+                  const takenElsewhere = assigned.has(unit.unitKey) && !checked;
+                  const name = language === 'ar' ? unit.nameAr : unit.nameEn;
                   return (
-                    <li key={item.id}>
+                    <li key={unit.unitKey}>
                       <label
                         className={`flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm ${
                           takenElsewhere ? 'opacity-40' : 'hover:bg-slate-50'
@@ -61,10 +76,11 @@ export function SplitBillModal({ cheque, language, onConfirm, onCancel, t }) {
                           type="checkbox"
                           checked={checked}
                           disabled={takenElsewhere}
-                          onChange={() => toggleItem(guestIdx, item.id)}
+                          onChange={() => toggleUnit(guestIdx, unit.unitKey)}
                         />
-                        <span>
-                          {item.quantity}x {language === 'ar' ? item.nameAr : item.nameEn}
+                        <span className="flex-1">{name}</span>
+                        <span className="text-secondary">
+                          {unit.unitPrice.toFixed(2)} {t('pos.currency')}
                         </span>
                       </label>
                     </li>

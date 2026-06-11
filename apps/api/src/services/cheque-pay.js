@@ -232,7 +232,7 @@ export async function payCheque(
   let total = 0;
 
   if (isAmountSplitChild) {
-    total = Number(cheque.splitAmount);
+    total = computeChequeTotal(cheque);
     itemsToPay = [];
   } else {
     itemsToPay = billingOrdersFromCheque(cheque)

@@ -185,18 +185,29 @@ export function computeProportionalPaidRefund(cheque, removedSubtotal) {
 }
 
 function serializeChildSummary(child, parentCheque) {
+  const venue = parentCheque?.venue ?? child.venue;
+  const ctx = { ...child, parentCheque, venue };
   let total;
-  if (child.splitAmount != null) {
-    total = Number(child.splitAmount);
-  } else if (child.status === 'paid' && child.payments?.length) {
+  if (child.status === 'paid' && child.payments?.length) {
     total = child.payments.reduce((sum, p) => sum + Number(p.amount), 0);
   } else {
-    total = billingOrdersFromCheque({ ...child, parentCheque })
-      .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
-      .flatMap((o) => o.items)
-      .filter((item) => itemBelongsToCheque(item, child.id, false))
-      .reduce((sum, item) => sum + itemLineTotal(item), 0);
+    total = computeChequeTotal(ctx);
   }
+
+  const allocatedItems =
+    child.splitAmount == null
+      ? billingOrdersFromCheque({ ...child, parentCheque })
+          .filter((o) => BILLABLE_ORDER_STATUSES.includes(o.status))
+          .flatMap((o) => o.items)
+          .filter((item) => itemBelongsToCheque(item, child.id, false))
+          .map((item) => ({
+            id: item.id,
+            nameEn: item.nameEn,
+            nameAr: item.nameAr,
+            quantity: item.quantity,
+            lineTotal: itemLineTotal(item),
+          }))
+      : [];
 
   return {
     id: child.id,
@@ -205,6 +216,7 @@ function serializeChildSummary(child, parentCheque) {
     splitAmount: child.splitAmount != null ? Number(child.splitAmount) : null,
     status: child.status,
     total,
+    items: allocatedItems,
   };
 }
 

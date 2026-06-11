@@ -273,6 +273,7 @@ export function ReceiptPanel({
             {splitActive ? (
               <SplitSettlePanel
                 cheque={cheque}
+                language={language}
                 t={t}
                 paying={paying}
                 printing={printing}

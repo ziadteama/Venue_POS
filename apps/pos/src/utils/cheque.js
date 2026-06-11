@@ -105,6 +105,23 @@ export function splittableItems(cheque) {
     .filter((i) => !i.billingChequeId && !i.paidAt && !i.isComped);
 }
 
+/** One entry per billable unit (qty 3 → 3 assignable rows). */
+export function splittableUnits(cheque) {
+  return splittableItems(cheque).flatMap((item) =>
+    Array.from({ length: item.quantity }, (_, index) => ({
+      unitKey: `${item.id}:${index}`,
+      itemId: item.id,
+      nameEn: item.nameEn,
+      nameAr: item.nameAr,
+      unitPrice: Number(item.unitPrice ?? 0),
+    })),
+  );
+}
+
+export function splittableUnitCount(cheque) {
+  return splittableItems(cheque).reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
+}
+
 /** True when the table still has queued items or billable fired lines. */
 export function chequeHasContent(cheque) {
   if (!cheque) return false;

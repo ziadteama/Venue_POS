@@ -55,10 +55,23 @@ const transferItemsSchema = z.object({
 const splitChequeSchema = z.object({
   splits: z
     .array(
-      z.object({
-        label: z.string().min(1).max(50),
-        itemIds: z.array(z.string().uuid()).min(1),
-      }),
+      z
+        .object({
+          label: z.string().min(1).max(50),
+          itemIds: z.array(z.string().uuid()).min(1).optional(),
+          items: z
+            .array(
+              z.object({
+                itemId: z.string().uuid(),
+                quantity: z.coerce.number().int().min(1),
+              }),
+            )
+            .min(1)
+            .optional(),
+        })
+        .refine((split) => (split.itemIds?.length ?? 0) > 0 || (split.items?.length ?? 0) > 0, {
+          message: 'Each split needs at least one item',
+        }),
     )
     .min(1)
     .max(8),
