@@ -26,6 +26,9 @@ const TYPE_FILTERS = [
   'user',
   'shift_open',
   'shift_close',
+  'check_print',
+  'check_reprint',
+  'check_pre_pay_adjust',
 ];
 
 const TYPE_BADGE = {
@@ -42,6 +45,9 @@ const TYPE_BADGE = {
   user: 'bg-pink-100 text-pink-800 ring-pink-200',
   shift_open: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
   shift_close: 'bg-cyan-100 text-cyan-800 ring-cyan-200',
+  check_print: 'bg-emerald-100 text-emerald-800 ring-emerald-200',
+  check_reprint: 'bg-amber-100 text-amber-900 ring-amber-200',
+  check_pre_pay_adjust: 'bg-orange-100 text-orange-900 ring-orange-200',
 };
 
 function typeLabel(type, t) {

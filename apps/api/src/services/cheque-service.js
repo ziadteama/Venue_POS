@@ -12,6 +12,7 @@ export {
   moveChequeTable,
 } from './cheque-lifecycle.js';
 export { payCheque, getChequeReceipt, getSplitReceiptBundle, isTableFullySettled } from './cheque-pay.js';
+export { adjustPrePaymentItemQty, recordCheckPrint } from './cheque-pre-pay-service.js';
 export { splitChequeByItems, splitChequeByAmount } from './cheque-split.js';
 export { transferChequeItems, listTransferAudits } from './cheque-transfer.js';
 export { voidChequeRound, voidOpenCheque, compChequeItem } from './cheque-manager.js';

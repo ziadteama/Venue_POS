@@ -193,10 +193,11 @@ export function appendChequeReceiptItems(lines, cheque) {
   }
 }
 
-export function buildChequeReceiptText(cheque, venue, { tendered, change, preview } = {}) {
+export function buildChequeReceiptText(cheque, venue, { tendered, change, preview, copyNumber } = {}) {
   const lines = [
     venue?.nameEn ?? 'Venue POS',
     ...(preview ? ['*** PRE-PAYMENT CHECK ***'] : []),
+    ...(preview && copyNumber > 1 ? [`COPY #${copyNumber}`] : []),
     `Cheque #${cheque.chequeNumber}`,
     formatTableLocationLine({
       tableLabel: cheque.tableLabel,

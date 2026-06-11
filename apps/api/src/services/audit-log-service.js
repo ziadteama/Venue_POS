@@ -60,13 +60,28 @@ function parseDateRange(from, to) {
 
 const SHIFT_TYPE_FILTERS = new Set(['shift', 'shift_open', 'shift_close']);
 
+const CHECK_AUDIT_FILTERS = {
+  check_print: 'check.print',
+  check_reprint: 'check.reprint',
+  check_pre_pay_adjust: 'check.pre_pay_adjust',
+};
+
+function auditEventType(action) {
+  if (action?.startsWith('check.')) return action.replace(/\./g, '_');
+  return action?.split('.')[0] ?? action;
+}
+
 async function fetchAuditLogRows(venueId, filters) {
   if (filters.type && SHIFT_TYPE_FILTERS.has(filters.type)) return [];
 
   const where = {};
   if (venueId) where.venueId = venueId;
   if (filters.type && filters.type !== 'all') {
-    where.action = filters.type.includes('.') ? filters.type : { startsWith: filters.type };
+    if (CHECK_AUDIT_FILTERS[filters.type]) {
+      where.action = CHECK_AUDIT_FILTERS[filters.type];
+    } else {
+      where.action = filters.type.includes('.') ? filters.type : { startsWith: filters.type };
+    }
   }
   if (filters.user?.trim()) {
     where.actorUsername = { contains: filters.user.trim(), mode: 'insensitive' };
@@ -89,7 +104,7 @@ async function fetchAuditLogRows(venueId, filters) {
 
   return rows.map((row) => ({
     id: `log:${row.id}`,
-    type: row.action.split('.')[0] ?? row.action,
+    type: auditEventType(row.action),
     action: row.action,
     at: row.createdAt.toISOString(),
     venueId: row.venueId,

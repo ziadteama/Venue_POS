@@ -17,6 +17,8 @@ import {
   listChequesForVenue,
   closeEmptyCheque,
   moveChequeTable,
+  adjustPrePaymentItemQty,
+  recordCheckPrint,
 } from '../services/cheque-service.js';
 import {
   applyChequeDiscount,
@@ -120,6 +122,17 @@ const refundSchema = z.object({
   method: z.enum(['cash', 'card', 'voucher']).optional(),
 });
 
+const checkPrintSchema = z.object({
+  cashierId: z.string().uuid(),
+  syncId: z.string().uuid().optional(),
+});
+
+const prePayAdjustSchema = z.object({
+  quantity: z.number().int().min(0),
+  cashierId: z.string().uuid(),
+  syncId: z.string().uuid().optional(),
+});
+
 export async function chequeRoutes(app) {
   app.get('/api/v1/cheques/open', { preHandler: authenticateTerminal }, async (request) => {
     return listOpenCheques(request.terminal.venueId);
@@ -161,6 +174,61 @@ export async function chequeRoutes(app) {
     { preHandler: authenticateTerminal },
     async (request) => {
       return getSplitReceiptBundle(request.params.id, request.terminal.venueId);
+    },
+  );
+
+  app.post(
+    '/api/v1/cheques/:id/check-print',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = checkPrintSchema.safeParse(request.body ?? {});
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return withSyncIdempotency(
+        {
+          syncId: parsed.data.syncId,
+          terminalId: request.terminal.id,
+          eventType: SYNC_EVENT_TYPES.CHEQUE_CHECK_PRINT,
+        },
+        async () =>
+          recordCheckPrint(
+            request.params.id,
+            {
+              cashierId: parsed.data.cashierId,
+              terminalId: request.terminal.id,
+            },
+            request.terminal.venueId,
+          ),
+      );
+    },
+  );
+
+  app.patch(
+    '/api/v1/cheques/:chequeId/orders/:orderId/items/:itemId',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = prePayAdjustSchema.safeParse(request.body ?? {});
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+
+      return withSyncIdempotency(
+        {
+          syncId: parsed.data.syncId,
+          terminalId: request.terminal.id,
+          eventType: SYNC_EVENT_TYPES.CHEQUE_PRE_PAY_ADJUST,
+        },
+        async () =>
+          adjustPrePaymentItemQty(
+            request.params.chequeId,
+            request.params.orderId,
+            request.params.itemId,
+            parsed.data.quantity,
+            {
+              cashierId: parsed.data.cashierId,
+              terminalId: request.terminal.id,
+            },
+            request.terminal.venueId,
+          ),
+      );
     },
   );
 

@@ -14,6 +14,8 @@ export const SYNC_EVENT_TYPES = {
   CHEQUE_TABLE_MOVE: 'cheque.table_move',
   CHEQUE_TRANSFER: 'cheque.transfer',
   CHEQUE_SPLIT: 'cheque.split',
+  CHEQUE_CHECK_PRINT: 'cheque.check_print',
+  CHEQUE_PRE_PAY_ADJUST: 'cheque.pre_pay_adjust',
   SHIFT_OPEN: 'shift.open',
   SHIFT_CLOSE: 'shift.close',
   PAYMENT_CREATE: 'payment.create',

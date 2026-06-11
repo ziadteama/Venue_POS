@@ -146,4 +146,9 @@ export function initSchema(db) {
   } catch {
     /* column exists */
   }
+  try {
+    db.exec(`ALTER TABLE cheques ADD COLUMN pre_payment_check_print_count INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    /* column exists */
+  }
 }

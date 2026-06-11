@@ -18,6 +18,8 @@ import {
   transferLocalChequeItems,
   splitLocalChequeByItems,
   buildLocalReceiptText,
+  recordLocalCheckPrint,
+  adjustLocalPrePaymentItemQty,
 } from '../services/local-cheques.js';
 import { hydrateOpenCheques } from '../services/cheque-hydration.js';
 import { assertMenuReadyForWrite } from '../services/menu-gate.js';
@@ -273,7 +275,7 @@ export function registerChequeRoutes(app, routeCtx) {
   );
 
   app.post('/v1/cheques/:id/print-receipt', async (request, reply) => {
-    const { mode = 'single', chequeId } = request.body ?? {};
+    const { mode = 'single', chequeId, cashierId } = request.body ?? {};
     const parentId = request.params.id;
     const printers = getPrinterConfig();
 
@@ -301,29 +303,89 @@ export function registerChequeRoutes(app, routeCtx) {
       }
 
       const targetId = chequeId ?? parentId;
-      const receipt = await apiFetch(
+      const syncId = randomUUID();
+      const result = await apiFetch(
         apiUrl,
         terminalId,
         terminalSecret,
-        `/api/v1/cheques/${targetId}/receipt?preview=true`,
+        `/api/v1/cheques/${targetId}/check-print`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ cashierId, syncId }),
+        },
       );
-      await printCustomerReceipt(receipt.text, {
+      await printCustomerReceipt(result.text, {
         host: printers.receiptPrinterHost,
         port: printers.receiptPrinterPort,
         log: app.log,
       });
-      return { printed: 1, mode: 'single' };
+      return { printed: 1, mode: 'single', printCount: result.printCount, cheque: result.cheque };
     } catch (err) {
       if (isCloudOnline()) return sendApiError(reply, err);
       const targetId = chequeId ?? parentId;
-      const text = buildLocalReceiptText(db, targetId);
-      if (!text) return reply.status(404).send({ error: 'Cheque not found' });
+      if (!getLocalChequeById(db, targetId)) {
+        return reply.status(404).send({ error: 'Cheque not found' });
+      }
+      const syncId = randomUUID();
+      const cheque = recordLocalCheckPrint(db, targetId);
+      enqueueSync(
+        db,
+        SYNC_EVENT_TYPES.CHEQUE_CHECK_PRINT,
+        { chequeId: targetId, cashierId, syncId },
+        syncId,
+      );
+      const text = buildLocalReceiptText(db, targetId, { preview: true });
       await printCustomerReceipt(text, {
         host: printers.receiptPrinterHost,
         port: printers.receiptPrinterPort,
         log: app.log,
       });
-      return { printed: 1, mode: 'single', offline: true };
+      return { printed: 1, mode: 'single', offline: true, printCount: cheque.prePaymentCheckPrintCount, cheque };
+    }
+  });
+
+  app.patch('/v1/cheques/:chequeId/orders/:orderId/items/:itemId', async (request, reply) => {
+    const { quantity, cashierId } = request.body ?? {};
+    const syncId = randomUUID();
+    try {
+      const result = await apiFetch(
+        apiUrl,
+        terminalId,
+        terminalSecret,
+        `/api/v1/cheques/${request.params.chequeId}/orders/${request.params.orderId}/items/${request.params.itemId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ quantity, cashierId, syncId }),
+        },
+      );
+      return result;
+    } catch (err) {
+      if (isCloudOnline()) return sendApiError(reply, err);
+      try {
+        const cheque = adjustLocalPrePaymentItemQty(
+          db,
+          request.params.chequeId,
+          request.params.orderId,
+          request.params.itemId,
+          quantity,
+        );
+        enqueueSync(
+          db,
+          SYNC_EVENT_TYPES.CHEQUE_PRE_PAY_ADJUST,
+          {
+            chequeId: request.params.chequeId,
+            orderId: request.params.orderId,
+            itemId: request.params.itemId,
+            quantity,
+            cashierId,
+            syncId,
+          },
+          syncId,
+        );
+        return cheque;
+      } catch (localErr) {
+        return reply.status(400).send({ error: localErr.message });
+      }
     }
   });
 

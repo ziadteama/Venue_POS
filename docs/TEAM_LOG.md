@@ -1679,6 +1679,20 @@ npm run lint && npm run lint:i18n
 **Verify:** `npm run migrate:dev` · `npm run test -w @venue-pos/api` · `npm run test:agent` · POS: Take away → order → pay; Tables modal shows takeaway chip when open
 **Notes:** Move table blocked for takeaway. Cross-sell unchanged (anchor label `TAKEAWAY`).
 
+### 2026-06-10 — Pre-payment check edit, reprint, and audit (US-10.1)
+**Phase:** 3 / 10 · **Story:** US-10.1
+**What:** Cashier adjusts fired line qty on open cheques before pay; print/reprint pre-payment check (preview slip); official receipt still on pay only; all events in Activity (`check.print`, `check.reprint`, `check.pre_pay_adjust`).
+**Files:** migration `20260625120000_pre_payment_check`, `cheque-pre-pay-service.js`, `cheques.js` (api + agent), `ReceiptPanel.jsx`, `useChequeSession.js`, `ActivityPage.jsx`, `pre-payment-check.test.js`, i18n
+**Verify:**
+```bash
+npm run migrate && npm run db:generate
+npm run test -w @venue-pos/api
+npm run test -w @venue-pos/local-agent
+npm run lint:i18n
+```
+POS: fire → Print check → adjust qty → Reprint (COPY #2) → Pay (payment receipt only) · Dashboard Activity filters for check events
+**Notes:** Kitchen void ticket on fired-line qty decrease deferred. Cross-venue pre-pay adjust out of scope.
+
 ---
 
 ### 2026-06-10 — Background menu sync worker (30s)
