@@ -66,5 +66,5 @@ databases:
     databaseName: hub_pos
     user: hub_pos
     region: frankfurt  # closest Render region to Egypt — matches service region
-    plan: basic-1gb    # new flexible plan — cheapest paid tier, no expiry, PITR included
+    plan: basic-256mb  # ~$7/mo — sufficient to start; upgrade to basic-1gb (~$20/mo) when you need read replicas or more headroom
     # storage is set in the Render dashboard after creation (not a blueprint field)
