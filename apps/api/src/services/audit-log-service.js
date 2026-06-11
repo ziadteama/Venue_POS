@@ -12,7 +12,7 @@ const DOMAIN_TYPES = new Set([
   'comp',
   'transfer',
 ]);
-const FRAUD_WATCH_DOMAIN_TYPES = new Set([
+const NEEDS_REVIEW_DOMAIN_TYPES = new Set([
   'discount',
   'discount_change',
   'discount_remove',
@@ -21,15 +21,15 @@ const FRAUD_WATCH_DOMAIN_TYPES = new Set([
   'comp',
   'transfer',
 ]);
-const FRAUD_WATCH_AUDIT_EXACT = new Set([
+const NEEDS_REVIEW_AUDIT_EXACT = new Set([
   'check.reprint',
   'check.pre_pay_adjust',
   'user.pin_reset',
 ]);
-const FRAUD_WATCH_AUDIT_PREFIXES = ['discount', 'refund', 'void', 'comp', 'transfer'];
+const NEEDS_REVIEW_AUDIT_PREFIXES = ['discount', 'refund', 'void', 'comp', 'transfer'];
 
-function isFraudWatchFilter(type) {
-  return type === 'fraud_watch';
+function isNeedsReviewFilter(type) {
+  return type === 'needs_review' || type === 'fraud_watch';
 }
 
 export async function appendAuditLog({
@@ -95,10 +95,10 @@ async function fetchAuditLogRows(venueId, filters) {
 
   const where = {};
   if (venueId) where.venueId = venueId;
-  if (isFraudWatchFilter(filters.type)) {
+  if (isNeedsReviewFilter(filters.type)) {
     where.OR = [
-      ...[...FRAUD_WATCH_AUDIT_EXACT].map((action) => ({ action })),
-      ...FRAUD_WATCH_AUDIT_PREFIXES.map((prefix) => ({
+      ...[...NEEDS_REVIEW_AUDIT_EXACT].map((action) => ({ action })),
+      ...NEEDS_REVIEW_AUDIT_PREFIXES.map((prefix) => ({
         action: { startsWith: prefix },
       })),
     ];
@@ -152,15 +152,15 @@ async function fetchDomainActivity(venueId, filters) {
   if (
     filters.type &&
     filters.type !== 'all' &&
-    !isFraudWatchFilter(filters.type) &&
+    !isNeedsReviewFilter(filters.type) &&
     !DOMAIN_TYPES.has(filters.type)
   ) {
     return [];
   }
   const events = await listManagerActivity(venueId, { limit: 200 });
   let filtered = events;
-  if (isFraudWatchFilter(filters.type)) {
-    filtered = filtered.filter((ev) => FRAUD_WATCH_DOMAIN_TYPES.has(ev.type));
+  if (isNeedsReviewFilter(filters.type)) {
+    filtered = filtered.filter((ev) => NEEDS_REVIEW_DOMAIN_TYPES.has(ev.type));
   } else if (filters.type && filters.type !== 'all') {
     filtered = filtered.filter((ev) =>
       filters.type === 'discount'
@@ -199,7 +199,7 @@ async function fetchDomainActivity(venueId, filters) {
 }
 
 async function fetchConfigAudits(venueId, filters) {
-  if (isFraudWatchFilter(filters.type)) return [];
+  if (isNeedsReviewFilter(filters.type)) return [];
   if (filters.type && filters.type !== 'all' && filters.type !== 'config') return [];
   const where = { venueId };
   const createdAt = parseDateRange(filters.from, filters.to);
@@ -235,14 +235,14 @@ async function fetchShiftEvents(venueId, filters) {
   if (
     filters.type &&
     filters.type !== 'all' &&
-    !isFraudWatchFilter(filters.type) &&
+    !isNeedsReviewFilter(filters.type) &&
     !SHIFT_TYPE_FILTERS.has(filters.type)
   ) {
     return [];
   }
 
   const where = { shift: { venueId } };
-  if (isFraudWatchFilter(filters.type)) {
+  if (isNeedsReviewFilter(filters.type)) {
     where.action = 'close';
     where.details = { path: ['forcedByManager'], equals: true };
   } else {

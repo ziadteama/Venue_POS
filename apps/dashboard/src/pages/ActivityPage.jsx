@@ -86,14 +86,14 @@ function groupByDay(events, locale) {
   return groups;
 }
 
-function isFraudHighlight(ev) {
+function isReviewHighlight(ev) {
   return ev.amount != null && Boolean(ev.reason?.trim());
 }
 
 function ActivityRow({ ev, t, locale, currencyLabel, showAmounts }) {
   const badge = TYPE_BADGE[ev.type] ?? 'bg-slate-100 text-slate-800 ring-slate-200';
   const actor = ev.actor ?? ev.manager;
-  const highlighted = isFraudHighlight(ev);
+  const highlighted = isReviewHighlight(ev);
 
   return (
     <article
@@ -148,7 +148,7 @@ export function ActivityPage() {
   const { user } = useAuth();
   const [venues, setVenues] = useState([]);
   const [venueId, setVenueId] = useState('all');
-  const [viewMode, setViewMode] = useState('fraud_watch');
+  const [viewMode, setViewMode] = useState('needs_review');
   const [events, setEvents] = useState([]);
   const [typeFilter, setTypeFilter] = useState('all');
   const [userFilter, setUserFilter] = useState('');
@@ -161,7 +161,7 @@ export function ActivityPage() {
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-GB';
   const currencyLabel = t('pos.currency');
   const showFinancials = canSeeFinancials(user);
-  const effectiveType = viewMode === 'fraud_watch' ? 'fraud_watch' : typeFilter;
+  const effectiveType = viewMode === 'needs_review' ? 'needs_review' : typeFilter;
 
   const load = useCallback(async () => {
     if (!venueId) return;
@@ -243,7 +243,7 @@ export function ActivityPage() {
   }));
 
   const viewOptions = [
-    { value: 'fraud_watch', label: t('activity.viewFraudWatch') },
+    { value: 'needs_review', label: t('activity.viewNeedsReview') },
     { value: 'all', label: t('activity.viewAllActivity') },
   ];
 
@@ -252,7 +252,7 @@ export function ActivityPage() {
       <PageHeader
         title={t('activity.title')}
         subtitle={
-          viewMode === 'fraud_watch' ? t('activity.subtitleFraudWatch') : t('activity.subtitleFull')
+          viewMode === 'needs_review' ? t('activity.subtitleNeedsReview') : t('activity.subtitleFull')
         }
         actions={
           showFinancials ? (
@@ -326,7 +326,7 @@ export function ActivityPage() {
         <div className="surface-card">
           <EmptyState
             icon={ActivityIcon}
-            title={viewMode === 'fraud_watch' ? t('activity.emptyFraudWatch') : t('activity.empty')}
+            title={viewMode === 'needs_review' ? t('activity.emptyNeedsReview') : t('activity.empty')}
             className="py-16"
           />
         </div>

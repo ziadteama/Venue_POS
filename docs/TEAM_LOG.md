@@ -1737,6 +1737,20 @@ POS dine-in: pre-pay check → pay → restaurant slip only · POS takeaway: no 
 
 ---
 
+### 2026-06-11 — Shift detail itemization, CEO CSVs, needs-review activity view
+**Phase:** 8 · **Story:** US-8.9 extension
+**What:** Manager shift detail returns itemized payments/refunds/discounts/voids/comps; per-shift and all-venues CSV exports (hub manager); Activity page defaults to needs-review filter.
+**Files:** `manager-shift-service.js`, `manager-shifts.js`, `audit-log-service.js`, `ShiftsPage.jsx`, `ActivityPage.jsx`, `shift-detail-csv.test.js`, `eod-reconciliation.test.js`, `phase1/dashboard.js`, i18n
+**Verify:**
+```bash
+npm run lint && npm run lint:i18n
+npm run test -w @venue-pos/api
+```
+Dashboard → Shifts → open shift → Payments/Refunds/Discounts tabs · Download shift CSV · Export all shifts CSV · Activity → Needs review default
+**Notes:** EOD CSV export remains owner-only; shift list/detail CSV now hub-manager accessible for CEO handoff.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

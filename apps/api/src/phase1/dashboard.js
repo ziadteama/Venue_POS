@@ -361,12 +361,28 @@ test('GET /api/v1/manager/shifts/:id returns detail with report', async () => {
   assert.ok(detail.report);
   assert.ok(detail.paymentsByMethod);
   assert.equal(typeof detail.totalRevenue, 'number');
+  assert.ok(Array.isArray(detail.payments));
+  assert.ok(Array.isArray(detail.refunds));
+  assert.ok(Array.isArray(detail.discounts));
+  assert.ok(Array.isArray(detail.voids));
+  assert.ok(Array.isArray(detail.comps));
 });
 
-test('GET /api/v1/manager/shifts CSV export is owner account only', async () => {
+test('GET /api/v1/manager/shifts CSV export is allowed for hub manager', async () => {
   const res = await fx.app.inject({
     method: 'GET',
     url: `/api/v1/manager/shifts?venueId=${VENUE_ID}&format=csv`,
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+  });
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers['content-type'], /text\/csv/);
+  assert.match(res.body, /cash_payments/);
+});
+
+test('GET /api/v1/manager/shifts/eod CSV export remains owner account only', async () => {
+  const res = await fx.app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/shifts/eod?venueId=${VENUE_ID}&date=2026-06-07&format=csv`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
   });
   assert.equal(res.statusCode, 403);

@@ -196,7 +196,7 @@ test('shiftsListToCsv includes method breakdown and venue footer', () => {
   assert.match(csv, /Restaurant,1/);
 });
 
-test('fraud_watch audit filter returns only fraud-relevant types', async () => {
+test('needs_review audit filter returns only review-relevant types', async () => {
   await prisma.auditLog.deleteMany({ where: { venueId: VENUE_ID } });
 
   await appendAuditLog({
@@ -219,8 +219,8 @@ test('fraud_watch audit filter returns only fraud-relevant types', async () => {
     details: { chequeNumber: 9, reason: 'Guest request' },
   });
 
-  const fraud = await listFullAuditLog(VENUE_ID, { type: 'fraud_watch', limit: 100 });
-  const types = new Set(fraud.events.map((ev) => ev.type));
+  const review = await listFullAuditLog(VENUE_ID, { type: 'needs_review', limit: 100 });
+  const types = new Set(review.events.map((ev) => ev.type));
 
   assert.equal(types.has('menu'), false);
   assert.equal(types.has('user'), true);
