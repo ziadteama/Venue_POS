@@ -26,6 +26,8 @@ const DEFAULTS = {
   configVersion: CONFIG_VERSION,
   /** Generic electron-updater feed base URL (optional; falls back to POS_UPDATE_FEED_URL env). */
   updateFeedUrl: '',
+  /** GitHub PAT for private releases (optional; prefer GH_TOKEN in .env.updater). */
+  githubUpdateToken: '',
 };
 
 function resolveAgentRoot() {
@@ -76,6 +78,7 @@ function mergeConfig(raw) {
   merged.coordinatorFallbackEnabled = Boolean(merged.coordinatorFallbackEnabled);
   merged.kioskMode = merged.kioskMode !== false;
   merged.updateFeedUrl = normalizeUrl(merged.updateFeedUrl);
+  merged.githubUpdateToken = String(merged.githubUpdateToken ?? '').trim();
   merged.configVersion = CONFIG_VERSION;
   return merged;
 }
@@ -117,10 +120,52 @@ function readConfig(userDataPath) {
 function writeConfig(userDataPath, partial) {
   const filePath = resolveConfigPath(userDataPath);
   const current = readConfig(userDataPath);
-  const next = mergeConfig({ ...current, ...partial, setupComplete: true });
+  const patch = { ...(partial && typeof partial === 'object' ? partial : {}) };
+  if (!String(patch.githubUpdateToken ?? '').trim()) {
+    delete patch.githubUpdateToken;
+  }
+  const next = mergeConfig({ ...current, ...patch, setupComplete: true });
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
   return next;
+}
+
+function resolveUpdaterEnvPath() {
+  if (process.env.VENUE_POS_UPDATER_ENV_PATH) {
+    return path.resolve(process.env.VENUE_POS_UPDATER_ENV_PATH);
+  }
+  if (process.platform === 'linux' && fs.existsSync('/opt/venue-pos/pos')) {
+    return '/opt/venue-pos/pos/.env.updater';
+  }
+  return path.resolve(__dirname, '../.env.updater');
+}
+
+function writeUpdaterEnv(cfg) {
+  const token = String(cfg.githubUpdateToken ?? '').trim();
+  const envPath = resolveUpdaterEnvPath();
+  if (!token) {
+    return { written: false, envPath, reason: 'no_token' };
+  }
+  fs.mkdirSync(path.dirname(envPath), { recursive: true });
+  fs.writeFileSync(envPath, `GH_TOKEN=${token}\n`, { mode: 0o600 });
+  if (process.platform === 'linux') {
+    try {
+      const { execSync } = require('node:child_process');
+      execSync(`chown venuepos:venuepos "${envPath}"`, { stdio: 'ignore' });
+    } catch {
+      // non-fatal on dev machines
+    }
+  }
+  return { written: true, envPath };
+}
+
+/** Strip secrets before sending config to the renderer. */
+function sanitizeConfigForRenderer(cfg) {
+  return {
+    ...cfg,
+    githubUpdateToken: '',
+    hasGithubUpdateToken: Boolean(cfg.githubUpdateToken),
+  };
 }
 
 function buildAgentEnv(cfg) {
@@ -219,7 +264,10 @@ module.exports = {
   writeConfig,
   buildAgentEnv,
   writeAgentEnv,
+  writeUpdaterEnv,
+  sanitizeConfigForRenderer,
   testConnections,
   restartAgentService,
   resolveAgentRoot,
+  resolveUpdaterEnvPath,
 };

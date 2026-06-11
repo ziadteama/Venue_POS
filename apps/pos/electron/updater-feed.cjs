@@ -19,6 +19,37 @@ function resolveFeedUrl(cfg, env = process.env) {
 }
 
 /**
+ * GitHub PAT for private-repo releases (Contents: read). Never commit the real token.
+ * @param {{ githubUpdateToken?: string }} [cfg]
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {string | null}
+ */
+function resolveGithubToken(cfg, env = process.env) {
+  const fromCfg = String(cfg?.githubUpdateToken ?? '').trim();
+  const fromEnv = String(env.GH_TOKEN ?? env.POS_GH_TOKEN ?? '').trim();
+  return fromCfg || fromEnv || null;
+}
+
+/**
+ * @param {{ terminalId?: string, terminalSecret?: string, githubUpdateToken?: string }} cfg
+ * @param {NodeJS.ProcessEnv} [env]
+ */
+function buildUpdaterRequestHeaders(cfg, env = process.env) {
+  const headers = {
+    'X-Terminal-ID': cfg?.terminalId || '',
+    'X-Terminal-Secret': cfg?.terminalSecret || '',
+  };
+  const feed = resolveUpdateFeed(cfg, env);
+  if (feed.provider === 'github') {
+    const token = resolveGithubToken(cfg, env);
+    if (token) {
+      headers.Authorization = `token ${token}`;
+    }
+  }
+  return headers;
+}
+
+/**
  * @param {{ updateFeedUrl?: string }} [cfg]
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {{ provider: 'generic', url: string } | { provider: 'github', owner: string, repo: string }}
@@ -39,5 +70,7 @@ module.exports = {
   DEFAULT_GITHUB_REPO,
   DEFAULT_GITHUB_RELEASES_URL,
   resolveFeedUrl,
+  resolveGithubToken,
+  buildUpdaterRequestHeaders,
   resolveUpdateFeed,
 };

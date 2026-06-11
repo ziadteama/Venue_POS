@@ -3,7 +3,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { writeConfig, buildAgentEnv, isConfigComplete } = require('./config-store.cjs');
+const {
+  writeConfig,
+  buildAgentEnv,
+  isConfigComplete,
+  writeUpdaterEnv,
+  sanitizeConfigForRenderer,
+} = require('./config-store.cjs');
 
 test('buildAgentEnv includes terminal and API settings', () => {
   const env = buildAgentEnv({
@@ -35,5 +41,34 @@ test('writeConfig marks setup complete when saved', () => {
   assert.equal(isConfigComplete(saved), true);
   const raw = JSON.parse(fs.readFileSync(path.join(tmp, 'pos-config.json'), 'utf8'));
   assert.equal(raw.apiUrl, 'https://hub.example.com');
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('writeConfig preserves githubUpdateToken when not re-sent', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pos-config-'));
+  writeConfig(tmp, {
+    apiUrl: 'https://hub.example.com',
+    terminalId: '00000000-0000-4000-8000-000000000099',
+    terminalSecret: 'sec',
+    githubUpdateToken: 'ghp_keep',
+  });
+  const saved = writeConfig(tmp, { deviceLabel: 'Till 1' });
+  assert.equal(saved.githubUpdateToken, 'ghp_keep');
+  const safe = sanitizeConfigForRenderer(saved);
+  assert.equal(safe.githubUpdateToken, '');
+  assert.equal(safe.hasGithubUpdateToken, true);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('writeUpdaterEnv writes GH_TOKEN file', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pos-updater-'));
+  const envPath = path.join(tmp, '.env.updater');
+  const prev = process.env.VENUE_POS_UPDATER_ENV_PATH;
+  process.env.VENUE_POS_UPDATER_ENV_PATH = envPath;
+  const result = writeUpdaterEnv({ githubUpdateToken: 'ghp_test' });
+  assert.equal(result.written, true);
+  assert.match(fs.readFileSync(envPath, 'utf8'), /GH_TOKEN=ghp_test/);
+  if (prev === undefined) delete process.env.VENUE_POS_UPDATER_ENV_PATH;
+  else process.env.VENUE_POS_UPDATER_ENV_PATH = prev;
   fs.rmSync(tmp, { recursive: true, force: true });
 });

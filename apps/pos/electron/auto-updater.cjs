@@ -1,6 +1,6 @@
 const { app } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const { resolveUpdateFeed } = require('./updater-feed.cjs');
+const { buildUpdaterRequestHeaders, resolveUpdateFeed } = require('./updater-feed.cjs');
 
 /** @typedef {'idle'|'checking'|'available'|'downloading'|'ready'|'error'} UpdatePhase */
 
@@ -34,10 +34,7 @@ function createAutoUpdater(deps) {
   }
 
   function applyFeedHeaders(cfg) {
-    autoUpdater.requestHeaders = {
-      'X-Terminal-ID': cfg.terminalId || '',
-      'X-Terminal-Secret': cfg.terminalSecret || '',
-    };
+    autoUpdater.requestHeaders = buildUpdaterRequestHeaders(cfg);
   }
 
   function configureFeed() {
