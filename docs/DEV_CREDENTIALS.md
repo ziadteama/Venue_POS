@@ -27,8 +27,9 @@ Cashiers do **not** use the web dashboard.
 
 | Role | Username | Password | PIN | Where |
 |------|----------|----------|-----|-------|
-| CEO | `owner` | `owner123` | — | Web dashboard (analytics only) |
+| CEO | `owner` | `owner123` | — | Web dashboard (executive + activity) |
 | Hub manager | `admin` | `admin123` | `9999` | Web dashboard (full ops) |
+| Dev ops | `devops` | `devops123` | — | Web dashboard `/ops` only |
 | Cashier | `cashier1` | — | `1234` | POS only |
 
 **Dev-only:** `venue_mgr` / PIN `7777` — **floor manager** (shift manager) on POS for discount/refund/void PIN tests. Hub manager creates real staff in **Staff** (`/users`).
@@ -39,7 +40,7 @@ Cashiers do **not** use the web dashboard.
 
 ## Dashboard (`http://localhost:5173`)
 
-**Who can log in:** `owner` (CEO) or `admin` (hub manager).
+**Who can log in:** `owner` (CEO), `admin` (hub manager), or `devops` (internal ops console).
 
 Login: **username + password** → `POST /api/v1/auth/login`  
 After login: **both roles → `/`** (different content per role)

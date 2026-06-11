@@ -1,4 +1,3 @@
-import { ROLES } from './constants.js';
 import { isCeo, isHubManager, isSystemAdmin } from './roles.js';
 
 /** CEO — executive overview, activity audit, and hub user provisioning. */
@@ -48,7 +47,7 @@ export function normalizeDashboardPath(pathname) {
   return base || '/';
 }
 
-export function canAccessDashboardPath(role, pathname, user) {
+export function canAccessDashboardPath(role, pathname, _user) {
   const path = normalizeDashboardPath(pathname);
   if (path === '/analytics') {
     return false;

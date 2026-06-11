@@ -1769,6 +1769,20 @@ Dashboard → Shifts → open shift → Payments/Refunds/Discounts tabs · Downl
 
 ---
 
+### 2026-06-11 — Dev ops dashboard (`system_admin`)
+**Phase:** 8
+**What:** Internal ops console at `/ops` for engineering: live health, incident log (`ops_events`), WebSocket `ops:alert` / `ops:health_tick`, browser notifications, 30s health scanner, watchdog restart-storm ingest.
+**Files:** `ops-alert-service.js`, `routes/ops.js`, `plugins/ops-monitor.js`, `plugins/socket.js`, `OpsPage.jsx`, `useOpsNotifications.js`, `hub-access.js`, `ops.js` (shared), Prisma `OpsEvent`, watchdog `ops-ingest.mjs`, seed `devops`, `ops.test.js`, i18n
+**Verify:**
+```bash
+npm run migrate && npm run seed
+npm run test -w @venue-pos/api -- ops.test.js
+```
+Login `devops` / `devops123` → `/ops` · Enable notifications · Set `OPS_INGEST_SECRET` on API + watchdog for crash ingest
+**Notes:** Hub managers keep `/health`; CEO/hub staff cannot access `/ops`. Ingest: `POST /api/v1/ops/events` + header `x-ops-ingest-secret`.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

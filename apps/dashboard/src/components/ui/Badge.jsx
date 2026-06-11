@@ -36,6 +36,9 @@ const STATUS_TONES = {
   pending: 'amber',
   approved: 'emerald',
   rejected: 'red',
+  critical: 'red',
+  warning: 'amber',
+  info: 'blue',
 };
 
 /**
