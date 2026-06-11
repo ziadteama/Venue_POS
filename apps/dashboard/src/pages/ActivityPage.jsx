@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { isHubManager } from '@venue-pos/shared';
+import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
@@ -291,7 +291,7 @@ export function ActivityPage() {
   }, [venueId, effectiveType, userFilter, from, to, keyword]);
 
   useEffect(() => {
-    if (!isHubManager(user?.role)) return;
+    if (!isHubStaff(user?.role)) return;
     apiFetch('/api/v1/venues')
       .then((list) => {
         setVenues(list);
@@ -301,7 +301,7 @@ export function ActivityPage() {
   }, [user?.role, venueId]);
 
   useEffect(() => {
-    if (!isHubManager(user?.role) || !venueId) return;
+    if (!isHubStaff(user?.role) || !venueId) return;
     load();
   }, [load, user?.role, venueId]);
 
@@ -359,10 +359,10 @@ export function ActivityPage() {
     URL.revokeObjectURL(url);
   }
 
-  if (!isHubManager(user?.role)) {
+  if (!isHubStaff(user?.role)) {
     return (
       <div className="surface-card p-8 text-center text-sm text-slate-500">
-        {t('activity.hubManagerOnly')}
+        {t('activity.hubStaffOnly')}
       </div>
     );
   }

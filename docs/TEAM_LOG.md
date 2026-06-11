@@ -1762,7 +1762,7 @@ Dashboard → Shifts → open shift → Payments/Refunds/Discounts tabs · Downl
 
 ### 2026-06-11 — CEO activity access + role-scoped staff provisioning
 **Phase:** 8
-**What:** Hub managers may only add cashiers; CEO adds owner/manager/cashier and views full Activity audit (including manager actions). Analytics nav removed for CEO; executive overview drops attention/ops alert panels.
+**What:** Hub managers add cashiers + floor managers (POS PIN); CEO adds owner/manager/cashier and views Activity audit. Analytics nav removed for CEO; executive overview drops attention/ops alert panels.
 **Files:** `hub-access.js`, `roles.js`, `manager-user-service.js`, `manager-users.js`, `manager-audit.js`, `UsersPage.jsx`, `Sidebar.jsx`, `DashboardHome.jsx`, `Layout.jsx`, i18n
 **Verify:** `admin` → Users → only cashier role · `owner` → Users + Activity · no Analytics in CEO nav · overview without red attention cards
 **Notes:** Analytics API still exists for future use; dashboard route blocked for all roles.

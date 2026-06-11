@@ -161,7 +161,10 @@ export function UsersPage() {
         { value: 'cashier', label: t('users.role.cashier') },
       ];
     }
-    return [{ value: 'cashier', label: t('users.role.cashier') }];
+    return [
+      { value: 'cashier', label: t('users.role.cashier') },
+      { value: 'venue_manager', label: t('users.role.venue_manager') },
+    ];
   }, [ownerView, t]);
 
   const columns = [
@@ -205,7 +208,9 @@ export function UsersPage() {
       align: 'end',
       render: (u) => (
         <div className="flex flex-wrap justify-end gap-2">
-          {u.role === 'cashier' || (ownerView && isHubDashboardRole(u.role)) ? (
+          {u.role === 'cashier' ||
+          u.role === 'venue_manager' ||
+          (ownerView && isHubDashboardRole(u.role)) ? (
             <Button
               variant="subtle"
               size="sm"
@@ -219,7 +224,7 @@ export function UsersPage() {
               {isHubDashboardRole(u.role) ? t('users.resetPassword') : t('users.resetPin')}
             </Button>
           ) : null}
-          {(ownerView || u.role === 'cashier') && (
+          {(ownerView || u.role === 'cashier' || u.role === 'venue_manager') && (
             <Button variant="subtle" size="sm" onClick={() => toggleActive(u)}>
               <PowerIcon className="h-4 w-4" />
               {u.isActive ? t('users.deactivate') : t('users.reactivate')}
@@ -379,9 +384,11 @@ export function UsersPage() {
                     onChange={(e) => setForm({ ...form, pin: e.target.value })}
                   />
                 </Field>
-                <Field label={t('users.cardUid')}>
-                  <Input value={form.cardUid} onChange={(e) => setForm({ ...form, cardUid: e.target.value })} />
-                </Field>
+                {form.role === 'cashier' ? (
+                  <Field label={t('users.cardUid')}>
+                    <Input value={form.cardUid} onChange={(e) => setForm({ ...form, cardUid: e.target.value })} />
+                  </Field>
+                ) : null}
               </>
             )}
           </form>

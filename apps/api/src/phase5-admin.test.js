@@ -199,15 +199,28 @@ test('terminal heartbeat updates last seen', async () => {
   assert.equal(terminal.syncQueueDepth, 3);
 });
 
-test('hub manager cannot add non-cashier staff', async () => {
+test('hub manager can add floor manager with PIN', async () => {
+  const username = `floor_mgr_${Date.now()}`;
+  const pin = `4${String(Date.now()).slice(-3)}`;
   const res = await app.inject({
     method: 'POST',
     url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
     headers: { authorization: `Bearer ${hubToken}` },
-    payload: { username: `vmgr_${Date.now()}`, role: 'venue_manager', pin: '4321' },
+    payload: { username, role: 'venue_manager', pin },
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  assert.equal(res.json().role, 'venue_manager');
+});
+
+test('hub manager cannot add hub dashboard roles', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${hubToken}` },
+    payload: { username: `bad_mgr_${Date.now()}`, role: 'hub_manager', password: 'secret12' },
   });
   assert.equal(res.statusCode, 400);
-  assert.match(res.body, /only add cashiers/i);
+  assert.match(res.body, /floor managers/i);
 });
 
 test('owner can provision hub manager and cashier', async () => {

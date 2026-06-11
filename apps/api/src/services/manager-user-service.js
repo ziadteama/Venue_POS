@@ -49,7 +49,7 @@ function assertActorMayProvisionRole(actorRole, role) {
   }
   if (isHubManager(actorRole)) {
     if (!MANAGER_PROVISION_ROLES.includes(role)) {
-      throw validationError('Hub managers can only add cashiers');
+      throw validationError('Hub managers can only add cashiers and floor managers');
     }
     return;
   }
@@ -205,8 +205,8 @@ export async function createManagedUser(actor, venueId, body) {
     return serializeUser(user);
   }
 
-  if (role === ROLES.CASHIER) {
-    if (!venueId) throw validationError('venueId is required for cashiers');
+  if (role === ROLES.CASHIER || role === ROLES.VENUE_MANAGER) {
+    if (!venueId) throw validationError('venueId is required for venue staff');
     assertPin(pin);
     await assertPinUniqueGlobally(pin);
     const user = await prisma.user.create({
@@ -215,7 +215,7 @@ export async function createManagedUser(actor, venueId, body) {
         role,
         venueId,
         pinHash: await hashSecret(pin),
-        cardUid: cardUid?.trim() || null,
+        cardUid: role === ROLES.CASHIER ? cardUid?.trim() || null : null,
         isActive: true,
       },
       select: userSelect,
@@ -236,9 +236,11 @@ export async function updateManagedUser(actor, userId, venueId, body) {
   if (!user) throw notFound('User not found');
 
   if (isHubManager(actor.role)) {
-    if (user.role !== ROLES.CASHIER) throw forbidden('Hub managers can only update cashiers');
-    if (body.role != null && body.role !== ROLES.CASHIER) {
-      throw validationError('Hub managers can only assign the cashier role');
+    if (!MANAGER_PROVISION_ROLES.includes(user.role)) {
+      throw forbidden('Hub managers can only update cashiers and floor managers');
+    }
+    if (body.role != null && !MANAGER_PROVISION_ROLES.includes(body.role)) {
+      throw validationError('Hub managers can only assign cashier or floor manager roles');
     }
   }
 
@@ -270,9 +272,11 @@ export async function updateVenueUser(actor, userId, venueId, body) {
 export async function resetManagedUserPin(actor, userId, venueId, pin) {
   const user = await findManagedUser(actor, userId, venueId);
   if (!user) throw notFound('User not found');
-  if (user.role !== ROLES.CASHIER) throw validationError('PIN reset applies to cashiers only');
-  if (isHubManager(actor.role) && user.role !== ROLES.CASHIER) {
-    throw forbidden('Hub managers can only reset cashier PINs');
+  if (![ROLES.CASHIER, ROLES.VENUE_MANAGER].includes(user.role)) {
+    throw validationError('PIN reset applies to cashiers and floor managers only');
+  }
+  if (isHubManager(actor.role) && !MANAGER_PROVISION_ROLES.includes(user.role)) {
+    throw forbidden('Hub managers can only reset cashier and floor manager PINs');
   }
 
   assertPin(pin);
@@ -304,8 +308,8 @@ export async function resetManagedUserPassword(actor, userId, password) {
 export async function setManagedUserActive(actor, userId, venueId, isActive) {
   const user = await findManagedUser(actor, userId, venueId);
   if (!user) throw notFound('User not found');
-  if (isHubManager(actor.role) && user.role !== ROLES.CASHIER) {
-    throw forbidden('Hub managers can only deactivate cashiers');
+  if (isHubManager(actor.role) && !MANAGER_PROVISION_ROLES.includes(user.role)) {
+    throw forbidden('Hub managers can only deactivate cashiers and floor managers');
   }
 
   const updated = await prisma.user.update({
