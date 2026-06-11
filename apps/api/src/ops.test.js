@@ -48,6 +48,7 @@ before(async () => {
 after(async () => {
   await prisma.opsEvent.deleteMany({});
   await prisma.user.deleteMany({ where: { username: 'opsadmin' } });
+  await prisma.terminal.deleteMany({ where: { venueId: VENUE_ID } });
   await prisma.venue.deleteMany({ where: { id: VENUE_ID } });
   await app.close();
 });

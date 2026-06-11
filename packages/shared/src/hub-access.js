@@ -47,7 +47,7 @@ export function normalizeDashboardPath(pathname) {
   return base || '/';
 }
 
-export function canAccessDashboardPath(role, pathname, _user) {
+export function canAccessDashboardPath(role, pathname) {
   const path = normalizeDashboardPath(pathname);
   if (path === '/analytics') {
     return false;
