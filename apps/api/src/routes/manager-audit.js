@@ -3,7 +3,7 @@ import { requireRoles, requestCanSeeFinancials } from '../middleware/auth.js';
 import { forbidden } from '../utils/errors.js';
 import { getAuditEventDetail, listFullAuditLog, auditLogToCsv } from '../services/audit-log-service.js';
 
-const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+const auditPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.HUB_OWNER);
 
 function resolveVenueId(request) {
   const queryVenue = request.query?.venueId;
@@ -14,7 +14,7 @@ function resolveVenueId(request) {
 export async function managerAuditRoutes(app) {
   app.get(
     '/api/v1/manager/audit',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: auditPreHandler },
     async (request, reply) => {
       const result = await listFullAuditLog(resolveVenueId(request), {
         type: request.query?.type,
@@ -40,7 +40,7 @@ export async function managerAuditRoutes(app) {
 
   app.get(
     '/api/v1/manager/audit/event',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: auditPreHandler },
     async (request) => {
       return getAuditEventDetail(request.query?.eventId, resolveVenueId(request));
     },

@@ -1,8 +1,7 @@
-import { canSeeFinancials } from './financial-access.js';
 import { isCeo, isHubManager } from './roles.js';
 
-/** CEO — executive overview and revenue analytics only. */
-export const CEO_DASHBOARD_PATHS = new Set(['/', '/analytics']);
+/** CEO — executive overview, activity audit, and hub user provisioning. */
+export const CEO_DASHBOARD_PATHS = new Set(['/', '/activity', '/users']);
 
 /** Hub manager — full back office (no executive overview or analytics). */
 export const HUB_MANAGER_DASHBOARD_PATHS = new Set([
@@ -48,7 +47,7 @@ export function normalizeDashboardPath(pathname) {
 export function canAccessDashboardPath(role, pathname, user) {
   const path = normalizeDashboardPath(pathname);
   if (path === '/analytics') {
-    return isCeo(role) && canSeeFinancials(user);
+    return false;
   }
   if (isCeo(role)) return CEO_DASHBOARD_PATHS.has(path);
   if (isHubManager(role)) return HUB_MANAGER_DASHBOARD_PATHS.has(path);

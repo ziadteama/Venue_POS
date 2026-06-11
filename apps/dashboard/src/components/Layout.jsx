@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { canAccessDashboardPath, canSeeFinancials, defaultDashboardPath } from '@venue-pos/shared';
+import { canAccessDashboardPath, canSeeFinancials, defaultDashboardPath, isCeo } from '@venue-pos/shared';
 import { Sidebar } from './Sidebar.jsx';
 import { ErrorBoundary } from './ErrorBoundary.jsx';
 import { LanguageToggle } from './LanguageToggle.jsx';
@@ -148,7 +148,7 @@ export function Layout() {
           </div>
         </header>
 
-        {notice ? (
+        {notice && !isCeo(user?.role) ? (
           <div className="mx-4 mt-4 flex items-start justify-between gap-3 rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800 shadow-card sm:mx-6 lg:mx-8">
             <span className="font-medium">
               {notice.payload.type === 'refund'

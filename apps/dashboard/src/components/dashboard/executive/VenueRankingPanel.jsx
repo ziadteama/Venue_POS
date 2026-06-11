@@ -1,7 +1,5 @@
-import { Link } from 'react-router-dom';
 import { SectionCard } from '../../ui/Card.jsx';
 import { TrendBadge } from '../TrendBadge.jsx';
-import { ArrowUpRightIcon } from '../icons.jsx';
 import { formatMoney, venueLabel } from '../../../utils/dashboardFormat.js';
 
 function VenueHighlight({ label, venue, locale, currencyLabel, language, t, tone }) {
@@ -61,17 +59,7 @@ export function VenueRankingPanel({
       title={t('dashboard.venueRankingTitle')}
       hint={t('dashboard.venueRankingHint')}
       flush
-      action={
-        !hideFinancials ? (
-          <Link
-            to={venueId ? `/analytics?venueId=${encodeURIComponent(venueId)}` : '/analytics'}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-accent-600 transition hover:text-accent-700"
-          >
-            {t('dashboard.viewAnalytics')}
-            <ArrowUpRightIcon className="h-3.5 w-3.5" />
-          </Link>
-        ) : null
-      }
+      action={null}
     >
       {!rows.length ? (
         <p className="px-6 py-10 text-center text-sm text-slate-500">{t('dashboard.noVenueData')}</p>

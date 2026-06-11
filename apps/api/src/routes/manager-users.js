@@ -4,35 +4,35 @@ import { prisma } from '../db/prisma.js';
 import { requireRoles } from '../middleware/auth.js';
 import { validationError } from '../utils/errors.js';
 import {
-  listVenueUsers,
+  createManagedUser,
   getVenueUserDetail,
-  createVenueUser,
-  updateVenueUser,
-  resetVenueUserPin,
-  setVenueUserActive,
   importVenueUsersCsv,
+  listManagedUsers,
+  resetManagedUserPassword,
+  resetManagedUserPin,
+  setManagedUserActive,
+  updateManagedUser,
   usersListToCsv,
 } from '../services/manager-user-service.js';
 
-const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+const staffAdminPreHandler = requireRoles(ROLES.HUB_MANAGER, ROLES.HUB_OWNER);
 
 const createSchema = z.object({
   username: z.string().min(1).max(100),
-  role: z.enum(['cashier', 'kitchen_staff', 'venue_manager']),
-  pin: z.string().min(4).max(6),
+  role: z.enum(['cashier', 'hub_owner', 'hub_manager', 'kitchen_staff', 'venue_manager']),
+  pin: z.string().min(4).max(6).optional(),
+  password: z.string().min(6).max(100).optional(),
   cardUid: z.string().max(100).optional(),
 });
 
 const updateSchema = z.object({
   username: z.string().min(1).max(100).optional(),
-  role: z.enum(['cashier', 'kitchen_staff', 'venue_manager']).optional(),
+  role: z.enum(['cashier', 'hub_owner', 'hub_manager', 'kitchen_staff', 'venue_manager']).optional(),
   cardUid: z.string().max(100).nullable().optional(),
 });
 
-function requireVenueId(request) {
-  const venueId = request.query?.venueId;
-  if (!venueId) throw validationError('venueId query parameter is required');
-  return venueId;
+function optionalVenueId(request) {
+  return request.query?.venueId ?? undefined;
 }
 
 async function actorFromRequest(request) {
@@ -53,10 +53,16 @@ async function actorFromRequest(request) {
 export async function managerUsersRoutes(app) {
   app.get(
     '/api/v1/manager/users',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: staffAdminPreHandler },
     async (request, reply) => {
-      const venueId = requireVenueId(request);
-      const users = await listVenueUsers(venueId, {
+      const actor = await actorFromRequest(request);
+      const venueId = optionalVenueId(request);
+      if (request.user.role === ROLES.HUB_MANAGER && !venueId) {
+        throw validationError('venueId query parameter is required');
+      }
+
+      const users = await listManagedUsers(actor, {
+        venueId,
         search: request.query?.search,
         includeInactive: request.query?.includeInactive === 'true',
       });
@@ -72,30 +78,40 @@ export async function managerUsersRoutes(app) {
 
   app.get(
     '/api/v1/manager/users/:id',
-    { preHandler: hubManagerPreHandler },
-    async (request) => getVenueUserDetail(request.params.id, requireVenueId(request)),
+    { preHandler: staffAdminPreHandler },
+    async (request) =>
+      getVenueUserDetail(
+        await actorFromRequest(request),
+        request.params.id,
+        optionalVenueId(request),
+      ),
   );
 
   app.post(
     '/api/v1/manager/users',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: staffAdminPreHandler },
     async (request) => {
       const parsed = createSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return createVenueUser(await actorFromRequest(request), requireVenueId(request), parsed.data);
+      const actor = await actorFromRequest(request);
+      const venueId = optionalVenueId(request);
+      if (request.user.role === ROLES.HUB_MANAGER && parsed.data.role !== 'cashier') {
+        throw validationError('Hub managers can only add cashiers');
+      }
+      return createManagedUser(actor, venueId, parsed.data);
     },
   );
 
   app.patch(
     '/api/v1/manager/users/:id',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: staffAdminPreHandler },
     async (request) => {
       const parsed = updateSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return updateVenueUser(
+      return updateManagedUser(
         await actorFromRequest(request),
         request.params.id,
-        requireVenueId(request),
+        optionalVenueId(request),
         parsed.data,
       );
     },
@@ -103,29 +119,43 @@ export async function managerUsersRoutes(app) {
 
   app.post(
     '/api/v1/manager/users/:id/pin',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: staffAdminPreHandler },
     async (request) => {
       const parsed = z.object({ pin: z.string().min(4).max(6) }).safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return resetVenueUserPin(
+      return resetManagedUserPin(
         await actorFromRequest(request),
         request.params.id,
-        requireVenueId(request),
+        optionalVenueId(request),
         parsed.data.pin,
       );
     },
   );
 
   app.post(
+    '/api/v1/manager/users/:id/password',
+    { preHandler: requireRoles(ROLES.HUB_OWNER) },
+    async (request) => {
+      const parsed = z.object({ password: z.string().min(6).max(100) }).safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      return resetManagedUserPassword(
+        await actorFromRequest(request),
+        request.params.id,
+        parsed.data.password,
+      );
+    },
+  );
+
+  app.post(
     '/api/v1/manager/users/:id/active',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: staffAdminPreHandler },
     async (request) => {
       const parsed = z.object({ isActive: z.boolean() }).safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      return setVenueUserActive(
+      return setManagedUserActive(
         await actorFromRequest(request),
         request.params.id,
-        requireVenueId(request),
+        optionalVenueId(request),
         parsed.data.isActive,
       );
     },
@@ -133,11 +163,15 @@ export async function managerUsersRoutes(app) {
 
   app.post(
     '/api/v1/manager/users/import',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: staffAdminPreHandler },
     async (request) => {
       const csvText = request.body?.csv;
       if (!csvText || typeof csvText !== 'string') throw validationError('csv body required');
-      return importVenueUsersCsv(await actorFromRequest(request), requireVenueId(request), csvText);
+      const venueId = optionalVenueId(request);
+      if (request.user.role === ROLES.HUB_MANAGER && !venueId) {
+        throw validationError('venueId query parameter is required');
+      }
+      return importVenueUsersCsv(await actorFromRequest(request), venueId, csvText);
     },
   );
 }

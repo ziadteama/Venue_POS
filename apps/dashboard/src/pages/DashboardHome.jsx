@@ -11,11 +11,8 @@ import { RecentActivityFeed } from '../components/dashboard/RecentActivityFeed.j
 import { StatCardSkeleton, ChartSkeleton, PanelSkeleton } from '../components/dashboard/Skeleton.jsx';
 import { SectionCard } from '../components/ui/Card.jsx';
 import { SegmentedControl } from '../components/ui/SegmentedControl.jsx';
-import { AttentionCenter } from '../components/dashboard/executive/AttentionCenter.jsx';
 import { VenueRankingPanel } from '../components/dashboard/executive/VenueRankingPanel.jsx';
 import { FinancialHealthPanel } from '../components/dashboard/executive/FinancialHealthPanel.jsx';
-import { OperationsSnapshot } from '../components/dashboard/executive/OperationsSnapshot.jsx';
-import { ExecutiveQuickNav } from '../components/dashboard/executive/ExecutiveQuickNav.jsx';
 import { VenueComparisonBars } from '../components/dashboard/executive/VenueComparisonBars.jsx';
 import {
   AlertIcon,
@@ -181,31 +178,6 @@ export function DashboardHome() {
           <AlertIcon className="h-5 w-5 shrink-0" />
           {error}
         </div>
-      ) : null}
-
-      {showSkeleton ? (
-        <PanelSkeleton rows={2} />
-      ) : summary ? (
-        <AttentionCenter id="attention" items={summary.attention} t={t} />
-      ) : null}
-
-      {hideFinancials && !showSkeleton && summary?.summary ? (
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <StatCard
-            label={t('dashboard.totalTransactions')}
-            value={summary.summary.totalTransactions ?? 0}
-            hint={t('dashboard.totalTransactionsHint')}
-            icon={OrdersIcon}
-            tone="amber"
-          />
-          <StatCard
-            label={t('dashboard.activeVenues')}
-            value={summary.summary.activeVenues ?? 0}
-            hint={t('dashboard.activeVenuesHint')}
-            icon={StoreIcon}
-            tone="blue"
-          />
-        </section>
       ) : null}
 
       {!hideFinancials ? (
@@ -407,15 +379,6 @@ export function DashboardHome() {
         </div>
       ) : null}
 
-      {showSkeleton ? (
-        <PanelSkeleton rows={2} />
-      ) : summary ? (
-        <OperationsSnapshot id="operations" operations={summary.operations} t={t} />
-      ) : null}
-
-      {!showSkeleton && summary ? (
-        <ExecutiveQuickNav t={t} canSeeFinancials={!hideFinancials} venueId={venueId} />
-      ) : null}
     </div>
   );
 }

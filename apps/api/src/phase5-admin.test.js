@@ -199,7 +199,41 @@ test('terminal heartbeat updates last seen', async () => {
   assert.equal(terminal.syncQueueDepth, 3);
 });
 
-test('full audit log is hub manager only', async () => {
+test('hub manager cannot add non-cashier staff', async () => {
+  const res = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${hubToken}` },
+    payload: { username: `vmgr_${Date.now()}`, role: 'venue_manager', pin: '4321' },
+  });
+  assert.equal(res.statusCode, 400);
+  assert.match(res.body, /only add cashiers/i);
+});
+
+test('owner can provision hub manager and cashier', async () => {
+  const managerUsername = `owner_mgr_${Date.now()}`;
+  const createManager = await app.inject({
+    method: 'POST',
+    url: '/api/v1/manager/users',
+    headers: { authorization: `Bearer ${ownerToken}` },
+    payload: { username: managerUsername, role: 'hub_manager', password: 'phase5mgr99' },
+  });
+  assert.equal(createManager.statusCode, 200, createManager.body);
+  assert.equal(createManager.json().role, 'hub_manager');
+
+  const cashierUsername = `owner_cash_${Date.now()}`;
+  const pin = `8${String(Date.now()).slice(-3)}`;
+  const createCashier = await app.inject({
+    method: 'POST',
+    url: `/api/v1/manager/users?venueId=${VENUE_ID}`,
+    headers: { authorization: `Bearer ${ownerToken}` },
+    payload: { username: cashierUsername, role: 'cashier', pin },
+  });
+  assert.equal(createCashier.statusCode, 200);
+  assert.equal(createCashier.json().venueId, VENUE_ID);
+});
+
+test('full audit log is available to hub manager and owner', async () => {
   const manager = await app.inject({
     method: 'GET',
     url: `/api/v1/manager/audit?venueId=${VENUE_ID}`,
@@ -213,7 +247,8 @@ test('full audit log is hub manager only', async () => {
     url: `/api/v1/manager/audit?venueId=${VENUE_ID}`,
     headers: { authorization: `Bearer ${ownerToken}` },
   });
-  assert.equal(ceo.statusCode, 403);
+  assert.equal(ceo.statusCode, 200);
+  assert.ok(Array.isArray(ceo.json().events));
 
   const venue = await app.inject({
     method: 'GET',
