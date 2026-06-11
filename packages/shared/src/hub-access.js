@@ -1,4 +1,5 @@
-import { isCeo, isHubManager } from './roles.js';
+import { ROLES } from './constants.js';
+import { isCeo, isHubManager, isSystemAdmin } from './roles.js';
 
 /** CEO — executive overview, activity audit, and hub user provisioning. */
 export const CEO_DASHBOARD_PATHS = new Set(['/', '/activity', '/users']);
@@ -22,6 +23,9 @@ export const HUB_OWNER_PATHS = CEO_DASHBOARD_PATHS;
 
 /** @deprecated use HUB_MANAGER_DASHBOARD_PATHS */
 export const HUB_MANAGER_PATHS = HUB_MANAGER_DASHBOARD_PATHS;
+
+/** Internal dev ops — monitoring console only. */
+export const OPS_DASHBOARD_PATHS = new Set(['/ops']);
 
 export function isHubOwner(role) {
   return isCeo(role);
@@ -49,12 +53,14 @@ export function canAccessDashboardPath(role, pathname, user) {
   if (path === '/analytics') {
     return false;
   }
+  if (isSystemAdmin(role)) return OPS_DASHBOARD_PATHS.has(path);
   if (isCeo(role)) return CEO_DASHBOARD_PATHS.has(path);
   if (isHubManager(role)) return HUB_MANAGER_DASHBOARD_PATHS.has(path);
   return false;
 }
 
 export function defaultDashboardPath(role) {
+  if (isSystemAdmin(role)) return '/ops';
   if (isCeo(role)) return '/';
   if (isHubManager(role)) return '/';
   return '/login';

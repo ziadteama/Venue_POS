@@ -37,14 +37,19 @@ export function isHubManager(role) {
   return role === ROLES.HUB_MANAGER;
 }
 
+export function isSystemAdmin(role) {
+  return role === ROLES.SYSTEM_ADMIN;
+}
+
 export function isDashboardRole(role) {
-  return role === ROLES.HUB_OWNER || role === ROLES.HUB_MANAGER;
+  return role === ROLES.HUB_OWNER || role === ROLES.HUB_MANAGER || role === ROLES.SYSTEM_ADMIN;
 }
 
 /** i18n key under `roles.*` for dashboard role badges. */
 export function dashboardRoleI18nKey(role) {
   if (role === ROLES.HUB_OWNER) return 'roles.ceo';
   if (role === ROLES.HUB_MANAGER) return 'roles.hubManager';
+  if (role === ROLES.SYSTEM_ADMIN) return 'roles.devOps';
   return 'roles.unknown';
 }
 

@@ -31,6 +31,7 @@ import { syncRoutes } from './routes/sync.js';
 import { floorRoutes } from './routes/floor.js';
 import { managerDashboardRoutes } from './routes/manager-dashboard.js';
 import { managerTerminalRoutes } from './routes/manager-terminals.js';
+import { opsRoutes } from './routes/ops.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -76,6 +77,7 @@ export async function buildApp() {
   await app.register(floorRoutes);
   await app.register(managerDashboardRoutes);
   await app.register(managerTerminalRoutes);
+  await app.register(opsRoutes);
 
   return app;
 }

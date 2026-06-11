@@ -61,6 +61,23 @@ async function seed() {
     },
   });
 
+  const devopsPasswordHash = await bcrypt.hash('devops123', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'devops' },
+    update: {
+      passwordHash: devopsPasswordHash,
+      role: 'system_admin',
+      venueId: venue.id,
+      isActive: true,
+    },
+    create: {
+      username: 'devops',
+      passwordHash: devopsPasswordHash,
+      role: 'system_admin',
+      venueId: venue.id,
+    },
+  });
+
   const ownerPasswordHash = await bcrypt.hash('owner123', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'owner' },
