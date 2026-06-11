@@ -5,7 +5,7 @@ import { validationError } from '../utils/errors.js';
 import { resolveHubFeatures, updateHubFeatures } from '../services/hub-settings-service.js';
 import { emitVenueConfigUpdated } from '../plugins/socket.js';
 
-const hubManagerPreHandler = requireRoles(ROLES.HUB_MANAGER);
+const hubConfigPreHandler = requireRoles(ROLES.SYSTEM_ADMIN);
 
 const featuresSchema = z
   .object({
@@ -23,13 +23,13 @@ const featuresSchema = z
 export async function managerHubSettingsRoutes(app) {
   app.get(
     '/api/v1/manager/hub-settings/features',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubConfigPreHandler },
     async () => resolveHubFeatures(),
   );
 
   app.put(
     '/api/v1/manager/hub-settings/features',
-    { preHandler: hubManagerPreHandler },
+    { preHandler: hubConfigPreHandler },
     async (request) => {
       const parsed = featuresSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());

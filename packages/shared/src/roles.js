@@ -41,6 +41,11 @@ export function isSystemAdmin(role) {
   return role === ROLES.SYSTEM_ADMIN;
 }
 
+/** Hub feature flags — dev ops only (tax/tables stay on hub manager Settings). */
+export function canManageHubConfig(role) {
+  return isSystemAdmin(role);
+}
+
 export function isDashboardRole(role) {
   return role === ROLES.HUB_OWNER || role === ROLES.HUB_MANAGER || role === ROLES.SYSTEM_ADMIN;
 }

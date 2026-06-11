@@ -23,8 +23,8 @@ export const HUB_OWNER_PATHS = CEO_DASHBOARD_PATHS;
 /** @deprecated use HUB_MANAGER_DASHBOARD_PATHS */
 export const HUB_MANAGER_PATHS = HUB_MANAGER_DASHBOARD_PATHS;
 
-/** Internal dev ops — monitoring console only. */
-export const OPS_DASHBOARD_PATHS = new Set(['/ops']);
+/** Internal dev ops — monitoring console + hub feature flags. */
+export const OPS_DASHBOARD_PATHS = new Set(['/ops', '/hub-settings']);
 
 export function isHubOwner(role) {
   return isCeo(role);

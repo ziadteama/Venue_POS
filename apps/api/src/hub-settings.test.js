@@ -10,6 +10,7 @@ import { resolveHubFeatures, updateHubFeatures } from './services/hub-settings-s
 const VENUE_ID = '00000000-0000-4000-8000-000000000098';
 
 let app;
+let opsToken;
 let hubToken;
 let ownerToken;
 
@@ -37,6 +38,18 @@ before(async () => {
     },
   });
 
+  const opsHash = await bcrypt.hash('hubsetops', config.bcryptRounds);
+  await prisma.user.upsert({
+    where: { username: 'hubsetops' },
+    update: { passwordHash: opsHash, role: 'system_admin', venueId: VENUE_ID, isActive: true },
+    create: {
+      username: 'hubsetops',
+      passwordHash: opsHash,
+      role: 'system_admin',
+      venueId: VENUE_ID,
+    },
+  });
+
   const ownerHash = await bcrypt.hash('hubsetown', config.bcryptRounds);
   await prisma.user.upsert({
     where: { username: 'hubsetown' },
@@ -50,20 +63,21 @@ before(async () => {
   });
 
   hubToken = signAccessToken({ sub: 'hubsetmgr', role: 'hub_manager', venue_id: VENUE_ID });
+  opsToken = signAccessToken({ sub: 'hubsetops', role: 'system_admin', venue_id: VENUE_ID });
   ownerToken = signAccessToken({ sub: 'hubsetown', role: 'hub_owner', venue_id: VENUE_ID });
 });
 
 after(async () => {
   await prisma.hubSettings.deleteMany({});
-  await prisma.user.deleteMany({ where: { username: { in: ['hubsetmgr', 'hubsetown'] } } });
+  await prisma.user.deleteMany({ where: { username: { in: ['hubsetmgr', 'hubsetown', 'hubsetops'] } } });
   await app.close();
 });
 
-test('hub manager can read and update feature toggles', async () => {
+test('dev ops can read and update feature toggles', async () => {
   const getRes = await app.inject({
     method: 'GET',
     url: '/api/v1/manager/hub-settings/features',
-    headers: { authorization: `Bearer ${hubToken}` },
+    headers: { authorization: `Bearer ${opsToken}` },
   });
   assert.equal(getRes.statusCode, 200);
   assert.equal(typeof getRes.json().discounts, 'boolean');
@@ -71,7 +85,7 @@ test('hub manager can read and update feature toggles', async () => {
   const putRes = await app.inject({
     method: 'PUT',
     url: '/api/v1/manager/hub-settings/features',
-    headers: { authorization: `Bearer ${hubToken}` },
+    headers: { authorization: `Bearer ${opsToken}` },
     payload: { discounts: false, kdsEnabled: false },
   });
   assert.equal(putRes.statusCode, 200);
@@ -80,6 +94,16 @@ test('hub manager can read and update feature toggles', async () => {
 
   const resolved = await resolveHubFeatures();
   assert.equal(resolved.discounts, false);
+});
+
+test('hub manager cannot update hub feature toggles', async () => {
+  const res = await app.inject({
+    method: 'PUT',
+    url: '/api/v1/manager/hub-settings/features',
+    headers: { authorization: `Bearer ${hubToken}` },
+    payload: { discounts: true },
+  });
+  assert.equal(res.statusCode, 403);
 });
 
 test('CEO cannot update hub feature toggles', async () => {
