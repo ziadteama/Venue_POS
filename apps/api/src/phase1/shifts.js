@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import './fixture.js';
 import {
   fx,
-  VENUE_ID,
   CASHIER_ID,
   terminalHeaders,
   prisma,
   ensureOpenShift,
   clearOpenCheques,
+  getPhase1Modifier,
 } from './fixture.js';
 
 test('cashier can open and close shift with payment linkage', async () => {
@@ -35,13 +35,7 @@ test('cashier can open and close shift with payment linkage', async () => {
   assert.equal(dupRes.json().resumed, true);
   assert.equal(dupRes.json().openFloat, 200);
 
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const chequeRes = await fx.app.inject({
     method: 'POST',

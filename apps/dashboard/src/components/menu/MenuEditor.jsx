@@ -7,6 +7,120 @@ import { Field, Input, Textarea } from '../ui/Field.jsx';
 import { Badge } from '../ui/Badge.jsx';
 import { SectionCard } from '../ui/Card.jsx';
 
+function emptyDraftOption() {
+  return { key: crypto.randomUUID(), nameEn: '', nameAr: '', priceDelta: '0' };
+}
+
+function emptyDraftGroup() {
+  return {
+    key: crypto.randomUUID(),
+    nameEn: '',
+    nameAr: '',
+    minSelection: '0',
+    maxSelection: '1',
+    options: [emptyDraftOption()],
+  };
+}
+
+function InlineModifierGroupCard({ t, group, onChange, onRemove }) {
+  function update(field, value) {
+    onChange({ ...group, [field]: value });
+  }
+
+  function updateOption(optionKey, field, value) {
+    onChange({
+      ...group,
+      options: group.options.map((opt) =>
+        opt.key === optionKey ? { ...opt, [field]: value } : opt,
+      ),
+    });
+  }
+
+  function addOption() {
+    onChange({ ...group, options: [...group.options, emptyDraftOption()] });
+  }
+
+  function removeOption(optionKey) {
+    if (group.options.length <= 1) return;
+    onChange({ ...group, options: group.options.filter((opt) => opt.key !== optionKey) });
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-slate-900">{t('menu.modifierSet')}</p>
+        <Button variant="subtle" size="sm" className="text-red-700" onClick={onRemove}>
+          {t('menu.removeModifierSet')}
+        </Button>
+      </div>
+      <BilingualField
+        labelEn={t('menu.nameEn')}
+        labelAr={t('menu.nameAr')}
+        nameEn={group.nameEn}
+        nameAr={group.nameAr}
+        onNameEnChange={(v) => update('nameEn', v)}
+        onNameArChange={(v) => update('nameAr', v)}
+      />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t('menu.minSelection')}>
+          <Input
+            type="number"
+            min="0"
+            value={group.minSelection}
+            onChange={(e) => update('minSelection', e.target.value)}
+          />
+        </Field>
+        <Field label={t('menu.maxSelection')}>
+          <Input
+            type="number"
+            min="0"
+            value={group.maxSelection}
+            onChange={(e) => update('maxSelection', e.target.value)}
+          />
+        </Field>
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-medium text-slate-700">{t('menu.modifierOptions')}</p>
+        <ul className="space-y-2">
+          {group.options.map((opt) => (
+            <li key={opt.key} className="flex flex-wrap items-end gap-2">
+              <Input
+                className="min-w-[10rem] flex-1"
+                placeholder={t('menu.nameEn')}
+                value={opt.nameEn}
+                onChange={(e) => updateOption(opt.key, 'nameEn', e.target.value)}
+              />
+              <Input
+                dir="rtl"
+                className="min-w-[8rem] flex-1"
+                placeholder={t('menu.nameAr')}
+                value={opt.nameAr}
+                onChange={(e) => updateOption(opt.key, 'nameAr', e.target.value)}
+              />
+              <Input
+                type="number"
+                step="0.01"
+                className="w-28"
+                placeholder={t('menu.priceDelta')}
+                value={opt.priceDelta}
+                onChange={(e) => updateOption(opt.key, 'priceDelta', e.target.value)}
+              />
+              {group.options.length > 1 ? (
+                <Button variant="subtle" size="sm" onClick={() => removeOption(opt.key)}>
+                  {t('common.delete')}
+                </Button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <Button variant="subtle" size="sm" className="mt-2" onClick={addOption}>
+          {t('menu.addOption')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function ItemEditorDrawer({
   t,
   item,
@@ -31,6 +145,7 @@ export function ItemEditorDrawer({
     isAvailable: item?.isAvailable ?? true,
     modifierGroupIds: [...attachedIds],
   });
+  const [draftGroups, setDraftGroups] = useState([]);
 
   function update(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -45,8 +160,33 @@ export function ItemEditorDrawer({
     });
   }
 
+  function updateDraftGroup(key, next) {
+    setDraftGroups((prev) => prev.map((g) => (g.key === key ? next : g)));
+  }
+
+  function removeDraftGroup(key) {
+    setDraftGroups((prev) => prev.filter((g) => g.key !== key));
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
+    const newModifierGroups = draftGroups
+      .filter((g) => g.nameEn.trim())
+      .map((g) => ({
+        nameEn: g.nameEn.trim(),
+        nameAr: g.nameAr.trim(),
+        minSelection: Number(g.minSelection) || 0,
+        maxSelection: Number(g.maxSelection) || 1,
+        options: g.options
+          .filter((opt) => opt.nameEn.trim())
+          .map((opt) => ({
+            nameEn: opt.nameEn.trim(),
+            nameAr: opt.nameAr.trim(),
+            priceDelta: Number(opt.priceDelta) || 0,
+          })),
+      }))
+      .filter((g) => g.options.length > 0);
+
     onSave({
       categoryId,
       nameEn: form.nameEn.trim(),
@@ -57,6 +197,7 @@ export function ItemEditorDrawer({
       imageUrl: form.imageUrl.trim() || undefined,
       isAvailable: form.isAvailable,
       modifierGroupIds: form.modifierGroupIds,
+      newModifierGroups,
     });
   }
 
@@ -72,7 +213,7 @@ export function ItemEditorDrawer({
             {t('common.cancel')}
           </Button>
           <Button type="submit" form="item-editor-form" variant="primary" loading={busy}>
-            {t('common.save')}
+            {t('menu.saveAndPublish')}
           </Button>
         </>
       }
@@ -126,33 +267,59 @@ export function ItemEditorDrawer({
           {t('menu.availableOnPos')}
         </label>
 
-        {modifierGroups.length > 0 ? (
+        <div className="space-y-3">
           <div>
-            <p className="mb-2 text-sm font-semibold text-slate-900">{t('menu.itemModifiers')}</p>
-            <ul className="space-y-2">
-              {modifierGroups.map((group) => (
-                <li key={group.id}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      checked={form.modifierGroupIds.includes(group.id)}
-                      onChange={() => toggleModifierGroup(group.id)}
-                    />
-                    <span className="font-medium">{group.nameEn}</span>
-                    <span className="text-xs text-slate-500">
-                      {t('menu.modifierRule', {
-                        min: group.minSelection,
-                        max: group.maxSelection,
-                      })}
-                    </span>
-                  </label>
-                </li>
-              ))}
-            </ul>
+            <p className="text-sm font-semibold text-slate-900">{t('menu.itemModifiers')}</p>
+            <p className="mt-1 text-sm text-slate-500">{t('menu.itemModifiersInlineHint')}</p>
           </div>
-        ) : (
-          <p className="text-sm text-slate-500">{t('menu.noModifierGroups')}</p>
-        )}
+
+          {draftGroups.map((group) => (
+            <InlineModifierGroupCard
+              key={group.key}
+              t={t}
+              group={group}
+              onChange={(next) => updateDraftGroup(group.key, next)}
+              onRemove={() => removeDraftGroup(group.key)}
+            />
+          ))}
+
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => setDraftGroups((prev) => [...prev, emptyDraftGroup()])}
+          >
+            {t('menu.addModifierSet')}
+          </Button>
+
+          {modifierGroups.length > 0 ? (
+            <details className="rounded-xl border border-slate-200 px-4 py-3">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                {t('menu.attachExistingModifiers')}
+              </summary>
+              <ul className="mt-3 space-y-2">
+                {modifierGroups.map((group) => (
+                  <li key={group.id}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={form.modifierGroupIds.includes(group.id)}
+                        onChange={() => toggleModifierGroup(group.id)}
+                      />
+                      <span className="font-medium">{group.nameEn}</span>
+                      <span className="text-xs text-slate-500">
+                        {t('menu.modifierRule', {
+                          min: group.minSelection,
+                          max: group.maxSelection,
+                        })}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </div>
       </form>
     </Drawer>
   );
@@ -214,7 +381,7 @@ export function ModifierGroupsSection({ t, language, groups, busy, onAddGroup, o
 
   return (
     <SectionCard title={t('menu.modifierGroups')}>
-      <p className="mb-4 text-sm text-slate-500">{t('menu.modifierGroupsHint')}</p>
+      <p className="mb-4 text-sm text-slate-500">{t('menu.modifierGroupsLibraryHint')}</p>
 
       {groups.length === 0 ? (
         <p className="mb-4 text-sm text-slate-500">{t('menu.noModifierGroups')}</p>

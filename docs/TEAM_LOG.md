@@ -1704,6 +1704,24 @@ POS: fire → Print check → adjust qty → Reprint (COPY #2) → Pay (payment 
 
 ---
 
+### 2026-06-10 — Hub manager can add restaurants in Settings
+**Phase:** 8 · **Story:** US-8.5 extension
+**What:** Settings → Restaurants lists venues and lets hub manager create a new restaurant (name EN/AR, standard/anchor); seeds empty draft menu and audit entry.
+**Files:** `venue-config-service.js`, `manager-venue-config.js`, `VenueSettingsPage.jsx`, i18n, `phase1/dashboard.js`
+**Verify:** Dashboard Settings → Restaurants → Create restaurant → appears in list and Menu Manager venue tabs
+**Notes:** Hub owner read-only; CEO cannot create venues.
+
+---
+
+### 2026-06-10 — Inline modifiers on item create + auto-publish
+**Phase:** 3 · **Story:** menu manager UX
+**What:** Hub manager adds modifier sets (name, min/max, options) directly in the Add/Edit item drawer; saving creates groups, links them to the item, and publishes the menu automatically.
+**Files:** `MenuEditor.jsx`, `useVenueMenu.js`, `packages/i18n/locales/en.json`, `ar.json`
+**Verify:** Dashboard → Menu → Add item → Add modifier set → add options → Save & publish · POS shows item with modifiers without a separate Publish click
+**Notes:** Venue-wide modifier library section kept as optional for shared groups.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

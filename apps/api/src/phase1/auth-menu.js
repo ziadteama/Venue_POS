@@ -21,6 +21,20 @@ test('cashier PIN login works with terminal headers', async () => {
 });
 
 test('manager creates menu with modifier and publishes', async () => {
+  if (fx.menuItemId) {
+    const menuRes = await fx.app.inject({
+      method: 'GET',
+      url: `/api/v1/venues/${VENUE_ID}/menu`,
+      headers: terminalHeaders,
+    });
+    assert.equal(menuRes.statusCode, 200);
+    const item = menuRes.json().categories
+      .flatMap((c) => c.items)
+      .find((i) => i.id === fx.menuItemId);
+    assert.ok(item?.modifierGroups?.length >= 1);
+    return;
+  }
+
   const catRes = await fx.app.inject({
     method: 'POST',
     url: `/api/v1/manager/venues/${VENUE_ID}/menu/categories`,

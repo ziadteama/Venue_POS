@@ -175,38 +175,76 @@ export function useVenueMenu({ enabled = true }) {
 
   const saveItem = useCallback(
     async (payload, editing) => {
-      const { categoryId, modifierGroupIds, ...itemData } = payload;
+      const { categoryId, modifierGroupIds = [], newModifierGroups = [], ...itemData } = payload;
       setBusy(true);
       setError('');
       try {
-        if (editing?.id) {
-          let result = await apiFetch(
-            `/api/v1/manager/venues/${selectedVenueId}/menu/items/${editing.id}`,
+        let result;
+        let itemId = editing?.id;
+
+        if (itemId) {
+          result = await apiFetch(
+            `/api/v1/manager/venues/${selectedVenueId}/menu/items/${itemId}`,
             { method: 'PATCH', body: JSON.stringify(itemData) },
           );
-          if (modifierGroupIds) {
-            result = await apiFetch(
-              `/api/v1/manager/venues/${selectedVenueId}/menu/items/${editing.id}/modifiers`,
-              { method: 'PUT', body: JSON.stringify({ modifierGroupIds }) },
-            );
-          }
-          setMenu(result);
         } else {
-          let result = await apiFetch(
+          result = await apiFetch(
             `/api/v1/manager/venues/${selectedVenueId}/menu/categories/${categoryId}/items`,
             { method: 'POST', body: JSON.stringify(itemData) },
           );
-          const created = result.categories
-            ?.find((c) => c.id === categoryId)
-            ?.items?.find((i) => i.nameEn === itemData.nameEn);
-          if (created && modifierGroupIds?.length) {
-            result = await apiFetch(
-              `/api/v1/manager/venues/${selectedVenueId}/menu/items/${created.id}/modifiers`,
-              { method: 'PUT', body: JSON.stringify({ modifierGroupIds }) },
-            );
-          }
-          setMenu(result);
+          const category = result.categories?.find((c) => c.id === categoryId);
+          const created = category?.items
+            ?.filter((i) => i.nameEn === itemData.nameEn)
+            ?.sort((a, b) => b.sortOrder - a.sortOrder)[0];
+          itemId = created?.id;
         }
+
+        const knownGroupIds = new Set(result.modifierGroups?.map((g) => g.id) ?? []);
+        const linkedGroupIds = [...modifierGroupIds];
+
+        for (const group of newModifierGroups) {
+          if (!group.nameEn?.trim()) continue;
+          const options = (group.options ?? [])
+            .filter((opt) => opt.nameEn?.trim())
+            .map((opt) => ({
+              nameEn: opt.nameEn.trim(),
+              nameAr: opt.nameAr?.trim() ?? '',
+              priceDelta: Number(opt.priceDelta) || 0,
+            }));
+          if (!options.length) continue;
+
+          result = await apiFetch(
+            `/api/v1/manager/venues/${selectedVenueId}/menu/modifier-groups`,
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                nameEn: group.nameEn.trim(),
+                nameAr: group.nameAr?.trim() ?? '',
+                minSelection: Number(group.minSelection) || 0,
+                maxSelection: Number(group.maxSelection) || 1,
+                options,
+              }),
+            },
+          );
+          const added = result.modifierGroups?.filter((g) => !knownGroupIds.has(g.id)) ?? [];
+          const createdGroup = added[added.length - 1];
+          if (createdGroup) {
+            knownGroupIds.add(createdGroup.id);
+            linkedGroupIds.push(createdGroup.id);
+          }
+        }
+
+        if (itemId && linkedGroupIds.length) {
+          result = await apiFetch(
+            `/api/v1/manager/venues/${selectedVenueId}/menu/items/${itemId}/modifiers`,
+            { method: 'PUT', body: JSON.stringify({ modifierGroupIds: [...new Set(linkedGroupIds)] }) },
+          );
+        }
+
+        result = await apiFetch(`/api/v1/manager/venues/${selectedVenueId}/menu/publish`, {
+          method: 'POST',
+        });
+        setMenu(result);
       } catch (e) {
         setError(friendlyError(e));
         throw e;

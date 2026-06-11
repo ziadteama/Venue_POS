@@ -9,6 +9,7 @@ import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 import { seedPublishedVenueMenu } from './test-helpers/venue-menu-fixture.js';
+import { resetHubBilling } from './test-helpers/reset-hub-billing.js';
 
 const ANCHOR_VENUE = '00000000-0000-4000-8000-0000000000a0';
 const TARGET_VENUE = '00000000-0000-4000-8000-0000000000a1';
@@ -107,6 +108,7 @@ async function setupFiredCrossVenueGroup(tableLabel, { targetQty = 2 } = {}) {
 
 before(async () => {
   ensureKeys();
+  await resetHubBilling();
   app = await buildApp();
   app.io = { to: () => ({ emit: () => {} }) };
   await app.ready();

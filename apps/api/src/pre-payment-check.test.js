@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
@@ -7,19 +8,22 @@ import { config } from './config.js';
 import { ensureKeys } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 import { seedPublishedVenueMenu } from './test-helpers/venue-menu-fixture.js';
+import { resetHubBilling } from './test-helpers/reset-hub-billing.js';
 
-const VENUE_ID = '00000000-0000-4000-8000-0000000000e1';
-const TERMINAL_ID = '00000000-0000-4000-8000-0000000000e2';
-const CASHIER_ID = '00000000-0000-4000-8000-0000000000e3';
+const VENUE_ID = '00000000-0000-4000-8000-0000000000d1';
+const TERMINAL_ID = '00000000-0000-4000-8000-0000000000d2';
+const CASHIER_USERNAME = 'prepay_cashier_d1';
 const SECRET = 'prepay-test-secret';
 
 const headers = { 'x-terminal-id': TERMINAL_ID, 'x-terminal-secret': SECRET };
 
 let app;
 let menuItemId;
+let cashierId;
 
 before(async () => {
   ensureKeys();
+  await resetHubBilling();
   app = await buildApp();
   app.io = { to: () => ({ emit: () => {} }) };
   await app.ready();
@@ -32,24 +36,25 @@ before(async () => {
     update: { isActive: true },
     create: { id: VENUE_ID, nameEn: 'PrePay Venue', nameAr: 'دفع', type: 'standard' },
   });
-  await prisma.user.upsert({
-    where: { id: CASHIER_ID },
+  const cashier = await prisma.user.upsert({
+    where: { username: CASHIER_USERNAME },
     update: {
       pinHash,
       role: 'cashier',
       venueId: VENUE_ID,
       isActive: true,
-      username: 'prepay_cashier',
     },
     create: {
-      id: CASHIER_ID,
-      username: 'prepay_cashier',
+      id: randomUUID(),
+      username: CASHIER_USERNAME,
       passwordHash: pinHash,
       pinHash,
       role: 'cashier',
       venueId: VENUE_ID,
+      isActive: true,
     },
   });
+  cashierId = cashier.id;
   await prisma.terminal.upsert({
     where: { id: TERMINAL_ID },
     update: { secretHash, venueId: VENUE_ID, isActive: true },
@@ -68,7 +73,7 @@ before(async () => {
     method: 'POST',
     url: '/api/v1/shifts/open',
     headers,
-    payload: { cashierId: CASHIER_ID, openFloat: 100 },
+    payload: { cashierId, openFloat: 100 },
   });
 });
 
@@ -81,7 +86,7 @@ async function openFireCheque(tableLabel = 'PP-1') {
     method: 'POST',
     url: '/api/v1/cheques/open',
     headers,
-    payload: { cashierId: CASHIER_ID, tableLabel, serviceMode: 'dine_in' },
+    payload: { cashierId, tableLabel, serviceMode: 'dine_in' },
   });
   assert.equal(openRes.statusCode, 200, openRes.body);
   const chequeId = openRes.json().id;
@@ -113,7 +118,7 @@ test('check-print increments count, audit, and preview copy line', async () => {
     method: 'POST',
     url: `/api/v1/cheques/${chequeId}/check-print`,
     headers,
-    payload: { cashierId: CASHIER_ID },
+    payload: { cashierId },
   });
   assert.equal(first.statusCode, 200, first.body);
   const body = first.json();
@@ -125,7 +130,7 @@ test('check-print increments count, audit, and preview copy line', async () => {
     method: 'POST',
     url: `/api/v1/cheques/${chequeId}/check-print`,
     headers,
-    payload: { cashierId: CASHIER_ID },
+    payload: { cashierId },
   });
   assert.equal(second.statusCode, 200, second.body);
   assert.equal(second.json().printCount, 2);
@@ -147,7 +152,7 @@ test('pre-pay adjust fired line qty on open cheque', async () => {
     method: 'PATCH',
     url: `/api/v1/cheques/${chequeId}/orders/${sentOrderId}/items/${itemId}`,
     headers,
-    payload: { cashierId: CASHIER_ID, quantity: 1 },
+    payload: { cashierId, quantity: 1 },
   });
   assert.equal(patchRes.statusCode, 200, patchRes.body);
   const line = patchRes
@@ -160,7 +165,7 @@ test('pre-pay adjust fired line qty on open cheque', async () => {
     where: { venueId: VENUE_ID, action: 'check.pre_pay_adjust', entityId: chequeId },
   });
   assert.ok(audit);
-  assert.equal(audit.actorUsername, 'prepay_cashier');
+  assert.equal(audit.actorUsername, CASHIER_USERNAME);
 });
 
 test('pre-pay adjust rejected on paid cheque', async () => {
@@ -170,7 +175,7 @@ test('pre-pay adjust rejected on paid cheque', async () => {
     method: 'POST',
     url: `/api/v1/cheques/${chequeId}/pay`,
     headers,
-    payload: { cashierId: CASHIER_ID, method: 'cash' },
+    payload: { cashierId, method: 'cash' },
   });
   assert.equal(payRes.statusCode, 200, payRes.body);
   assert.ok(!payRes.json().receipt?.includes('PRE-PAYMENT CHECK'));
@@ -179,7 +184,7 @@ test('pre-pay adjust rejected on paid cheque', async () => {
     method: 'PATCH',
     url: `/api/v1/cheques/${chequeId}/orders/${sentOrderId}/items/${itemId}`,
     headers,
-    payload: { cashierId: CASHIER_ID, quantity: 1 },
+    payload: { cashierId, quantity: 1 },
   });
   assert.equal(patchRes.statusCode, 400);
 });

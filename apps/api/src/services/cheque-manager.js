@@ -2,10 +2,11 @@ import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { validationError } from '../utils/errors.js';
 import { resolveDashboardManager } from './auth-service.js';
-import { executeRefund } from './cheque-refund.js';
+import { executeSplitRefund } from './cheque-refund.js';
 import {
   BILLABLE_ORDER_STATUSES,
   VOIDABLE_ROUND_STATUSES,
+  computeProportionalPaidRefund,
   itemLineTotal,
   loadCheque,
   ordersFromCheque,
@@ -21,19 +22,12 @@ function orderBillableSubtotal(order) {
   return order.items.reduce((sum, item) => sum + itemLineTotal(item), 0);
 }
 
-function primaryRefundMethod(cheque) {
-  const cash = cheque.payments?.find((p) => p.method === 'cash');
-  if (cash) return 'cash';
-  return cheque.payments?.[0]?.method ?? 'cash';
-}
-
 async function refundPaidAdjustment(cheque, amount, reason, manager, venueId, terminalId) {
   if (amount <= 0) return;
-  await executeRefund(
+  await executeSplitRefund(
     cheque.id,
     {
       amount,
-      method: primaryRefundMethod(cheque),
       reason,
       initiatorId: manager.id,
       approverId: manager.id,
@@ -66,7 +60,8 @@ export async function voidChequeRound(
 
   const manager = await resolveDashboardManager(venueId, { initiatorId, managerPin });
   const isPaid = cheque.status === 'paid';
-  const roundAmount = isPaid ? orderBillableSubtotal(order) : 0;
+  const roundSubtotal = isPaid ? orderBillableSubtotal(order) : 0;
+  const roundAmount = isPaid ? computeProportionalPaidRefund(cheque, roundSubtotal) : 0;
 
   if (order.status === 'draft' && !order.items.length) {
     await prisma.order.delete({ where: { id: orderId } });
@@ -202,7 +197,8 @@ export async function compChequeItem(
 
   const manager = await resolveDashboardManager(venueId, { initiatorId, managerPin });
   const isPaid = cheque.status === 'paid';
-  const lineAmount = isPaid ? itemLineTotal(item) : 0;
+  const lineSubtotal = isPaid ? itemLineTotal(item) : 0;
+  const lineAmount = isPaid ? computeProportionalPaidRefund(cheque, lineSubtotal) : 0;
 
   await prisma.$transaction([
     prisma.orderItemCompAudit.create({

@@ -11,6 +11,7 @@ import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { SectionCard } from '../components/ui/Card.jsx';
 import { Field, Input, Select } from '../components/ui/Field.jsx';
 import { Button } from '../components/ui/Button.jsx';
+import { Drawer } from '../components/ui/Drawer.jsx';
 import {
   SettingsIcon,
   RevenueIcon,
@@ -21,6 +22,7 @@ import {
   ActivityIcon,
   AlertIcon,
   CheckCircleIcon,
+  PlusIcon,
 } from '../components/dashboard/icons.jsx';
 
 const RECEIPT_TEMPLATES = ['standard', 'compact', 'detailed'];
@@ -39,6 +41,10 @@ function emptyForm() {
   };
 }
 
+function emptyConfigureForm() {
+  return { nameEn: '', nameAr: '', type: 'standard' };
+}
+
 function tablesToText(tables) {
   if (!Array.isArray(tables)) return '';
   return tables
@@ -47,8 +53,11 @@ function tablesToText(tables) {
     .join('\n');
 }
 
-const FORM_SECTIONS = ['general', 'printers'];
-const HUB_SECTIONS = ['tax', 'tables'];
+const VENUE_SECTIONS = ['printers', 'billing', 'terminals', 'audit'];
+
+function emptyNewVenue() {
+  return { nameEn: '', nameAr: '', type: 'standard' };
+}
 
 export function VenueSettingsPage() {
   const { t, i18n } = useTranslation();
@@ -59,13 +68,25 @@ export function VenueSettingsPage() {
   const [audits, setAudits] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [section, setSection] = useState('general');
+  const [creating, setCreating] = useState(false);
+  const [newVenue, setNewVenue] = useState(emptyNewVenue());
+  const [section, setSection] = useState('restaurants');
+  const [configureVenueId, setConfigureVenueId] = useState(null);
+  const [configureForm, setConfigureForm] = useState(emptyConfigureForm());
+  const [configureLoading, setConfigureLoading] = useState(false);
+  const [configureSaving, setConfigureSaving] = useState(false);
+
+  const loadVenues = useCallback(async () => {
+    const list = await apiFetch('/api/v1/venues');
+    setVenues(list);
+    return list;
+  }, []);
 
   const sections = useMemo(
     () => [
-      { id: 'general', label: t('venueConfig.general'), icon: StoreIcon },
+      { id: 'restaurants', label: t('venueConfig.restaurants'), icon: StoreIcon },
       { id: 'tax', label: t('venueConfig.taxAndService'), icon: RevenueIcon },
       { id: 'tables', label: t('venueConfig.tables'), icon: TablesIcon },
       { id: 'printers', label: t('venueConfig.printers'), icon: PrinterIcon },
@@ -76,51 +97,157 @@ export function VenueSettingsPage() {
     [t],
   );
 
-  const load = useCallback(async (id) => {
-    if (!id) return;
-    setLoading(true);
-    setError('');
+  const loadVenueConfig = useCallback(async (id) => {
+    if (!id) return null;
+    const config = await apiFetch(`/api/v1/manager/venues/${id}/config`);
+    setForm({
+      nameEn: config.nameEn,
+      nameAr: config.nameAr,
+      type: config.type,
+      receiptTemplate: config.receiptTemplate,
+      kitchenPrinterHost: config.kitchenPrinterHost ?? '',
+      kitchenPrinterPort: String(config.kitchenPrinterPort ?? 9100),
+      receiptPrinterHost: config.receiptPrinterHost ?? '',
+      receiptPrinterPort: String(config.receiptPrinterPort ?? 9100),
+      tablesText: tablesToText(config.tables),
+    });
     try {
-      const config = await apiFetch(`/api/v1/manager/venues/${id}/config`);
-      setForm({
-        nameEn: config.nameEn,
-        nameAr: config.nameAr,
-        type: config.type,
-        receiptTemplate: config.receiptTemplate,
-        kitchenPrinterHost: config.kitchenPrinterHost ?? '',
-        kitchenPrinterPort: String(config.kitchenPrinterPort ?? 9100),
-        receiptPrinterHost: config.receiptPrinterHost ?? '',
-        receiptPrinterPort: String(config.receiptPrinterPort ?? 9100),
-        tablesText: tablesToText(config.tables),
-      });
-      try {
-        const auditList = await apiFetch(`/api/v1/manager/venues/${id}/config/audits`);
-        setAudits(auditList);
-      } catch {
-        setAudits([]);
-      }
-    } catch (err) {
-      setError(friendlyError(err));
-    } finally {
-      setLoading(false);
+      const auditList = await apiFetch(`/api/v1/manager/venues/${id}/config/audits`);
+      setAudits(auditList);
+    } catch {
+      setAudits([]);
     }
+    return config;
   }, []);
+
+  const load = useCallback(
+    async (id) => {
+      if (!id) return;
+      setLoading(true);
+      setError('');
+      try {
+        await loadVenueConfig(id);
+      } catch (err) {
+        setError(friendlyError(err));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadVenueConfig],
+  );
 
   useEffect(() => {
     if (user?.role !== 'hub_manager') return;
-    apiFetch('/api/v1/venues')
+    loadVenues()
       .then((list) => {
-        setVenues(list);
-        if (list[0]?.id) setVenueId(list[0].id);
+        setVenueId((current) => current || list[0]?.id || '');
       })
       .catch((err) => setError(friendlyError(err)));
-  }, [user?.role]);
+  }, [user?.role, loadVenues]);
 
   useEffect(() => {
-    if (venueId) load(venueId);
-  }, [venueId, load]);
+    if (venueId && VENUE_SECTIONS.includes(section)) load(venueId);
+  }, [venueId, section, load]);
 
-  async function save(e) {
+  const configuringVenue = venues.find((v) => v.id === configureVenueId);
+
+  async function openConfigure(id) {
+    setConfigureVenueId(id);
+    setConfigureLoading(true);
+    setError('');
+    try {
+      const config = await apiFetch(`/api/v1/manager/venues/${id}/config`);
+      setConfigureForm({
+        nameEn: config.nameEn,
+        nameAr: config.nameAr,
+        type: config.type,
+      });
+    } catch (err) {
+      setError(friendlyError(err));
+      setConfigureVenueId(null);
+    } finally {
+      setConfigureLoading(false);
+    }
+  }
+
+  function closeConfigure() {
+    if (configureSaving) return;
+    setConfigureVenueId(null);
+    setConfigureForm(emptyConfigureForm());
+  }
+
+  async function saveConfigure(e) {
+    e.preventDefault();
+    if (!configureVenueId) return;
+    setConfigureSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      const result = await apiFetch(`/api/v1/manager/venues/${configureVenueId}/config`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          nameEn: configureForm.nameEn.trim(),
+          nameAr: configureForm.nameAr.trim(),
+          type: configureForm.type,
+        }),
+      });
+      setVenues((prev) =>
+        prev.map((v) =>
+          v.id === configureVenueId
+            ? {
+                ...v,
+                nameEn: result.config.nameEn,
+                nameAr: result.config.nameAr,
+                type: result.config.type,
+              }
+            : v,
+        ),
+      );
+      if (venueId === configureVenueId) {
+        await loadVenueConfig(configureVenueId);
+      }
+      setSuccess(t('venueConfig.saved', { count: result.changes?.length ?? 0 }));
+      closeConfigure();
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setConfigureSaving(false);
+    }
+  }
+
+  async function createRestaurant(e) {
+    e.preventDefault();
+    setCreating(true);
+    setError('');
+    setSuccess('');
+    try {
+      const created = await apiFetch('/api/v1/manager/venues', {
+        method: 'POST',
+        body: JSON.stringify({
+          nameEn: newVenue.nameEn.trim(),
+          nameAr: newVenue.nameAr.trim(),
+          type: newVenue.type,
+        }),
+      });
+      const list = await loadVenues();
+      setVenueId(created.id);
+      setNewVenue(emptyNewVenue());
+      if (!list.some((v) => v.id === created.id)) {
+        setVenues((prev) => [
+          ...prev,
+          { id: created.id, nameEn: created.nameEn, nameAr: created.nameAr, type: created.type },
+        ]);
+      }
+      setSuccess(t('venueConfig.restaurantCreated', { name: created.nameEn }));
+      await openConfigure(created.id);
+    } catch (err) {
+      setError(friendlyError(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function savePrinters(e) {
     e.preventDefault();
     setSaving(true);
     setError('');
@@ -129,9 +256,6 @@ export function VenueSettingsPage() {
       const result = await apiFetch(`/api/v1/manager/venues/${venueId}/config`, {
         method: 'PATCH',
         body: JSON.stringify({
-          nameEn: form.nameEn.trim(),
-          nameAr: form.nameAr.trim(),
-          type: form.type,
           receiptTemplate: form.receiptTemplate,
           kitchenPrinterHost: form.kitchenPrinterHost.trim() || null,
           kitchenPrinterPort: Number(form.kitchenPrinterPort),
@@ -140,7 +264,7 @@ export function VenueSettingsPage() {
         }),
       });
       setSuccess(t('venueConfig.saved', { count: result.changes?.length ?? 0 }));
-      await load(venueId);
+      await loadVenueConfig(venueId);
     } catch (err) {
       setError(friendlyError(err));
     } finally {
@@ -156,8 +280,7 @@ export function VenueSettingsPage() {
     );
   }
 
-  const isFormSection = FORM_SECTIONS.includes(section);
-  const isHubSection = HUB_SECTIONS.includes(section);
+  const needsVenuePicker = VENUE_SECTIONS.includes(section);
 
   return (
     <div className="space-y-6">
@@ -165,7 +288,7 @@ export function VenueSettingsPage() {
         title={t('venueConfig.title')}
         subtitle={t('venueConfig.subtitle')}
         actions={
-          venues.length > 0 && !isHubSection ? (
+          venues.length > 0 && needsVenuePicker ? (
             <Select className="w-auto py-2" value={venueId} onChange={(e) => setVenueId(e.target.value)}>
               {venues.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -214,86 +337,119 @@ export function VenueSettingsPage() {
         </nav>
 
         <div className="min-w-0">
-          {loading ? (
+          {loading && needsVenuePicker ? (
             <SectionCard>
               <p className="text-sm text-slate-500">{t('common.loading')}</p>
             </SectionCard>
+          ) : section === 'restaurants' ? (
+            <div className="space-y-6">
+              <SectionCard title={t('venueConfig.restaurants')} icon={StoreIcon}>
+                <p className="mb-4 text-sm text-slate-500">{t('venueConfig.restaurantsHint')}</p>
+                {venues.length > 0 ? (
+                  <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    {venues.map((v) => (
+                      <li key={v.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {i18n.language === 'ar' ? v.nameAr || v.nameEn : v.nameEn}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {v.type === 'anchor'
+                              ? t('venueConfig.typeAnchor')
+                              : t('venueConfig.typeStandard')}
+                          </p>
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={() => openConfigure(v.id)}>
+                          {t('venueConfig.configureRestaurant')}
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">{t('venueConfig.noRestaurants')}</p>
+                )}
+              </SectionCard>
+
+              <SectionCard title={t('venueConfig.addRestaurant')} icon={PlusIcon}>
+                <form onSubmit={createRestaurant} className="grid gap-4 sm:grid-cols-2">
+                  <Field label={t('venueConfig.nameEn')}>
+                    <Input
+                      required
+                      value={newVenue.nameEn}
+                      onChange={(e) => setNewVenue((v) => ({ ...v, nameEn: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label={t('venueConfig.nameAr')}>
+                    <Input
+                      required
+                      dir="rtl"
+                      value={newVenue.nameAr}
+                      onChange={(e) => setNewVenue((v) => ({ ...v, nameAr: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label={t('venueConfig.type')}>
+                    <Select
+                      value={newVenue.type}
+                      onChange={(e) => setNewVenue((v) => ({ ...v, type: e.target.value }))}
+                    >
+                      <option value="standard">{t('venueConfig.typeStandard')}</option>
+                      <option value="anchor">{t('venueConfig.typeAnchor')}</option>
+                    </Select>
+                  </Field>
+                  <div className="flex items-end sm:col-span-2">
+                    <Button type="submit" variant="primary" loading={creating}>
+                      <PlusIcon className="h-4 w-4" />
+                      {t('venueConfig.createRestaurant')}
+                    </Button>
+                  </div>
+                </form>
+              </SectionCard>
+            </div>
           ) : section === 'tables' ? (
             <HubTablesSection />
           ) : section === 'tax' ? (
             <HubTaxMatrixSection />
-          ) : isFormSection ? (
-            <form onSubmit={save} className="space-y-6">
-              {section === 'general' ? (
-                <SectionCard title={t('venueConfig.general')} icon={StoreIcon}>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label={t('venueConfig.nameEn')}>
-                      <Input
-                        required
-                        value={form.nameEn}
-                        onChange={(e) => setForm((f) => ({ ...f, nameEn: e.target.value }))}
-                      />
-                    </Field>
-                    <Field label={t('venueConfig.nameAr')}>
-                      <Input
-                        required
-                        dir="rtl"
-                        value={form.nameAr}
-                        onChange={(e) => setForm((f) => ({ ...f, nameAr: e.target.value }))}
-                      />
-                    </Field>
-                    <Field label={t('venueConfig.type')}>
-                      <Select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-                        <option value="standard">{t('venueConfig.typeStandard')}</option>
-                        <option value="anchor">{t('venueConfig.typeAnchor')}</option>
-                      </Select>
-                    </Field>
-                  </div>
-                </SectionCard>
-              ) : null}
-
-              {section === 'printers' ? (
-                <SectionCard title={t('venueConfig.printers')} icon={PrinterIcon}>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field className="sm:col-span-2" label={t('venueConfig.kitchenPrinterHost')}>
-                      <Input
-                        placeholder="192.168.1.50"
-                        value={form.kitchenPrinterHost}
-                        onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterHost: e.target.value }))}
-                      />
-                    </Field>
-                    <Field label={t('venueConfig.kitchenPrinterPort')}>
-                      <Input
-                        type="number"
-                        value={form.kitchenPrinterPort}
-                        onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterPort: e.target.value }))}
-                      />
-                    </Field>
-                    <Field className="sm:col-span-2" label={t('venueConfig.receiptPrinterHost')}>
-                      <Input
-                        placeholder={t('venueConfig.receiptPrinterOptional')}
-                        value={form.receiptPrinterHost}
-                        onChange={(e) => setForm((f) => ({ ...f, receiptPrinterHost: e.target.value }))}
-                      />
-                    </Field>
-                    <Field label={t('venueConfig.receiptTemplate')}>
-                      <Select
-                        value={form.receiptTemplate}
-                        onChange={(e) => setForm((f) => ({ ...f, receiptTemplate: e.target.value }))}
-                      >
-                        {RECEIPT_TEMPLATES.map((key) => (
-                          <option key={key} value={key}>
-                            {t(`venueConfig.template.${key}`)}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  </div>
-                </SectionCard>
-              ) : null}
+          ) : section === 'printers' ? (
+            <form onSubmit={savePrinters} className="space-y-6">
+              <SectionCard title={t('venueConfig.printers')} icon={PrinterIcon}>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field className="sm:col-span-2" label={t('venueConfig.kitchenPrinterHost')}>
+                    <Input
+                      placeholder="192.168.1.50"
+                      value={form.kitchenPrinterHost}
+                      onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterHost: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label={t('venueConfig.kitchenPrinterPort')}>
+                    <Input
+                      type="number"
+                      value={form.kitchenPrinterPort}
+                      onChange={(e) => setForm((f) => ({ ...f, kitchenPrinterPort: e.target.value }))}
+                    />
+                  </Field>
+                  <Field className="sm:col-span-2" label={t('venueConfig.receiptPrinterHost')}>
+                    <Input
+                      placeholder={t('venueConfig.receiptPrinterOptional')}
+                      value={form.receiptPrinterHost}
+                      onChange={(e) => setForm((f) => ({ ...f, receiptPrinterHost: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label={t('venueConfig.receiptTemplate')}>
+                    <Select
+                      value={form.receiptTemplate}
+                      onChange={(e) => setForm((f) => ({ ...f, receiptTemplate: e.target.value }))}
+                    >
+                      {RECEIPT_TEMPLATES.map((key) => (
+                        <option key={key} value={key}>
+                          {t(`venueConfig.template.${key}`)}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+              </SectionCard>
 
               <div className="sticky bottom-0 -mx-1 flex items-center justify-end gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-3 shadow-card backdrop-blur">
-                <span className="me-auto text-xs text-slate-400">{t('venueConfig.subtitle')}</span>
                 <Button type="submit" variant="primary" loading={saving}>
                   {t('common.save')}
                 </Button>
@@ -326,6 +482,65 @@ export function VenueSettingsPage() {
           ) : null}
         </div>
       </div>
+
+      <Drawer
+        open={Boolean(configureVenueId)}
+        onClose={closeConfigure}
+        title={
+          configuringVenue
+            ? t('venueConfig.configureRestaurantTitle', {
+                name: i18n.language === 'ar' ? configuringVenue.nameAr || configuringVenue.nameEn : configuringVenue.nameEn,
+              })
+            : t('venueConfig.configureRestaurant')
+        }
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeConfigure} disabled={configureSaving}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              form="configure-restaurant-form"
+              variant="primary"
+              loading={configureSaving}
+              disabled={configureLoading}
+            >
+              {t('common.save')}
+            </Button>
+          </>
+        }
+      >
+        {configureLoading ? (
+          <p className="text-sm text-slate-500">{t('common.loading')}</p>
+        ) : (
+          <form id="configure-restaurant-form" onSubmit={saveConfigure} className="space-y-4">
+            <Field label={t('venueConfig.nameEn')}>
+              <Input
+                required
+                value={configureForm.nameEn}
+                onChange={(e) => setConfigureForm((f) => ({ ...f, nameEn: e.target.value }))}
+              />
+            </Field>
+            <Field label={t('venueConfig.nameAr')}>
+              <Input
+                required
+                dir="rtl"
+                value={configureForm.nameAr}
+                onChange={(e) => setConfigureForm((f) => ({ ...f, nameAr: e.target.value }))}
+              />
+            </Field>
+            <Field label={t('venueConfig.type')}>
+              <Select
+                value={configureForm.type}
+                onChange={(e) => setConfigureForm((f) => ({ ...f, type: e.target.value }))}
+              >
+                <option value="standard">{t('venueConfig.typeStandard')}</option>
+                <option value="anchor">{t('venueConfig.typeAnchor')}</option>
+              </Select>
+            </Field>
+          </form>
+        )}
+      </Drawer>
     </div>
   );
 }

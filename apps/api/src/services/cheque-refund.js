@@ -5,7 +5,7 @@ import { buildRefundReceiptText } from '../utils/serialize.js';
 import { loadCheque, serializeCheque } from './cheque-shared.js';
 import { getCheque } from './cheque-lifecycle.js';
 
-function paymentTotalsByMethod(payments) {
+export function paymentTotalsByMethod(payments) {
   const byMethod = { cash: 0, card: 0, voucher: 0 };
   for (const p of payments) {
     byMethod[p.method] = (byMethod[p.method] ?? 0) + Number(p.amount);
@@ -13,7 +13,7 @@ function paymentTotalsByMethod(payments) {
   return byMethod;
 }
 
-function refundTotalsByMethod(refunds) {
+export function refundTotalsByMethod(refunds) {
   const byMethod = { cash: 0, card: 0, voucher: 0 };
   for (const r of refunds) {
     byMethod[r.method] = (byMethod[r.method] ?? 0) + Number(r.amount);
@@ -56,6 +56,55 @@ export function assertRefundAllowed(cheque, { amount, method }) {
   }
 
   return { refundAmount, refundMethod };
+}
+
+export async function executeSplitRefund(
+  chequeId,
+  {
+    amount,
+    reason,
+    initiatorId,
+    approverId,
+    cashierId,
+    terminalId,
+  },
+  venueId,
+) {
+  let remaining = Number(amount);
+  if (!Number.isFinite(remaining) || remaining <= 0) return [];
+
+  const created = [];
+  while (remaining > 0.009) {
+    const cheque = await loadCheque(chequeId);
+    if (cheque.venueId !== venueId) throw validationError('Cheque not found');
+
+    const paidBy = paymentTotalsByMethod(cheque.payments);
+    const refundedBy = refundTotalsByMethod(cheque.refunds ?? []);
+    const method = ['cash', 'card', 'voucher'].find(
+      (m) => (paidBy[m] ?? 0) - (refundedBy[m] ?? 0) > 0.009,
+    );
+    if (!method) throw validationError('Refund amount exceeds remaining payments');
+
+    const available = Number(((paidBy[method] ?? 0) - (refundedBy[method] ?? 0)).toFixed(2));
+    const chunk = Number(Math.min(remaining, available).toFixed(2));
+    const result = await executeRefund(
+      chequeId,
+      {
+        amount: chunk,
+        method,
+        reason,
+        initiatorId,
+        approverId,
+        cashierId,
+        terminalId,
+      },
+      venueId,
+    );
+    created.push(result.refund);
+    remaining = Number((remaining - chunk).toFixed(2));
+  }
+
+  return created;
 }
 
 export async function executeRefund(

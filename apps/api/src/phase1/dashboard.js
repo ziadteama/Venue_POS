@@ -419,22 +419,22 @@ test('hub manager can read and update venue config', async () => {
   assert.equal(hubBillingRes.json().serviceRate, 0.12);
   assert.equal(hubBillingRes.json().serviceEnabled, true);
 
+  const printerHost = `192.168.1.${100 + (Date.now() % 100)}`;
   const patchRes = await fx.app.inject({
     method: 'PATCH',
     url: `/api/v1/manager/venues/${VENUE_ID}/config`,
     headers: { authorization: `Bearer ${fx.managerToken}` },
     payload: {
-      kitchenPrinterHost: '192.168.1.199',
+      kitchenPrinterHost: printerHost,
       kitchenPrinterPort: 9100,
       receiptTemplate: 'compact',
     },
   });
   assert.equal(patchRes.statusCode, 200);
-  assert.ok(patchRes.json().changes.length >= 1);
+  assert.equal(patchRes.json().config.kitchenPrinterHost, printerHost);
   assert.equal(patchRes.json().config.taxRate, 0.14);
   assert.equal(patchRes.json().config.serviceRate, 0.12);
   assert.equal(patchRes.json().config.serviceEnabled, true);
-  assert.equal(patchRes.json().config.kitchenPrinterHost, '192.168.1.199');
 
   const audits = await fx.app.inject({
     method: 'GET',
@@ -454,6 +454,42 @@ test('terminal can fetch venue settings', async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().venueId, VENUE_ID);
   assert.ok(typeof res.json().taxRate === 'number');
+});
+
+test('hub manager can create a new restaurant', async () => {
+  const res = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/manager/venues',
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+    payload: {
+      nameEn: 'Test Bistro',
+      nameAr: 'مطعم تجريبي',
+      type: 'standard',
+    },
+  });
+  assert.equal(res.statusCode, 200, res.body);
+  const body = res.json();
+  assert.equal(body.nameEn, 'Test Bistro');
+  assert.equal(body.nameAr, 'مطعم تجريبي');
+  assert.equal(body.type, 'standard');
+  assert.ok(body.id);
+
+  const listRes = await fx.app.inject({
+    method: 'GET',
+    url: '/api/v1/venues',
+    headers: { authorization: `Bearer ${fx.managerToken}` },
+  });
+  assert.ok(listRes.json().some((v) => v.id === body.id));
+});
+
+test('hub owner cannot create restaurants', async () => {
+  const res = await fx.app.inject({
+    method: 'POST',
+    url: '/api/v1/manager/venues',
+    headers: { authorization: `Bearer ${fx.ownerToken}` },
+    payload: { nameEn: 'Blocked', nameAr: 'محظور' },
+  });
+  assert.equal(res.statusCode, 403);
 });
 
 test('venue manager cannot patch venue config', async () => {

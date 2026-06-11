@@ -152,6 +152,34 @@ export function computeChequeFeeBreakdown(cheque) {
   return { netSubtotal: net, ...computeVenueCharges(net, cheque.venue) };
 }
 
+function paidChequeActiveSubtotal(cheque) {
+  return billingOrdersFromCheque(cheque)
+    .filter((o) => o.status !== 'voided' && o.status !== 'draft')
+    .reduce(
+      (sum, o) => sum + o.items.reduce((lineSum, item) => lineSum + itemLineTotal(item), 0),
+      0,
+    );
+}
+
+/** Paid-cheque adjustment (void round / comp) including tax + service share. */
+export function computeProportionalPaidRefund(cheque, removedSubtotal) {
+  const removed = Number(removedSubtotal);
+  if (!Number.isFinite(removed) || removed <= 0) return 0;
+
+  const totalPaid = cheque.payments?.reduce((s, p) => s + Number(p.amount), 0) ?? 0;
+  if (totalPaid <= 0) return 0;
+
+  const subtotalBefore = paidChequeActiveSubtotal(cheque);
+  if (subtotalBefore <= 0) return 0;
+
+  const discount = Number(cheque.discountAmount ?? 0);
+  const newSubtotal = Math.max(0, Number((subtotalBefore - removed).toFixed(2)));
+  const newNet = Math.max(0, Number((newSubtotal - discount).toFixed(2)));
+  const totalAfter = computeVenueCharges(newNet, cheque.venue).total;
+
+  return Number(Math.max(0, Math.min(totalPaid, totalPaid - totalAfter)).toFixed(2));
+}
+
 function serializeChildSummary(child, parentCheque) {
   let total;
   if (child.splitAmount != null) {
