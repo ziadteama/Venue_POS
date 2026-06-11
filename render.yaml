@@ -2,8 +2,8 @@ services:
   - type: web
     name: venue-pos-api
     runtime: node
-    region: oregon  # change to your preferred region
-    plan: starter   # or free / standard
+    region: frankfurt  # closest Render region to Egypt
+    plan: standard    # $25/mo — stays up 24/7, no spin-down (use "free" only for testing)
 
     # Build from repo root so the monorepo workspace resolves correctly
     rootDir: .
@@ -65,5 +65,6 @@ databases:
   - name: venue-pos-db
     databaseName: hub_pos
     user: hub_pos
-    region: oregon  # must match service region
-    plan: starter   # or free (limited to 256 MB)
+    region: frankfurt  # closest Render region to Egypt — matches service region
+    plan: basic-1gb    # new flexible plan — cheapest paid tier, no expiry, PITR included
+    storage: 10        # GB — minimum on flexible plans; increase later without downtime
