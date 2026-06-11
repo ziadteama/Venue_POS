@@ -54,7 +54,6 @@ function tablesToText(tables) {
 }
 
 const VENUE_SECTIONS = ['printers', 'billing', 'terminals', 'audit'];
-const HUB_SECTIONS = ['tax', 'tables', 'restaurants'];
 
 function emptyNewVenue() {
   return { nameEn: '', nameAr: '', type: 'standard' };

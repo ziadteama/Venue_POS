@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import './fixture.js';
 import {
   fx,
-  VENUE_ID,
   CASHIER_ID,
   terminalHeaders,
   ensureOpenShift,

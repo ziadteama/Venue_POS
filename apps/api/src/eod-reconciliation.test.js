@@ -26,7 +26,6 @@ let shiftId;
 let todayIso;
 let cashierId;
 let venueMgrId;
-let hubMgrId;
 
 const cheques = {};
 
@@ -185,7 +184,7 @@ before(async () => {
   });
   venueMgrId = venueMgr.id;
 
-  const hubMgr = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { username: 'eod_hub_mgr' },
     update: {
       passwordHash: hubPassword,
@@ -203,7 +202,6 @@ before(async () => {
       venueId: VENUE_ID,
     },
   });
-  hubMgrId = hubMgr.id;
 
   await prisma.user.upsert({
     where: { username: 'owner' },
