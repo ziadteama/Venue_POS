@@ -1,7 +1,5 @@
 import { createContext, createElement, useCallback, useContext, useEffect, useState } from 'react';
-import { resetAuthSession, setAuthInvalidHandler } from '../api/client.js';
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+import { API_URL, resetAuthSession, setAuthInvalidHandler } from '../api/client.js';
 
 const AuthContext = createContext(null);
 

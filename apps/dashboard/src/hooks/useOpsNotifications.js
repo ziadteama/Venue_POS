@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { OPS_SEVERITY } from '@venue-pos/shared';
-import { API_URL, invalidateAuthSession, isAuthFailure } from '../api/client.js';
+import { SOCKET_ORIGIN, invalidateAuthSession, isAuthFailure } from '../api/client.js';
 
 export function useOpsNotifications(token, { enabled = true } = {}) {
   const [healthTick, setHealthTick] = useState(null);
@@ -36,7 +36,7 @@ export function useOpsNotifications(token, { enabled = true } = {}) {
   useEffect(() => {
     if (!token || !enabled) return undefined;
 
-    const socket = io(API_URL, {
+    const socket = io(SOCKET_ORIGIN, {
       path: '/socket.io',
       auth: { token, clientType: 'dashboard' },
       transports: ['websocket'],

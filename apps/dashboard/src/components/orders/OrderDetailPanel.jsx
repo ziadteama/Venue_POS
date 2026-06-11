@@ -98,9 +98,9 @@ export function OrderDetailPanel({
               {t('orders.splitFrom', { number: detail.cheque.parentCheque.chequeNumber })}
             </p>
           ) : null}
-          {detail.totalSubtotal != null ? (
+          {detail.chequeTotal != null ? (
             <p className="font-semibold text-slate-900">
-              {t('orders.chequeTotal')}: {formatMoney(detail.totalSubtotal, locale)} {t('pos.currency')}
+              {t('orders.chequeTotal')}: {formatMoney(detail.chequeTotal, locale)} {t('pos.currency')}
             </p>
           ) : null}
         </div>

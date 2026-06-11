@@ -148,7 +148,7 @@ function hasSentOrders(cheque) {
 
 /** Open cross-venue member with no draft lines and no fired billable subtotal. */
 export function isCrossVenueShellMember(cheque) {
-  if (!cheque?.crossVenueGroupId) return false;
+  if (!cheque?.crossVenueGroupId || cheque.status !== 'open') return false;
   if (computeChequeSubtotal(cheque) > 0) return false;
   const draft = findDraftOrder(cheque);
   if (draft?.items?.length) return false;

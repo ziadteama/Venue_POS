@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { isHubStaff } from '@venue-pos/shared';
 import { apiFetch, apiFetchBlob } from '../api/client.js';
@@ -246,14 +246,17 @@ function ActivityDetailDrawer({ detail, loading, t, locale, currencyLabel, onClo
 export function ActivityPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [venues, setVenues] = useState([]);
-  const [venueId, setVenueId] = useState('all');
-  const [viewMode, setViewMode] = useState('needs_review');
+  const [venueId, setVenueId] = useState(() => searchParams.get('venueId') || 'all');
+  const [viewMode, setViewMode] = useState(() =>
+    searchParams.get('type') ? 'all' : 'needs_review',
+  );
   const [events, setEvents] = useState([]);
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState(() => searchParams.get('type') || 'all');
   const [userFilter, setUserFilter] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState(() => searchParams.get('from') || '');
+  const [to, setTo] = useState(() => searchParams.get('to') || '');
   const [keyword, setKeyword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);

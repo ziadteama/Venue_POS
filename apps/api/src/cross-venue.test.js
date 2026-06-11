@@ -661,7 +661,8 @@ test('target-only cross-sell hides zero anchor shell from manager lists and drop
   });
   assert.equal(anchorDetail.statusCode, 200);
   assert.equal(anchorDetail.json().isCrossVenueShell, true);
-  assert.ok(anchorDetail.json().total > 0);
+  assert.equal(anchorDetail.json().total, 0);
+  assert.ok(anchorDetail.json().crossVenueGroup.displayTotal > 0);
   assert.equal(anchorDetail.json().crossVenueGroup.cheques.length, 1);
 
   const fire = await app.inject({

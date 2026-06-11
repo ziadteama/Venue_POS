@@ -1,6 +1,17 @@
 import { parseApiError } from '../utils/apiError.js';
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+/** Dev uses Vite proxy (same-origin `/api`). Production needs VITE_API_URL. */
+function resolveApiBaseUrl() {
+  const fromEnv = import.meta.env.VITE_API_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  if (import.meta.env.DEV) return '';
+  return 'http://localhost:3000';
+}
+
+const API_URL = resolveApiBaseUrl();
+
+/** Same-origin in dev (Vite proxy); explicit host in production. */
+export const SOCKET_ORIGIN = API_URL || undefined;
 
 let onAuthInvalid = null;
 let sessionInvalidated = false;

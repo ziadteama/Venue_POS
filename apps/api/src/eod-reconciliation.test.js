@@ -545,6 +545,17 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
   assert.equal(opsToday.discountTotal, expected.discountTotal);
   assert.equal(opsToday.grossRevenue, expected.grossPayments);
 
+  const refundsToday = await app.inject({
+    method: 'GET',
+    url: `/api/v1/manager/dashboard/refunds-today?venueId=${VENUE_ID}&metric=eod`,
+    headers: { authorization: `Bearer ${managerToken}` },
+  });
+  assert.equal(refundsToday.statusCode, 200);
+  const refundsBody = refundsToday.json();
+  assert.equal(refundsBody.total, expected.totalRefunds);
+  assert.equal(refundsBody.count, refundsBody.refunds.length);
+  assert.ok(refundsBody.refunds.length >= 1);
+
   // Cross-check day surfaces (close report frozen at shift close)
   assert.equal(closeReport.totalRevenue, expectedNet);
   assert.equal(analyticsBody.totalRevenue, eodBody.netRevenue);

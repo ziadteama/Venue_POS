@@ -1799,6 +1799,29 @@ Login `devops` / `devops123` → `/ops` · Enable notifications · Set `OPS_INGE
 
 ---
 
+### 2026-06-11 — Dev LAN auto-config for phone dashboard
+**Phase:** dev UX
+**What:** `npm run dev` detects LAN IP, sets `VITE_API_URL` + API CORS for dashboard on phone; Vite `host: true`. Opt out: `npm run dev -- --no-lan`.
+**Files:** `scripts/dev-lan.mjs`, `scripts/dev-all.mjs`, `apps/api/src/config.js`, `apps/dashboard/vite.config.js`
+**Verify:** `npm run dev` → open printed `LAN (phone)` dashboard URL on phone (same Wi‑Fi) · login `admin` / `admin123`
+**Notes:** Windows Firewall may still need TCP 3000 + 5173 once. Production CORS unchanged.
+
+---
+
+### 2026-06-11 — Dashboard mobile UX: cheque dates, refunds drill-down, PWA fullscreen
+**Phase:** 8
+**What:** Cheques list/detail show opened/closed/business dates; overview **Refunds today** card opens detail drawer (API `refunds-today`); Cheques page uses mobile drawer master–detail; dashboard PWA manifest + mobile fullscreen toggle.
+**Files:** `ChequesSidebar.jsx`, `ChequeDetailView.jsx`, `ChequesPage.jsx`, `RefundsTodayDrawer.jsx`, `StatCard.jsx`, `dashboard-summary-service.js`, `manager-dashboard.js`, `DashboardHome.jsx`, `OperationsOverviewPage.jsx`, `ActivityPage.jsx`, `Layout.jsx`, `useFullscreen.js`, `public/manifest.webmanifest`, i18n
+**Verify:**
+```bash
+npm run lint && npm run lint:i18n
+npm run test -w @venue-pos/api -- --test-name-pattern="EOD financial"
+```
+Hub manager: `/` → tap Refunds today · `/cheques` on phone (drawer) · header fullscreen (Android) or Add to Home Screen (iOS)
+**Notes:** Operations refunds drawer uses `metric=eod` (shift-open day); executive uses calendar `processedAt`. Activity deep link: `/activity?type=refund&from=YYYY-MM-DD&to=YYYY-MM-DD`.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

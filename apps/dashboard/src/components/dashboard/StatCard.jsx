@@ -23,7 +23,7 @@ const TONES = {
 
 /**
  * Premium KPI card: icon chip, trend pill, animated counter, and an optional
- * sparkline footer. Lifts gently on hover.
+ * sparkline footer. Lifts gently on hover when interactive.
  */
 export function StatCard({
   label,
@@ -36,11 +36,19 @@ export function StatCard({
   tone = 'emerald',
   spark,
   className = '',
+  onClick,
+  interactive = true,
 }) {
   const t = TONES[tone] ?? TONES.emerald;
+  const isButton = Boolean(onClick) && interactive;
+  const surfaceClass = isButton
+    ? 'surface-card-interactive group w-full cursor-pointer p-5 text-start focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2'
+    : interactive
+      ? 'surface-card-interactive group p-5'
+      : 'surface-card p-5';
 
-  return (
-    <div className={`surface-card-interactive group p-5 ${className}`}>
+  const inner = (
+    <>
       <div className="flex items-start justify-between gap-3">
         {Icon ? (
           <span className={`flex h-10 w-10 items-center justify-center rounded-xl ring-1 ${t.icon}`}>
@@ -63,6 +71,16 @@ export function StatCard({
           <Sparkline data={spark} stroke={t.spark} height={44} />
         </div>
       ) : null}
-    </div>
+    </>
   );
+
+  if (isButton) {
+    return (
+      <button type="button" onClick={onClick} className={`${surfaceClass} ${className}`}>
+        {inner}
+      </button>
+    );
+  }
+
+  return <div className={`${surfaceClass} ${className}`}>{inner}</div>;
 }

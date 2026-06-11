@@ -24,6 +24,7 @@ import {
   OrdersIcon,
 } from '../components/dashboard/icons.jsx';
 import { formatMoney, formatShortDate } from '../utils/dashboardFormat.js';
+import { RefundsTodayDrawer } from '../components/dashboard/RefundsTodayDrawer.jsx';
 
 function greetingKey() {
   const h = new Date().getHours();
@@ -42,6 +43,7 @@ export function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [liveUpdates, setLiveUpdates] = useState(false);
   const [chartMode, setChartMode] = useState('daily');
+  const [refundsOpen, setRefundsOpen] = useState(false);
 
   const locale = i18n.language === 'ar' ? 'ar-EG' : 'en-EG';
   const currencyLabel = t('pos.currency');
@@ -245,6 +247,10 @@ export function DashboardHome() {
                 hint={t('dashboard.refundsTodayHint', { count: exec.refundCountToday ?? 0 })}
                 icon={RefundIcon}
                 tone="amber"
+                interactive={(exec.refundCountToday ?? 0) > 0}
+                onClick={
+                  (exec.refundCountToday ?? 0) > 0 ? () => setRefundsOpen(true) : undefined
+                }
                 trend={
                   exec.refundAmountTodayComparison
                     ? {
@@ -379,6 +385,13 @@ export function DashboardHome() {
         </div>
       ) : null}
 
+      <RefundsTodayDrawer
+        open={refundsOpen}
+        onClose={() => setRefundsOpen(false)}
+        venueId={venueId || undefined}
+        metric="calendar"
+        userRole={user?.role}
+      />
     </div>
   );
 }

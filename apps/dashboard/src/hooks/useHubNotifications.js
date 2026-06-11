@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
-import { API_URL, invalidateAuthSession, isAuthFailure } from '../api/client.js';
+import { SOCKET_ORIGIN, invalidateAuthSession, isAuthFailure } from '../api/client.js';
 
 export function useHubNotifications(token) {
   const [notice, setNotice] = useState(null);
@@ -8,7 +8,7 @@ export function useHubNotifications(token) {
   useEffect(() => {
     if (!token) return undefined;
 
-    const socket = io(API_URL, {
+    const socket = io(SOCKET_ORIGIN, {
       path: '/socket.io',
       auth: { token, clientType: 'dashboard' },
       transports: ['websocket'],

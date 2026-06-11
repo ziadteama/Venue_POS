@@ -167,21 +167,43 @@ export function TableFloorModal({
                 {t('pos.takeAway')}
               </p>
               <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => handleSelectActive(takeawayTab)}
-                  className={`rounded-xl border px-3 py-2 text-start text-sm transition ${
-                    takeawayTab.id === currentChequeId
-                      ? 'border-primary-to bg-white text-slate-900 ring-2 ring-primary-to/30'
-                      : 'border-emerald-300 bg-white text-slate-800 hover:border-primary-to/40'
-                  }`}
-                >
-                  <span className="font-semibold">{t('pos.takeAway')}</span>
-                  <span className="mt-0.5 block text-xs text-secondary">
-                    #{takeawayTab.chequeNumber} · {displayChequeTotal(takeawayTab).toFixed(0)}{' '}
-                    {t('pos.currency')}
-                  </span>
-                </button>
+                {(() => {
+                  const chequeForTakeaway =
+                    takeawayTab.id === currentChequeId && currentCheque
+                      ? currentCheque
+                      : takeawayTab;
+                  const takeawayDeletable = canDeleteCheque(chequeForTakeaway);
+                  return (
+                    <div className="relative inline-block">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectActive(takeawayTab)}
+                        className={`rounded-xl border px-3 py-2 text-start text-sm transition ${
+                          takeawayTab.id === currentChequeId
+                            ? 'border-primary-to bg-white text-slate-900 ring-2 ring-primary-to/30'
+                            : 'border-emerald-300 bg-white text-slate-800 hover:border-primary-to/40'
+                        }`}
+                      >
+                        <span className="font-semibold">{t('pos.takeAway')}</span>
+                        <span className="mt-0.5 block text-xs text-secondary">
+                          #{takeawayTab.chequeNumber} ·{' '}
+                          {displayChequeTotal(chequeForTakeaway).toFixed(0)} {t('pos.currency')}
+                        </span>
+                      </button>
+                      {takeawayDeletable ? (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteActive(takeawayTab, e)}
+                          className="absolute end-1 top-1 rounded-lg bg-white/95 p-1 text-slate-400 shadow-sm ring-1 ring-slate-200 hover:bg-red-50 hover:text-red-600"
+                          title={t('pos.closeTakeAway')}
+                          aria-label={t('pos.closeTakeAway')}
+                        >
+                          <CloseXIcon className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ) : null}

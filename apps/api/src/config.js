@@ -6,6 +6,18 @@ function required(name, fallback) {
   return value;
 }
 
+function buildCorsOrigins() {
+  const fromEnv = (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5175')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const devLan = (process.env.DEV_LAN_ORIGINS ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return [...new Set([...fromEnv, ...devLan])];
+}
+
 export const config = {
   env: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 3000),
@@ -20,9 +32,7 @@ export const config = {
     audience: process.env.JWT_AUDIENCE ?? 'hub-pos-clients',
   },
   bcryptRounds: Number(process.env.BCRYPT_ROUNDS ?? 12),
-  corsOrigins: (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5175').split(
-    ',',
-  ),
+  corsOrigins: buildCorsOrigins(),
   logLevel: process.env.LOG_LEVEL ?? 'info',
   featureKdsEnabled: process.env.FEATURE_KDS_ENABLED !== 'false',
   /** Provider onboarding — set FEATURE_MANUAL_CARD_PAYMENT=true when deploying card acceptance */

@@ -6,6 +6,7 @@
  *   npm run dev -- --browser # POS in browser only (no Electron window)
  *   npm run dev -- --kds     # include KDS Vite (:5175)
  *   npm run dev -- --docker  # start Redis container first (optional)
+ *   npm run dev -- --no-lan  # localhost only (no phone/LAN URLs)
  *
  * Postgres: uses DATABASE_URL in apps/api/.env (pgAdmin or Docker — not started here).
  */
@@ -15,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import concurrently from 'concurrently';
 import { ensureNode20Process } from './node20.mjs';
+import { pickDevLanHost } from './dev-lan.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const selfPath = fileURLToPath(import.meta.url);
@@ -30,6 +32,7 @@ const withKds = flags.has('--kds');
 const withDocker = flags.has('--docker');
 const browserOnly = flags.has('--browser');
 const skipPortCleanup = flags.has('--no-stop');
+const lanDev = !flags.has('--no-lan');
 
 function runSync(command, args) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: true });
@@ -92,17 +95,26 @@ if (withKds) {
   jobs.push({ command: 'npm run dev:kds', name: 'kds', prefixColor: 'cyan' });
 }
 
+const stackEnv = { ...devEnv };
+const lanHost = lanDev ? pickDevLanHost() : null;
+if (lanHost) {
+  stackEnv.DEV_LAN_ORIGINS = `http://${lanHost}:5173,http://${lanHost}:5175`;
+}
+
 console.log('\nVenue POS dev stack (run from repo root: npm run dev)');
 console.log('  API        http://localhost:3000');
 console.log('  Dashboard  http://localhost:5173');
 console.log('  Agent      http://127.0.0.1:3456');
 console.log(browserOnly ? '  POS        http://localhost:5174' : '  POS        Electron + http://localhost:5174');
 if (withKds) console.log('  KDS        http://localhost:5175');
+if (lanHost) {
+  console.log(`  LAN (phone)  http://${lanHost}:5173  (API proxied via Vite — same Wi‑Fi)`);
+}
 console.log('  Ctrl+C to stop all\n');
 
 const { result } = concurrently(jobs, {
   cwd: root,
-  env: devEnv,
+  env: stackEnv,
   // Closing the Electron window stops POS only — keep API/dashboard/agent running.
   killOthersOn: { failure: ['api', 'dashboard', 'agent', ...(withKds ? ['kds'] : [])] },
 });

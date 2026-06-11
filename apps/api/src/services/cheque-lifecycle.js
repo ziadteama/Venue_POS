@@ -384,11 +384,9 @@ export async function getCheque(chequeId, venueId) {
       ? await getCrossVenueGroup(cheque.crossVenueGroupId, venueId)
       : null;
   const serialized = serializeCheque(cheque);
-  if (crossVenueGroup && isCrossVenueShellMember(cheque)) {
+  if (isCrossVenueShellMember(cheque)) {
     return {
       ...serialized,
-      total: crossVenueGroup.displayTotal,
-      crossVenueDisplayTotal: crossVenueGroup.displayTotal,
       isCrossVenueShell: true,
       crossVenueGroup,
     };
