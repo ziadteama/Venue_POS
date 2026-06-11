@@ -1,5 +1,5 @@
 import { prisma } from '../db/prisma.js';
-import { validationError } from '../utils/errors.js';
+import { notFound, validationError } from '../utils/errors.js';
 import { listManagerActivity } from './manager-action-service.js';
 
 const PAGE_SIZE = 100;
@@ -90,6 +90,90 @@ function auditEventType(action) {
   return action?.split('.')[0] ?? action;
 }
 
+function resolveChequeId(row) {
+  if (row.entityType === 'cheque' && row.entityId) return row.entityId;
+  return row.details?.chequeId ?? null;
+}
+
+function field(key, value) {
+  if (value == null || value === '') return null;
+  return { key, value };
+}
+
+function buildDetailFields(event) {
+  const d = event.details ?? {};
+  const fields = [
+    field('cheque', event.chequeNumber != null ? `#${event.chequeNumber}` : null),
+    field('table', event.tableLabel ?? d.tableLabel),
+    field('amount', event.amount != null ? Number(event.amount).toFixed(2) : null),
+    field('method', event.method ?? d.method),
+    field('percent', event.percent != null ? `${event.percent}%` : d.percent != null ? `${d.percent}%` : null),
+    field('previousAmount', event.previousAmount != null ? Number(event.previousAmount).toFixed(2) : null),
+    field('reason', event.reason ?? d.reason),
+    field('cashier', event.cashier ?? d.cashier ?? (event.action === 'check.pre_pay_adjust' ? event.actor : null)),
+    field('initiator', event.initiator ?? d.initiator),
+    field('approver', event.approver ?? d.approver ?? event.manager),
+    field('item', event.itemName ?? d.itemName),
+    field('order', event.orderNumber != null ? `#${event.orderNumber}` : d.orderNumber != null ? `#${d.orderNumber}` : null),
+    field('quantityChange',
+      d.previousQty != null
+        ? `${d.previousQty} → ${d.newQty ?? 0}`
+        : null,
+    ),
+    field('sourceCheque', event.sourceChequeNumber != null ? `#${event.sourceChequeNumber}` : null),
+    field('targetCheque', event.targetChequeNumber != null ? `#${event.targetChequeNumber}` : null),
+    field('targetTable', event.targetTable ?? d.targetTable),
+    field('printCount', d.printCount != null ? String(d.printCount) : null),
+    field('targetUser', event.targetUsername ?? d.targetUsername),
+    field('closeFloat', d.closeFloat != null ? Number(d.closeFloat).toFixed(2) : null),
+    field('expectedCash', d.expectedCash != null ? Number(d.expectedCash).toFixed(2) : null),
+    field('overShort', event.amount != null && event.type === 'shift_force_close'
+      ? Number(event.amount).toFixed(2)
+      : d.overShortAmount != null
+        ? Number(d.overShortAmount).toFixed(2)
+        : null),
+  ].filter(Boolean);
+
+  const seen = new Set();
+  return fields.filter((f) => {
+    if (seen.has(f.key)) return false;
+    seen.add(f.key);
+    return true;
+  });
+}
+
+function finalizeAuditEvent(base) {
+  const chequeId =
+    base.chequeId ??
+    (base.entityType === 'cheque' ? base.entityId : null) ??
+    resolveChequeId({ entityType: base.entityType, entityId: base.entityId, details: base.details });
+  const event = {
+    ...base,
+    chequeId,
+    initiator: base.initiator ?? base.details?.initiator ?? null,
+    approver: base.approver ?? base.details?.approver ?? base.manager ?? null,
+  };
+  return {
+    ...event,
+    fields: buildDetailFields(event),
+    links: buildAuditLinks(event),
+  };
+}
+
+function buildAuditLinks(event) {
+  const links = [];
+  if (event.chequeId && event.venueId) {
+    links.push({ type: 'cheque', chequeId: event.chequeId, venueId: event.venueId });
+  }
+  if (event.targetChequeId && event.venueId) {
+    links.push({ type: 'cheque', chequeId: event.targetChequeId, venueId: event.venueId, labelKey: 'targetCheque' });
+  }
+  if (event.shiftId && event.venueId) {
+    links.push({ type: 'shift', shiftId: event.shiftId, venueId: event.venueId });
+  }
+  return links;
+}
+
 async function fetchAuditLogRows(venueId, filters) {
   if (filters.type && SHIFT_TYPE_FILTERS.has(filters.type)) return [];
 
@@ -128,24 +212,32 @@ async function fetchAuditLogRows(venueId, filters) {
     take: 500,
   });
 
-  return rows.map((row) => ({
-    id: `log:${row.id}`,
-    type: auditEventType(row.action),
-    action: row.action,
-    at: row.createdAt.toISOString(),
-    venueId: row.venueId,
-    actor: row.actorUsername,
-    summary: row.summary,
-    entityType: row.entityType,
-    entityId: row.entityId,
-    details: row.details,
-    chequeNumber: row.details?.chequeNumber ?? null,
-    tableLabel: row.details?.tableLabel ?? null,
-    amount: row.details?.amount ?? null,
-    reason: row.details?.reason ?? null,
-    manager: row.actorUsername,
-    detail: row.summary,
-  }));
+  return rows.map((row) =>
+    finalizeAuditEvent({
+      id: `log:${row.id}`,
+      type: auditEventType(row.action),
+      action: row.action,
+      at: row.createdAt.toISOString(),
+      venueId: row.venueId,
+      actor: row.actorUsername,
+      summary: row.summary,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      details: row.details,
+      chequeId: resolveChequeId(row),
+      chequeNumber: row.details?.chequeNumber ?? null,
+      tableLabel: row.details?.tableLabel ?? null,
+      amount: row.details?.amount ?? null,
+      method: row.details?.method ?? null,
+      reason: row.details?.reason ?? null,
+      initiator: row.details?.initiator ?? null,
+      approver: row.details?.approver ?? null,
+      itemName: row.details?.itemName ?? null,
+      orderNumber: row.details?.orderNumber ?? null,
+      manager: row.actorUsername,
+      detail: row.summary,
+    }),
+  );
 }
 
 async function fetchDomainActivity(venueId, filters) {
@@ -189,13 +281,17 @@ async function fetchDomainActivity(venueId, filters) {
       return t >= fromMs && t <= toMs;
     });
   }
-  return filtered.map((ev) => ({
-    ...ev,
-    id: `domain:${ev.type}:${ev.id}`,
-    action: ev.type,
-    actor: ev.manager,
-    summary: ev.detail ?? ev.reason ?? ev.type,
-  }));
+  return filtered.map((ev) =>
+    finalizeAuditEvent({
+      ...ev,
+      id: `domain:${ev.type}:${ev.id}`,
+      action: ev.type,
+      actor: ev.manager,
+      summary: ev.detail ?? ev.reason ?? ev.type,
+      entityType: ev.chequeId ? 'cheque' : null,
+      entityId: ev.chequeId ?? ev.orderId ?? null,
+    }),
+  );
 }
 
 async function fetchConfigAudits(venueId, filters) {
@@ -267,12 +363,13 @@ async function fetchShiftEvents(venueId, filters) {
 
   let mapped = rows.map((row) => {
     const forced = row.details?.forcedByManager === true;
-    return {
+    return finalizeAuditEvent({
       id: `shift:${row.id}`,
       type: forced ? 'shift_force_close' : row.action === 'open' ? 'shift_open' : 'shift_close',
       action: forced ? 'shift.force_close' : `shift.${row.action}`,
       at: row.createdAt.toISOString(),
       venueId,
+      shiftId: row.shift.id,
       actor: row.user.username,
       summary: forced ? 'Shift force-closed by manager' : `Shift ${row.action}`,
       details: row.details,
@@ -280,7 +377,7 @@ async function fetchShiftEvents(venueId, filters) {
       detail: forced ? 'Shift force-closed by manager' : `Shift ${row.action}`,
       amount: row.details?.overShortAmount ?? null,
       reason: forced ? 'Manager force-close' : null,
-    };
+    });
   });
 
   if (filters.q?.trim()) {
