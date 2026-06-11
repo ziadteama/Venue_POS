@@ -38,11 +38,20 @@ const paidCheque = {
 };
 
 test('buildRestaurantReceiptText labels restaurant copy', () => {
-  const text = buildRestaurantReceiptText(paidCheque, venue, { tendered: 200, change: 50 });
+  const withCard = {
+    ...paidCheque,
+    payments: [
+      { method: 'cash', amount: 50 },
+      { method: 'card', amount: 100, cardLast4: '4242' },
+    ],
+  };
+  const text = buildRestaurantReceiptText(withCard, venue, { tendered: 200, change: 50 });
   assert.ok(text.includes('*** RESTAURANT COPY ***'));
   assert.ok(text.includes('For restaurant records'));
   assert.ok(!text.includes('Thank you!'));
   assert.ok(text.includes('Payments:'));
+  assert.ok(text.includes('  card: 100.00'));
+  assert.ok(!text.includes('4242'));
 });
 
 test('buildChequeReceiptText customer copy thanks guest', () => {
@@ -51,9 +60,9 @@ test('buildChequeReceiptText customer copy thanks guest', () => {
   assert.ok(!text.includes('RESTAURANT COPY'));
 });
 
-test('pre-payment check is not a payment receipt', () => {
+test('pre-payment check ends with thank you', () => {
   const text = buildChequeReceiptText(paidCheque, venue, { preview: true, copyNumber: 2 });
   assert.ok(text.includes('PRE-PAYMENT CHECK'));
   assert.ok(text.includes('COPY #2'));
-  assert.ok(text.includes('Not a payment receipt'));
+  assert.ok(text.includes('Thank you!'));
 });

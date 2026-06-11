@@ -215,8 +215,7 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change, previe
   if (cheque.payments?.length) {
     lines.push('Payments:');
     for (const p of cheque.payments) {
-      const cardNote = p.cardLast4 ? ` ****${p.cardLast4}` : '';
-      lines.push(`  ${p.method}${cardNote}: ${Number(p.amount).toFixed(2)}`);
+      lines.push(`  ${p.method}: ${Number(p.amount).toFixed(2)}`);
     }
   }
 
@@ -225,7 +224,7 @@ export function buildChequeReceiptText(cheque, venue, { tendered, change, previe
     lines.push(`Change: ${Number(change).toFixed(2)}`);
   }
 
-  lines.push('---', preview ? 'Not a payment receipt' : 'Thank you!');
+  lines.push('---', 'Thank you!');
   return lines.join('\n');
 }
 
@@ -251,8 +250,7 @@ export function buildRestaurantReceiptText(cheque, venue, { tendered, change } =
   if (cheque.payments?.length) {
     lines.push('Payments:');
     for (const p of cheque.payments) {
-      const cardNote = p.cardLast4 ? ` ****${p.cardLast4}` : '';
-      lines.push(`  ${p.method}${cardNote}: ${Number(p.amount).toFixed(2)}`);
+      lines.push(`  ${p.method}: ${Number(p.amount).toFixed(2)}`);
     }
   }
 
@@ -294,7 +292,7 @@ export function buildFullSplitReceiptText(parentCheque, childCheques, venue) {
     grandTotal += remainder;
   }
 
-  lines.push(`TABLE TOTAL: ${grandTotal.toFixed(2)}`, '---', 'Not a payment receipt');
+  lines.push(`TABLE TOTAL: ${grandTotal.toFixed(2)}`, '---', 'Thank you!');
   return lines.join('\n');
 }
 

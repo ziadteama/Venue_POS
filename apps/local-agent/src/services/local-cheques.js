@@ -545,6 +545,6 @@ export function buildLocalReceiptText(db, chequeId, { preview = true } = {}) {
       lines.push(`${item.quantity}x ${item.nameEn} ${(item.unitPrice * item.quantity).toFixed(2)}`);
     }
   }
-  lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`, '---', preview ? 'Not a payment receipt' : 'Thank you!');
+  lines.push('---', `TOTAL: ${cheque.total.toFixed(2)}`, '---', 'Thank you!');
   return lines.join('\n');
 }
