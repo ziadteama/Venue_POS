@@ -62,9 +62,6 @@ export async function voidChequeRound(
   const isPaid = cheque.status === 'paid';
   const roundSubtotal = isPaid ? orderBillableSubtotal(order) : 0;
   const roundAmount = isPaid ? computeProportionalPaidRefund(cheque, roundSubtotal) : 0;
-  // #region agent log
-  fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'A',location:'cheque-manager.js:voidChequeRound',message:'paid void refund amounts',data:{chequeId,orderId,chequeStatus:cheque.status,orderStatus:order.status,isPaid,roundSubtotal,roundAmount,venueId},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   if (order.status === 'draft' && !order.items.length) {
     await prisma.order.delete({ where: { id: orderId } });
@@ -87,9 +84,6 @@ export async function voidChequeRound(
   ]);
 
   if (isPaid && roundAmount > 0) {
-    // #region agent log
-    fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'pre-fix',hypothesisId:'C',location:'cheque-manager.js:voidChequeRound',message:'executing refund adjustment',data:{chequeId,refundAmount:roundAmount},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     await refundPaidAdjustment(
       cheque,
       roundAmount,

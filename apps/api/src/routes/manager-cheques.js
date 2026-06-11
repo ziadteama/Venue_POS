@@ -183,25 +183,14 @@ export async function managerChequeRoutes(app) {
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
 
       const venueId = resolveVenueId(request);
-      // #region agent log
-      fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'F',location:'manager-cheques.js:void-round',message:'void round request',data:{chequeId:request.params.id,orderId:request.params.orderId,venueId,queryVenueId:request.query?.venueId??null,userRole:request.user?.role},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (!venueId) throw validationError('Venue is required');
 
-      let result;
-      try {
-        result = await voidChequeRound(
-          request.params.id,
-          request.params.orderId,
-          hubActor(request, parsed.data),
-          venueId,
-        );
-      } catch (err) {
-        // #region agent log
-        fetch('http://127.0.0.1:7914/ingest/66a003c4-bd01-4d5a-8e95-9c5efaf28c36',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'c47f38'},body:JSON.stringify({sessionId:'c47f38',runId:'post-fix',hypothesisId:'G',location:'manager-cheques.js:void-round',message:'void round failed',data:{chequeId:request.params.id,orderId:request.params.orderId,venueId,error:err?.message,statusCode:err?.statusCode??400},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-        throw err;
-      }
+      const result = await voidChequeRound(
+        request.params.id,
+        request.params.orderId,
+        hubActor(request, parsed.data),
+        venueId,
+      );
       if (request.server.io && result.voidedOrderId) {
         emitOrderVoided(request.server.io, {
           orderId: result.voidedOrderId,
