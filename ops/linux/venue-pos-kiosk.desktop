@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Venue POS
+Comment=Venue POS kiosk
+Exec=/opt/venue-pos/pos/start-kiosk.sh
+X-GNOME-Autostart-enabled=true

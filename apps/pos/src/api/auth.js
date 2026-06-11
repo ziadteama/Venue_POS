@@ -1,5 +1,18 @@
 import { AGENT_URL, API_URL, TERMINAL_ID, TERMINAL_SECRET } from '../config.js';
 
+function agentUrl() {
+  return AGENT_URL();
+}
+function apiUrl() {
+  return API_URL();
+}
+function terminalId() {
+  return TERMINAL_ID();
+}
+function terminalSecret() {
+  return TERMINAL_SECRET();
+}
+
 function parsePinError(body) {
   if (!body) return 'Invalid PIN';
   try {
@@ -16,7 +29,7 @@ export async function loginWithPin(pin) {
     return window.venuePos.loginPin(pin);
   }
 
-  const agentRes = await fetch(`${AGENT_URL}/v1/auth/pin`, {
+  const agentRes = await fetch(`${agentUrl()}/v1/auth/pin`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ pin }),
@@ -24,16 +37,16 @@ export async function loginWithPin(pin) {
   const agentData = await agentRes.json().catch(() => ({}));
   if (agentRes.ok) return agentData;
 
-  if (!TERMINAL_ID || !TERMINAL_SECRET) {
+  if (!terminalId() || !terminalSecret()) {
     throw new Error(parsePinError(agentData));
   }
 
-  const res = await fetch(`${API_URL}/api/v1/auth/pin`, {
+  const res = await fetch(`${apiUrl()}/api/v1/auth/pin`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-terminal-id': TERMINAL_ID,
-      'x-terminal-secret': TERMINAL_SECRET,
+      'x-terminal-id': terminalId(),
+      'x-terminal-secret': terminalSecret(),
     },
     body: JSON.stringify({ pin }),
   });

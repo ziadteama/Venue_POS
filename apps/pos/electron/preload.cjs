@@ -1,25 +1,8 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 const { io } = require('socket.io-client');
-
-let posSocket;
-function ensurePosSocket() {
-  if (!posSocket) {
-    posSocket = io(apiUrl, {
-      path: '/socket.io',
-      auth: { terminalId, terminalSecret, clientType: 'pos' },
-      transports: ['websocket'],
-    });
-  }
-  return posSocket;
-}
-
-const agentUrl = process.env.VITE_LOCAL_AGENT_URL ?? 'http://127.0.0.1:3456';
-const apiUrl = process.env.VITE_API_URL ?? 'http://localhost:3000';
-const terminalId = process.env.VITE_TERMINAL_ID ?? '00000000-0000-4000-8000-000000000001';
-const terminalSecret = process.env.VITE_TERMINAL_SECRET ?? 'dev-terminal-secret';
 
 function parseApiError(raw, fallback = 'Request failed') {
   if (!raw) return fallback;
@@ -40,19 +23,57 @@ function parseApiError(raw, fallback = 'Request failed') {
   } catch {
     // ignore
   }
-  const wrapped = text.match(/failed \(\d+\):\s*(\{[\s\S]+\})\s*$/)?.[1];
-  if (wrapped) {
-    try {
-      const inner = JSON.parse(wrapped);
-      if (inner.error?.message) return inner.error.message;
-    } catch {
-      // ignore
-    }
-  }
   return text.length > 160 ? `${text.slice(0, 160)}…` : text;
 }
 
+let cachedConfig = null;
+/** @type {import('socket.io-client').Socket | null} */
+let posSocket = null;
+
+async function loadConfig() {
+  if (cachedConfig) return cachedConfig;
+  cachedConfig = await ipcRenderer.invoke('config:get');
+  return cachedConfig;
+}
+
+function cfg() {
+  return (
+    cachedConfig ?? {
+      agentUrl: process.env.VITE_LOCAL_AGENT_URL ?? 'http://127.0.0.1:3456',
+      apiUrl: process.env.VITE_API_URL ?? 'http://localhost:3000',
+      terminalId: process.env.VITE_TERMINAL_ID ?? '',
+      terminalSecret: process.env.VITE_TERMINAL_SECRET ?? '',
+    }
+  );
+}
+
+function ensurePosSocket() {
+  const c = cfg();
+  if (!c.apiUrl || !c.terminalId || !c.terminalSecret) return null;
+  if (!posSocket) {
+    posSocket = io(c.apiUrl, {
+      path: '/socket.io',
+      auth: {
+        terminalId: c.terminalId,
+        terminalSecret: c.terminalSecret,
+        clientType: 'pos',
+      },
+      transports: ['websocket'],
+    });
+  }
+  return posSocket;
+}
+
+function resetSocket() {
+  if (posSocket) {
+    posSocket.disconnect();
+    posSocket = null;
+  }
+}
+
 async function agentFetch(path, options = {}) {
+  const c = await loadConfig();
+  const agentUrl = c.agentUrl ?? 'http://127.0.0.1:3456';
   const method = options.method ?? 'GET';
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
   const res = await fetch(`${agentUrl}${path}`, {
@@ -68,6 +89,18 @@ async function agentFetch(path, options = {}) {
 }
 
 contextBridge.exposeInMainWorld('venuePos', {
+  getConfig: () => ipcRenderer.invoke('config:get'),
+  isConfigComplete: () => ipcRenderer.invoke('config:isComplete'),
+  saveConfig: async (partial) => {
+    const result = await ipcRenderer.invoke('config:save', partial);
+    cachedConfig = result.config;
+    resetSocket();
+    return result;
+  },
+  testConnection: (partial) => ipcRenderer.invoke('config:test', partial),
+  detectLanHost: () => ipcRenderer.invoke('config:detectLanHost'),
+  restartAgent: () => ipcRenderer.invoke('config:restartAgent'),
+
   getAgentHealth: () => agentFetch('/health'),
   getMenu: () => agentFetch('/v1/menu'),
   syncMenu: () => agentFetch('/v1/menu/sync', { method: 'POST' }),
@@ -146,6 +179,8 @@ contextBridge.exposeInMainWorld('venuePos', {
       body: JSON.stringify(body),
     }),
   loginPin: async (pin) => {
+    const c = await loadConfig();
+    const agentUrl = c.agentUrl ?? 'http://127.0.0.1:3456';
     const res = await fetch(`${agentUrl}/v1/auth/pin`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -158,26 +193,32 @@ contextBridge.exposeInMainWorld('venuePos', {
   platform: process.platform,
   onItemStatusChange(handler) {
     const socket = ensurePosSocket();
+    if (!socket) return () => {};
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('order:item_status', listener);
     return () => socket.off('order:item_status', listener);
   },
   onFloorTableUpdated(handler) {
     const socket = ensurePosSocket();
+    if (!socket) return () => {};
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('floor:table_updated', listener);
     return () => socket.off('floor:table_updated', listener);
   },
   onHubTablesUpdated(handler) {
     const socket = ensurePosSocket();
+    if (!socket) return () => {};
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('hub:tables_updated', listener);
     return () => socket.off('hub:tables_updated', listener);
   },
   onManagerNotification(handler) {
     const socket = ensurePosSocket();
+    if (!socket) return () => {};
     const listener = (msg) => handler(msg?.payload ?? msg);
     socket.on('manager:notification', listener);
     return () => socket.off('manager:notification', listener);
   },
 });
+
+loadConfig().catch(() => {});

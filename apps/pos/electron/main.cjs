@@ -1,25 +1,39 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
+const {
+  readConfig,
+  writeConfig,
+  writeAgentEnv,
+  testConnections,
+  restartAgentService,
+  isConfigComplete,
+  detectLanHost,
+} = require('./config-store.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
-const isKiosk = process.env.ELECTRON_IS_KIOSK === 'true';
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 
-if (isDev && process.platform === 'win32') {
-  // Reduces GPU-related renderer crashes on some Windows setups.
-  app.disableHardwareAcceleration();
+function getUserDataPath() {
+  return app.getPath('userData');
+}
+
+function currentConfig() {
+  return readConfig(getUserDataPath());
 }
 
 function createWindow() {
+  const cfg = currentConfig();
+  const kiosk = cfg.kioskMode !== false && (process.env.ELECTRON_IS_KIOSK === 'true' || cfg.kioskMode);
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    fullscreen: isKiosk,
-    kiosk: isKiosk,
+    fullscreen: kiosk,
+    kiosk,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -32,7 +46,7 @@ function createWindow() {
     mainWindow = null;
   });
 
-  if (isKiosk) {
+  if (kiosk) {
     mainWindow.removeMenu();
     mainWindow.webContents.on('context-menu', (event) => event.preventDefault());
     mainWindow.webContents.on('before-input-event', (event, input) => {
@@ -50,13 +64,8 @@ function createWindow() {
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
     console.error('[pos] Renderer process gone:', details);
     if (mainWindow && !mainWindow.isDestroyed()) {
-      console.error('[pos] Reloading POS window after renderer exit…');
       loadPos(mainWindow);
     }
-  });
-
-  mainWindow.webContents.on('unresponsive', () => {
-    console.error('[pos] Renderer became unresponsive');
   });
 
   loadPos(mainWindow);
@@ -70,7 +79,39 @@ function loadPos(win) {
   }
 }
 
-app.whenReady().then(createWindow);
+function registerIpc() {
+  ipcMain.handle('config:get', () => {
+    const cfg = readConfig(getUserDataPath());
+    return { ...cfg, detectedLanHost: detectLanHost() };
+  });
+
+  ipcMain.handle('config:isComplete', () => isConfigComplete(readConfig(getUserDataPath())));
+
+  ipcMain.handle('config:save', async (_event, partial) => {
+    const saved = writeConfig(getUserDataPath(), partial);
+    const envPath = writeAgentEnv(saved);
+    const restart = restartAgentService();
+    return { config: saved, envPath, restart };
+  });
+
+  ipcMain.handle('config:test', async (_event, partial) => {
+    const cfg = { ...readConfig(getUserDataPath()), ...partial };
+    return testConnections(cfg);
+  });
+
+  ipcMain.handle('config:restartAgent', () => restartAgentService());
+
+  ipcMain.handle('config:detectLanHost', () => detectLanHost());
+}
+
+if (isDev && process.platform === 'win32') {
+  app.disableHardwareAcceleration();
+}
+
+app.whenReady().then(() => {
+  registerIpc();
+  createWindow();
+});
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

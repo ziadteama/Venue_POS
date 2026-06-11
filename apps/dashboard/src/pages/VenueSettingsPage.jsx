@@ -7,6 +7,7 @@ import { BillingMatrixSection } from '../components/BillingMatrixSection.jsx';
 import { HubTablesSection } from '../components/HubTablesSection.jsx';
 import { HubTaxMatrixSection } from '../components/HubTaxMatrixSection.jsx';
 import { TerminalsSection } from '../components/TerminalsSection.jsx';
+import { FeaturesSection } from '../components/FeaturesSection.jsx';
 import { ReceiptPreviewSection } from '../components/ReceiptPreviewSection.jsx';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { SectionCard } from '../components/ui/Card.jsx';
@@ -94,6 +95,7 @@ export function VenueSettingsPage() {
       { id: 'printers', label: t('venueConfig.printers'), icon: PrinterIcon },
       { id: 'receipts', label: t('receiptPreview.title'), icon: ReceiptIcon },
       { id: 'billing', label: t('billing.title'), icon: SettingsIcon },
+      { id: 'features', label: t('features.title'), icon: SettingsIcon },
       { id: 'terminals', label: t('terminals.title'), icon: PowerIcon },
       { id: 'audit', label: t('venueConfig.recentChanges'), icon: ActivityIcon },
     ],
@@ -464,6 +466,8 @@ export function VenueSettingsPage() {
             venueId ? (
               <BillingMatrixSection anchorVenueId={venueId} anchorType={form.type} />
             ) : null
+          ) : section === 'features' ? (
+            <FeaturesSection />
           ) : section === 'terminals' ? (
             <TerminalsSection venueId={venueId || undefined} />
           ) : section === 'audit' ? (

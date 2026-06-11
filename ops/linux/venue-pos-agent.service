@@ -1,0 +1,20 @@
+[Unit]
+Description=Venue POS local agent (SQLite + offline sync)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=venuepos
+Group=venuepos
+WorkingDirectory=/opt/venue-pos/local-agent
+Environment=NODE_ENV=production
+Environment=VENUE_POS_AGENT_ROOT=/opt/venue-pos/local-agent
+ExecStart=/usr/bin/env node src/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

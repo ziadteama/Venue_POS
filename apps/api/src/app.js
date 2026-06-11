@@ -32,6 +32,7 @@ import { floorRoutes } from './routes/floor.js';
 import { managerDashboardRoutes } from './routes/manager-dashboard.js';
 import { managerTerminalRoutes } from './routes/manager-terminals.js';
 import { opsRoutes } from './routes/ops.js';
+import { managerHubSettingsRoutes } from './routes/manager-hub-settings.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -78,6 +79,7 @@ export async function buildApp() {
   await app.register(managerDashboardRoutes);
   await app.register(managerTerminalRoutes);
   await app.register(opsRoutes);
+  await app.register(managerHubSettingsRoutes);
 
   return app;
 }

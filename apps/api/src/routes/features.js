@@ -1,8 +1,8 @@
 import { prisma } from '../db/prisma.js';
 import { authenticateTerminal } from '../middleware/terminal.js';
-import { config } from '../config.js';
 import { listHubTableLabels } from '../services/hub-table-service.js';
 import { getEnabledTargets } from '../services/billing-config-service.js';
+import { resolveHubFeatures } from '../services/hub-settings-service.js';
 
 export async function featureRoutes(app) {
   app.get('/api/v1/features', { preHandler: authenticateTerminal }, async (request) => {
@@ -13,20 +13,21 @@ export async function featureRoutes(app) {
     });
     const tables = await listHubTableLabels();
 
-    const crossVenueTargets = config.featureCrossVenueBilling
+    const hubFeatures = await resolveHubFeatures();
+    const crossVenueTargets = hubFeatures.crossVenueBilling
       ? await getEnabledTargets(venueId)
       : [];
 
     return {
-      manualCardPayment: config.featureManualCardEnabled,
-      manualCardApprovalThreshold: config.manualCardApprovalThreshold,
-      kdsEnabled: config.featureKdsEnabled,
-      lineTransfer: config.featureLineTransferEnabled,
-      discounts: config.featureDiscountsEnabled,
-      refunds: config.featureRefundsEnabled,
-      autoReceiptPrint: config.featureAutoReceiptPrint,
+      manualCardPayment: hubFeatures.manualCardPayment,
+      manualCardApprovalThreshold: hubFeatures.manualCardApprovalThreshold,
+      kdsEnabled: hubFeatures.kdsEnabled,
+      lineTransfer: hubFeatures.lineTransfer,
+      discounts: hubFeatures.discounts,
+      refunds: hubFeatures.refunds,
+      autoReceiptPrint: hubFeatures.autoReceiptPrint,
       tables,
-      crossVenueBilling: config.featureCrossVenueBilling && crossVenueTargets.length > 0,
+      crossVenueBilling: hubFeatures.crossVenueBilling && crossVenueTargets.length > 0,
       isAnchor: venue?.type === 'anchor',
       crossVenueTargets,
       anchorVenue:

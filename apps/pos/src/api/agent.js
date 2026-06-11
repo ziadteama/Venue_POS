@@ -82,7 +82,7 @@ export async function callAgent(path, options = {}) {
   }
 
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;
-  const res = await fetch(`${AGENT_URL}${path}`, {
+  const res = await fetch(`${AGENT_URL()}${path}`, {
     headers: { 'content-type': 'application/json', ...options.headers },
     ...options,
     ...(needsBody ? { body: '{}' } : {}),

@@ -15,11 +15,15 @@ export function useManagerNotifications(onNotification) {
       return window.venuePos.onManagerNotification(handlePayload);
     }
 
-    if (!TERMINAL_ID || !TERMINAL_SECRET) return undefined;
+    if (!TERMINAL_ID() || !TERMINAL_SECRET()) return undefined;
 
-    const socket = io(API_URL, {
+    const socket = io(API_URL(), {
       path: '/socket.io',
-      auth: { terminalId: TERMINAL_ID, terminalSecret: TERMINAL_SECRET, clientType: 'pos' },
+      auth: {
+        terminalId: TERMINAL_ID(),
+        terminalSecret: TERMINAL_SECRET(),
+        clientType: 'pos',
+      },
       transports: ['websocket'],
     });
     socket.on('manager:notification', (msg) => handlePayload(msg?.payload ?? msg));

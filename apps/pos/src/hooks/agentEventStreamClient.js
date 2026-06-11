@@ -22,7 +22,7 @@ function notifyMenu(payload) {
 
 function connect() {
   if (eventSource || refCount === 0) return;
-  eventSource = new EventSource(`${AGENT_URL}/v1/events/stream`);
+  eventSource = new EventSource(`${AGENT_URL()}/v1/events/stream`);
 
   eventSource.addEventListener('hub:tables_updated', (event) => {
     try {

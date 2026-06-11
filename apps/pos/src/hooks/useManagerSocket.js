@@ -14,11 +14,15 @@ export function useManagerSocket(chequeId, onAction) {
     if (window.venuePos?.onManagerAction) {
       return window.venuePos.onManagerAction(handlePayload);
     }
-    if (!TERMINAL_ID || !TERMINAL_SECRET || !chequeId) return undefined;
+    if (!TERMINAL_ID() || !TERMINAL_SECRET() || !chequeId) return undefined;
 
-    const socket = io(API_URL, {
+    const socket = io(API_URL(), {
       path: '/socket.io',
-      auth: { terminalId: TERMINAL_ID, terminalSecret: TERMINAL_SECRET, clientType: 'pos' },
+      auth: {
+        terminalId: TERMINAL_ID(),
+        terminalSecret: TERMINAL_SECRET(),
+        clientType: 'pos',
+      },
       transports: ['websocket'],
     });
     socket.on('manager:action', (msg) => handlePayload(msg?.payload ?? msg));

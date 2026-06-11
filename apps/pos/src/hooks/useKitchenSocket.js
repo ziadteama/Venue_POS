@@ -29,10 +29,14 @@ export function useKitchenSocket(enabled = true) {
     if (window.venuePos?.onItemStatusChange) {
       return window.venuePos.onItemStatusChange(applyItemStatus);
     }
-    if (!TERMINAL_ID || !TERMINAL_SECRET) return undefined;
-    const socket = io(API_URL, {
+    if (!TERMINAL_ID() || !TERMINAL_SECRET()) return undefined;
+    const socket = io(API_URL(), {
       path: '/socket.io',
-      auth: { terminalId: TERMINAL_ID, terminalSecret: TERMINAL_SECRET, clientType: 'pos' },
+      auth: {
+        terminalId: TERMINAL_ID(),
+        terminalSecret: TERMINAL_SECRET(),
+        clientType: 'pos',
+      },
       transports: ['websocket'],
     });
     socket.on('order:item_status', (msg) => applyItemStatus(msg?.payload ?? msg));

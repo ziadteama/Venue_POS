@@ -35,7 +35,7 @@ export function useAgentStatus() {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(`${AGENT_URL}/v1/status`, { signal: controller.signal });
+      const res = await fetch(`${AGENT_URL()}/v1/status`, { signal: controller.signal });
       clearTimeout(timer);
       if (!res.ok) throw new Error('Agent status failed');
       const agentStatus = await res.json();

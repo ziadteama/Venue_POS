@@ -1,6 +1,10 @@
 import { apiFetch } from '../services/api-fetch.js';
 import { isCloudOnline } from '../services/cloud-health.js';
-import { verifyCachedPin, syncTerminalRosterFromServer } from '../services/terminal-cache.js';
+import {
+  verifyCachedPin,
+  verifyCachedManagerPin,
+  syncTerminalRosterFromServer,
+} from '../services/terminal-cache.js';
 
 export function registerAuthRoutes(app, { db, apiUrl, venueId, terminalId, terminalSecret }) {
   app.post('/v1/auth/pin', async (request, reply) => {
@@ -45,4 +49,20 @@ export function registerAuthRoutes(app, { db, apiUrl, venueId, terminalId, termi
     };
   });
 
+  app.post('/v1/auth/verify-manager-pin', async (request, reply) => {
+    const { pin } = request.body ?? {};
+    if (!pin || String(pin).length < 4) {
+      return reply.status(400).send({ error: 'PIN required (4+ digits)' });
+    }
+
+    const manager = await verifyCachedManagerPin(db, String(pin));
+    if (!manager) {
+      return reply.status(401).send({ error: { message: 'Invalid manager PIN' } });
+    }
+
+    return {
+      ok: true,
+      user: { id: manager.id, username: manager.username, role: manager.role },
+    };
+  });
 }

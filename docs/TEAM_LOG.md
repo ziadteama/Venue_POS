@@ -1769,6 +1769,22 @@ Dashboard → Shifts → open shift → Payments/Refunds/Discounts tabs · Downl
 
 ---
 
+### 2026-06-11 — Ubuntu till USB deploy + POS setup wizard
+**Phase:** 7 · **Story:** US-9.x extension
+**What:** POS first-run setup wizard (hub URL, terminal creds, printer, LAN, kiosk); runtime `pos-config.json` + agent `.env` writer; dashboard hub feature toggles (`hub_settings`); `ops/linux` install + systemd; `npm run build:till-bundle`.
+**Files:** `config-store.cjs`, `SetupWizard.jsx`, `PosConfigContext.jsx`, `hub-settings-service.js`, `manager-hub-settings.js`, `FeaturesSection.jsx`, `ops/linux/*`, `scripts/build-till-bundle.mjs`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/pos
+node --test apps/api/src/hub-settings.test.js
+npm run lint && npm run lint:i18n
+npm run build:till-bundle
+```
+Fresh till: `sudo bash ops/linux/install.sh` → setup wizard → PIN login
+**Notes:** Ctrl+Shift+S + floor manager PIN reopens setup wizard. Feature flags: DB overrides env; POS refetches via `/api/v1/features`. Till needs Node 20 on Ubuntu before install.
+
+---
+
 ### 2026-06-11 — Dev ops dashboard (`system_admin`)
 **Phase:** 8
 **What:** Internal ops console at `/ops` for engineering: live health, incident log (`ops_events`), WebSocket `ops:alert` / `ops:health_tick`, browser notifications, 30s health scanner, watchdog restart-storm ingest.

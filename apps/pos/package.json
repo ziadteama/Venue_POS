@@ -8,7 +8,8 @@
     "dev": "vite --port 5174",
     "build": "vite build",
     "electron": "cross-env NODE_ENV=development electron electron/main.cjs",
-    "electron:dev": "concurrently --kill-others-on-fail \"vite --port 5174\" \"wait-on tcp:5174 && cross-env NODE_ENV=development electron electron/main.cjs\""
+    "electron:dev": "concurrently --kill-others-on-fail \"vite --port 5174\" \"wait-on tcp:5174 && cross-env NODE_ENV=development electron electron/main.cjs\"",
+    "test": "node --test electron/config-store.test.cjs"
   },
   "dependencies": {
     "@venue-pos/i18n": "*",

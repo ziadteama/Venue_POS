@@ -13,7 +13,7 @@ export function usePrinterHealth() {
           setPrinterOk(health.printer?.ok !== false);
           return;
         }
-        const res = await fetch(`${AGENT_URL}/health`);
+        const res = await fetch(`${AGENT_URL()}/health`);
         if (!res.ok) {
           setPrinterOk(false);
           return;
