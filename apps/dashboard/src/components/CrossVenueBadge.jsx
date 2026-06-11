@@ -43,10 +43,7 @@ export function CrossVenueGroupPanel({
 }) {
   const members = normalizeMembers(group);
   if (!members.length) return null;
-  const combinedTotal =
-    group.displayTotal ??
-    group.combinedTotal ??
-    members.reduce((sum, m) => sum + Number(m.total ?? 0), 0);
+  const combinedTotal = members.reduce((sum, m) => sum + Number(m.total ?? 0), 0);
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50/60 p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -83,7 +80,7 @@ export function CrossVenueGroupPanel({
                   {venueLabel(member, language)} · #{member.chequeNumber} · {member.tableLabel}
                 </span>
               )}
-              <span className="shrink-0 font-medium">
+              <span className="shrink-0 font-medium tabular-nums">
                 {formatMoney(member.total, locale)} {t('pos.currency')}
               </span>
             </li>

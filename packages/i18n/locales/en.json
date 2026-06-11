@@ -675,6 +675,8 @@
   "cheque.statusOpen": "Open",
   "cheque.statusPaid": "Paid",
   "cheque.total": "Running total",
+  "cheque.chequeTotal": "Cheque total",
+  "cheque.orderTotal": "Order total",
   "cheque.itemsSubtotal": "Items",
   "cheque.discountLine": "Discount",
   "cheque.payments": "Payments",

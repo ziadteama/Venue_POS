@@ -5,6 +5,8 @@ import { EmptyState } from '../ui/EmptyState.jsx';
 import { ChequeIcon } from '../dashboard/icons.jsx';
 import { formatShortDate } from '../../utils/dashboardFormat.js';
 import { chequeTableLabel } from '../../utils/chequeDisplay.js';
+import { combinedChequeTotal } from '../../utils/chequeTotals.js';
+import { ChequeTotalsBlock } from './ChequeTotalsBlock.jsx';
 
 function venueName(c, language) {
   return language === 'ar' ? c.venueNameAr || c.venueNameEn : c.venueNameEn;
@@ -17,13 +19,21 @@ export function ChequesSidebar({
   selectedId,
   onSelect,
   showVenueName = false,
+  venueName,
   language,
   locale,
 }) {
   return (
     <aside className="surface-card overflow-hidden">
-      <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-900">
-        {statusTab === 'open' ? t('cheque.openList') : t('cheque.paidList')}
+      <div className="border-b border-slate-100 px-4 py-3">
+        {venueName && !showVenueName ? (
+          <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            {venueName}
+          </p>
+        ) : null}
+        <p className="text-sm font-semibold text-slate-900">
+          {statusTab === 'open' ? t('cheque.openList') : t('cheque.paidList')}
+        </p>
       </div>
       <ul className="scrollbar-slim max-h-[50vh] divide-y divide-slate-100 overflow-y-auto lg:max-h-[34rem]">
         {cheques.length === 0 ? (
@@ -72,8 +82,8 @@ export function ChequesSidebar({
                         {formatShortDate(timestamp, locale)}
                       </p>
                     ) : null}
-                    <div className="mt-0.5 font-semibold tabular-nums text-accent-700">
-                      {c.total.toFixed(2)} {t('pos.currency')}
+                    <div className="mt-1">
+                      <ChequeTotalsBlock total={combinedChequeTotal(c)} t={t} size="sm" />
                     </div>
                   </button>
                   <div className="flex shrink-0 flex-col justify-center pb-1 sm:pe-2 sm:pb-0">

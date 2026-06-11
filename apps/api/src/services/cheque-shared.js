@@ -223,6 +223,12 @@ export function serializeCheque(cheque) {
   const draftOrder = isParent ? (orders.find((o) => o.status === 'draft') ?? null) : null;
 
   const subtotalBeforeDiscount = computeChequeSubtotal(cheque);
+  const ordersSubtotal = Number(
+    orders
+      .filter((o) => o.status !== 'draft' && o.status !== 'voided')
+      .reduce((sum, o) => sum + Number(o.subtotal ?? 0), 0)
+      .toFixed(2),
+  );
   const discountAmount = Number(cheque.discountAmount ?? 0);
   const fees = computeChequeFeeBreakdown(cheque);
   let total = fees.total;
@@ -249,6 +255,7 @@ export function serializeCheque(cheque) {
     splitAmount: cheque.splitAmount != null ? Number(cheque.splitAmount) : null,
     discountAmount,
     subtotalBeforeDiscount,
+    ordersSubtotal,
     serviceAmount: fees.serviceAmount,
     taxAmount: fees.taxAmount,
     parentChequeId: cheque.parentChequeId ?? null,

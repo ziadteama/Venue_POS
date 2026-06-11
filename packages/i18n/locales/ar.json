@@ -675,6 +675,8 @@
   "cheque.statusOpen": "مفتوح",
   "cheque.statusPaid": "مدفوع",
   "cheque.total": "الإجمالي الجاري",
+  "cheque.chequeTotal": "إجمالي الشيك",
+  "cheque.orderTotal": "إجمالي الطلبات",
   "cheque.itemsSubtotal": "الأصناف",
   "cheque.discountLine": "الخصم",
   "cheque.payments": "المدفوعات",
