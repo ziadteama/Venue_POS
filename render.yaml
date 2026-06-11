@@ -3,7 +3,7 @@ services:
     name: venue-pos-api
     runtime: node
     region: frankfurt  # closest Render region to Egypt
-    plan: standard    # $25/mo — stays up 24/7, no spin-down (use "free" only for testing)
+    plan: starter     # $7/mo, 512 MB RAM, 0.5 vCPU — sufficient for Fastify + Prisma; upgrade if memory pressure appears
 
     # Build from repo root so the monorepo workspace resolves correctly
     rootDir: .
