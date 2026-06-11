@@ -26,9 +26,16 @@ const enginePath = path.join(
   'query_engine-windows.dll.node',
 );
 const prismaCli = path.join(root, 'node_modules', 'prisma', 'build', 'index.js');
+const prismaCliInApi = path.join(apiDir, 'node_modules', 'prisma', 'build', 'index.js');
 
-function runGenerate() {
-  return spawnSync(process.execPath, [prismaCli, 'generate'], {
+function resolvePrismaCli() {
+  if (existsSync(prismaCli)) return prismaCli;
+  if (existsSync(prismaCliInApi)) return prismaCliInApi;
+  return null;
+}
+
+function runGenerate(cli) {
+  return spawnSync(process.execPath, [cli, 'generate'], {
     cwd: apiDir,
     encoding: 'utf8',
   });
@@ -59,11 +66,19 @@ function printOutput(result) {
   if (result.stderr) process.stderr.write(result.stderr);
 }
 
-let result = runGenerate();
+const cli = resolvePrismaCli();
+if (!cli) {
+  console.log(
+    'prisma-generate: skipped (prisma CLI not installed — OK for dashboard/Vercel frontend builds)',
+  );
+  process.exit(0);
+}
+
+let result = runGenerate(cli);
 
 if (result.status !== 0 && process.platform === 'win32') {
   if (unlockWindowsEngine()) {
-    result = runGenerate();
+    result = runGenerate(cli);
   }
 }
 

@@ -15,22 +15,17 @@ const version = process.env.BUNDLE_VERSION ?? JSON.parse(
 const outDir = path.join(repoRoot, 'dist', `venue-pos-till-${version}`);
 const archive = path.join(repoRoot, 'dist', `venue-pos-till-${version}.tar.gz`);
 
-function resolveCmd(cmd) {
-  if (process.platform === 'win32' && !cmd.endsWith('.cmd') && !path.isAbsolute(cmd)) {
-    return `${cmd}.cmd`;
-  }
-  return cmd;
-}
-
 function run(cmd, args, opts = {}) {
-  const resolved = resolveCmd(cmd);
-  const res = spawnSync(resolved, args, {
+  // Windows (incl. Git Bash): shell:true — spawnSync('npm.cmd', …) without shell → EINVAL
+  const useShell = process.platform === 'win32';
+  const res = spawnSync(cmd, args, {
     stdio: 'inherit',
     cwd: repoRoot,
+    shell: useShell,
     ...opts,
   });
   if (res.error) {
-    console.error(`Failed to run ${resolved}: ${res.error.message}`);
+    console.error(`Failed to run ${cmd}: ${res.error.message}`);
     process.exit(1);
   }
   if (res.status !== 0) process.exit(res.status ?? 1);
