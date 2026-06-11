@@ -16,6 +16,7 @@ import {
 } from './dashboard/icons.jsx';
 
 const NAV_ITEMS = [
+  { to: '/ops', labelKey: 'nav.ops', Icon: HealthIcon, roles: [ROLES.SYSTEM_ADMIN] },
   { to: '/', end: true, labelKey: 'nav.overview', Icon: OverviewIcon, roles: [ROLES.HUB_OWNER, ROLES.HUB_MANAGER] },
   { to: '/menus', labelKey: 'nav.menus', Icon: MenuIcon, roles: [ROLES.HUB_MANAGER] },
   { to: '/cheques', labelKey: 'nav.cheques', Icon: ChequeIcon, roles: [ROLES.HUB_MANAGER] },

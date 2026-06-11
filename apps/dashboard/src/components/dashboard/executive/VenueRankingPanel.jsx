@@ -44,7 +44,7 @@ export function VenueRankingPanel({
   currencyLabel,
   language,
   hideFinancials,
-  venueId,
+  venueId: _venueId,
   onSelectVenue,
 }) {
   const rows = ranking?.venues ?? [];

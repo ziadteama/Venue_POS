@@ -21,6 +21,7 @@ const SECTION_TITLES = {
   '/settings': 'nav.settings',
   '/activity': 'nav.activity',
   '/health': 'nav.health',
+  '/ops': 'nav.ops',
 };
 
 function GuardedOutlet() {

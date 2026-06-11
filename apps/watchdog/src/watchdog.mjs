@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createRestartTracker } from './restart-policy.mjs';
 import { createLogger } from './logger.mjs';
 import { loadConfig } from './config.mjs';
+import { postRestartStormAlert } from './ops-ingest.mjs';
 
 /** @typedef {import('node:child_process').ChildProcess} ChildProcess */
 
@@ -50,6 +51,11 @@ export function createWatchdog(config) {
       log.alert(
         `Restart storm: ${count} restarts within ${config.restartWindowMs}ms (limit ${config.maxRestarts})`,
       );
+      postRestartStormAlert(config, {
+        count,
+        windowMs: config.restartWindowMs,
+        maxRestarts: config.maxRestarts,
+      }).catch(() => {});
     } else {
       log.info(`Relaunching POS (restart ${count} in window)`);
     }

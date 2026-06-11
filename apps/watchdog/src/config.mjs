@@ -22,6 +22,9 @@ export function loadConfig() {
     process.env.WATCHDOG_POS_COMMAND ||
     'npm run electron:dev -w @venue-pos/pos';
 
+  const apiBase = process.env.OPS_API_URL || 'http://127.0.0.1:3000';
+  const opsIngestSecret = process.env.OPS_INGEST_SECRET || '';
+
   return {
     enabled: envBool('WATCHDOG_ENABLED', true),
     checkIntervalMs: envInt('WATCHDOG_CHECK_INTERVAL_MS', 5000),
@@ -31,5 +34,7 @@ export function loadConfig() {
     posCwd,
     posCommand,
     repoRoot,
+    opsIngestUrl: opsIngestSecret ? `${apiBase.replace(/\/$/, '')}/api/v1/ops/events` : '',
+    opsIngestSecret,
   };
 }
