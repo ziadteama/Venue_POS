@@ -52,11 +52,27 @@ function pruneBundle() {
   }
 }
 
+const nodeMajor = Number(process.versions.node.split('.')[0]);
+
 if (process.env.SKIP_BUNDLE_CI === '1') {
   console.log('Skipping npm ci (SKIP_BUNDLE_CI=1)...');
 } else {
   console.log('Installing workspace dependencies (npm ci — may take a few minutes)...');
-  run('npm', ['ci', '--include-workspace-root']);
+  if (process.platform === 'win32') {
+    // Linux till bundle — install.sh rebuilds bcrypt/better-sqlite3 on Ubuntu.
+    // Avoids Node 24 / MSVC native compile failures on Windows dev machines.
+    console.log(
+      'Windows: using --ignore-scripts (native modules are rebuilt on the till by ops/linux/install.sh).',
+    );
+    run('npm', ['ci', '--include-workspace-root', '--ignore-scripts']);
+  } else if (nodeMajor !== 20) {
+    console.warn(
+      `Warning: Node ${process.version} — repo targets Node 20. Prefer: nvm use 20 && npm ci`,
+    );
+    run('npm', ['ci', '--include-workspace-root']);
+  } else {
+    run('npm', ['ci', '--include-workspace-root']);
+  }
 }
 
 console.log('Building POS (vite)...');
