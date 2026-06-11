@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 import { seedPublishedVenueMenu } from './test-helpers/venue-menu-fixture.js';
+import { resetHubBilling } from './test-helpers/reset-hub-billing.js';
 
 const VENUE_A = '00000000-0000-4000-8000-0000000000c8';
 const VENUE_B = '00000000-0000-4000-8000-0000000000c9';
@@ -44,6 +45,7 @@ async function ensureHubTable(label) {
 before(async () => {
   config.featureCrossVenueBilling = true;
   ensureKeys();
+  await resetHubBilling();
   app = await buildApp();
   app.io = { to: () => ({ emit: () => {} }) };
   await app.ready();
@@ -147,11 +149,14 @@ test('rejects second venue opening same hub table', async () => {
 });
 
 test('cross-sell allows sibling venues on same hub table', async () => {
+  const tableLabel = `T-Hub-B-${Date.now()}`;
+  await ensureHubTable(tableLabel);
+
   const open = await app.inject({
     method: 'POST',
     url: '/api/v1/cheques/open',
     headers: headersA,
-    payload: { cashierId: CASHIER_A, tableLabel: 'T-Hub-B' },
+    payload: { cashierId: CASHIER_A, tableLabel },
   });
   assert.equal(open.statusCode, 200, open.body);
   const anchorId = open.json().id;

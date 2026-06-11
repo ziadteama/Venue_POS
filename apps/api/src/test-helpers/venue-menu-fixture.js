@@ -33,7 +33,9 @@ export async function seedPublishedVenueMenu(prisma, venueId, { items = [] } = {
   }
 
   if (!items.length) {
-    const existing = await prisma.menuItem.findFirst({ where: { categoryId: category.id } });
+    const existing = await prisma.menuItem.findFirst({
+      where: { categoryId: category.id, isActive: true },
+    });
     if (!existing) {
       await prisma.menuItem.create({
         data: {
@@ -49,7 +51,7 @@ export async function seedPublishedVenueMenu(prisma, venueId, { items = [] } = {
 
   await publishVenueMenu(venueId);
   const menuItem = await prisma.menuItem.findFirst({
-    where: { category: { venueId } },
+    where: { categoryId: category.id, isActive: true },
     orderBy: { sortOrder: 'asc' },
   });
   return { categoryId: category.id, menuItemId: menuItem?.id };

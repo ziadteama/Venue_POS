@@ -7,6 +7,7 @@ import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 import { seedPublishedVenueMenu } from './test-helpers/venue-menu-fixture.js';
+import { resetHubBilling } from './test-helpers/reset-hub-billing.js';
 
 const VENUE_A = '00000000-0000-4000-8000-0000000000b1';
 const VENUE_B = '00000000-0000-4000-8000-0000000000b2';
@@ -21,14 +22,17 @@ let managerToken;
 let anchorMenuItemId;
 let targetMenuItemId;
 
-async function seedMenu(venueId) {
-  const { menuItemId } = await seedPublishedVenueMenu(prisma, venueId);
+async function seedMenu(venueId, nameEn, price = 10) {
+  const { menuItemId } = await seedPublishedVenueMenu(prisma, venueId, {
+    items: [{ nameEn, nameAr: nameEn, price }],
+  });
   return menuItemId;
 }
 
 before(async () => {
   config.featureCrossVenueBilling = true;
   ensureKeys();
+  await resetHubBilling();
   app = await buildApp();
   app.io = { to: () => ({ emit: () => {} }) };
   await app.ready();
@@ -76,8 +80,8 @@ before(async () => {
     create: { id: TERMINAL_A, venueId: VENUE_A, name: 'Till N', secretHash },
   });
 
-  anchorMenuItemId = await seedMenu(VENUE_A, 'Cafe');
-  targetMenuItemId = await seedMenu(VENUE_B, 'Rest');
+  anchorMenuItemId = await seedMenu(VENUE_A, 'Cafe', 50);
+  targetMenuItemId = await seedMenu(VENUE_B, 'Rest', 60);
 
   const mgr = await prisma.user.findUnique({ where: { username: 'num_mgr' } });
   managerToken = signAccessToken({ sub: mgr.id, role: 'hub_manager', venue_id: VENUE_A });
@@ -171,8 +175,11 @@ test('manager cross-venue list and cheque search', async () => {
   });
   assert.equal(groups.statusCode, 200);
   assert.ok(Array.isArray(groups.json()));
-  assert.ok(groups.json().length >= 1);
-  assert.ok(groups.json()[0].members?.length >= 2);
+  const crossGroup = groups.json().find((g) =>
+    g.members?.some((m) => m.tableLabel?.includes('T-cross')),
+  );
+  assert.ok(crossGroup, 'cross-sell group from prior test');
+  assert.ok(crossGroup.members.length >= 2);
 
   const search = await app.inject({
     method: 'GET',

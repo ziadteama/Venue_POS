@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { buildApp } from './app.js';
 import { prisma } from './db/prisma.js';
@@ -7,12 +8,10 @@ import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
 import { publishVenueMenu } from './services/menu-service.js';
+import { resetHubBilling } from './test-helpers/reset-hub-billing.js';
 
-const VENUE_ID = '00000000-0000-4000-8000-0000000000e1';
-const TERMINAL_ID = '00000000-0000-4000-8000-0000000000e2';
-const CASHIER_ID = '00000000-0000-4000-8000-0000000000e3';
-const VENUE_MGR_ID = '00000000-0000-4000-8000-0000000000e4';
-const HUB_MGR_ID = '00000000-0000-4000-8000-0000000000e5';
+const VENUE_ID = '00000000-0000-4000-8000-0000000000f1';
+const TERMINAL_ID = '00000000-0000-4000-8000-0000000000f2';
 const TERMINAL_SECRET = 'eod-recon-secret';
 const FLOOR_PIN = '7777';
 
@@ -25,6 +24,9 @@ let venueManagerToken;
 let menuItems;
 let shiftId;
 let todayIso;
+let cashierId;
+let venueMgrId;
+let hubMgrId;
 
 const cheques = {};
 
@@ -66,13 +68,13 @@ async function seedMenu() {
 
 async function resetCashierState() {
   await prisma.cheque.updateMany({
-    where: { venueId: VENUE_ID, cashierId: CASHIER_ID, status: 'open' },
+    where: { venueId: VENUE_ID, cashierId, status: 'open' },
     data: { status: 'voided', closedAt: new Date() },
   });
 
   const priorShiftIds = (
     await prisma.shift.findMany({
-      where: { venueId: VENUE_ID, cashierId: CASHIER_ID },
+      where: { venueId: VENUE_ID, cashierId },
       select: { id: true },
     })
   ).map((s) => s.id);
@@ -90,7 +92,7 @@ async function openTable(tableLabel) {
     method: 'POST',
     url: '/api/v1/cheques/open',
     headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, tableLabel },
+    payload: { cashierId, tableLabel },
   });
   assert.equal(res.statusCode, 200, res.body);
   return res.json();
@@ -122,7 +124,7 @@ async function payCheque(chequeId, method) {
     method: 'POST',
     url: `/api/v1/cheques/${chequeId}/pay`,
     headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, method },
+    payload: { cashierId, method },
   });
   assert.equal(res.statusCode, 200, res.body);
   return res.json();
@@ -133,6 +135,7 @@ before(async () => {
   config.featureDiscountsEnabled = true;
   config.featureRefundsEnabled = true;
   ensureKeys();
+  await resetHubBilling();
   app = await buildApp();
   app.io = { to: () => ({ emit: () => {} }) };
   await app.ready();
@@ -156,32 +159,34 @@ before(async () => {
     },
   });
 
-  await prisma.user.upsert({
-    where: { id: CASHIER_ID },
+  const cashier = await prisma.user.upsert({
+    where: { username: 'eod_cashier' },
     update: { pinHash: cashierPin, role: 'cashier', venueId: VENUE_ID, isActive: true },
     create: {
-      id: CASHIER_ID,
+      id: randomUUID(),
       username: 'eod_cashier',
       pinHash: cashierPin,
       role: 'cashier',
       venueId: VENUE_ID,
     },
   });
+  cashierId = cashier.id;
 
-  await prisma.user.upsert({
-    where: { id: VENUE_MGR_ID },
+  const venueMgr = await prisma.user.upsert({
+    where: { username: 'eod_venue_mgr' },
     update: { pinHash: floorPinHash, role: 'venue_manager', venueId: VENUE_ID, isActive: true },
     create: {
-      id: VENUE_MGR_ID,
+      id: randomUUID(),
       username: 'eod_venue_mgr',
       pinHash: floorPinHash,
       role: 'venue_manager',
       venueId: VENUE_ID,
     },
   });
+  venueMgrId = venueMgr.id;
 
-  await prisma.user.upsert({
-    where: { id: HUB_MGR_ID },
+  const hubMgr = await prisma.user.upsert({
+    where: { username: 'eod_hub_mgr' },
     update: {
       passwordHash: hubPassword,
       pinHash: floorPinHash,
@@ -190,7 +195,7 @@ before(async () => {
       isActive: true,
     },
     create: {
-      id: HUB_MGR_ID,
+      id: randomUUID(),
       username: 'eod_hub_mgr',
       passwordHash: hubPassword,
       pinHash: floorPinHash,
@@ -198,11 +203,13 @@ before(async () => {
       venueId: VENUE_ID,
     },
   });
+  hubMgrId = hubMgr.id;
 
   await prisma.user.upsert({
     where: { username: 'owner' },
-    update: { passwordHash: ownerPassword, role: 'hub_owner', venueId: VENUE_ID, isActive: true },
+    update: { passwordHash: ownerPassword, role: 'hub_owner', isActive: true },
     create: {
+      id: randomUUID(),
       username: 'owner',
       passwordHash: ownerPassword,
       role: 'hub_owner',
@@ -236,7 +243,7 @@ before(async () => {
   ownerToken = ownerLogin.json().accessToken;
 
   venueManagerToken = signAccessToken({
-    sub: VENUE_MGR_ID,
+    sub: venueMgrId,
     role: 'venue_manager',
     venue_id: VENUE_ID,
   });
@@ -281,7 +288,7 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
     method: 'POST',
     url: '/api/v1/shifts/open',
     headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, openFloat: OPEN_FLOAT },
+    payload: { cashierId, openFloat: OPEN_FLOAT },
   });
   assert.equal(shiftOpen.statusCode, 200, shiftOpen.body);
   shiftId = shiftOpen.json().id;
@@ -306,7 +313,7 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
     url: `/api/v1/cheques/${chequeB.id}/discount`,
     headers: terminalHeaders,
     payload: {
-      cashierId: CASHIER_ID,
+      cashierId,
       restaurantManagerPin: FLOOR_PIN,
       reason: 'Loyalty 10%',
       percent: 10,
@@ -366,7 +373,7 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
     url: `/api/v1/cheques/${chequeD.id}/refund`,
     headers: terminalHeaders,
     payload: {
-      cashierId: CASHIER_ID,
+      cashierId,
       restaurantManagerPin: FLOOR_PIN,
       reason: 'Partial refund',
       amount: 20,
@@ -413,7 +420,7 @@ test('EOD financial reconciliation — full cashier day agrees across all surfac
     method: 'POST',
     url: '/api/v1/shifts/close',
     headers: terminalHeaders,
-    payload: { cashierId: CASHIER_ID, closeFloat: expectedCash + 15 },
+    payload: { cashierId, closeFloat: expectedCash + 15 },
   });
   assert.equal(closeRes.statusCode, 200, closeRes.body);
   const closeReport = closeRes.json().report;

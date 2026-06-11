@@ -7,17 +7,12 @@ import {
   CASHIER_ID,
   terminalHeaders,
   ensureOpenShift,
+  getPhase1Modifier,
 } from './fixture.js';
 
 test('cheque lifecycle: open, fire two rounds, pay cash', async () => {
   await ensureOpenShift();
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const openRes = await fx.app.inject({
     method: 'POST',
@@ -133,13 +128,7 @@ test('cheque delete empty open table', async () => {
   assert.equal(openRes2.statusCode, 200);
   const chequeId2 = openRes2.json().id;
 
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
   let draftId = openRes2.json().draftOrder.id;
 
   await fx.app.inject({
@@ -171,13 +160,7 @@ test('cheque delete empty open table', async () => {
 
 test('cheque open resumes same table and merges orphan draft items', async () => {
   await ensureOpenShift();
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const uid = `${Date.now()}`.slice(-8);
   const table = `MR${uid}`;
@@ -233,13 +216,7 @@ test('cheque open resumes same table and merges orphan draft items', async () =>
 
 test('cheque split payment: cash + card', async () => {
   await ensureOpenShift();
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const openRes = await fx.app.inject({
     method: 'POST',
@@ -306,13 +283,7 @@ test('manager can void a kitchen round on open cheque', async () => {
   const chequeId = openRes.json().id;
   const draftId = openRes.json().draftOrder.id;
 
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   await fx.app.inject({
     method: 'POST',
@@ -361,13 +332,7 @@ test('manager can void a kitchen round on open cheque', async () => {
 
 test('manager can void a closed kitchen round on paid cheque', async () => {
   await ensureOpenShift();
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const openRes = await fx.app.inject({
     method: 'POST',
@@ -423,13 +388,7 @@ test('manager can void a closed kitchen round on paid cheque', async () => {
 });
 
 test('manager can comp a line item on open cheque', async () => {
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const openRes = await fx.app.inject({
     method: 'POST',
@@ -486,13 +445,7 @@ test('manager can comp a line item on open cheque', async () => {
 
 test('manager can list paid cheque history', async () => {
   await ensureOpenShift();
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
 
   const openRes = await fx.app.inject({
     method: 'POST',
@@ -578,13 +531,7 @@ test('manager can void entire open cheque', async () => {
 
 test('cheque split by item: pay sub-cheques closes parent', async () => {
   await ensureOpenShift();
-  const menuRes = await fx.app.inject({
-    method: 'GET',
-    url: `/api/v1/venues/${VENUE_ID}/menu`,
-    headers: terminalHeaders,
-  });
-  const group = menuRes.json().categories[0].items[0].modifierGroups[0];
-  const option = group.options[0];
+  const { group, option } = await getPhase1Modifier();
   const modifier = {
     groupId: group.id,
     optionId: option.id,
