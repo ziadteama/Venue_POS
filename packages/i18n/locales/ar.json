@@ -1111,6 +1111,8 @@
   "setup.apiUrl": "رابط واجهة المركز",
   "setup.apiUrlHint": "عنوان المركز السحابي، مثال: https://hub.yourdomain.com",
   "setup.terminalId": "معرّف المحطة",
+  "setup.terminalIdHint": "UUID من لوحة التحكم → الإعدادات → المحطات (ليس اسم الجهاز).",
+  "setup.invalidTerminalId": "يجب أن يكون معرّف المحطة UUID من لوحة التحكم → الإعدادات → المحطات.",
   "setup.terminalSecret": "سر المحطة",
   "setup.venueId": "معرّف المكان",
   "setup.testConnection": "اختبار الاتصال",

@@ -15,8 +15,24 @@ const version = process.env.BUNDLE_VERSION ?? JSON.parse(
 const outDir = path.join(repoRoot, 'dist', `venue-pos-till-${version}`);
 const archive = path.join(repoRoot, 'dist', `venue-pos-till-${version}.tar.gz`);
 
+function resolveCmd(cmd) {
+  if (process.platform === 'win32' && !cmd.endsWith('.cmd') && !path.isAbsolute(cmd)) {
+    return `${cmd}.cmd`;
+  }
+  return cmd;
+}
+
 function run(cmd, args, opts = {}) {
-  const res = spawnSync(cmd, args, { stdio: 'inherit', cwd: repoRoot, ...opts });
+  const resolved = resolveCmd(cmd);
+  const res = spawnSync(resolved, args, {
+    stdio: 'inherit',
+    cwd: repoRoot,
+    ...opts,
+  });
+  if (res.error) {
+    console.error(`Failed to run ${resolved}: ${res.error.message}`);
+    process.exit(1);
+  }
   if (res.status !== 0) process.exit(res.status ?? 1);
 }
 
@@ -41,8 +57,12 @@ function pruneBundle() {
   }
 }
 
-console.log('Installing workspace dependencies...');
-run('npm', ['ci', '--include-workspace-root']);
+if (process.env.SKIP_BUNDLE_CI === '1') {
+  console.log('Skipping npm ci (SKIP_BUNDLE_CI=1)...');
+} else {
+  console.log('Installing workspace dependencies (npm ci — may take a few minutes)...');
+  run('npm', ['ci', '--include-workspace-root']);
+}
 
 console.log('Building POS (vite)...');
 run('npm', ['run', 'build', '-w', '@venue-pos/pos']);

@@ -25,11 +25,13 @@ export default function App() {
     function onKey(e) {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
         e.preventDefault();
+        e.stopPropagation();
         openSetup();
       }
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    // Capture phase so PIN input does not swallow the shortcut first.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [openSetup]);
 
   if (loading) {
@@ -52,24 +54,24 @@ export default function App() {
   }
 
   if (!cashierSession.isLoggedIn) {
-    return (
-      <>
-        {setupReentry ? (
-          <SetupReentryGate
-            onCancel={() => setSetupReentry(false)}
-            onApproved={() => {
-              setSetupReentry(false);
-              setForceSetup(true);
-            }}
-          />
-        ) : null}
-        <PinLoginScreen
-          t={t}
-          onLogin={cashierSession.login}
-          loading={cashierSession.loading}
-          error={cashierSession.error}
+    if (setupReentry) {
+      return (
+        <SetupReentryGate
+          onCancel={() => setSetupReentry(false)}
+          onApproved={() => {
+            setSetupReentry(false);
+            setForceSetup(true);
+          }}
         />
-      </>
+      );
+    }
+    return (
+      <PinLoginScreen
+        t={t}
+        onLogin={cashierSession.login}
+        loading={cashierSession.loading}
+        error={cashierSession.error}
+      />
     );
   }
 

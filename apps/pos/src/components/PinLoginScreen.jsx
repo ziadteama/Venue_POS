@@ -48,6 +48,9 @@ export function PinLoginScreen({ t, onLogin, loading, error }) {
   useEffect(() => {
     function onKeyDown(e) {
       if (loading) return;
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        return;
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key >= '0' && e.key <= '9') {
         e.preventDefault();

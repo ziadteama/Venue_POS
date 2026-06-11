@@ -3,6 +3,8 @@ const path = require('node:path');
 const os = require('node:os');
 
 const CONFIG_VERSION = 1;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const DEFAULTS = {
   apiUrl: '',
@@ -75,11 +77,15 @@ function mergeConfig(raw) {
   return merged;
 }
 
+function isUuid(value) {
+  return UUID_RE.test(String(value ?? ''));
+}
+
 function isConfigComplete(cfg) {
   return Boolean(
     cfg?.setupComplete &&
       cfg.apiUrl &&
-      cfg.terminalId &&
+      isUuid(cfg.terminalId) &&
       cfg.terminalSecret &&
       cfg.agentUrl,
   );
@@ -98,10 +104,8 @@ function readConfig(userDataPath) {
       terminalSecret: process.env.VITE_TERMINAL_SECRET ?? '',
       venueId: process.env.VITE_VENUE_ID ?? '',
       kioskMode: process.env.ELECTRON_IS_KIOSK !== 'false',
-      setupComplete: Boolean(
-        (process.env.VITE_API_URL && process.env.VITE_TERMINAL_ID && process.env.VITE_TERMINAL_SECRET) ||
-          false,
-      ),
+      // Dev .env pre-fills values but does not skip the wizard — only pos-config.json does.
+      setupComplete: false,
     });
     return envFallback;
   }

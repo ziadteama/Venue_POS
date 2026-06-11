@@ -3,6 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { usePosConfig } from '../context/PosConfigContext.jsx';
 
 const STEPS = ['hub', 'terminal', 'printer', 'lan', 'review'];
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value) {
+  return UUID_RE.test(String(value ?? '').trim());
+}
 
 function emptyForm(detectedLanHost = '') {
   return {
@@ -34,11 +40,31 @@ export function SetupWizard({ onComplete }) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (window.venuePos?.detectLanHost) {
-      window.venuePos.detectLanHost().then((host) => {
+    async function load() {
+      if (window.venuePos?.getConfig) {
+        const cfg = await window.venuePos.getConfig();
+        setForm((f) => ({
+          ...f,
+          apiUrl: cfg.apiUrl || f.apiUrl,
+          terminalId: cfg.terminalId || f.terminalId,
+          terminalSecret: cfg.terminalSecret || f.terminalSecret,
+          venueId: cfg.venueId || f.venueId,
+          kitchenPrinterHost: cfg.kitchenPrinterHost || f.kitchenPrinterHost,
+          kitchenPrinterPort: cfg.kitchenPrinterPort ?? f.kitchenPrinterPort,
+          agentLanHost: cfg.agentLanHost || cfg.detectedLanHost || f.agentLanHost,
+          agentLanPort: cfg.agentLanPort ?? f.agentLanPort,
+          isCoordinator: cfg.isCoordinator ?? f.isCoordinator,
+          coordinatorFallbackEnabled:
+            cfg.coordinatorFallbackEnabled ?? f.coordinatorFallbackEnabled,
+          kioskMode: cfg.kioskMode ?? f.kioskMode,
+          deviceLabel: cfg.deviceLabel || f.deviceLabel,
+        }));
+      } else if (window.venuePos?.detectLanHost) {
+        const host = await window.venuePos.detectLanHost();
         setForm((f) => ({ ...f, agentLanHost: host || f.agentLanHost }));
-      });
+      }
     }
+    load();
   }, []);
 
   const update = useCallback((patch) => {
@@ -49,6 +75,10 @@ export function SetupWizard({ onComplete }) {
 
   async function runTest() {
     if (!window.venuePos?.testConnection) return;
+    if (!isUuid(form.terminalId)) {
+      setError(t('setup.invalidTerminalId'));
+      return;
+    }
     setTesting(true);
     setError('');
     try {
@@ -63,6 +93,10 @@ export function SetupWizard({ onComplete }) {
 
   async function saveAndFinish() {
     if (!window.venuePos?.saveConfig) return;
+    if (!isUuid(form.terminalId)) {
+      setError(t('setup.invalidTerminalId'));
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -131,6 +165,7 @@ export function SetupWizard({ onComplete }) {
                 onChange={(e) => update({ terminalId: e.target.value })}
               />
             </label>
+            <p className="text-xs text-slate-500">{t('setup.terminalIdHint')}</p>
             <label className="block">
               <span className="text-sm text-slate-300">{t('setup.terminalSecret')}</span>
               <input

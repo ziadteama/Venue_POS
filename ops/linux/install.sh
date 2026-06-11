@@ -6,7 +6,7 @@ set -euo pipefail
 INSTALL_ROOT="/opt/venue-pos"
 USER_NAME="venuepos"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BUNDLE_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+BUNDLE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run as root: sudo bash install.sh"
@@ -22,6 +22,16 @@ NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]")"
 if [[ "${NODE_MAJOR}" -lt 20 ]]; then
   echo "Node 20+ required (found $(node -v)). See ops/linux/README.md"
   exit 1
+fi
+
+echo "==> Electron / kiosk GUI libraries"
+if command -v apt-get &>/dev/null; then
+  apt-get install -y \
+    libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
+    libgtk-3-0t64 libgbm1 libasound2t64 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2 libx11-xcb1 libxcb1 \
+    libxext6 libxshmfence1 2>/dev/null \
+    || apt-get install -y libnss3 libnspr4 libgtk-3-0 libgbm1 libasound2
 fi
 
 if [[ ! -d "${BUNDLE_ROOT}/local-agent" || ! -d "${BUNDLE_ROOT}/pos" ]]; then
@@ -49,6 +59,22 @@ chmod +x "${INSTALL_ROOT}/ops/linux/start-kiosk.sh" 2>/dev/null || true
 cp -f "${SCRIPT_DIR}/start-kiosk.sh" "${INSTALL_ROOT}/pos/start-kiosk.sh"
 chmod +x "${INSTALL_ROOT}/pos/start-kiosk.sh"
 
+chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
+
+echo "==> Rebuilding native modules for Linux (bcrypt, better-sqlite3)"
+if ! command -v g++ &>/dev/null; then
+  echo "    Install build-essential if rebuild fails: apt install -y build-essential python3"
+fi
+find "${INSTALL_ROOT}/node_modules" "${INSTALL_ROOT}/local-agent/node_modules" \
+  -type f \( -path '*/.bin/*' -o -name 'node-pre-gyp' -o -name 'node-gyp-build' \) \
+  -exec chmod +x {} + 2>/dev/null || true
+sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/local-agent' && npm rebuild bcrypt better-sqlite3" || true
+sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}' && npm rebuild bcrypt better-sqlite3" || true
+if [[ -f "${INSTALL_ROOT}/pos/node_modules/electron/install.js" ]]; then
+  echo "==> Downloading Linux Electron binary for POS kiosk"
+  sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/pos/node_modules/electron' && node install.js" || true
+fi
+find "${INSTALL_ROOT}/pos/node_modules/.bin" -type f -exec chmod +x {} + 2>/dev/null || true
 chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 
 echo "==> Registering systemd service"

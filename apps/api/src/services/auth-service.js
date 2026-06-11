@@ -163,9 +163,15 @@ export async function verifyDualManagerApproval(
   return { initiator, approver };
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function validateTerminal(terminalId, terminalSecret) {
   if (!terminalId || !terminalSecret) {
     throw unauthorized('Terminal credentials required');
+  }
+  if (!UUID_RE.test(String(terminalId))) {
+    throw validationError('Terminal ID must be a UUID from Dashboard → Settings → Terminals');
   }
 
   const terminal = await prisma.terminal.findUnique({ where: { id: terminalId } });

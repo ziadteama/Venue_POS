@@ -1111,6 +1111,8 @@
   "setup.apiUrl": "Hub API URL",
   "setup.apiUrlHint": "Your cloud hub address, e.g. https://hub.yourdomain.com",
   "setup.terminalId": "Terminal ID",
+  "setup.terminalIdHint": "UUID from Dashboard → Settings → Terminals (not the till name).",
+  "setup.invalidTerminalId": "Terminal ID must be a UUID from Dashboard → Settings → Terminals.",
   "setup.terminalSecret": "Terminal secret",
   "setup.venueId": "Venue ID",
   "setup.testConnection": "Test connection",

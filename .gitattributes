@@ -1,0 +1,4 @@
+# Linux deploy scripts must use LF (CRLF breaks bash on Ubuntu/WSL).
+ops/linux/*.sh text eol=lf
+scripts/*.mjs text eol=lf
+scripts/*.sh text eol=lf
