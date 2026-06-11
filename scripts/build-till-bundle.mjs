@@ -67,6 +67,15 @@ if (process.env.SKIP_BUNDLE_CI === '1') {
 console.log('Building POS (vite)...');
 run('npm', ['run', 'build', '-w', '@venue-pos/pos']);
 
+if (process.platform === 'linux' || process.env.BUILD_POS_APPIMAGE === '1') {
+  console.log('Packaging POS AppImage (electron-updater)...');
+  run('npm', ['run', 'build:packaged', '-w', '@venue-pos/pos']);
+} else {
+  console.log(
+    'Skipping AppImage (run on Linux or set BUILD_POS_APPIMAGE=1 for packaged auto-update builds).',
+  );
+}
+
 console.log('Assembling bundle...');
 if (fs.existsSync(outDir)) fs.rmSync(outDir, { recursive: true });
 fs.mkdirSync(outDir, { recursive: true });

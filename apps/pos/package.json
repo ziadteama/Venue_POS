@@ -7,12 +7,14 @@
   "scripts": {
     "dev": "vite --port 5174",
     "build": "vite build",
+    "build:packaged": "npm run build && electron-builder --linux AppImage --publish never",
     "electron": "cross-env NODE_ENV=development electron electron/main.cjs",
     "electron:dev": "concurrently --kill-others-on-fail \"vite --port 5174\" \"wait-on tcp:5174 && cross-env NODE_ENV=development electron electron/main.cjs\"",
-    "test": "node --test electron/config-store.test.cjs"
+    "test": "node --test electron/config-store.test.cjs electron/auto-updater.test.cjs"
   },
   "dependencies": {
     "@venue-pos/i18n": "*",
+    "electron-updater": "^6.6.2",
     "socket.io-client": "^4.8.3",
     "dotenv": "^17.4.2",
     "i18next": "^24.2.0",
@@ -27,9 +29,33 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^40.10.2",
+    "electron-builder": "^25.1.8",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "vite": "^6.0.6",
     "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.plegmo.venue-pos",
+    "productName": "Venue POS",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Office",
+      "executableName": "venue-pos"
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "${env.POS_UPDATE_FEED_URL}"
+    }
   }
 }

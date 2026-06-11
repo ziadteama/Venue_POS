@@ -24,6 +24,8 @@ const DEFAULTS = {
   kioskMode: true,
   setupComplete: false,
   configVersion: CONFIG_VERSION,
+  /** Generic electron-updater feed base URL (optional; falls back to POS_UPDATE_FEED_URL env). */
+  updateFeedUrl: '',
 };
 
 function resolveAgentRoot() {
@@ -73,6 +75,7 @@ function mergeConfig(raw) {
   merged.isCoordinator = Boolean(merged.isCoordinator);
   merged.coordinatorFallbackEnabled = Boolean(merged.coordinatorFallbackEnabled);
   merged.kioskMode = merged.kioskMode !== false;
+  merged.updateFeedUrl = normalizeUrl(merged.updateFeedUrl);
   merged.configVersion = CONFIG_VERSION;
   return merged;
 }

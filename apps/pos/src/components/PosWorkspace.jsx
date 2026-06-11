@@ -7,6 +7,7 @@ import { ReceiptPanel } from './ReceiptPanel.jsx';
 import { OrderLookupModal } from './OrderLookupModal.jsx';
 import { CrossSellBar } from './CrossSellBar.jsx';
 import { LogoutConfirmModal } from './LogoutConfirmModal.jsx';
+import { UpdateModal } from './UpdateModal.jsx';
 import { usePosWorkspace } from '../hooks/usePosWorkspace.js';
 
 export function PosWorkspace({ cashier, onLogout }) {
@@ -17,7 +18,8 @@ export function PosWorkspace({ cashier, onLogout }) {
     ws.showLogoutModal ||
     ws.orderLookup.open ||
     ws.showOpenModal ||
-    ws.shiftSession.showCloseModal;
+    ws.shiftSession.showCloseModal ||
+    ws.appUpdater.showModal;
 
   const modalShowsInlineError =
     Boolean(ws.error) &&
@@ -73,7 +75,22 @@ export function PosWorkspace({ cashier, onLogout }) {
         onAddItemWithModifiers={ws.handleAddItemWithModifiers}
         refreshOpenCheques={ws.refreshOpenCheques}
         refreshFloor={ws.refreshFloor}
+        onShiftClosed={ws.appUpdater.checkAfterShiftClose}
       />
+
+      {ws.appUpdater.showModal ? (
+        <UpdateModal
+          t={ws.t}
+          phase={ws.appUpdater.phase}
+          version={ws.appUpdater.version}
+          progress={ws.appUpdater.progress}
+          error={ws.appUpdater.error}
+          busy={ws.appUpdater.busy}
+          onDismiss={ws.appUpdater.dismissModal}
+          onDownload={ws.appUpdater.downloadUpdate}
+          onInstall={ws.appUpdater.installUpdate}
+        />
+      ) : null}
 
       <PosHeader
         t={ws.t}

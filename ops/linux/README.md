@@ -79,7 +79,22 @@ sudo bash /opt/venue-pos/ops/linux/uninstall.sh
 npm run build:till-bundle
 ```
 
+On **Linux** (or `BUILD_POS_APPIMAGE=1`), the bundle also includes a packaged **AppImage** under `pos/release/` for `electron-updater`.
+
+Set the update feed when building/publishing releases:
+
+```bash
+export POS_UPDATE_FEED_URL=https://releases.example.com/venue-pos
+```
+
 Output: `dist/venue-pos-till-<version>.tar.gz` — copy to USB.
+
+### Remote updates (electron-updater)
+
+- Packaged AppImage only (`app.isPackaged`); dev/USB raw electron skips updater.
+- Feed: generic `latest-linux.yml` + AppImage on CDN/GitHub Releases — **not** on Render API.
+- `POS_UPDATE_FEED_URL` at build time, or `updateFeedUrl` in `pos-config.json`.
+- Checks after shift close + ~60s after startup; download/install prompts in POS UI.
 
 ## Fresh VM smoke checklist
 

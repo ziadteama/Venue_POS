@@ -1822,6 +1822,20 @@ Hub manager: `/` → tap Refunds today · `/cheques` on phone (drawer) · header
 
 ---
 
+### 2026-06-11 — POS electron-updater (packaged AppImage)
+**Phase:** 7 · **Story:** deployment / US-9.x
+**What:** `electron-updater` in main process — generic feed (`POS_UPDATE_FEED_URL`), terminal auth headers, check after shift close + startup; `UpdateModal` UI; `electron-builder` Linux AppImage; `build:till-bundle` packages AppImage on Linux.
+**Files:** `auto-updater.cjs`, `updater-feed.cjs`, `main.cjs`, `preload.cjs`, `useAppUpdater.js`, `UpdateModal.jsx`, `build-till-bundle.mjs`, `ops/linux/start-kiosk.sh`, `apps/pos/package.json`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/pos
+BUILD_POS_APPIMAGE=1 POS_UPDATE_FEED_URL=https://releases.example.com/venue-pos npm run build:till-bundle
+```
+Packaged till: shift close → update prompt · publish `latest-linux.yml` + AppImage to CDN/Releases (not Render API)
+**Notes:** Unpackaged dev/USB electron skips updater (`app.isPackaged`). Set feed at build or in `pos-config.json` `updateFeedUrl`.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

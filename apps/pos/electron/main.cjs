@@ -11,11 +11,15 @@ const {
   isConfigComplete,
   detectLanHost,
 } = require('./config-store.cjs');
+const { createAutoUpdater } = require('./auto-updater.cjs');
 
 const isDev = process.env.NODE_ENV === 'development';
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
+
+/** @type {ReturnType<typeof createAutoUpdater> | null} */
+let appUpdater = null;
 
 function getUserDataPath() {
   return app.getPath('userData');
@@ -110,7 +114,16 @@ if (isDev && process.platform === 'win32') {
 
 app.whenReady().then(() => {
   registerIpc();
+  appUpdater = createAutoUpdater({
+    getConfig: () => currentConfig(),
+    getMainWindow: () => mainWindow,
+  });
+  appUpdater.init();
+  appUpdater.registerIpc(ipcMain);
   createWindow();
+  if (isConfigComplete(currentConfig())) {
+    appUpdater.scheduleStartupCheck();
+  }
 });
 
 app.on('activate', () => {

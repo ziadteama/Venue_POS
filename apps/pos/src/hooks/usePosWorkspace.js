@@ -12,6 +12,7 @@ import { usePosMenu } from './usePosMenu.js';
 import { usePosModals } from './usePosModals.js';
 import { usePrinterHealth } from './usePrinterHealth.js';
 import { useShiftSession } from './useShiftSession.js';
+import { useAppUpdater } from './useAppUpdater.js';
 import { useAgentStatus } from './useAgentStatus.js';
 import { useFloorTables } from './useFloorTables.js';
 import { useFloorSocket } from './useFloorSocket.js';
@@ -60,6 +61,7 @@ export function usePosWorkspace(cashier) {
     displayItems,
   } = usePosMenu();
 
+  const appUpdater = useAppUpdater();
   const shiftSession = useShiftSession(cashier.id);
   const {
     shift,
@@ -364,6 +366,7 @@ export function usePosWorkspace(cashier) {
     coordinatorUnreachable,
     managerNotice,
     setManagerNotice,
+    appUpdater,
   };
 }
 
