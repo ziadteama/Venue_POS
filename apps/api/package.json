@@ -13,6 +13,7 @@
     "db:studio": "prisma studio",
     "seed": "node src/db/seed.js",
     "db:seed": "node src/db/seed.js",
+    "seed:prod": "node src/db/seed-prod.js",
     "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {

@@ -8,7 +8,7 @@ services:
     # Build from repo root so the monorepo workspace resolves correctly
     rootDir: .
     buildCommand: npm ci --workspace=@venue-pos/api --include-workspace-root && npm run db:generate -w @venue-pos/api
-    startCommand: cd apps/api && npx prisma migrate deploy && node src/index.js
+    startCommand: cd apps/api && npx prisma migrate deploy && node src/db/seed-prod.js && node src/index.js
 
     healthCheckPath: /health
 
