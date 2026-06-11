@@ -106,11 +106,10 @@ pruneBundle();
 
 console.log('Creating archive...');
 fs.mkdirSync(path.dirname(archive), { recursive: true });
-if (process.platform === 'win32') {
-  run('tar', ['-czf', archive, '-C', path.dirname(outDir), path.basename(outDir)]);
-} else {
-  run('tar', ['-czf', archive, '-C', path.dirname(outDir), path.basename(outDir)]);
-}
+// GNU tar on Windows/Git Bash treats `Z:\path` as remote host `Z` — use relative paths only.
+const bundleDirName = path.basename(outDir);
+const archiveArg = path.join('dist', `${bundleDirName}.tar.gz`).split(path.sep).join('/');
+run('tar', ['-czf', archiveArg, '-C', 'dist', bundleDirName]);
 
 console.log(`\nBundle ready: ${archive}`);
 console.log('Copy to USB → on till: sudo bash ops/linux/install.sh');
