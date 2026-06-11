@@ -121,6 +121,10 @@ export function OrdersPage() {
   const deepVenueId = searchParams.get('venueId');
   const [venues, setVenues] = useState([]);
   const [venueId, setVenueId] = useState(deepVenueId || user?.venueId || '');
+
+  useEffect(() => {
+    if (deepVenueId) setVenueId(deepVenueId);
+  }, [deepVenueId]);
   const [filters, setFilters] = useState(emptyFilters);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
@@ -336,11 +340,11 @@ export function OrdersPage() {
     const target = actionTarget;
     const path = managerActionPath(target);
     if (!path) return;
-    const scopedVenue = canPickVenue ? venueId : user?.venueId;
+    const actionVenue = detail?.venueId || deepVenueId || (canPickVenue ? venueId : user?.venueId);
     setActionBusy(true);
     setError('');
     try {
-      const q = scopedVenue ? `?venueId=${scopedVenue}` : '';
+      const q = actionVenue ? `?venueId=${actionVenue}` : '';
       await apiFetch(`${path}${q}`, {
         method: managerActionMethod(target),
         body: JSON.stringify(body),
