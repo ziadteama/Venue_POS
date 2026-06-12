@@ -14,7 +14,6 @@ const CASHIER_ID = '00000000-0000-4000-8000-000000000197';
 
 let app;
 let hubToken;
-let ownerToken;
 
 before(async () => {
   ensureKeys();
@@ -35,18 +34,6 @@ before(async () => {
       username: 'mgrtermhub',
       passwordHash: hubHash,
       role: 'hub_manager',
-      venueId: VENUE_ID,
-    },
-  });
-
-  const ownerHash = await bcrypt.hash('mgrtermowner', config.bcryptRounds);
-  await prisma.user.upsert({
-    where: { username: 'mgrtermowner' },
-    update: { passwordHash: ownerHash, role: 'hub_owner', venueId: VENUE_ID, isActive: true },
-    create: {
-      username: 'mgrtermowner',
-      passwordHash: ownerHash,
-      role: 'hub_owner',
       venueId: VENUE_ID,
     },
   });
@@ -90,14 +77,6 @@ before(async () => {
       method: 'POST',
       url: '/api/v1/auth/login',
       payload: { username: 'mgrtermhub', password: 'mgrtermhub' },
-    })
-  ).json().accessToken;
-
-  ownerToken = (
-    await app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/login',
-      payload: { username: 'mgrtermowner', password: 'mgrtermowner' },
     })
   ).json().accessToken;
 });
