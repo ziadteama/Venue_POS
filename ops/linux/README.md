@@ -49,15 +49,17 @@ Create the terminal in the **dev ops dashboard** first: login as `devops` → **
 
 If you land on PIN by mistake, tap **Till setup (Manager PIN required)** or press **Ctrl+Shift+S** and enter the Manager PIN (default `0000` on new tills).
 
-### Kiosk — leave POS temporarily
+### Semi-kiosk — leave POS temporarily
 
-| Action | Shortcut | PIN |
-|--------|----------|-----|
-| Minimize POS / use Ubuntu | `Ctrl+Shift+X` | Manager PIN (default `0000`) |
-| Open till setup | `Ctrl+Shift+S` | Manager PIN |
-| IT override | — | `1547` (hardcoded; all privileged PIN prompts) |
+| Action | Shortcut | Code |
+|--------|----------|------|
+| Minimize POS / use Ubuntu desktop | `Ctrl+Shift+X` | Exit code **`7894`** (hardcoded) |
+| Open till setup | `Ctrl+Shift+S` | Manager PIN (default `0000`) |
+| IT override (setup/manager PIN gates only) | — | `1547` |
 
-Change Manager PIN per till: hub **Settings → Terminals → Change PIN**. Maximize POS from the taskbar to return to fullscreen kiosk.
+POS runs in **fullscreen** (not OS kiosk mode) so the Ubuntu desktop/taskbar remains accessible once minimized. Maximize or click the POS window from the taskbar to return; POS will snap back to fullscreen automatically.
+
+The exit code `7894` is hardcoded in the Electron main process and is NOT stored in the database or configurable from the hub dashboard.
 
 ## Services
 
