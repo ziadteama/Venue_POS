@@ -124,8 +124,9 @@ export function PinLoginScreen({ t, onLogin, loading, error, onOpenSetup }) {
             <span className="sr-only">{t('pos.pinLoginTitle')}</span>
             <input
               ref={inputRef}
-              type="password"
+              type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
               autoComplete="off"
               autoCorrect="off"
               spellCheck={false}

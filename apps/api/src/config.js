@@ -7,7 +7,8 @@ function required(name, fallback) {
 }
 
 function buildCorsOrigins() {
-  const fromEnv = (process.env.CORS_ALLOWED_ORIGINS ?? 'http://localhost:5173,http://localhost:5175')
+  const fromEnv = (process.env.CORS_ALLOWED_ORIGINS ??
+    'http://localhost:5173,http://localhost:5174,http://localhost:5175,http://127.0.0.1:5174')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);

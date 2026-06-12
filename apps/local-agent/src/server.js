@@ -13,7 +13,9 @@ import { registerFloorRoutes } from './routes/floor.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerPeerRoutes, registerRelayRoutes } from './routes/peer.js';
 import { registerEventRoutes } from './routes/events.js';
-import { registerHardwareRoutes } from './routes/hardware.js'; 
+import { registerHardwareRoutes } from './routes/hardware.js';
+import { registerSetupRoutes } from './routes/setup.js';
+import { getRuntimeConfig, initRuntimeConfig } from './services/runtime-config.js';
 
 export async function buildAgentApp({ db, config, logger = false }) {
   const app = Fastify({
@@ -38,6 +40,14 @@ export async function buildAgentApp({ db, config, logger = false }) {
     lanPort = 3456,
     lanSecret = '',
   } = config;
+
+  initRuntimeConfig({
+    apiUrl,
+    cloudHealthUrl: `${String(apiUrl ?? '').replace(/\/+$/, '')}/health`,
+    venueId,
+    terminalId,
+    terminalSecret,
+  });
 
   await app.register(cors, {
     origin: corsOrigins,
@@ -65,7 +75,7 @@ export async function buildAgentApp({ db, config, logger = false }) {
 
   registerHealthRoutes(app, { ...routeCtx, clusterManager });
   registerEventRoutes(app, { corsOrigins });
-  registerAuthRoutes(app, routeCtx);
+  registerAuthRoutes(app, { db, getRuntimeConfig });
   registerFloorRoutes(app, routeCtx);
   registerMenuRoutes(app, routeCtx);
   registerSyncRoutes(app, routeCtx);
@@ -76,6 +86,7 @@ export async function buildAgentApp({ db, config, logger = false }) {
   registerFeatureRoutes(app, routeCtx);
   registerOrderExplorerRoutes(app, routeCtx);
   registerHardwareRoutes(app, routeCtx);
+  registerSetupRoutes(app, { lanPort, db });
 
   if (clusterManager) {
     registerPeerRoutes(app, { clusterManager, getOwnLanHost });
