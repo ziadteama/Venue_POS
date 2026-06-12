@@ -33,6 +33,13 @@ export async function loginWithPin(pin) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ pin }),
+  }).catch((err) => {
+    if (String(err?.message ?? err).includes('Failed to fetch')) {
+      throw new Error(
+        'Local agent is not running (127.0.0.1:3456). Restart with npm run dev or npm run dev:agent.',
+      );
+    }
+    throw err;
   });
   const agentData = await agentRes.json().catch(() => ({}));
   if (agentRes.ok) return agentData;

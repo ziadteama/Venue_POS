@@ -1,8 +1,8 @@
 # Ubuntu till deployment (USB per till)
 
-Deploy Venue POS: copy the Linux-built bundle from CI, run **one command**, reboot, complete the setup wizard.
+Deploy Venue POS: download the **Till Installer AppImage** (or extract the tar.gz fallback), run **one command**, reboot, complete the setup wizard.
 
-**Important:** Use the bundle built on **Linux** (GitHub Actions `build-till-bundle` or `npm run build:till-bundle` on Ubuntu). Windows-built bundles skip native compile and AppImage.
+**Important:** Use artifacts built on **Linux** (GitHub Actions `build-till-bundle` or `npm run build:till-installer` on Ubuntu). Windows-built bundles skip native compile and AppImage.
 
 ## Till requirements
 
@@ -10,8 +10,21 @@ Deploy Venue POS: copy the Linux-built bundle from CI, run **one command**, rebo
 - 2 GB+ RAM
 - Outbound HTTPS to your cloud hub API
 - USB ESC/POS receipt printer (optional at install)
+- `libfuse2` (installer installs this; on minimal images: `sudo apt-get install -y libfuse2`)
 
-## One-click install
+## One-click install (recommended)
+
+```bash
+chmod +x VenuePOS-Till-Installer-*.AppImage
+./VenuePOS-Till-Installer-*.AppImage
+sudo reboot
+```
+
+Headless: `sudo ./VenuePOS-Till-Installer-*.AppImage --no-gui`
+
+Reinstall: `./VenuePOS-Till-Installer-*.AppImage --reinstall`
+
+## Fallback — tar.gz bundle
 
 ```bash
 tar -xzf venue-pos-till-*.tar.gz
@@ -47,7 +60,19 @@ Create the terminal in the **dev ops dashboard** first: login as `devops` → **
 4. LAN / coordinator
 5. **Test connection** → must pass → **Finish**
 
-If you land on PIN by mistake, tap **Till setup** or press **Ctrl+Shift+S** → **Open till setup (no PIN)** when no manager roster is cached.
+If you land on PIN by mistake, tap **Till setup (Manager PIN required)** or press **Ctrl+Shift+S** and enter the Manager PIN (default `0000` on new tills).
+
+### Semi-kiosk — leave POS temporarily
+
+| Action | Shortcut | Code |
+|--------|----------|------|
+| Minimize POS / use Ubuntu desktop | `Ctrl+Shift+X` | Exit code **`7894`** (hardcoded) |
+| Open till setup | `Ctrl+Shift+S` | Manager PIN (default `0000`) |
+| IT override (setup/manager PIN gates only) | — | `1547` |
+
+POS runs in **fullscreen** (not OS kiosk mode) so the Ubuntu desktop/taskbar remains accessible once minimized. Maximize or click the POS window from the taskbar to return; POS will snap back to fullscreen automatically.
+
+The exit code `7894` is hardcoded in the Electron main process and is NOT stored in the database or configurable from the hub dashboard.
 
 ## Services
 

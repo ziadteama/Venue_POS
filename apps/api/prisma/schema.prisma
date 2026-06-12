@@ -199,6 +199,7 @@ model Terminal {
   venueId            String    @map("venue_id") @db.Uuid
   name               String?   @db.VarChar(100)
   secretHash         String    @map("secret_hash") @db.VarChar(255)
+  kioskExitPinHash   String?   @map("kiosk_exit_pin_hash") @db.VarChar(255)
   isActive           Boolean   @default(true) @map("is_active")
   isCoordinator      Boolean   @default(false) @map("is_coordinator")
   coordinatorLanHost String?   @map("coordinator_lan_host") @db.VarChar(255)

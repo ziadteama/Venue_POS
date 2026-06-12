@@ -329,6 +329,29 @@ See [PHASE6_OFFLINE_PLAN.md](PHASE6_OFFLINE_PLAN.md). POS talks to `local-agent`
 
 Hub manager sets coordinator and till names in **Settings → Terminals** (persists `name`, `isCoordinator`, `coordinatorLanHost`; agents report `lastLanHost` / `lastClusterMode` via heartbeat).
 
+### Linux till installer AppImage (Phase 7)
+
+Build on **Ubuntu/Linux only** (CI or local):
+
+```bash
+npm ci --include-workspace-root
+npm run build:till-installer
+# Output: dist/VenuePOS-Till-Installer-<version>-x86_64.AppImage
+```
+
+On a fresh Ubuntu 22.04/24.04 till:
+
+```bash
+chmod +x VenuePOS-Till-Installer-*.AppImage
+./VenuePOS-Till-Installer-*.AppImage
+# headless: sudo ./VenuePOS-Till-Installer-*.AppImage --no-gui
+sudo reboot
+```
+
+The installer embeds the full till stack (local-agent, kiosk scripts, inner POS AppImage) and runs `setup.sh`. Fallback: `dist/venue-pos-till-*.tar.gz` + `sudo bash setup.sh`. See `ops/linux/ARTIFACT-README.md`.
+
+GitHub Actions: workflow **Build till bundle (Linux)** uploads the installer artifact. Tag releases (`v*`) also attach the installer to GitHub Releases.
+
 ### Windows service (coordinator till)
 
 Run the coordinator `local-agent` outside Electron so floor locks survive POS close:

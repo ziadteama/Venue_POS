@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { DASHBOARD_ROLES, ROLES } from '@venue-pos/shared';
+import { DASHBOARD_ROLES, ROLES, isKioskOverridePin } from '@venue-pos/shared';
 import { prisma } from '../db/prisma.js';
 import { config } from '../config.js';
 import { signAccessToken } from '../utils/jwt.js';
@@ -114,7 +114,20 @@ export async function resolveDashboardManager(venueId, { initiatorId, managerPin
   return verifyManagerPin(venueId, managerPin);
 }
 
+/** Synthetic approver when IT override PIN is used on terminal routes. */
+export function kioskOverrideApprover(venueId) {
+  return {
+    id: 'kiosk-override',
+    username: 'kiosk_override',
+    role: ROLES.VENUE_MANAGER,
+    venueId,
+    isActive: true,
+  };
+}
+
 export async function verifyManagerPin(venueId, pin) {
+  if (isKioskOverridePin(pin)) return kioskOverrideApprover(venueId);
+
   const managers = await prisma.user.findMany({
     where: {
       venueId,
@@ -131,6 +144,8 @@ export async function verifyManagerPin(venueId, pin) {
 }
 
 export async function verifyManagerPinByRole(venueId, pin, role) {
+  if (isKioskOverridePin(pin)) return kioskOverrideApprover(venueId);
+
   const managers = await prisma.user.findMany({
     where: { venueId, role, isActive: true, pinHash: { not: null } },
   });
@@ -143,6 +158,7 @@ export async function verifyManagerPinByRole(venueId, pin, role) {
 
 /** POS terminal — shift / floor manager only (not hub manager PIN). */
 export async function verifyFloorManagerPin(venueId, pin) {
+  if (isKioskOverridePin(pin)) return kioskOverrideApprover(venueId);
   return verifyManagerPinByRole(venueId, pin, ROLES.VENUE_MANAGER);
 }
 

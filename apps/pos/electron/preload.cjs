@@ -100,6 +100,9 @@ contextBridge.exposeInMainWorld('venuePos', {
   testConnection: (partial) => ipcRenderer.invoke('config:test', partial),
   detectLanHost: () => ipcRenderer.invoke('config:detectLanHost'),
   restartAgent: () => ipcRenderer.invoke('config:restartAgent'),
+  pauseKiosk: () => ipcRenderer.invoke('kiosk:pause'),
+  isKioskPaused: () => ipcRenderer.invoke('kiosk:isPaused'),
+  verifyKioskExitCode: (code) => ipcRenderer.invoke('kiosk:verifyExitCode', code),
 
   getAgentHealth: () => agentFetch('/health'),
   getMenu: () => agentFetch('/v1/menu'),

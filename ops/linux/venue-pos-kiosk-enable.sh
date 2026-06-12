@@ -4,6 +4,7 @@ set -euo pipefail
 
 USER_NAME="${1:-venuepos}"
 INSTALL_ROOT="${2:-/opt/venue-pos}"
+MINIMAL_KIOSK="${3:-false}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -11,7 +12,11 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-bash "${SCRIPT_DIR}/configure-gdm-autologin.sh" "${USER_NAME}"
+if [[ "${MINIMAL_KIOSK}" == true ]]; then
+  bash "${SCRIPT_DIR}/configure-lightdm-autologin.sh" "${USER_NAME}"
+else
+  bash "${SCRIPT_DIR}/configure-gdm-autologin.sh" "${USER_NAME}"
+fi
 bash "${SCRIPT_DIR}/configure-openbox-session.sh" "${USER_NAME}" "${INSTALL_ROOT}"
 
 echo "==> systemd user kiosk service (${USER_NAME})"

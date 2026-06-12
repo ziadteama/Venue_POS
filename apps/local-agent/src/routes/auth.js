@@ -3,15 +3,18 @@ import { isCloudOnline } from '../services/cloud-health.js';
 import {
   verifyCachedPin,
   verifyCachedManagerPin,
+  verifyCachedKioskExitPin,
   syncTerminalRosterFromServer,
 } from '../services/terminal-cache.js';
 
-export function registerAuthRoutes(app, { db, apiUrl, venueId, terminalId, terminalSecret }) {
+export function registerAuthRoutes(app, { db, getRuntimeConfig }) {
   app.post('/v1/auth/pin', async (request, reply) => {
     const { pin } = request.body ?? {};
     if (!pin || String(pin).length < 4) {
       return reply.status(400).send({ error: 'PIN required (4+ digits)' });
     }
+
+    const { apiUrl, venueId, terminalId, terminalSecret } = getRuntimeConfig();
 
     if (isCloudOnline()) {
       try {
@@ -64,5 +67,19 @@ export function registerAuthRoutes(app, { db, apiUrl, venueId, terminalId, termi
       ok: true,
       user: { id: manager.id, username: manager.username, role: manager.role },
     };
+  });
+
+  app.post('/v1/auth/verify-kiosk-exit-pin', async (request, reply) => {
+    const { pin } = request.body ?? {};
+    if (!pin || String(pin).length < 4) {
+      return reply.status(400).send({ error: 'PIN required (4+ digits)' });
+    }
+
+    const verified = await verifyCachedKioskExitPin(db, String(pin));
+    if (!verified) {
+      return reply.status(401).send({ error: { message: 'Invalid manager PIN' } });
+    }
+
+    return { ok: true, override: Boolean(verified.override) };
   });
 }

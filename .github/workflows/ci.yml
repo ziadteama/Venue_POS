@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   changes:
@@ -22,7 +23,6 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          list-files: git
           filters: |
             api:
               - 'apps/api/**'
@@ -45,6 +45,10 @@ jobs:
               - 'packages/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
+              - 'scripts/build-till-bundle.mjs'
+              - 'scripts/build-till-bundle-windows.mjs'
+              - 'scripts/build-till-installer-appimage.mjs'
 
   lint:
     runs-on: ubuntu-latest

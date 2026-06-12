@@ -20,9 +20,11 @@
     "build:api": "npm run build -w @venue-pos/api",
     "build:dashboard": "npm run build -w @venue-pos/dashboard",
     "build:pos": "npm run build -w @venue-pos/pos",
+    "build:pos:win": "npm run build:packaged:win -w @venue-pos/pos",
     "build:kds": "npm run build -w @venue-pos/kds",
     "build:agent": "npm run build -w @venue-pos/local-agent",
     "build:till-bundle": "node scripts/build-till-bundle.mjs",
+    "build:till-installer": "node scripts/build-till-installer-appimage.mjs",
     "build:till-bundle:windows": "node scripts/build-till-bundle-windows.mjs",
     "migrate": "npm run migrate -w @venue-pos/api",
     "migrate:dev": "npm run migrate:dev -w @venue-pos/api",
@@ -44,7 +46,7 @@
     "node": "20.x"
   },
   "overrides": {
-    "electron": "^40.10.2",
+    "electron": "40.10.3",
     "tar": "^7.5.16",
     "@mapbox/node-pre-gyp": {
       "tar": "^7.5.16"

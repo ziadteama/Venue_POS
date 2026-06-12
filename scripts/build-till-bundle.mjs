@@ -136,6 +136,9 @@ if (fs.existsSync(path.join(repoRoot, 'apps', 'watchdog'))) {
 }
 copyDir(path.join(repoRoot, 'ops'), path.join(outDir, 'ops'));
 copyDir(path.join(repoRoot, 'packages'), path.join(outDir, 'packages'));
+// scripts/ must be present in the bundle so that postinstall (prisma-generate.mjs)
+// works when `npm install` is run from the extracted artifact on a till machine.
+copyDir(path.join(repoRoot, 'scripts'), path.join(outDir, 'scripts'));
 if (!skipNodeModules) {
   copyDir(path.join(repoRoot, 'node_modules'), path.join(outDir, 'node_modules'));
 }
@@ -143,6 +146,12 @@ if (fs.existsSync(path.join(repoRoot, 'setup.sh'))) {
   fs.copyFileSync(path.join(repoRoot, 'setup.sh'), path.join(outDir, 'setup.sh'));
   fs.chmodSync(path.join(outDir, 'setup.sh'), 0o755);
 }
+
+const artifactReadme = path.join(repoRoot, 'ops', 'linux', 'ARTIFACT-README.md');
+if (fs.existsSync(artifactReadme)) {
+  fs.copyFileSync(artifactReadme, path.join(outDir, 'README.md'));
+}
+
 if (skipNodeModules) {
   writeTillPackageJson();
   console.log('Slim bundle: node_modules omitted — on till run: cd /opt/venue-pos && npm i');
