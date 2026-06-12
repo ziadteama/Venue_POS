@@ -31,6 +31,7 @@ ops/secrets/*.pem
 apps/pos/dist-electron/
 apps/pos/release/
 apps/kds/dist-electron/
+apps/pos/release/
 
 # IDE
 .idea/

@@ -22,8 +22,8 @@ sudo reboot
 
 On first boot:
 
-- GDM auto-logs in as **`venuepos`**
-- **systemd user service** starts POS (AppImage)
+- GDM auto-logs in as **`venuepos`** into a minimal **openbox** session
+- **venue-pos-kiosk-display** (system) + openbox autostart launch POS (AppImage)
 - **Setup wizard** opens (not PIN) until hub + terminal are configured
 
 ### Optional CLI provision (skip wizard)
@@ -37,7 +37,7 @@ sudo bash setup.sh \
 sudo reboot
 ```
 
-Create the terminal in dashboard → **Settings → Terminals** first.
+Create the terminal in the **dev ops dashboard** first: login as `devops` → **Dev ops console** → **Till provisioning** → **Add terminal**. Copy the hub API URL, terminal ID, secret, and venue ID into the till setup wizard (or pass them to `setup.sh` flags below).
 
 ## Setup wizard
 
@@ -56,8 +56,31 @@ If you land on PIN by mistake, tap **Till setup** or press **Ctrl+Shift+S** → 
 | Agent | `sudo systemctl status venue-pos-agent` |
 | Agent logs | `journalctl -u venue-pos-agent -f` |
 | Kiosk logs | `tail -f /home/venuepos/.local/share/venue-pos/kiosk.log` |
-| Kiosk service | `sudo -u venuepos systemctl --user status venue-pos-kiosk` |
+| Kiosk display service | `sudo systemctl status venue-pos-kiosk-display` |
+| Kiosk display logs | `journalctl -u venue-pos-kiosk-display -f` |
+| Kiosk user service | `sudo -u venuepos systemctl --user status venue-pos-kiosk` |
 | Receipt printer | `sudo bash /opt/venue-pos/ops/linux/setup-receipt-printer.sh` |
+
+## POS does not start after reboot
+
+Usually GDM autologin was not applied or no desktop session was installed. On the till:
+
+```bash
+sudo bash /opt/venue-pos/ops/linux/fix-kiosk-boot.sh
+sudo reboot
+```
+
+If that script is missing (older bundle), copy updated `ops/linux/` from a fresh build, then run it.
+
+Quick checks:
+
+```bash
+systemctl get-default                    # graphical.target
+grep AutomaticLogin /etc/gdm3/custom.conf
+systemctl is-active venue-pos-agent
+systemctl is-active venue-pos-kiosk-display
+journalctl -u venue-pos-kiosk-display -n 40
+```
 
 ## Build bundle (dev)
 
@@ -66,6 +89,19 @@ If you land on PIN by mistake, tap **Till setup** or press **Ctrl+Shift+S** → 
 ```bash
 npm run build:till-bundle
 # artifact: dist/venue-pos-till-<version>.tar.gz (includes AppImage)
+
+# Slim USB copy (no node_modules — you run npm i on the till):
+SKIP_BUNDLE_NODE_MODULES=1 SKIP_BUNDLE_ZIP=1 npm run build:till-bundle
+```
+
+After `sudo bash setup.sh` on a slim bundle:
+
+```bash
+cd /opt/venue-pos
+npm i
+cd local-agent && npm rebuild bcrypt better-sqlite3
+sudo systemctl restart venue-pos-agent
+sudo reboot
 ```
 
 **On Windows (dev only — not for production tills):**

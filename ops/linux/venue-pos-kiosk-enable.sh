@@ -1,29 +1,18 @@
 #!/usr/bin/env bash
-# Enable venuepos kiosk autologin + systemd user service. Run as root from install.sh.
+# Enable venuepos kiosk autologin + systemd services. Run as root from install.sh.
 set -euo pipefail
 
 USER_NAME="${1:-venuepos}"
 INSTALL_ROOT="${2:-/opt/venue-pos}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run as root"
   exit 1
 fi
 
-echo "==> GDM autologin (${USER_NAME})"
-mkdir -p /etc/gdm3/custom.conf.d
-cat > /etc/gdm3/custom.conf.d/venue-pos.conf <<EOF
-[daemon]
-AutomaticLogin=${USER_NAME}
-AutomaticLoginEnable=true
-EOF
-
-if [[ -f /etc/gdm3/custom.conf ]]; then
-  if grep -q '^AutomaticLoginEnable=' /etc/gdm3/custom.conf 2>/dev/null; then
-    sed -i "s/^AutomaticLoginEnable=.*/AutomaticLoginEnable=true/" /etc/gdm3/custom.conf || true
-    sed -i "s/^AutomaticLogin=.*/AutomaticLogin=${USER_NAME}/" /etc/gdm3/custom.conf || true
-  fi
-fi
+bash "${SCRIPT_DIR}/configure-gdm-autologin.sh" "${USER_NAME}"
+bash "${SCRIPT_DIR}/configure-openbox-session.sh" "${USER_NAME}" "${INSTALL_ROOT}"
 
 echo "==> systemd user kiosk service (${USER_NAME})"
 mkdir -p "/home/${USER_NAME}/.config/systemd/user"
@@ -33,15 +22,13 @@ chown -R "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}/.config/systemd"
 
 loginctl enable-linger "${USER_NAME}" 2>/dev/null || true
 
-sudo -u "${USER_NAME}" XDG_RUNTIME_DIR="/run/user/$(id -u "${USER_NAME}")" \
+uid="$(id -u "${USER_NAME}")"
+sudo -u "${USER_NAME}" XDG_RUNTIME_DIR="/run/user/${uid}" \
   systemctl --user daemon-reload 2>/dev/null || true
-sudo -u "${USER_NAME}" XDG_RUNTIME_DIR="/run/user/$(id -u "${USER_NAME}")" \
+sudo -u "${USER_NAME}" XDG_RUNTIME_DIR="/run/user/${uid}" \
   systemctl --user enable venue-pos-kiosk.service 2>/dev/null || true
 
-cat > "/home/${USER_NAME}/.xprofile" <<'XPROF'
-# Venue POS — start kiosk user service when graphical session begins
-if command -v systemctl >/dev/null 2>&1; then
-  systemctl --user start venue-pos-kiosk.service 2>/dev/null || true
-fi
-XPROF
-chown "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}/.xprofile"
+echo "==> systemd system kiosk display service"
+cp -f "${INSTALL_ROOT}/ops/linux/venue-pos-kiosk-display.service" /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable venue-pos-kiosk-display.service

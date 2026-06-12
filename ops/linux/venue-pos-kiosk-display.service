@@ -1,0 +1,16 @@
+[Unit]
+Description=Venue POS kiosk (waits for X display, launches POS)
+After=network-online.target graphical.target venue-pos-agent.service gdm.service
+Wants=network-online.target graphical.target
+# Avoid racing GDM session setup
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/opt/venue-pos/ops/linux/launch-kiosk-display.sh
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=graphical.target
