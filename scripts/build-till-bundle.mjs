@@ -36,6 +36,13 @@ function copyDir(src, dest) {
   fs.cpSync(src, dest, { recursive: true });
 }
 
+const skipNodeModules = process.env.SKIP_BUNDLE_NODE_MODULES === '1';
+
+function stripNodeModules(dir) {
+  const nm = path.join(dir, 'node_modules');
+  if (fs.existsSync(nm)) fs.rmSync(nm, { recursive: true, force: true });
+}
+
 function pruneBundle() {
   const drop = (p) => {
     if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
@@ -43,6 +50,18 @@ function pruneBundle() {
   drop(path.join(outDir, 'local-agent', 'data'));
   drop(path.join(outDir, 'local-agent', '.env'));
   drop(path.join(outDir, 'pos', '.env'));
+  if (skipNodeModules) {
+    drop(path.join(outDir, 'node_modules'));
+    for (const sub of ['local-agent', 'pos', 'watchdog']) {
+      stripNodeModules(path.join(outDir, sub));
+    }
+    for (const pkg of fs.existsSync(path.join(outDir, 'packages'))
+      ? fs.readdirSync(path.join(outDir, 'packages'))
+      : []) {
+      stripNodeModules(path.join(outDir, 'packages', pkg));
+    }
+    return;
+  }
   for (const sub of ['local-agent', 'pos']) {
     const nm = path.join(outDir, sub, 'node_modules');
     if (!fs.existsSync(nm)) continue;
@@ -50,6 +69,19 @@ function pruneBundle() {
       if (name.startsWith('.cache')) drop(path.join(nm, name));
     }
   }
+}
+
+function writeTillPackageJson() {
+  const tillPkg = {
+    name: 'venue-pos-till',
+    version,
+    private: true,
+    workspaces: ['local-agent', 'pos', 'packages/*'],
+  };
+  fs.writeFileSync(
+    path.join(outDir, 'package.json'),
+    `${JSON.stringify(tillPkg, null, 2)}\n`,
+  );
 }
 
 const nodeMajor = Number(process.versions.node.split('.')[0]);
@@ -76,7 +108,13 @@ if (process.env.SKIP_BUNDLE_CI === '1') {
 }
 
 console.log('Building POS (vite)...');
-run('npm', ['run', 'build', '-w', '@venue-pos/pos']);
+const posDir = path.join(repoRoot, 'apps', 'pos');
+const viteBin = path.join(repoRoot, 'node_modules', 'vite', 'bin', 'vite.js');
+if (fs.existsSync(viteBin)) {
+  run('node', [viteBin, 'build'], { cwd: posDir });
+} else {
+  run('npm', ['run', 'build', '-w', '@venue-pos/pos']);
+}
 
 if (process.platform === 'linux' || process.env.BUILD_POS_APPIMAGE === '1') {
   console.log('Packaging POS AppImage (electron-updater)...');
@@ -93,16 +131,45 @@ fs.mkdirSync(outDir, { recursive: true });
 
 copyDir(path.join(repoRoot, 'apps', 'local-agent'), path.join(outDir, 'local-agent'));
 copyDir(path.join(repoRoot, 'apps', 'pos'), path.join(outDir, 'pos'));
+if (fs.existsSync(path.join(repoRoot, 'apps', 'watchdog'))) {
+  copyDir(path.join(repoRoot, 'apps', 'watchdog'), path.join(outDir, 'watchdog'));
+}
 copyDir(path.join(repoRoot, 'ops'), path.join(outDir, 'ops'));
 copyDir(path.join(repoRoot, 'packages'), path.join(outDir, 'packages'));
-copyDir(path.join(repoRoot, 'node_modules'), path.join(outDir, 'node_modules'));
+if (!skipNodeModules) {
+  copyDir(path.join(repoRoot, 'node_modules'), path.join(outDir, 'node_modules'));
+}
+if (fs.existsSync(path.join(repoRoot, 'setup.sh'))) {
+  fs.copyFileSync(path.join(repoRoot, 'setup.sh'), path.join(outDir, 'setup.sh'));
+  fs.chmodSync(path.join(outDir, 'setup.sh'), 0o755);
+}
+if (skipNodeModules) {
+  writeTillPackageJson();
+  console.log('Slim bundle: node_modules omitted — on till run: cd /opt/venue-pos && npm i');
+} else if (fs.existsSync(path.join(repoRoot, 'package.json'))) {
+  fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(outDir, 'package.json'));
+}
 
-// Shared workspace link for agent
-if (!fs.existsSync(path.join(outDir, 'local-agent', 'node_modules', '@venue-pos'))) {
-  fs.mkdirSync(path.join(outDir, 'local-agent', 'node_modules', '@venue-pos'), { recursive: true });
+if (!skipNodeModules) {
+  // Shared workspace link for agent
+  if (!fs.existsSync(path.join(outDir, 'local-agent', 'node_modules', '@venue-pos'))) {
+    fs.mkdirSync(path.join(outDir, 'local-agent', 'node_modules', '@venue-pos'), { recursive: true });
+  }
 }
 
 pruneBundle();
+
+console.log(`\nBundle folder ready: ${outDir}`);
+if (skipNodeModules) {
+  console.log('Copy to USB → on till: sudo bash setup.sh → cd /opt/venue-pos && npm i → reboot');
+} else {
+  console.log('Copy to USB → on till: sudo bash setup.sh');
+}
+
+if (process.env.SKIP_BUNDLE_ZIP === '1') {
+  console.log('Skipping archive (SKIP_BUNDLE_ZIP=1).');
+  process.exit(0);
+}
 
 console.log('Creating archive...');
 fs.mkdirSync(path.dirname(archive), { recursive: true });
@@ -111,5 +178,4 @@ const bundleDirName = path.basename(outDir);
 const archiveArg = path.join('dist', `${bundleDirName}.tar.gz`).split(path.sep).join('/');
 run('tar', ['-czf', archiveArg, '-C', 'dist', bundleDirName]);
 
-console.log(`\nBundle ready: ${archive}`);
-console.log('Copy to USB → on till: sudo bash ops/linux/install.sh');
+console.log(`Archive ready: ${archive}`);

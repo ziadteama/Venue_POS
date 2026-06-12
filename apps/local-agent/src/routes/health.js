@@ -20,10 +20,20 @@ function findPeerLabel(peers, { terminalId, host } = {}) {
   return peer?.deviceLabel || peer?.host || null;
 }
 
+function countStaffRole(db, role) {
+  const row = db
+    .prepare(`SELECT COUNT(*) AS c FROM staff_cache WHERE role = ?`)
+    .get(role);
+  return Number(row?.c ?? 0);
+}
+
 export function registerHealthRoutes(
   app,
   {
     db,
+    apiUrl,
+    terminalId,
+    terminalSecret,
     venueId,
     isCoordinator,
     coordinatorMode,
@@ -61,9 +71,14 @@ export function registerHealthRoutes(
       host: printers.receiptPrinterHost,
       port: printers.receiptPrinterPort,
     });
+    const provisioned = Boolean(terminalId && terminalSecret && apiUrl);
+    const staffCount = db.prepare(`SELECT COUNT(*) AS c FROM staff_cache`).get()?.c ?? 0;
     return {
       status: 'ok',
       service: 'local-agent',
+      provisioned,
+      hasStaffCache: Number(staffCount) > 0,
+      hasManagerCache: countStaffRole(db, 'venue_manager') > 0,
       deviceLabel: deviceProfile.deviceLabel ?? null,
       deviceProfile,
       syncQueueDepth: getSyncQueueDepth(db),

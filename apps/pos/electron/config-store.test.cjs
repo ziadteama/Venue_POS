@@ -9,7 +9,33 @@ const {
   isConfigComplete,
   writeUpdaterEnv,
   sanitizeConfigForRenderer,
+  defaultReceiptPrinterMode,
 } = require('./config-store.cjs');
+
+test('isConfigComplete requires setupValidatedAt', () => {
+  const { isConfigComplete: complete } = require('./config-store.cjs');
+  assert.equal(
+    complete({
+      setupComplete: true,
+      apiUrl: 'https://hub.example.com',
+      terminalId: '00000000-0000-4000-8000-000000000001',
+      terminalSecret: 'secret',
+      agentUrl: 'http://127.0.0.1:3456',
+    }),
+    false,
+  );
+  assert.equal(
+    complete({
+      setupComplete: true,
+      apiUrl: 'https://hub.example.com',
+      terminalId: '00000000-0000-4000-8000-000000000001',
+      terminalSecret: 'secret',
+      agentUrl: 'http://127.0.0.1:3456',
+      setupValidatedAt: '2026-06-12T00:00:00.000Z',
+    }),
+    true,
+  );
+});
 
 test('buildAgentEnv includes terminal and API settings', () => {
   const env = buildAgentEnv({
@@ -30,6 +56,40 @@ test('buildAgentEnv includes terminal and API settings', () => {
   assert.match(env, /IS_COORDINATOR=true/);
 });
 
+test('buildAgentEnv uses cups receipt printer on Linux', () => {
+  const env = buildAgentEnv(
+    {
+      terminalId: '00000000-0000-4000-8000-000000000001',
+      terminalSecret: 'secret',
+      apiUrl: 'https://hub.example.com',
+      agentLanPort: 3456,
+    },
+    { platform: 'linux' },
+  );
+  assert.match(env, /RECEIPT_PRINTER_MODE=cups/);
+  assert.match(env, /RECEIPT_PRINTER_NAME=VenueReceipt/);
+  assert.match(env, /FEATURE_CASH_DRAWER=true/);
+});
+
+test('buildAgentEnv uses windows receipt printer on Windows', () => {
+  const env = buildAgentEnv(
+    {
+      terminalId: '00000000-0000-4000-8000-000000000001',
+      terminalSecret: 'secret',
+      apiUrl: 'https://hub.example.com',
+      agentLanPort: 3456,
+    },
+    { platform: 'win32' },
+  );
+  assert.match(env, /RECEIPT_PRINTER_MODE=windows/);
+  assert.doesNotMatch(env, /RECEIPT_PRINTER_NAME=/);
+});
+
+test('defaultReceiptPrinterMode is platform-specific', () => {
+  assert.equal(defaultReceiptPrinterMode('linux'), 'cups');
+  assert.equal(defaultReceiptPrinterMode('win32'), 'windows');
+});
+
 test('writeConfig marks setup complete when saved', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pos-config-'));
   const saved = writeConfig(tmp, {
@@ -37,6 +97,7 @@ test('writeConfig marks setup complete when saved', () => {
     terminalId: '00000000-0000-4000-8000-000000000099',
     terminalSecret: 'sec',
     setupComplete: true,
+    setupValidatedAt: '2026-06-12T00:00:00.000Z',
   });
   assert.equal(isConfigComplete(saved), true);
   const raw = JSON.parse(fs.readFileSync(path.join(tmp, 'pos-config.json'), 'utf8'));
@@ -50,6 +111,7 @@ test('writeConfig preserves githubUpdateToken when not re-sent', () => {
     apiUrl: 'https://hub.example.com',
     terminalId: '00000000-0000-4000-8000-000000000099',
     terminalSecret: 'sec',
+    setupValidatedAt: '2026-06-12T00:00:00.000Z',
     githubUpdateToken: 'ghp_keep',
   });
   const saved = writeConfig(tmp, { deviceLabel: 'Till 1' });

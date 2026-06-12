@@ -134,10 +134,28 @@ async function listWindowsPrinters() {
     .filter(Boolean);
 }
 
+async function resolveCupsPrinterName() {
+  const configured = process.env.RECEIPT_PRINTER_NAME?.trim();
+  if (configured) return configured;
+  try {
+    const { stdout } = await execFileAsync('lpstat', ['-d'], { timeout: 5000 });
+    const match = stdout.match(/system default destination:\s*(\S+)/i);
+    if (match?.[1] && match[1] !== 'none') return match[1];
+  } catch {
+    // ignore — fall through to default queue name
+  }
+  return 'VenueReceipt';
+}
+
 export async function resolveReceiptPrinterName() {
   const configured = process.env.RECEIPT_PRINTER_NAME?.trim();
   if (configured) return configured;
-  if (process.platform !== 'win32') return process.env.RECEIPT_PRINTER_NAME?.trim() || null;
+  if (process.platform !== 'win32') {
+    if (getReceiptPrinterMode() === 'cups') {
+      return resolveCupsPrinterName();
+    }
+    return null;
+  }
   const printers = await listWindowsPrinters();
   const usb = printers.find((name) => /usb/i.test(name));
   return usb ?? printers[0] ?? null;

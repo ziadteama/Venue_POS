@@ -4,9 +4,30 @@ import { LanguageToggle } from './LanguageToggle.jsx';
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
 const MAX_PIN = 6;
 
-export function PinLoginScreen({ t, onLogin, loading, error }) {
+export function PinLoginScreen({ t, onLogin, loading, error, onOpenSetup }) {
   const [pin, setPin] = useState('');
+  const [showSetupButton, setShowSetupButton] = useState(false);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const health = window.venuePos?.getAgentHealth
+          ? await window.venuePos.getAgentHealth()
+          : null;
+        if (!cancelled && health) {
+          setShowSetupButton(!health.provisioned || !health.cloudOnline);
+        }
+      } catch {
+        if (!cancelled) setShowSetupButton(true);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const appendDigit = useCallback(
     (digit) => {
@@ -164,6 +185,15 @@ export function PinLoginScreen({ t, onLogin, loading, error }) {
           >
             {loading ? t('common.loading') : t('pos.pinLoginSubmit')}
           </button>
+          {showSetupButton && onOpenSetup ? (
+            <button
+              type="button"
+              onClick={onOpenSetup}
+              className="mt-3 w-full rounded-2xl border border-slate-300 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {t('pos.tillSetupButton')}
+            </button>
+          ) : null}
         </form>
       </main>
     </div>

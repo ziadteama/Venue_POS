@@ -5,6 +5,7 @@ import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
 import { useAuth } from '../hooks/useAuth.js';
 import { useOpsNotifications } from '../hooks/useOpsNotifications.js';
+import { OpsTerminalsSection } from '../components/OpsTerminalsSection.jsx';
 import { PageHeader } from '../components/dashboard/PageHeader.jsx';
 import { StatCard } from '../components/dashboard/StatCard.jsx';
 import { StatCardSkeleton, TableSkeleton } from '../components/dashboard/Skeleton.jsx';
@@ -238,6 +239,8 @@ export function OpsPage() {
               </ul>
             </div>
           ) : null}
+
+          <OpsTerminalsSection />
 
           <SectionCard title={t('ops.incidents')} flush>
             <DataTable columns={eventColumns} rows={events} rowKey={(row) => row.id} />

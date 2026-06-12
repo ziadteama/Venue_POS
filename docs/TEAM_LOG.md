@@ -1849,6 +1849,60 @@ Till: open shift (no drawer) → header **Drawer** → pay cash (receipt + drawe
 
 ---
 
+### 2026-06-12 — Ubuntu one-click till setup + CUPS receipt printer
+**Phase:** 7 · **Story:** till deployment
+**What:** One-command Ubuntu install (`sudo bash setup.sh`): Node 20, CUPS raw queue `VenueReceipt` for USB ESC/POS (Elgin etc.), systemd agent, Openbox kiosk autologin. Wizard/agent env uses `RECEIPT_PRINTER_MODE=cups` on Linux.
+**Files:** `setup.sh`, `ops/linux/install.sh`, `ops/linux/setup-receipt-printer.sh`, `ops/linux/README.md`, `config-store.cjs`, `receipt-printer.js`, `build-till-bundle.mjs`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/pos
+# On Ubuntu till: extract bundle → sudo bash setup.sh → reboot → wizard → Drawer + pay cash
+```
+**Notes:** Plug USB printer before install or re-run `setup-receipt-printer.sh`. Windows till path unchanged (`RECEIPT_PRINTER_MODE=windows`).
+
+---
+
+### 2026-06-12 — Ubuntu till deploy v2 (USB per till)
+**Phase:** 7 · **Story:** till deployment
+**What:** Reliable USB deploy: GDM autologin + systemd user kiosk service, Linux CI till bundle (AppImage), wizard-first UX (`needs-wizard` marker, Till setup button, stricter `setupValidatedAt`), agent `provisioned` health, optional CLI `setup.sh --api-url …`.
+**Files:** `.github/workflows/build-till-bundle.yml`, `ops/linux/install.sh`, `venue-pos-kiosk.service`, `venue-pos-kiosk-enable.sh`, `provision-config.sh`, `start-kiosk.sh`, `config-store.cjs`, `App.jsx`, `PinLoginScreen.jsx`, `SetupReentryGate.jsx`, `health.js`, `build-till-bundle.mjs`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/pos
+npm run lint:i18n
+# Till: tar -xzf bundle → sudo bash setup.sh → reboot → wizard → PIN
+```
+**Notes:** Build production bundles on Linux only. `SKIP_BUNDLE_ZIP=1` for folder-only USB copy.
+
+---
+
+### 2026-06-12 — Ubuntu kiosk boot autostart fix
+**Phase:** 7 · **Story:** till deployment
+**What:** Fix till not starting after reboot: GDM `custom.conf` patch (drop-in was ignored), install openbox + x11-utils session, AccountsService session, system `venue-pos-kiosk-display` unit waits for X `:0`, `fix-kiosk-boot.sh` repair script.
+**Files:** `ops/linux/configure-gdm-autologin.sh`, `configure-openbox-session.sh`, `launch-kiosk-display.sh`, `venue-pos-kiosk-display.service`, `fix-kiosk-boot.sh`, `venue-pos-kiosk-enable.sh`, `install.sh`, `start-kiosk.sh`, `README.md`
+**Verify:**
+```bash
+# On already-installed till:
+sudo bash /opt/venue-pos/ops/linux/fix-kiosk-boot.sh
+sudo reboot
+systemctl is-active venue-pos-kiosk-display
+tail -f /home/venuepos/.local/share/venue-pos/kiosk.log
+```
+**Notes:** Electron needs X11 — GDM `WaylandEnable=false`. Copy updated `ops/linux/` from USB if repair script missing.
+
+### 2026-06-12 — Till provisioning on dev ops console (US-1.3)
+**Phase:** 1 · **Story:** US-1.3
+**What:** Dev ops (`system_admin`) registers POS terminals from **`/ops` → Till provisioning → Add terminal**. API `POST/GET /api/v1/ops/terminals` returns terminal ID + secret once; dashboard shows copyable hub URL and credentials for till setup wizard / `setup.sh`. Hub manager **Settings → Terminals** keeps LAN/coordinator config only (no create). List shows terminal UUID and pending/online/offline status.
+**Files:** `manager-terminal-service.js`, `routes/ops.js`, `routes/manager-terminals.js`, `routes/venues.js`, `OpsTerminalsSection.jsx`, `OpsPage.jsx`, `TerminalsSection.jsx`, `manager-terminals.test.js`, `ops.test.js`, i18n, `ops/linux/README.md`
+**Verify:**
+```bash
+npm run test -w @venue-pos/api -- apps/api/src/manager-terminals.test.js apps/api/src/ops.test.js
+# Dashboard: devops / devops123 → /ops → Till provisioning → Add terminal → copy creds → till wizard
+```
+**Notes:** Secret shown once on create; not stored or retrievable later (rotate/deactivate deferred).
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

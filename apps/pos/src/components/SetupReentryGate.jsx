@@ -1,12 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { callAgent } from '../api/agent.js';
 
-export function SetupReentryGate({ onCancel, onApproved }) {
+export function SetupReentryGate({ onCancel, onApproved, onBypass }) {
   const { t } = useTranslation();
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [allowBypass, setAllowBypass] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const health = await callAgent('/health');
+        if (!cancelled) {
+          setAllowBypass(!health?.hasManagerCache);
+        }
+      } catch {
+        if (!cancelled) setAllowBypass(true);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
@@ -46,6 +65,15 @@ export function SetupReentryGate({ onCancel, onApproved }) {
           autoFocus
         />
         {error ? <p className="mt-2 text-sm text-red-400">{error}</p> : null}
+        {allowBypass ? (
+          <button
+            type="button"
+            onClick={() => onBypass?.()}
+            className="mt-4 w-full rounded-lg border border-amber-600/60 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/40"
+          >
+            {t('setup.openSetupNoPin')}
+          </button>
+        ) : null}
         <div className="mt-6 flex gap-2">
           <button
             type="button"

@@ -16,6 +16,8 @@ const DEFAULTS = {
   kitchenPrinterPort: 9100,
   receiptPrinterHost: '',
   receiptPrinterPort: 9100,
+  receiptPrinterName: 'VenueReceipt',
+  receiptPrinterMode: '',
   agentLanHost: '',
   agentLanPort: 3456,
   agentLanSecret: '',
@@ -23,6 +25,7 @@ const DEFAULTS = {
   coordinatorFallbackEnabled: false,
   kioskMode: true,
   setupComplete: false,
+  setupValidatedAt: '',
   configVersion: CONFIG_VERSION,
   /** Generic electron-updater feed base URL (optional; falls back to POS_UPDATE_FEED_URL env). */
   updateFeedUrl: '',
@@ -87,13 +90,53 @@ function isUuid(value) {
   return UUID_RE.test(String(value ?? ''));
 }
 
+const NEEDS_WIZARD_MARKER = '/var/lib/venue-pos/needs-wizard';
+
+function resolveForceSetup() {
+  if (process.env.VENUE_POS_FORCE_SETUP === '1' || process.env.VENUE_POS_FORCE_SETUP === 'true') {
+    return true;
+  }
+  try {
+    return fs.existsSync(NEEDS_WIZARD_MARKER);
+  } catch {
+    return false;
+  }
+}
+
+function clearProvisionMarker() {
+  try {
+    if (fs.existsSync(NEEDS_WIZARD_MARKER)) fs.unlinkSync(NEEDS_WIZARD_MARKER);
+  } catch {
+    // non-fatal
+  }
+  if (process.platform !== 'linux') return;
+  const { execSync } = require('node:child_process');
+  const unit = '/home/venuepos/.config/systemd/user/venue-pos-kiosk.service';
+  try {
+    if (fs.existsSync(unit)) {
+      let text = fs.readFileSync(unit, 'utf8');
+      if (/VENUE_POS_FORCE_SETUP/.test(text)) {
+        text = text
+          .split('\n')
+          .filter((line) => !line.includes('VENUE_POS_FORCE_SETUP'))
+          .join('\n');
+        fs.writeFileSync(unit, text, 'utf8');
+        execSync('systemctl --user -M venuepos@ daemon-reload', { stdio: 'ignore' });
+      }
+    }
+  } catch {
+    // non-fatal on dev machines
+  }
+}
+
 function isConfigComplete(cfg) {
   return Boolean(
     cfg?.setupComplete &&
       cfg.apiUrl &&
       isUuid(cfg.terminalId) &&
       cfg.terminalSecret &&
-      cfg.agentUrl,
+      cfg.agentUrl &&
+      cfg.setupValidatedAt,
   );
 }
 
@@ -124,9 +167,16 @@ function writeConfig(userDataPath, partial) {
   if (!String(patch.githubUpdateToken ?? '').trim()) {
     delete patch.githubUpdateToken;
   }
-  const next = mergeConfig({ ...current, ...patch, setupComplete: true });
+  const validatedAt = patch.setupValidatedAt || new Date().toISOString();
+  const next = mergeConfig({
+    ...current,
+    ...patch,
+    setupComplete: true,
+    setupValidatedAt: validatedAt,
+  });
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  clearProvisionMarker();
   return next;
 }
 
@@ -168,7 +218,27 @@ function sanitizeConfigForRenderer(cfg) {
   };
 }
 
-function buildAgentEnv(cfg) {
+function defaultReceiptPrinterMode(platform = process.platform) {
+  return platform === 'win32' ? 'windows' : 'cups';
+}
+
+function receiptPrinterEnvLines(cfg, platform = process.platform) {
+  const mode = (cfg.receiptPrinterMode || '').trim() || defaultReceiptPrinterMode(platform);
+  const lines = [`RECEIPT_PRINTER_MODE=${mode}`, 'FEATURE_CASH_DRAWER=true'];
+  if (mode === 'cups') {
+    const name = (cfg.receiptPrinterName || 'VenueReceipt').trim() || 'VenueReceipt';
+    lines.push(`RECEIPT_PRINTER_NAME=${name}`);
+  } else if (mode === 'network') {
+    const host = (cfg.receiptPrinterHost || '').trim();
+    if (host) lines.push(`RECEIPT_PRINTER_HOST=${host}`);
+    lines.push(`RECEIPT_PRINTER_PORT=${cfg.receiptPrinterPort || 9100}`);
+  } else if (cfg.receiptPrinterName?.trim()) {
+    lines.push(`RECEIPT_PRINTER_NAME=${cfg.receiptPrinterName.trim()}`);
+  }
+  return lines;
+}
+
+function buildAgentEnv(cfg, { platform = process.platform } = {}) {
   const lines = [
     `PORT=${cfg.agentLanPort}`,
     'HOST=0.0.0.0',
@@ -187,8 +257,7 @@ function buildAgentEnv(cfg) {
     `AGENT_DEVICE_LABEL=${cfg.deviceLabel || ''}`,
     `KITCHEN_PRINTER_HOST=${cfg.kitchenPrinterHost || ''}`,
     `KITCHEN_PRINTER_PORT=${cfg.kitchenPrinterPort}`,
-    'RECEIPT_PRINTER_MODE=windows',
-    'FEATURE_CASH_DRAWER=true',
+    ...receiptPrinterEnvLines(cfg, platform),
     `COORDINATOR_TERMINAL_ID=${cfg.isCoordinator ? cfg.terminalId : ''}`,
     `COORDINATOR_LAN_HOST=${cfg.isCoordinator ? cfg.agentLanHost || detectLanHost() : ''}`,
     `COORDINATOR_FALLBACK_ENABLED=${cfg.coordinatorFallbackEnabled ? 'true' : 'false'}`,
@@ -265,11 +334,15 @@ module.exports = {
   readConfig,
   writeConfig,
   buildAgentEnv,
+  receiptPrinterEnvLines,
+  defaultReceiptPrinterMode,
   writeAgentEnv,
   writeUpdaterEnv,
   sanitizeConfigForRenderer,
   testConnections,
   restartAgentService,
+  resolveForceSetup,
+  clearProvisionMarker,
   resolveAgentRoot,
   resolveUpdaterEnvPath,
 };

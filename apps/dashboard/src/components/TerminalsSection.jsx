@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../api/client.js';
 import { friendlyError } from '../utils/apiError.js';
+import { StatusBadge } from './ui/Badge.jsx';
 
 export function TerminalsSection({ venueId }) {
   const { t } = useTranslation();
@@ -62,6 +63,12 @@ export function TerminalsSection({ venueId }) {
     await patchTerminal(terminal, { name: trimmed });
   }
 
+  function statusLabel(status) {
+    if (status === 'pending') return t('terminals.status.pending');
+    if (status === 'online') return t('terminals.status.online');
+    return t('terminals.status.offline');
+  }
+
   return (
     <section className="surface-card overflow-hidden">
       <div className="border-b border-slate-100 px-6 py-4">
@@ -80,16 +87,23 @@ export function TerminalsSection({ venueId }) {
           <>
             <ul className="divide-y divide-slate-100">
               {terminals.map((terminal) => (
-                <li key={terminal.id} className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-start">
+                <li
+                  key={terminal.id}
+                  className="grid gap-3 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-start"
+                >
                   <div className="min-w-0">
-                    <input
-                      type="text"
-                      className="premium-input max-w-xs py-1.5 font-medium"
-                      placeholder={t('terminals.deviceNamePlaceholder')}
-                      defaultValue={terminal.name ?? ''}
-                      disabled={savingId === terminal.id}
-                      onBlur={(e) => saveName(terminal, e.target.value)}
-                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        type="text"
+                        className="premium-input max-w-xs py-1.5 font-medium"
+                        placeholder={t('terminals.deviceNamePlaceholder')}
+                        defaultValue={terminal.name ?? ''}
+                        disabled={savingId === terminal.id}
+                        onBlur={(e) => saveName(terminal, e.target.value)}
+                      />
+                      <StatusBadge status={terminal.status ?? 'pending'} label={statusLabel(terminal.status)} />
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-slate-500">{terminal.id}</p>
                     <p className="mt-1 text-xs text-slate-500">
                       {terminal.venueNameEn}
                       {terminal.isCoordinator ? ` · ${t('terminals.coordinator')}` : ''}
