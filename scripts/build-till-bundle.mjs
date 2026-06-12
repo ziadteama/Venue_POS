@@ -136,6 +136,9 @@ if (fs.existsSync(path.join(repoRoot, 'apps', 'watchdog'))) {
 }
 copyDir(path.join(repoRoot, 'ops'), path.join(outDir, 'ops'));
 copyDir(path.join(repoRoot, 'packages'), path.join(outDir, 'packages'));
+// scripts/ must be present in the bundle so that postinstall (prisma-generate.mjs)
+// works when `npm install` is run from the extracted artifact on a till machine.
+copyDir(path.join(repoRoot, 'scripts'), path.join(outDir, 'scripts'));
 if (!skipNodeModules) {
   copyDir(path.join(repoRoot, 'node_modules'), path.join(outDir, 'node_modules'));
 }
