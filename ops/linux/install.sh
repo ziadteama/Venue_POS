@@ -175,18 +175,24 @@ fi
 chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 chown -R "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}"
 
-echo "==> Rebuilding native modules for Linux (bcrypt, better-sqlite3)"
-find "${INSTALL_ROOT}/node_modules" "${INSTALL_ROOT}/local-agent/node_modules" \
-  -type f \( -path '*/.bin/*' -o -name 'node-pre-gyp' -o -name 'node-gyp-build' \) \
-  -exec chmod +x {} + 2>/dev/null || true
-sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/local-agent' && npm rebuild bcrypt better-sqlite3" || true
-sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}' && npm rebuild bcrypt better-sqlite3" 2>/dev/null || true
-if [[ -f "${INSTALL_ROOT}/pos/node_modules/electron/install.js" ]]; then
-  echo "==> Downloading Linux Electron binary for POS kiosk"
-  sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/pos/node_modules/electron' && node install.js" || true
+SLIM_BUNDLE=false
+if [[ ! -d "${INSTALL_ROOT}/local-agent/node_modules" ]]; then
+  SLIM_BUNDLE=true
+  echo "==> Slim bundle (no node_modules) — run npm i on till before reboot (see end of install)"
+else
+  echo "==> Rebuilding native modules for Linux (bcrypt, better-sqlite3)"
+  find "${INSTALL_ROOT}/node_modules" "${INSTALL_ROOT}/local-agent/node_modules" \
+    -type f \( -path '*/.bin/*' -o -name 'node-pre-gyp' -o -name 'node-gyp-build' \) \
+    -exec chmod +x {} + 2>/dev/null || true
+  sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/local-agent' && npm rebuild bcrypt better-sqlite3" || true
+  sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}' && npm rebuild bcrypt better-sqlite3" 2>/dev/null || true
+  if [[ -f "${INSTALL_ROOT}/pos/node_modules/electron/install.js" ]]; then
+    echo "==> Downloading Linux Electron binary for POS kiosk"
+    sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/pos/node_modules/electron' && node install.js" || true
+  fi
+  find "${INSTALL_ROOT}/pos/node_modules/.bin" -type f -exec chmod +x {} + 2>/dev/null || true
+  chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 fi
-find "${INSTALL_ROOT}/pos/node_modules/.bin" -type f -exec chmod +x {} + 2>/dev/null || true
-chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 
 echo "==> USB receipt printer (CUPS)"
 bash "${INSTALL_ROOT}/ops/linux/setup-receipt-printer.sh" "${INSTALL_ROOT}" || true
@@ -216,7 +222,11 @@ echo "==> Registering systemd service (agent)"
 cp -f "${SCRIPT_DIR}/venue-pos-agent.service" /etc/systemd/system/venue-pos-agent.service
 systemctl daemon-reload
 systemctl enable venue-pos-agent
-systemctl restart venue-pos-agent
+if [[ "${SLIM_BUNDLE}" == true ]]; then
+  echo "    (agent start deferred — run npm i first)"
+else
+  systemctl restart venue-pos-agent
+fi
 
 echo "==> Kiosk autologin + user systemd service"
 bash "${SCRIPT_DIR}/venue-pos-kiosk-enable.sh" "${USER_NAME}" "${INSTALL_ROOT}"
@@ -237,12 +247,24 @@ else
   PROVISION_NOTE="Reboot → setup wizard opens automatically (hub URL + terminal creds)."
 fi
 
+NPM_NOTE=""
+if [[ "${SLIM_BUNDLE}" == true ]]; then
+  NPM_NOTE="
+Slim bundle — install deps on till first:
+  cd ${INSTALL_ROOT}
+  npm i
+  cd local-agent && npm rebuild bcrypt better-sqlite3
+  sudo systemctl restart venue-pos-agent
+
+Then:"
+fi
+
 cat <<EOF
 
 ╔══════════════════════════════════════════════════════════════╗
 ║  Venue POS install complete                                  ║
 ╚══════════════════════════════════════════════════════════════╝
-
+${NPM_NOTE}
 Next:  sudo reboot
 ${PROVISION_NOTE}
 

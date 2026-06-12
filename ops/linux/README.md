@@ -89,6 +89,19 @@ journalctl -u venue-pos-kiosk-display -n 40
 ```bash
 npm run build:till-bundle
 # artifact: dist/venue-pos-till-<version>.tar.gz (includes AppImage)
+
+# Slim USB copy (no node_modules — you run npm i on the till):
+SKIP_BUNDLE_NODE_MODULES=1 SKIP_BUNDLE_ZIP=1 npm run build:till-bundle
+```
+
+After `sudo bash setup.sh` on a slim bundle:
+
+```bash
+cd /opt/venue-pos
+npm i
+cd local-agent && npm rebuild bcrypt better-sqlite3
+sudo systemctl restart venue-pos-agent
+sudo reboot
 ```
 
 **On Windows (dev only — not for production tills):**
