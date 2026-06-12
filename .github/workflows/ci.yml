@@ -45,6 +45,10 @@ jobs:
               - 'packages/**'
               - 'package.json'
               - 'package-lock.json'
+              - '.github/workflows/**'
+              - 'scripts/build-till-bundle.mjs'
+              - 'scripts/build-till-bundle-windows.mjs'
+              - 'scripts/build-till-installer-appimage.mjs'
 
   lint:
     runs-on: ubuntu-latest
