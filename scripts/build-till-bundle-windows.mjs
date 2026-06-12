@@ -135,10 +135,14 @@ pruneBundle();
 if (process.env.SKIP_BUNDLE_ZIP === '1') {
   console.log('Skipping zip (SKIP_BUNDLE_ZIP=1) — copy the bundle folder to USB.');
 } else {
-  console.log('Creating zip archive (tar — faster than Compress-Archive on large trees)...');
+  console.log('Creating zip archive...');
   removeDirSafe(archive);
-  const relZip = path.join('dist', `${bundleName}.zip`).split(path.sep).join('/');
-  run('tar', ['-a', '-cf', relZip, '-C', 'dist', bundleName]);
+  if (process.platform === 'win32') {
+    run('tar', ['-a', '-cf', path.join('dist', `${bundleName}.zip`).split(path.sep).join('/'), '-C', 'dist', bundleName]);
+  } else {
+    const relZip = path.join('dist', `${bundleName}.zip`).split(path.sep).join('/');
+    run('tar', ['-a', '-cf', relZip, '-C', 'dist', bundleName]);
+  }
 }
 
 console.log(`\nWindows till bundle ready:`);
