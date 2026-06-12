@@ -26,7 +26,7 @@ function cpDir(src, dest, { skip = () => false } = {}) {
   }
 }
 
-function skipTests(name, fullPath) {
+function skipTests(name) {
   if (name.endsWith('.test.js')) return true;
   if (name === 'test') return true;
   return false;
