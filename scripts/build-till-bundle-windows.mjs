@@ -132,17 +132,12 @@ fs.writeFileSync(path.join(outDir, 'package.json'), `${JSON.stringify(rootPkg, n
 
 pruneBundle();
 
-console.log('Creating zip archive...');
-removeDirSafe(archive);
-if (process.platform === 'win32') {
-  run('powershell', [
-    '-NoProfile',
-    '-Command',
-    `Compress-Archive -Path '${outDir.replace(/'/g, "''")}' -DestinationPath '${archive.replace(/'/g, "''")}' -Force`,
-  ]);
+if (process.env.SKIP_BUNDLE_ZIP === '1') {
+  console.log('Skipping zip (SKIP_BUNDLE_ZIP=1) — copy the bundle folder to USB.');
 } else {
-  const relDir = path.join('dist', bundleName).split(path.sep).join('/');
-  const relZip = `${relDir}.zip`;
+  console.log('Creating zip archive (tar — faster than Compress-Archive on large trees)...');
+  removeDirSafe(archive);
+  const relZip = path.join('dist', `${bundleName}.zip`).split(path.sep).join('/');
   run('tar', ['-a', '-cf', relZip, '-C', 'dist', bundleName]);
 }
 

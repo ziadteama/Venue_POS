@@ -9,6 +9,7 @@ const {
   isConfigComplete,
   writeUpdaterEnv,
   sanitizeConfigForRenderer,
+  defaultReceiptPrinterMode,
 } = require('./config-store.cjs');
 
 test('buildAgentEnv includes terminal and API settings', () => {
@@ -28,6 +29,40 @@ test('buildAgentEnv includes terminal and API settings', () => {
   assert.match(env, /TERMINAL_ID=00000000/);
   assert.match(env, /SERVER_API_URL=https:\/\/hub.example.com/);
   assert.match(env, /IS_COORDINATOR=true/);
+});
+
+test('buildAgentEnv uses cups receipt printer on Linux', () => {
+  const env = buildAgentEnv(
+    {
+      terminalId: '00000000-0000-4000-8000-000000000001',
+      terminalSecret: 'secret',
+      apiUrl: 'https://hub.example.com',
+      agentLanPort: 3456,
+    },
+    { platform: 'linux' },
+  );
+  assert.match(env, /RECEIPT_PRINTER_MODE=cups/);
+  assert.match(env, /RECEIPT_PRINTER_NAME=VenueReceipt/);
+  assert.match(env, /FEATURE_CASH_DRAWER=true/);
+});
+
+test('buildAgentEnv uses windows receipt printer on Windows', () => {
+  const env = buildAgentEnv(
+    {
+      terminalId: '00000000-0000-4000-8000-000000000001',
+      terminalSecret: 'secret',
+      apiUrl: 'https://hub.example.com',
+      agentLanPort: 3456,
+    },
+    { platform: 'win32' },
+  );
+  assert.match(env, /RECEIPT_PRINTER_MODE=windows/);
+  assert.doesNotMatch(env, /RECEIPT_PRINTER_NAME=/);
+});
+
+test('defaultReceiptPrinterMode is platform-specific', () => {
+  assert.equal(defaultReceiptPrinterMode('linux'), 'cups');
+  assert.equal(defaultReceiptPrinterMode('win32'), 'windows');
 });
 
 test('writeConfig marks setup complete when saved', () => {

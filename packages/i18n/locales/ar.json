@@ -1168,7 +1168,7 @@
   "setup.fail": "فشل",
   "setup.testFailed": "فشل اختبار الاتصال",
   "setup.saveFailed": "تعذّر حفظ الإعدادات",
-  "setup.printerOptional": "طابعة المطبخ (اختياري). طابعة الإيصال: وصّل USB Type B على نقطة البيع — يكتشفها Windows تلقائياً. درج النقد يوصل بمنفذ RJ11 في الطابعة؛ استخدم زر الدرج في شريط نقطة البيع أثناء الوردية.",
+  "setup.printerOptional": "عنوان طابعة المطبخ (اختياري). طابعة الإيصال USB: وصّلها قبل تشغيل setup.sh على Ubuntu — المثبّت ينشئ طابعة CUPS باسم VenueReceipt تلقائياً. على Windows يُكتشف USB تلقائياً. درج النقد: RJ11 إلى منفذ الطابعة؛ استخدم زر الدرج في نقطة البيع أثناء الوردية.",
   "setup.kitchenPrinterHost": "عنوان IP للطابعة",
   "setup.kitchenPrinterPort": "منفذ الطابعة",
   "setup.deviceLabel": "اسم نقطة البيع",

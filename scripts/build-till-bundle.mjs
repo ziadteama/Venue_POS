@@ -93,9 +93,19 @@ fs.mkdirSync(outDir, { recursive: true });
 
 copyDir(path.join(repoRoot, 'apps', 'local-agent'), path.join(outDir, 'local-agent'));
 copyDir(path.join(repoRoot, 'apps', 'pos'), path.join(outDir, 'pos'));
+if (fs.existsSync(path.join(repoRoot, 'apps', 'watchdog'))) {
+  copyDir(path.join(repoRoot, 'apps', 'watchdog'), path.join(outDir, 'watchdog'));
+}
 copyDir(path.join(repoRoot, 'ops'), path.join(outDir, 'ops'));
 copyDir(path.join(repoRoot, 'packages'), path.join(outDir, 'packages'));
 copyDir(path.join(repoRoot, 'node_modules'), path.join(outDir, 'node_modules'));
+if (fs.existsSync(path.join(repoRoot, 'setup.sh'))) {
+  fs.copyFileSync(path.join(repoRoot, 'setup.sh'), path.join(outDir, 'setup.sh'));
+  fs.chmodSync(path.join(outDir, 'setup.sh'), 0o755);
+}
+if (fs.existsSync(path.join(repoRoot, 'package.json'))) {
+  fs.copyFileSync(path.join(repoRoot, 'package.json'), path.join(outDir, 'package.json'));
+}
 
 // Shared workspace link for agent
 if (!fs.existsSync(path.join(outDir, 'local-agent', 'node_modules', '@venue-pos'))) {
@@ -112,4 +122,4 @@ const archiveArg = path.join('dist', `${bundleDirName}.tar.gz`).split(path.sep).
 run('tar', ['-czf', archiveArg, '-C', 'dist', bundleDirName]);
 
 console.log(`\nBundle ready: ${archive}`);
-console.log('Copy to USB → on till: sudo bash ops/linux/install.sh');
+console.log('Copy to USB → on till: sudo bash setup.sh');

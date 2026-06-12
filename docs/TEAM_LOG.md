@@ -1849,6 +1849,19 @@ Till: open shift (no drawer) → header **Drawer** → pay cash (receipt + drawe
 
 ---
 
+### 2026-06-12 — Ubuntu one-click till setup + CUPS receipt printer
+**Phase:** 7 · **Story:** till deployment
+**What:** One-command Ubuntu install (`sudo bash setup.sh`): Node 20, CUPS raw queue `VenueReceipt` for USB ESC/POS (Elgin etc.), systemd agent, Openbox kiosk autologin. Wizard/agent env uses `RECEIPT_PRINTER_MODE=cups` on Linux.
+**Files:** `setup.sh`, `ops/linux/install.sh`, `ops/linux/setup-receipt-printer.sh`, `ops/linux/README.md`, `config-store.cjs`, `receipt-printer.js`, `build-till-bundle.mjs`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/pos
+# On Ubuntu till: extract bundle → sudo bash setup.sh → reboot → wizard → Drawer + pay cash
+```
+**Notes:** Plug USB printer before install or re-run `setup-receipt-printer.sh`. Windows till path unchanged (`RECEIPT_PRINTER_MODE=windows`).
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

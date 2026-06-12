@@ -16,6 +16,8 @@ const DEFAULTS = {
   kitchenPrinterPort: 9100,
   receiptPrinterHost: '',
   receiptPrinterPort: 9100,
+  receiptPrinterName: 'VenueReceipt',
+  receiptPrinterMode: '',
   agentLanHost: '',
   agentLanPort: 3456,
   agentLanSecret: '',
@@ -168,7 +170,27 @@ function sanitizeConfigForRenderer(cfg) {
   };
 }
 
-function buildAgentEnv(cfg) {
+function defaultReceiptPrinterMode(platform = process.platform) {
+  return platform === 'win32' ? 'windows' : 'cups';
+}
+
+function receiptPrinterEnvLines(cfg, platform = process.platform) {
+  const mode = (cfg.receiptPrinterMode || '').trim() || defaultReceiptPrinterMode(platform);
+  const lines = [`RECEIPT_PRINTER_MODE=${mode}`, 'FEATURE_CASH_DRAWER=true'];
+  if (mode === 'cups') {
+    const name = (cfg.receiptPrinterName || 'VenueReceipt').trim() || 'VenueReceipt';
+    lines.push(`RECEIPT_PRINTER_NAME=${name}`);
+  } else if (mode === 'network') {
+    const host = (cfg.receiptPrinterHost || '').trim();
+    if (host) lines.push(`RECEIPT_PRINTER_HOST=${host}`);
+    lines.push(`RECEIPT_PRINTER_PORT=${cfg.receiptPrinterPort || 9100}`);
+  } else if (cfg.receiptPrinterName?.trim()) {
+    lines.push(`RECEIPT_PRINTER_NAME=${cfg.receiptPrinterName.trim()}`);
+  }
+  return lines;
+}
+
+function buildAgentEnv(cfg, { platform = process.platform } = {}) {
   const lines = [
     `PORT=${cfg.agentLanPort}`,
     'HOST=0.0.0.0',
@@ -187,8 +209,7 @@ function buildAgentEnv(cfg) {
     `AGENT_DEVICE_LABEL=${cfg.deviceLabel || ''}`,
     `KITCHEN_PRINTER_HOST=${cfg.kitchenPrinterHost || ''}`,
     `KITCHEN_PRINTER_PORT=${cfg.kitchenPrinterPort}`,
-    'RECEIPT_PRINTER_MODE=windows',
-    'FEATURE_CASH_DRAWER=true',
+    ...receiptPrinterEnvLines(cfg, platform),
     `COORDINATOR_TERMINAL_ID=${cfg.isCoordinator ? cfg.terminalId : ''}`,
     `COORDINATOR_LAN_HOST=${cfg.isCoordinator ? cfg.agentLanHost || detectLanHost() : ''}`,
     `COORDINATOR_FALLBACK_ENABLED=${cfg.coordinatorFallbackEnabled ? 'true' : 'false'}`,
@@ -265,6 +286,8 @@ module.exports = {
   readConfig,
   writeConfig,
   buildAgentEnv,
+  receiptPrinterEnvLines,
+  defaultReceiptPrinterMode,
   writeAgentEnv,
   writeUpdaterEnv,
   sanitizeConfigForRenderer,

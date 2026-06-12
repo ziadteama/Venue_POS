@@ -1168,7 +1168,7 @@
   "setup.fail": "Failed",
   "setup.testFailed": "Connection test failed",
   "setup.saveFailed": "Could not save configuration",
-  "setup.printerOptional": "Kitchen printer (optional). Receipt printer: connect USB Type B on this till — Windows auto-detects it. Cash drawer plugs into the printer RJ11 kick port; use the Drawer button in the POS header during a shift.",
+  "setup.printerOptional": "Kitchen printer IP (optional). USB receipt printer: plug in before running setup.sh on Ubuntu — installer creates CUPS queue VenueReceipt automatically. On Windows, USB is auto-detected. Cash drawer: RJ11 to printer kick port; use Drawer in the POS header during a shift.",
   "setup.kitchenPrinterHost": "Kitchen / receipt printer IP",
   "setup.kitchenPrinterPort": "Printer port",
   "setup.deviceLabel": "Till name",

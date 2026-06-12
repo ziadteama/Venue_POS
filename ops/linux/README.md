@@ -1,62 +1,81 @@
-# Ubuntu till deployment (USB bundle)
+# Ubuntu till deployment (one-click)
 
-Deploy Venue POS to an Ubuntu LTS till without DevOps knowledge: copy the USB bundle, run one installer, complete the on-screen wizard.
+Deploy Venue POS to an Ubuntu LTS till: copy the USB bundle, run **one command**, reboot, complete the on-screen wizard.
+
+## Till requirements
+
+- Ubuntu 22.04 or 24.04 LTS (64-bit)
+- 2 GB+ RAM
+- Static LAN IP (router DHCP reservation recommended)
+- Outbound HTTPS to your cloud hub API
+- USB ESC/POS receipt printer (e.g. Elgin ELR-160) — plug in before or during install
+
+## One-click install (from USB)
+
+```bash
+# 1. Copy/extract bundle to the till (e.g. from USB)
+cd /tmp/venue-pos-till-*
+# 2. One command — installs Node 20, CUPS, agent service, kiosk autologin
+sudo bash setup.sh
+# 3. Reboot
+sudo reboot
+```
+
+On first boot the POS opens automatically. Complete the **setup wizard**:
+
+1. Hub API URL (`https://your-hub.onrender.com`)
+2. Terminal ID + secret (dashboard → Settings → Terminals)
+3. Kitchen printer IP (optional)
+4. Till LAN IP + coordinator toggle
+5. Save — agent restarts, cashier PIN login works
+
+### USB receipt printer + cash drawer
+
+`setup.sh` runs `setup-receipt-printer.sh`, which:
+
+- Enables CUPS
+- Detects USB/serial ESC/POS printer via `lpinfo`
+- Creates raw queue **`VenueReceipt`**
+- Writes `RECEIPT_PRINTER_MODE=cups` into `local-agent/.env`
+
+If the printer was plugged in **after** install:
+
+```bash
+sudo bash /opt/venue-pos/ops/linux/setup-receipt-printer.sh
+sudo systemctl restart venue-pos-agent
+```
+
+Cash drawer: RJ11 → printer kick port. Test **Drawer** button and pay-cash on POS.
 
 ## Bundle contents
 
 ```
 venue-pos-till-<version>/
+├── setup.sh         # ← run this
 ├── local-agent/     # SQLite + offline sync (:3456)
 ├── pos/             # Electron POS + setup wizard
-├── node/            # Bundled Node 20 (linux x64)
-└── ops/linux/       # install.sh, systemd, kiosk autostart
+├── watchdog/        # optional process watchdog
+└── ops/linux/       # install.sh, systemd, CUPS helper
 ```
-
-## Till requirements
-
-- Ubuntu 22.04 or 24.04 LTS (64-bit)
-- Node.js **20 LTS** (`curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs`)
-- 2 GB+ RAM
-- Static LAN IP (set in router DHCP reservation)
-- Outbound HTTPS to your cloud hub API
-- Openbox session for `venuepos` user (minimal desktop)
-
-## Install (from USB)
-
-```bash
-# Copy bundle from USB to /tmp
-cd /tmp/venue-pos-till-*
-sudo bash ops/linux/install.sh
-sudo reboot
-```
-
-On first boot the POS opens the **setup wizard**:
-
-1. Hub API URL (`https://your-hub.onrender.com`)
-2. Terminal ID + secret (from dashboard → Settings → Terminals)
-3. Printer IP (optional)
-4. This till's LAN IP + coordinator toggle
-5. Kiosk mode
-
-The wizard writes `pos-config.json` and regenerates `/opt/venue-pos/local-agent/.env`, then restarts the agent.
 
 ## Services
 
-| Service | Command |
-|---------|---------|
+| Action | Command |
+|--------|---------|
 | Agent status | `sudo systemctl status venue-pos-agent` |
 | Agent logs | `journalctl -u venue-pos-agent -f` |
 | Restart agent | `sudo systemctl restart venue-pos-agent` |
+| Re-run printer setup | `sudo bash /opt/venue-pos/ops/linux/setup-receipt-printer.sh` |
 
-Kiosk POS autostarts via Openbox `~venuepos/.config/autostart/`.
+Kiosk POS autostarts via Openbox (`venuepos` user, lightdm/GDM autologin).
 
 ## Firewall
 
-`install.sh` opens:
+`install.sh` opens (ufw if present):
 
 - Outbound **443** (hub API)
-- **3456/tcp** (LAN agent gossip)
-- Outbound **9100** (printers)
+- **3456/tcp** (LAN agent)
+- Outbound **9100** (network printers)
 
 ## Reconfigure after deploy
 
@@ -86,34 +105,12 @@ Output: `dist/venue-pos-till-<version>.tar.gz` — copy to USB.
 ### Remote updates (electron-updater)
 
 - Packaged AppImage only (`app.isPackaged`); dev/USB raw electron skips updater.
-- **Default feed:** [GitHub Releases](https://github.com/ziadteama/Venue_POS/releases) (`ziadteama/Venue_POS`) — tag releases with `v*` and attach `latest-linux.yml` + AppImage (CI/`electron-builder --publish`).
-- **Private repo:** set the GitHub PAT in the **setup wizard** (Hub step → GitHub update token), or manually in **`/opt/venue-pos/pos/.env.updater`**:
-  ```bash
-  sudo nano /opt/venue-pos/pos/.env.updater
-  # GH_TOKEN=github_pat_your_fine_grained_token
-  sudo chown venuepos:venuepos /opt/venue-pos/pos/.env.updater
-  sudo chmod 600 /opt/venue-pos/pos/.env.updater
-  sudo reboot
-  ```
-  Create the token: GitHub → Settings → Developer settings → Fine-grained tokens → **Contents: Read-only** on `Venue_POS`.
-- **CI publish:** GitHub Actions → repo **Settings → Secrets → Actions** → `GH_TOKEN` (same PAT or `GITHUB_TOKEN` for workflow releases).
-- Override feed: `POS_UPDATE_FEED_URL` (public CDN) or `updateFeedUrl` in `pos-config.json`.
-- Till firewall must allow outbound **443** to `github.com` and `api.github.com` (and your Render API).
-- Checks after shift close + ~60s after startup; download/install prompts in POS UI.
+- **Default feed:** [GitHub Releases](https://github.com/ziadteama/Venue_POS/releases)
+- **Private repo:** GitHub PAT in setup wizard or `/opt/venue-pos/pos/.env.updater` (`GH_TOKEN=…`)
 
-## Fresh VM smoke checklist
+## Verify checklist
 
-Use a clean Ubuntu 22.04/24.04 VM (2 GB RAM) before rolling out to hardware.
-
-1. **Install** — `sudo bash ops/linux/install.sh` → reboot; `venue-pos-agent` is `active (running)`.
-2. **Setup wizard** — hub URL, terminal creds, printer (optional), LAN IP, kiosk; save succeeds and agent restarts.
-3. **PIN login** — cashier PIN (`1234` in dev seed) opens menu; terminal header shows configured ID.
-4. **Online order** — add item → pay cash → receipt prints or shows success.
-5. **Offline** — block outbound HTTPS (or stop cloud API); order still saves locally; queue drains after reconnect.
-6. **Feature toggles** — dashboard → Settings → Features: flip a flag (e.g. discounts off); POS reflects change after refresh/reconnect.
-7. **Reconfigure** — **Ctrl+Shift+S** → floor manager PIN → setup wizard reopens.
-
-## Related
-
-- [ops/windows/README.md](../windows/README.md) — Windows kiosk (legacy)
-- [docs/DEVELOPMENT.md](../../docs/DEVELOPMENT.md) — local dev
+1. `sudo systemctl status venue-pos-agent` — active
+2. Setup wizard saves (API + terminal test OK)
+3. Cashier PIN login
+4. Open shift → **Drawer** → pay cash (receipt + drawer)
