@@ -14,6 +14,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "pos-launcher.ps1")
 $BundleRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
 if (-not (Test-Path (Join-Path $BundleRoot "local-agent"))) {
@@ -38,6 +39,9 @@ if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
 Pop-Location
 
 Write-Host "==> Writing production kiosk launcher"
+$posLaunch = Get-VenuePosLaunchCommand -InstallRoot $InstallRoot
+$watchdogEntry = Get-VenuePosWatchdogEntry -InstallRoot $InstallRoot
+Write-Host "  POS launch mode: $($posLaunch.Mode)"
 $launcher = Join-Path $InstallRoot "ops\windows\launch-watchdog.cmd"
 $launcherContent = @"
 @echo off
@@ -47,11 +51,11 @@ set WATCHDOG_CHECK_INTERVAL_MS=5000
 set WATCHDOG_MAX_RESTARTS=3
 set WATCHDOG_RESTART_WINDOW_MS=600000
 set WATCHDOG_LOG_FILE=$InstallRoot\logs\watchdog.log
-set WATCHDOG_POS_CWD=$InstallRoot\pos
+set WATCHDOG_POS_CWD=$($posLaunch.Cwd)
 set ELECTRON_IS_KIOSK=true
 set NODE_ENV=production
-set WATCHDOG_POS_COMMAND=npm run electron:prod -w @venue-pos/pos
-node "$InstallRoot\watchdog\src\index.mjs"
+set WATCHDOG_POS_COMMAND=$($posLaunch.Command)
+node "$watchdogEntry"
 "@
 New-Item -ItemType Directory -Path (Split-Path $launcher) -Force | Out-Null
 Set-Content -Path $launcher -Value $launcherContent -Encoding ASCII

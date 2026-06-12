@@ -2,10 +2,54 @@
 
 Linux till package: POS (Electron AppImage) + local-agent + kiosk scripts.
 
-**Build this bundle (CI / Ubuntu dev machine):**
+## Primary install — Till Installer AppImage (recommended)
+
+One file installs everything to `/opt/venue-pos` (agent, systemd, kiosk, inner POS AppImage).
+
+**Download:** GitHub Actions artifact `venue-pos-till-linux`, or GitHub Release asset `VenuePOS-Till-Installer-*-x86_64.AppImage`.
+
+```bash
+chmod +x VenuePOS-Till-Installer-*.AppImage
+./VenuePOS-Till-Installer-*.AppImage
+sudo reboot
+```
+
+**Headless / SSH:**
+
+```bash
+sudo ./VenuePOS-Till-Installer-*.AppImage --no-gui
+sudo reboot
+```
+
+**Skip wizard (Dev ops terminal credentials):**
+
+```bash
+sudo ./VenuePOS-Till-Installer-*.AppImage --no-gui \
+  --api-url https://your-hub.onrender.com \
+  --terminal-id <uuid> \
+  --terminal-secret <secret> \
+  --venue-id <uuid>
+sudo reboot
+```
+
+**Reinstall / upgrade:** `./VenuePOS-Till-Installer-*.AppImage --reinstall`
+
+**Fresh Ubuntu note:** If the AppImage fails to mount, install FUSE first: `sudo apt-get install -y libfuse2`, then re-run the installer.
+
+---
+
+## Build (CI / Ubuntu dev machine)
 
 ```bash
 npm ci --include-workspace-root
+npm run build:till-installer
+# Output: dist/VenuePOS-Till-Installer-<version>-x86_64.AppImage
+# Also: dist/venue-pos-till-<version>.tar.gz (fallback)
+```
+
+**Legacy bundle only:**
+
+```bash
 npm run build:till-bundle
 # Output: dist/venue-pos-till-<version>.tar.gz
 ```
@@ -16,27 +60,18 @@ npm run build:till-bundle
 SKIP_BUNDLE_NODE_MODULES=1 npm run build:till-bundle
 ```
 
-**GitHub Actions:** workflow `Build till bundle (Linux)` → artifact `venue-pos-till-linux`.
+**GitHub Actions:** workflow `Build till bundle (Linux)` → artifact `venue-pos-till-linux` (installer + tar.gz).
+
+**GitHub Releases:** tag `v*` publishes Till Installer (new tills) + inner POS AppImage (electron-updater feed).
 
 ---
 
-## Install on the till (Ubuntu 22.04 / 24.04)
+## Fallback install — tar.gz bundle
 
 ```bash
 tar -xzf venue-pos-till-*.tar.gz
 cd venue-pos-till-*
 sudo bash setup.sh
-sudo reboot
-```
-
-**Optional — skip wizard (provision from Dev ops console credentials):**
-
-```bash
-sudo bash setup.sh \
-  --api-url https://your-hub.onrender.com \
-  --terminal-id <uuid> \
-  --terminal-secret <secret> \
-  --venue-id <uuid>
 sudo reboot
 ```
 
@@ -128,7 +163,7 @@ journalctl -u venue-pos-kiosk-display -n 40
 
 ## Verify checklist
 
-1. `sudo bash setup.sh` exits 0  
+1. Installer or `setup.sh` exits 0  
 2. After reboot: `systemctl is-active venue-pos-agent`  
 3. Setup wizard opens (not PIN login)  
 4. Wizard test → save → cashier PIN login works  

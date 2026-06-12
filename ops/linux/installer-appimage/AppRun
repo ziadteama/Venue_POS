@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Venue POS Till Installer AppImage entrypoint.
+# Embeds full till bundle; runs setup.sh with root elevation.
+set -uo pipefail
+
+APPDIR="${APPDIR:-$(dirname "$(readlink -f "${0}")")}"
+INSTALL_ROOT="/opt/venue-pos"
+MARKER="${INSTALL_ROOT}/.venue-pos-installed"
+NO_GUI=false
+REINSTALL=false
+SETUP_ARGS=()
+ORIG_ARGS=("$@")
+
+usage() {
+  cat <<EOF
+Venue POS Till Installer
+
+Usage: VenuePOS-Till-Installer.AppImage [options] [setup.sh options]
+
+Options:
+  --reinstall     Re-run install even if already installed at ${INSTALL_ROOT}
+  --no-gui        Skip zenity reboot prompt (text only)
+  -h, --help      Show this help
+
+Setup options (passed to setup.sh):
+  --api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]
+  --minimal-kiosk
+
+Examples:
+  ./VenuePOS-Till-Installer.AppImage
+  sudo ./VenuePOS-Till-Installer.AppImage --no-gui
+  sudo ./VenuePOS-Till-Installer.AppImage --reinstall
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --reinstall) REINSTALL=true; shift ;;
+    --no-gui) NO_GUI=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; SETUP_ARGS+=("$@"); break ;;
+    *) SETUP_ARGS+=("$1"); shift ;;
+  esac
+done
+
+if [[ ! -f "${APPDIR}/setup.sh" ]]; then
+  echo "FATAL: Invalid installer — setup.sh missing in ${APPDIR}" >&2
+  exit 1
+fi
+
+if [[ -f "${MARKER}" && "${REINSTALL}" != true ]]; then
+  installed_ver="$(cat "${MARKER}" 2>/dev/null || echo unknown)"
+  echo "Venue POS is already installed at ${INSTALL_ROOT} (version ${installed_ver})."
+  echo "Re-run with --reinstall to upgrade or re-image this till."
+  exit 0
+fi
+
+run_as_root() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+    return $?
+  fi
+  if command -v pkexec &>/dev/null; then
+    exec pkexec env \
+      DISPLAY="${DISPLAY:-}" \
+      XAUTHORITY="${XAUTHORITY:-${HOME}/.Xauthority}" \
+      APPDIR="${APPDIR}" \
+      bash "${APPDIR}/AppRun" "$@"
+  fi
+  echo "Administrator privileges required." >&2
+  echo "Run: sudo ${0} $*" >&2
+  exit 1
+}
+
+prompt_reboot() {
+  if [[ "${NO_GUI}" == true ]]; then
+    echo ""
+    echo "Install complete. Reboot the till: sudo reboot"
+    return 0
+  fi
+  if command -v zenity &>/dev/null && [[ -n "${DISPLAY:-}" ]]; then
+    if zenity --question --title="Venue POS" \
+      --text="Install complete.\nReboot now to start the setup wizard?" \
+      --ok-label="Reboot" --cancel-label="Later" 2>/dev/null; then
+      systemctl reboot
+    else
+      echo "Reboot when ready: sudo reboot"
+    fi
+  else
+    echo ""
+    echo "Install complete. Reboot the till: sudo reboot"
+  fi
+}
+
+do_install() {
+  echo "==> Venue POS Till Installer"
+  echo "    Bundle: ${APPDIR}"
+  echo "    Target: ${INSTALL_ROOT}"
+  echo ""
+
+  bash "${APPDIR}/setup.sh" "${SETUP_ARGS[@]}"
+  local rc=$?
+  if [[ "${rc}" -ne 0 ]]; then
+    echo "Install failed (exit ${rc}). See messages above." >&2
+    exit "${rc}"
+  fi
+
+  prompt_reboot
+}
+
+if [[ "${EUID}" -ne 0 ]]; then
+  run_as_root "${ORIG_ARGS[@]}"
+fi
+
+do_install

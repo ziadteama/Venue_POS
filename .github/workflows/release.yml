@@ -1,4 +1,4 @@
-name: Release POS AppImage
+name: Release POS packages
 
 on:
   push:
@@ -30,18 +30,69 @@ jobs:
           fi
           echo "Version OK: ${PKG}"
 
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
       - run: npm ci
 
-      - name: Build POS renderer
-        run: npm run build -w @venue-pos/pos
+      - name: Build Till Installer AppImage (primary till deliverable)
+        env:
+          BUILD_POS_APPIMAGE: '1'
+        run: npm run build:till-installer
 
-      - name: Build and publish AppImage
+      - name: Build and publish POS AppImage (electron-updater feed)
         working-directory: apps/pos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --linux AppImage --publish always
 
+      - name: Upload Till Installer to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" dist/VenuePOS-Till-Installer-*.AppImage --clobber
+
       - name: Release summary
         run: |
-          echo "Published AppImage + latest-linux.yml for ${GITHUB_REF_NAME}"
+          echo "Published for ${GITHUB_REF_NAME}:"
+          echo "  Till Installer: dist/VenuePOS-Till-Installer-*.AppImage (new tills)"
+          echo "  POS AppImage: apps/pos/release/*.AppImage (auto-update feed)"
+          ls -la dist/VenuePOS-Till-Installer-*.AppImage
           ls -la apps/pos/release/
+
+  release-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Verify tag matches POS version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./apps/pos/package.json').version")"
+          if [[ "${TAG}" != "${PKG}" ]]; then
+            echo "Tag v${TAG} does not match apps/pos/package.json version ${PKG}"
+            exit 1
+          fi
+          echo "Version OK: ${PKG}"
+
+      - run: npm ci
+
+      - name: Build POS renderer
+        run: npm run build -w @venue-pos/pos
+
+      - name: Build and publish Windows portable exe
+        working-directory: apps/pos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win portable --publish always
+
+      - name: Release summary
+        run: |
+          echo "Published Windows portable exe + latest.yml for ${GITHUB_REF_NAME}"
+          Get-ChildItem apps/pos/release/

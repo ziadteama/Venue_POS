@@ -1,8 +1,8 @@
 # Ubuntu till deployment (USB per till)
 
-Deploy Venue POS: copy the Linux-built bundle from CI, run **one command**, reboot, complete the setup wizard.
+Deploy Venue POS: download the **Till Installer AppImage** (or extract the tar.gz fallback), run **one command**, reboot, complete the setup wizard.
 
-**Important:** Use the bundle built on **Linux** (GitHub Actions `build-till-bundle` or `npm run build:till-bundle` on Ubuntu). Windows-built bundles skip native compile and AppImage.
+**Important:** Use artifacts built on **Linux** (GitHub Actions `build-till-bundle` or `npm run build:till-installer` on Ubuntu). Windows-built bundles skip native compile and AppImage.
 
 ## Till requirements
 
@@ -10,8 +10,21 @@ Deploy Venue POS: copy the Linux-built bundle from CI, run **one command**, rebo
 - 2 GB+ RAM
 - Outbound HTTPS to your cloud hub API
 - USB ESC/POS receipt printer (optional at install)
+- `libfuse2` (installer installs this; on minimal images: `sudo apt-get install -y libfuse2`)
 
-## One-click install
+## One-click install (recommended)
+
+```bash
+chmod +x VenuePOS-Till-Installer-*.AppImage
+./VenuePOS-Till-Installer-*.AppImage
+sudo reboot
+```
+
+Headless: `sudo ./VenuePOS-Till-Installer-*.AppImage --no-gui`
+
+Reinstall: `./VenuePOS-Till-Installer-*.AppImage --reinstall`
+
+## Fallback — tar.gz bundle
 
 ```bash
 tar -xzf venue-pos-till-*.tar.gz

@@ -31,6 +31,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "pos-launcher.ps1")
 
 $user = Get-LocalUser -Name $Username -ErrorAction SilentlyContinue
 if (-not $user) {
@@ -45,6 +46,8 @@ if (-not $user) {
 # Add to Users group only — no Administrators
 Add-LocalGroupMember -Group "Users" -Member $Username -ErrorAction SilentlyContinue
 
+$posLaunch = Get-VenuePosLaunchCommand -InstallRoot $RepoRoot
+$watchdogEntry = Get-VenuePosWatchdogEntry -InstallRoot $RepoRoot
 $watchdogLauncher = Join-Path $RepoRoot "ops\windows\launch-watchdog.cmd"
 $watchdogScript = @"
 @echo off
@@ -54,10 +57,11 @@ set WATCHDOG_CHECK_INTERVAL_MS=5000
 set WATCHDOG_MAX_RESTARTS=3
 set WATCHDOG_RESTART_WINDOW_MS=600000
 set WATCHDOG_LOG_FILE=$RepoRoot\logs\watchdog.log
-set WATCHDOG_POS_CWD=$RepoRoot
+set WATCHDOG_POS_CWD=$($posLaunch.Cwd)
 set ELECTRON_IS_KIOSK=true
-set WATCHDOG_POS_COMMAND=npm run electron:dev -w @venue-pos/pos
-"$NodeExe" "$RepoRoot\apps\watchdog\src\index.mjs"
+set NODE_ENV=production
+set WATCHDOG_POS_COMMAND=$($posLaunch.Command)
+"$NodeExe" "$watchdogEntry"
 "@
 Set-Content -Path $watchdogLauncher -Value $watchdogScript -Encoding ASCII
 Write-Host "Wrote launcher: $watchdogLauncher"

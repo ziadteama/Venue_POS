@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Venue POS Till Installer
+Comment=Install Venue POS till (agent, kiosk, POS) to /opt/venue-pos
+Exec=AppRun
+Icon=venue-pos-installer
+Categories=System;
+Terminal=true
+StartupNotify=true

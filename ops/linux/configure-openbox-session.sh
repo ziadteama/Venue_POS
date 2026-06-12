@@ -42,8 +42,7 @@ cat > "${HOME_DIR}/.config/openbox/rc.xml" <<'RCXML'
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <keyboard>
     <!-- Semi-kiosk: block Alt+Tab window switching while POS is active. -->
-    <!-- The kiosk-alttab-enable.sh / kiosk-alttab-disable.sh scripts swap this -->
-    <!-- file and call `openbox --reconfigure` to toggle the block at runtime.   -->
+    <!-- Toggle scripts swap this file and call openbox reconfigure at runtime. -->
     <keybind key="A-Tab">
       <action name="Execute"><command>true</command></action>
     </keybind>
@@ -62,7 +61,7 @@ cat > "${HOME_DIR}/.config/openbox/rc-alttab-enabled.xml" <<'RCENABLED'
 <?xml version="1.0" encoding="UTF-8"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
   <keyboard>
-    <!-- Alt+Tab enabled — worker has entered the semi-kiosk exit code. -->
+    <!-- Alt+Tab enabled: worker has entered the semi-kiosk exit code. -->
     <keybind key="A-Tab">
       <action name="NextWindow">
         <finalactions>
