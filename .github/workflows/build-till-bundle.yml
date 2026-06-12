@@ -1,4 +1,4 @@
-name: Build till bundle (Linux)
+name: Build till bundle (Linux + Windows)
 
 on:
   workflow_dispatch:
@@ -10,13 +10,15 @@ on:
       - 'apps/local-agent/**'
       - 'apps/watchdog/**'
       - 'ops/linux/**'
+      - 'ops/windows/**'
       - 'packages/**'
       - 'scripts/build-till-bundle.mjs'
+      - 'scripts/build-till-bundle-windows.mjs'
       - 'scripts/build-till-installer-appimage.mjs'
       - 'setup.sh'
 
 jobs:
-  bundle:
+  bundle-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,26 +31,53 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y libfuse2
 
-      - name: Install dependencies (native modules for Linux)
-        run: npm ci --include-workspace-root
-
       - name: Build Till Installer AppImage
         env:
           BUILD_POS_APPIMAGE: '1'
         run: npm run build:till-installer
 
-      - name: Verify installer and bundle artifacts
+      - name: Verify Linux artifacts
         run: |
           ls -la dist/
           test -f dist/VenuePOS-Till-Installer-*.AppImage
-          ls -la dist/venue-pos-till-*/pos/release/*.AppImage
           test -f dist/venue-pos-till-*.tar.gz
+          ls -la dist/venue-pos-till-*/pos/release/*.AppImage
 
-      - name: Upload till installer artifact
+      - name: Upload Linux till bundle artifact
         uses: actions/upload-artifact@v4
         with:
           name: venue-pos-till-linux
           path: |
             dist/VenuePOS-Till-Installer-*.AppImage
             dist/venue-pos-till-*.tar.gz
+          retention-days: 14
+
+  bundle-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Build Windows till bundle (portable exe + zip)
+        run: npm run build:till-bundle:windows
+
+      - name: Verify Windows artifacts
+        shell: bash
+        run: |
+          ls -la dist/
+          test -f dist/venue-pos-till-windows-*.zip
+          test -f dist/venue-pos-till-windows-*/pos/release/*-portable.exe
+          ls -la dist/venue-pos-till-windows-*/pos/release/
+
+      - name: Upload Windows till bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: venue-pos-till-windows
+          path: |
+            dist/venue-pos-till-windows-*.zip
+            dist/venue-pos-till-windows-*/pos/release/*-portable.exe
           retention-days: 14

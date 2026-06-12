@@ -1,4 +1,4 @@
-name: Release POS packages
+name: Release POS packages (Linux + Windows)
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
           BUILD_POS_APPIMAGE: '1'
         run: npm run build:till-installer
 
-      - name: Build and publish POS AppImage (electron-updater feed)
+      - name: Publish POS AppImage (electron-updater feed)
         working-directory: apps/pos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -54,8 +54,8 @@ jobs:
 
       - name: Release summary
         run: |
-          echo "Published for ${GITHUB_REF_NAME}:"
-          echo "  Till Installer: dist/VenuePOS-Till-Installer-*.AppImage (new tills)"
+          echo "Published Linux artifacts for ${GITHUB_REF_NAME}:"
+          echo "  Till Installer: dist/VenuePOS-Till-Installer-*.AppImage"
           echo "  POS AppImage: apps/pos/release/*.AppImage (auto-update feed)"
           ls -la dist/VenuePOS-Till-Installer-*.AppImage
           ls -la apps/pos/release/
@@ -83,16 +83,32 @@ jobs:
 
       - run: npm ci
 
-      - name: Build POS renderer
-        run: npm run build -w @venue-pos/pos
+      - name: Rebuild native modules for Node 20
+        run: npm run setup:node20
 
-      - name: Build and publish Windows portable exe
+      - name: Build Windows till bundle (portable exe + zip)
+        env:
+          SKIP_BUNDLE_CI: '1'
+        run: npm run build:till-bundle:windows
+
+      - name: Publish portable exe (electron-updater feed)
         working-directory: apps/pos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --win portable --publish always
 
-      - name: Release summary
+      - name: Upload till bundle zip to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          echo "Published Windows portable exe + latest.yml for ${GITHUB_REF_NAME}"
-          Get-ChildItem apps/pos/release/
+          gh release upload "${GITHUB_REF_NAME}" dist/venue-pos-till-windows-*.zip --clobber
+
+      - name: Release summary
+        shell: bash
+        run: |
+          echo "Published Windows artifacts for ${GITHUB_REF_NAME}:"
+          echo "  Till bundle zip: dist/venue-pos-till-windows-*.zip"
+          echo "  Portable exe + latest.yml: apps/pos/release/"
+          ls -la dist/venue-pos-till-windows-*.zip
+          ls -la apps/pos/release/
