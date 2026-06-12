@@ -44,6 +44,9 @@ let appUpdater = null;
 
 let kioskPaused = false;
 
+// Semi-kiosk exit code — hardcoded, not stored in DB or synced from hub.
+const SEMI_KIOSK_EXIT_CODE = '7894';
+
 function getUserDataPath() {
   return app.getPath('userData');
 }
@@ -79,14 +82,18 @@ function isKioskEnabled(cfg) {
   return cfg.kioskMode !== false && (process.env.ELECTRON_IS_KIOSK === 'true' || cfg.kioskMode);
 }
 
+/**
+ * Semi-kiosk: restore fullscreen when user maximises/restores the window after a pause.
+ * We do NOT re-engage OS kiosk mode (kiosk: false always) — Ubuntu desktop stays accessible
+ * when intentionally paused, but window snaps back to fullscreen on restore.
+ */
 function resumeKioskIfNeeded() {
   const cfg = currentConfig();
   if (!kioskPaused || !isKioskEnabled(cfg) || !mainWindow || mainWindow.isDestroyed()) return;
   kioskPaused = false;
   clearPausedMarker();
-  mainWindow.setKiosk(true);
+  // Semi-kiosk: fullscreen only — no OS kiosk mode.
   mainWindow.setFullScreen(true);
-  mainWindow.setAlwaysOnTop(true);
   mainWindow.focus();
 }
 
@@ -94,6 +101,7 @@ function attachKioskLockdown(win, cfg) {
   if (!isKioskEnabled(cfg)) return;
 
   win.removeMenu();
+  // Re-engage fullscreen when the window is restored from a pause.
   win.on('maximize', resumeKioskIfNeeded);
   win.on('restore', resumeKioskIfNeeded);
 
@@ -104,6 +112,7 @@ function attachKioskLockdown(win, cfg) {
   win.webContents.on('before-input-event', (event, input) => {
     if (kioskPaused) return;
     const key = input.key?.toLowerCase();
+    // Block developer / escape shortcuts while POS is in semi-kiosk mode.
     if (input.key === 'F12') event.preventDefault();
     if (input.control && input.shift && key === 'i') event.preventDefault();
     if (input.control && input.shift && key === 'j') event.preventDefault();
@@ -117,6 +126,18 @@ function attachKioskLockdown(win, cfg) {
   win.webContents.on('devtools-opened', () => {
     if (!kioskPaused) win.webContents.closeDevTools();
   });
+
+  // Prevent leaving fullscreen via keyboard (F11 / OS shortcuts) while active.
+  win.on('leave-full-screen', () => {
+    if (!kioskPaused && isKioskEnabled(currentConfig())) {
+      // Snap back to fullscreen unless the worker provided the exit code.
+      setImmediate(() => {
+        if (!kioskPaused && mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.setFullScreen(true);
+        }
+      });
+    }
+  });
 }
 
 function createWindow() {
@@ -126,8 +147,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    // Semi-kiosk: fullscreen but NOT OS kiosk mode — Ubuntu desktop stays behind.
     fullscreen: kiosk,
-    kiosk,
+    kiosk: false,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -195,14 +217,19 @@ function registerIpc() {
     if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
     kioskPaused = true;
     writePausedMarker();
-    mainWindow.setKiosk(false);
+    // Semi-kiosk: leave fullscreen so the worker can access Ubuntu desktop.
+    // We do NOT call setKiosk(false) — we were never in OS kiosk mode.
     mainWindow.setFullScreen(false);
-    mainWindow.setAlwaysOnTop(false);
     mainWindow.minimize();
     return { ok: true };
   });
 
   ipcMain.handle('kiosk:isPaused', () => kioskPaused);
+
+  // Renderer calls this with the worker-entered exit code; main verifies it.
+  ipcMain.handle('kiosk:verifyExitCode', (_event, code) => {
+    return { ok: String(code) === SEMI_KIOSK_EXIT_CODE };
+  });
 }
 
 if (isDev && process.platform === 'win32') {
