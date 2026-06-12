@@ -29,6 +29,7 @@ ops/secrets/*.pem
 
 # Electron
 apps/pos/dist-electron/
+apps/pos/release/
 apps/kds/dist-electron/
 
 # IDE
