@@ -139,6 +139,7 @@ copyDir(path.join(repoRoot, 'apps', 'local-agent'), path.join(outDir, 'local-age
 copyDir(path.join(repoRoot, 'apps', 'pos'), path.join(outDir, 'pos'));
 copyDir(path.join(repoRoot, 'apps', 'watchdog'), path.join(outDir, 'watchdog'));
 copyDir(path.join(repoRoot, 'ops'), path.join(outDir, 'ops'));
+copyDir(path.join(repoRoot, 'deployment'), path.join(outDir, 'deployment'));
 copyDir(path.join(repoRoot, 'packages'), path.join(outDir, 'packages'));
 copyDir(path.join(repoRoot, 'node_modules'), path.join(outDir, 'node_modules'));
 copyDir(path.join(repoRoot, 'scripts'), path.join(outDir, 'scripts'));
@@ -169,9 +170,9 @@ if (process.env.SKIP_BUNDLE_ZIP === '1') {
 console.log(`\nWindows till bundle ready:`);
 console.log(`  Folder: ${outDir}`);
 console.log(`  Zip:    ${archive}`);
-console.log('\nOn till (Admin PowerShell):');
+console.log('\nOn till (Node 20 + NSSM — double-click deployment\\install-all.bat as Admin):');
 console.log('  Expand-Archive .\\venue-pos-till-windows-*.zip -DestinationPath C:\\Venue_POS');
-console.log('  cd C:\\Venue_POS\\ops\\windows');
-console.log('  .\\install.ps1 -InstallRoot C:\\Venue_POS');
-console.log('  .\\setup-kiosk-user.ps1 -Password "YourSecurePassword" -RepoRoot C:\\Venue_POS');
+console.log('  copy deployment\\provision.env.example deployment\\provision.env  (edit creds)');
+console.log('  deployment\\install-all.bat');
+console.log('  # Reboot — VenuePosAgent (background) + launch-till.cmd (portable POS)');
 console.log(`\nPOS portable exe: pos\\release\\${portableExe}`);

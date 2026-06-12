@@ -40,6 +40,18 @@ function resolveAgentRoot() {
   if (process.platform === 'linux' && fs.existsSync('/opt/venue-pos/local-agent')) {
     return '/opt/venue-pos/local-agent';
   }
+  if (process.platform === 'win32') {
+    const installRoot = process.env.VENUE_POS_INSTALL_ROOT;
+    const candidates = [
+      installRoot ? path.join(installRoot, 'local-agent') : null,
+      'C:\\Venue_POS\\local-agent',
+    ].filter(Boolean);
+    for (const dir of candidates) {
+      if (fs.existsSync(path.join(dir, 'src', 'index.js'))) {
+        return dir;
+      }
+    }
+  }
   return path.resolve(__dirname, '../../local-agent');
 }
 
@@ -314,16 +326,32 @@ async function testConnections(cfg) {
 }
 
 function restartAgentService() {
-  if (process.platform !== 'linux') {
-    return { restarted: false, reason: 'not_linux' };
-  }
   const { execSync } = require('node:child_process');
-  try {
-    execSync('systemctl restart venue-pos-agent', { stdio: 'ignore' });
-    return { restarted: true };
-  } catch {
-    return { restarted: false, reason: 'systemctl_failed' };
+  if (process.platform === 'linux') {
+    try {
+      execSync('systemctl restart venue-pos-agent', { stdio: 'ignore' });
+      return { restarted: true };
+    } catch {
+      return { restarted: false, reason: 'systemctl_failed' };
+    }
   }
+  if (process.platform === 'win32') {
+    try {
+      execSync('nssm restart VenuePosAgent', { stdio: 'ignore', shell: true });
+      return { restarted: true };
+    } catch {
+      try {
+        execSync('net stop VenuePosAgent && net start VenuePosAgent', {
+          stdio: 'ignore',
+          shell: true,
+        });
+        return { restarted: true };
+      } catch {
+        return { restarted: false, reason: 'windows_service_failed' };
+      }
+    }
+  }
+  return { restarted: false, reason: 'unsupported_platform' };
 }
 
 module.exports = {

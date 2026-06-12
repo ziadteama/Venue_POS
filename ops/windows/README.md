@@ -8,7 +8,7 @@ Scripts for kiosk lockdown, watchdog, and network hardening on **Windows** tills
 
 `apps/pos/release/VenuePOS-{version}-portable.exe`
 
-No Node/npm required to **launch** POS — the watchdog still runs under Node and the **local-agent** remains a separate Windows service. The portable exe is what kiosk autostart runs after `install.ps1`.
+No Node/npm required to **launch** POS — the watchdog still runs under Node. **local-agent** runs as Windows service `VenuePosAgent` (NSSM, boot). Kiosk shell runs `launch-till.cmd` → agent service + watchdog → portable exe.
 
 ```powershell
 npm run build:pos:win
@@ -17,19 +17,41 @@ npm run build:pos:win
 
 ## Order of operations
 
-1. Install Node 20 LTS and clone the repo on the till.
-2. `npm ci` from repo root; `npm run setup:node20` if needed.
-3. Configure `apps/pos/.env` and `apps/local-agent/.env` (terminal ID, secrets).
-4. **Kiosk user + shell** — `setup-kiosk-user.ps1` (auto-login, Explorer replaced by watchdog).
-5. **Watchdog service (optional)** — `install-watchdog.ps1` if not using shell replacement, or for coordinator-only hosts.
+1. Install **Node 20 LTS** and **NSSM** ([nssm.cc](https://nssm.cc)) on the till.
+2. Copy USB bundle (`venue-pos-till-windows-*.zip`) and extract to `C:\Venue_POS`.
+3. **Install till** — `install.ps1` (copies files, rebuilds natives, installs agent service + `launch-till.cmd`).
+4. **Or agent only** — `install-agent.ps1` with hub URL + terminal creds from dev ops **Till provisioning**.
+5. **Kiosk user + shell** — `setup-kiosk-user.ps1` (auto-login, Explorer → `launch-till.cmd`).
 6. **Firewall** — `firewall-lockdown.ps1` with hub server IP.
-7. **BIOS / hardware** — see [Hardware security (US-9.3)](#hardware-security-us-93) below.
-8. Reboot and verify POS launches fullscreen with no desktop access.
+7. Reboot — `VenuePosAgent` starts at boot; kiosk user runs portable POS via watchdog.
+
+**One-click (recommended):** edit `deployment\provision.env`, then run **`deployment\install-all.bat`** as Administrator.
+
+```batch
+Expand-Archive .\venue-pos-till-windows-*.zip -DestinationPath C:\Venue_POS
+copy C:\Venue_POS\deployment\provision.env.example C:\Venue_POS\deployment\provision.env
+REM Edit provision.env with hub URL + terminal creds from dev ops Till provisioning
+C:\Venue_POS\deployment\install-all.bat
+REM Reboot
+```
+
+**PowerShell (manual steps):**
+
+```powershell
+cd C:\Venue_POS\ops\windows
+.\install.ps1 -InstallRoot C:\Venue_POS -ApiUrl "..." -TerminalId "..." -TerminalSecret "..." -VenueId "..."
+.\setup-kiosk-user.ps1 -Password "YourSecurePassword" -RepoRoot C:\Venue_POS
+.\firewall-lockdown.ps1 -HubServerIp "<api-host-ip>"
+```
+
+Verify agent before reboot: `Invoke-WebRequest http://127.0.0.1:3456/health -UseBasicParsing`
 
 ## Rollback
 
 ```powershell
 .\rollback-kiosk.ps1
+nssm stop VenuePosAgent
+nssm remove VenuePosAgent confirm
 nssm stop VenuePosWatchdog
 nssm remove VenuePosWatchdog confirm
 ```
@@ -40,8 +62,11 @@ Restore `Winlogon\Shell` to `explorer.exe` if setup script was not rolled back.
 
 | Script | Story | Purpose |
 |--------|-------|---------|
-| `setup-kiosk-user.ps1` | US-9.1 | Restricted user, auto-login, shell → watchdog, Task Manager / Run blocked |
-| `install-watchdog.ps1` | US-9.2 | NSSM Windows Service (auto-start on boot) |
+| `install-agent.ps1` | — | NSSM `VenuePosAgent` service + `local-agent/.env` + `launch-till.cmd` |
+| `install.ps1` | — | Copy USB bundle, native rebuild, calls `install-agent.ps1` |
+| `launch-till.cmd` | — | Boot entry: start agent service → watchdog → portable POS `.exe` |
+| `setup-kiosk-user.ps1` | US-9.1 | Restricted user, auto-login, shell → `launch-till.cmd`, Task Manager / Run blocked |
+| `install-watchdog.ps1` | US-9.2 | NSSM watchdog service (alternative to shell replacement) |
 | `firewall-lockdown.ps1` | US-9.3 | Outbound allow-list: hub HTTPS + LAN agent + printers |
 | `rollback-kiosk.ps1` | — | Restore Explorer shell and policy keys |
 

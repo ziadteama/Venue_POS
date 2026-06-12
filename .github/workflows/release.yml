@@ -38,6 +38,7 @@ jobs:
       - name: Build Till Installer AppImage (primary till deliverable)
         env:
           BUILD_POS_APPIMAGE: '1'
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: npm run build:till-installer
 
       - name: Build and publish POS AppImage (electron-updater feed)

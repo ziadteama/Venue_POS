@@ -1903,6 +1903,28 @@ npm run test -w @venue-pos/api -- apps/api/src/manager-terminals.test.js apps/ap
 ```
 **Notes:** Secret shown once on create; not stored or retrievable later (rotate/deactivate deferred).
 
+### 2026-06-12 — Windows till: local-agent service + launch-till.cmd
+**Phase:** 7 · **Story:** till deployment / US-9.x
+**What:** `install-agent.ps1` registers NSSM `VenuePosAgent` (boot), writes `local-agent/.env`, generates `launch-till.cmd` (agent service → watchdog → portable POS exe). `install.ps1` calls it; kiosk shell uses `launch-till.cmd`. POS wizard restarts agent on Windows (`nssm restart`); `resolveAgentRoot` finds `C:\Venue_POS\local-agent`.
+**Files:** `ops/windows/install-agent.ps1`, `pos-launcher.ps1`, `install.ps1`, `setup-kiosk-user.ps1`, `README.md`, `config-store.cjs`, `build-till-bundle-windows.mjs`
+**Verify:**
+```powershell
+cd C:\Venue_POS\ops\windows
+.\install-agent.ps1 -InstallRoot C:\Venue_POS -ApiUrl https://hub -TerminalId <id> -TerminalSecret <secret> -VenueId <venue>
+Invoke-WebRequest http://127.0.0.1:3456/health -UseBasicParsing
+.\setup-kiosk-user.ps1 -Password "..." -RepoRoot C:\Venue_POS
+# Reboot — agent + portable exe autostart
+npm run test -w @venue-pos/pos
+```
+**Notes:** Requires Node 20 + NSSM on till. Portable exe alone is insufficient — run full bundle install.
+
+### 2026-06-12 — Windows deployment/*.bat one-click till setup
+**Phase:** 7 · **Story:** till deployment
+**What:** Root `deployment/` folder with `.bat` entry points (`install-all.bat`, `install.bat`, `install-agent.bat`, `setup-kiosk.bat`, `firewall-lockdown.bat`, `verify-agent.bat`, `rollback-kiosk.bat`) + `provision.env.example`. Included in Windows till USB bundle.
+**Files:** `deployment/*`, `build-till-bundle-windows.mjs`, `ops/windows/install.ps1`, `ops/windows/README.md`
+**Verify:** Extract till zip → edit `deployment\provision.env` → run `deployment\install-all.bat` as Admin → reboot → `verify-agent.bat`
+**Notes:** Bats elevate to Admin and call existing `ops/windows/*.ps1`.
+
 ---
 
 ## Quick reference — Phase 0 deliverables

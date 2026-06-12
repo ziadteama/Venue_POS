@@ -11,6 +11,7 @@ on:
       - 'apps/watchdog/**'
       - 'ops/linux/**'
       - 'ops/windows/**'
+      - 'deployment/**'
       - 'packages/**'
       - 'scripts/build-till-bundle.mjs'
       - 'scripts/build-till-bundle-windows.mjs'
@@ -45,7 +46,17 @@ jobs:
         env:
           BUILD_POS_APPIMAGE: '1'
           SKIP_BUNDLE_CI: '1'
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: npm run build:till-installer
+
+      - name: Upload debug log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-757386-log
+          path: debug-757386.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Verify Linux artifacts
         run: |

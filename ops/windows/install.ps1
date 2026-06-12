@@ -1,16 +1,38 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Install Venue POS till bundle on Windows (agent service + production POS launcher).
+  Install Venue POS till bundle on Windows (copy files, native modules, agent service, POS launcher).
 
 .PARAMETER InstallRoot
   Target directory (default: C:\Venue_POS).
 
+.PARAMETER SkipAgentInstall
+  Skip install-agent.ps1 (NSSM service). Use when NSSM is not available yet.
+
+.PARAMETER ApiUrl
+  Optional — passed to install-agent.ps1 for local-agent/.env.
+
+.PARAMETER TerminalId
+  Optional terminal UUID from dev ops Till provisioning.
+
+.PARAMETER TerminalSecret
+  Optional terminal secret from dev ops Till provisioning.
+
+.PARAMETER VenueId
+  Optional venue UUID.
+
 .EXAMPLE
   .\install.ps1 -InstallRoot C:\Venue_POS
+.EXAMPLE
+  .\install.ps1 -InstallRoot C:\Venue_POS -ApiUrl "https://hub.example.com" -TerminalId "..." -TerminalSecret "..." -VenueId "..."
 #>
 param(
-  [string]$InstallRoot = "C:\Venue_POS"
+  [string]$InstallRoot = "C:\Venue_POS",
+  [switch]$SkipAgentInstall,
+  [string]$ApiUrl = "",
+  [string]$TerminalId = "",
+  [string]$TerminalSecret = "",
+  [string]$VenueId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,7 +45,7 @@ if (-not (Test-Path (Join-Path $BundleRoot "local-agent"))) {
 
 Write-Host "==> Copying bundle to $InstallRoot"
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
-$items = @("local-agent", "pos", "watchdog", "ops", "packages", "node_modules", "scripts", "package.json")
+$items = @("local-agent", "pos", "watchdog", "ops", "packages", "node_modules", "scripts", "package.json", "deployment")
 foreach ($item in $items) {
   $src = Join-Path $BundleRoot $item
   if (-not (Test-Path $src)) { continue }
@@ -38,27 +60,29 @@ npm run setup:node20
 if ($LASTEXITCODE -ne 0) { Pop-Location; exit $LASTEXITCODE }
 Pop-Location
 
-Write-Host "==> Writing production kiosk launcher"
-$posLaunch = Get-VenuePosLaunchCommand -InstallRoot $InstallRoot
-$watchdogEntry = Get-VenuePosWatchdogEntry -InstallRoot $InstallRoot
-Write-Host "  POS launch mode: $($posLaunch.Mode)"
-$launcher = Join-Path $InstallRoot "ops\windows\launch-watchdog.cmd"
-$launcherContent = @"
-@echo off
-cd /d "$InstallRoot"
-set WATCHDOG_ENABLED=true
-set WATCHDOG_CHECK_INTERVAL_MS=5000
-set WATCHDOG_MAX_RESTARTS=3
-set WATCHDOG_RESTART_WINDOW_MS=600000
-set WATCHDOG_LOG_FILE=$InstallRoot\logs\watchdog.log
-set WATCHDOG_POS_CWD=$($posLaunch.Cwd)
-set ELECTRON_IS_KIOSK=true
-set NODE_ENV=production
-set WATCHDOG_POS_COMMAND=$($posLaunch.Command)
-node "$watchdogEntry"
-"@
-New-Item -ItemType Directory -Path (Split-Path $launcher) -Force | Out-Null
-Set-Content -Path $launcher -Value $launcherContent -Encoding ASCII
+if (-not $SkipAgentInstall) {
+  Write-Host "==> Installing local-agent service + till launcher"
+  $agentArgs = @{
+    InstallRoot        = $InstallRoot
+    SkipNativeRebuild  = $true
+  }
+  if ($ApiUrl) { $agentArgs.ApiUrl = $ApiUrl }
+  if ($TerminalId) { $agentArgs.TerminalId = $TerminalId }
+  if ($TerminalSecret) { $agentArgs.TerminalSecret = $TerminalSecret }
+  if ($VenueId) { $agentArgs.VenueId = $VenueId }
+
+  try {
+    & (Join-Path $PSScriptRoot "install-agent.ps1") @agentArgs
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  } catch {
+    Write-Warning "install-agent.ps1 failed: $_"
+    Write-Warning "Install NSSM (https://nssm.cc) then run: .\install-agent.ps1 -InstallRoot `"$InstallRoot`""
+    Write-VenuePosTillLauncher -InstallRoot $InstallRoot | Out-Null
+  }
+} else {
+  Write-VenuePosTillLauncher -InstallRoot $InstallRoot | Out-Null
+  Write-Host "  Wrote launch-till.cmd (agent service skipped — run install-agent.ps1)"
+}
 
 Write-Host "==> Next: kiosk lockdown (reboot required)"
 Write-Host "  cd $InstallRoot\ops\windows"
