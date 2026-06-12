@@ -1934,6 +1934,13 @@ npm run test -w @venue-pos/pos
 **Verify:** On PC with Node 22: `deployment\ensure-node20.bat` (Admin) → `node -v` shows `v20.x` → `deployment\install-agent.bat`
 **Notes:** Offline till: set `NODE20_MSI_PATH` in `provision.env`. Requires internet on first run unless MSI path set.
 
+### 2026-06-12 — Standalone local-agent microservice repo (`venue-pos-local-agent/`)
+**Phase:** 7 · **Story:** till deployment
+**What:** Extractable standalone service folder — vendored `packages/shared`, own `package.json`, PM2 install (`install.bat` / `scripts/install.ps1`), no monorepo root required. Sync from monorepo via `npm run sync:local-agent-standalone`.
+**Files:** `venue-pos-local-agent/*`, `scripts/sync-standalone-local-agent.mjs`
+**Verify:** Clone/copy folder → `copy provision.env.example provision.env` → Admin `install.bat` → `pm2 status` → `http://127.0.0.1:3456/health`
+**Notes:** Push `venue-pos-local-agent/` to its own GitHub repo for prod tills.
+
 ---
 
 ## Quick reference — Phase 0 deliverables

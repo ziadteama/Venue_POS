@@ -26,6 +26,7 @@
     "build:till-bundle": "node scripts/build-till-bundle.mjs",
     "build:till-installer": "node scripts/build-till-installer-appimage.mjs",
     "build:till-bundle:windows": "node scripts/build-till-bundle-windows.mjs",
+    "sync:local-agent-standalone": "node scripts/sync-standalone-local-agent.mjs",
     "migrate": "npm run migrate -w @venue-pos/api",
     "migrate:dev": "npm run migrate:dev -w @venue-pos/api",
     "db:generate": "node scripts/prisma-generate.mjs",
