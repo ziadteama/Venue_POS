@@ -1,5 +1,5 @@
 @echo off
-REM Full till deploy: install bundle + agent + kiosk + firewall (reboot required after).
+REM Full till deploy: PM2 + bundle + agent + kiosk + firewall. Reboot after.
 setlocal
 cd /d "%~dp0"
 
@@ -7,16 +7,21 @@ echo.
 echo ========================================
 echo  Venue POS — Full Windows till setup
 echo ========================================
-echo  Requires: Node 20 LTS, NSSM, Admin rights
-echo  Edit provision.env before running (copy from provision.env.example)
+echo  Requires: Node 20 LTS, Admin rights
+echo  PM2 + pm2-windows-startup installed automatically
+echo  Edit provision.env before running
 echo.
+
+call "%~dp0install-pm2.bat" elevated nopause
+if errorlevel 1 exit /b 1
 
 call "%~dp0install.bat" elevated nopause
 if errorlevel 1 exit /b 1
 
 call "%~dp0verify-agent.bat" nopause
 if errorlevel 1 (
-  echo Agent health check failed — fix before kiosk setup.
+  echo.
+  echo Agent health check failed. Try: install-agent.bat
   pause
   exit /b 1
 )
@@ -30,7 +35,8 @@ if errorlevel 1 exit /b 1
 echo.
 echo ========================================
 echo  Setup complete — REBOOT the till now.
-echo  After reboot: VenuePosAgent + portable POS start automatically.
+echo  After reboot: PM2 agent + portable POS autostart.
+echo  Logs: pm2 logs venue-pos-agent
 echo ========================================
 pause
 exit /b 0

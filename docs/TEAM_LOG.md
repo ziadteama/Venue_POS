@@ -1918,12 +1918,12 @@ npm run test -w @venue-pos/pos
 ```
 **Notes:** Requires Node 20 + NSSM on till. Portable exe alone is insufficient — run full bundle install.
 
-### 2026-06-12 — Windows deployment/*.bat one-click till setup
+### 2026-06-12 — Windows deployment/*.bat + PM2 local-agent
 **Phase:** 7 · **Story:** till deployment
-**What:** Root `deployment/` folder with `.bat` entry points (`install-all.bat`, `install.bat`, `install-agent.bat`, `setup-kiosk.bat`, `firewall-lockdown.bat`, `verify-agent.bat`, `rollback-kiosk.bat`) + `provision.env.example`. Included in Windows till USB bundle.
-**Files:** `deployment/*`, `build-till-bundle-windows.mjs`, `ops/windows/install.ps1`, `ops/windows/README.md`
-**Verify:** Extract till zip → edit `deployment\provision.env` → run `deployment\install-all.bat` as Admin → reboot → `verify-agent.bat`
-**Notes:** Bats elevate to Admin and call existing `ops/windows/*.ps1`.
+**What:** Redid `deployment/` bats for **PM2 + pm2-windows-startup** (no NSSM for agent). `install-agent.ps1` registers `venue-pos-agent`, shared `PM2_HOME` at `data/pm2`, `launch-till.cmd` uses `pm2 resurrect/start`. POS wizard restarts agent via `pm2 restart`.
+**Files:** `deployment/*`, `ops/windows/install-agent.ps1`, `pos-launcher.ps1`, `ecosystem.config.cjs`, `config-store.cjs`, `README.md`, `DEVELOPMENT.md`
+**Verify:** `deployment\install-all.bat` → `pm2 status` → `http://127.0.0.1:3456/health` → reboot → portable POS
+**Notes:** `install-pm2.bat` installs globals. `install-watchdog.ps1` still optional NSSM path.
 
 ---
 

@@ -1,12 +1,12 @@
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
-  Install Venue POS local-agent as a Windows service (NSSM) and write till boot launcher.
+  Install Venue POS local-agent under PM2 + pm2-windows-startup and write till boot launcher.
 
 .DESCRIPTION
-  Registers VenuePosAgent (SQLite + offline sync) to start at boot, optionally writes
-  local-agent/.env from till provisioning creds, and generates launch-till.cmd
-  (starts agent service, then watchdog → portable POS .exe).
+  Installs pm2 + pm2-windows-startup if missing, registers venue-pos-agent to start at boot,
+  optionally writes local-agent/.env from till provisioning creds, and generates launch-till.cmd
+  (PM2 agent + watchdog → portable POS .exe).
 
 .PARAMETER InstallRoot
   Till install directory (default: C:\Venue_POS).
@@ -14,8 +14,8 @@
 .PARAMETER NodeExe
   Path to Node 20 (default: node on PATH).
 
-.PARAMETER ServiceName
-  Windows service name (default: VenuePosAgent).
+.PARAMETER Pm2AppName
+  PM2 process name (default: venue-pos-agent).
 
 .PARAMETER ApiUrl
   Hub API URL (optional — skips .env write when omitted if .env already exists).
@@ -38,6 +38,9 @@
 .PARAMETER SkipHealthCheck
   Do not poll http://127.0.0.1:3456/health after start.
 
+.PARAMETER SkipPm2Startup
+  Skip pm2-startup install (launch-till.cmd still starts agent on login).
+
 .EXAMPLE
   .\install-agent.ps1 -InstallRoot C:\Venue_POS `
     -ApiUrl "https://your-hub.onrender.com" `
@@ -46,15 +49,15 @@
 param(
   [string]$InstallRoot = "C:\Venue_POS",
   [string]$NodeExe = "node",
-  [string]$ServiceName = "VenuePosAgent",
+  [string]$Pm2AppName = "venue-pos-agent",
   [string]$ApiUrl = "",
   [string]$TerminalId = "",
   [string]$TerminalSecret = "",
   [string]$VenueId = "",
   [string]$AgentLanHost = "",
-  [string]$NssmExe = "",
   [switch]$SkipNativeRebuild,
-  [switch]$SkipHealthCheck
+  [switch]$SkipHealthCheck,
+  [switch]$SkipPm2Startup
 )
 
 $ErrorActionPreference = "Stop"
@@ -62,13 +65,8 @@ $ErrorActionPreference = "Stop"
 
 $InstallRoot = (Resolve-Path $InstallRoot).Path
 $agentRoot = Get-VenuePosAgentRoot -InstallRoot $InstallRoot
-$agentEntry = Get-VenuePosAgentEntry -InstallRoot $InstallRoot
 $nodePath = Resolve-VenuePosNodeExe -NodeExe $NodeExe
-$nssmPath = Resolve-VenuePosNssmExe -NssmExe $NssmExe
-
-if (-not $nssmPath) {
-  throw "NSSM not found. Install from https://nssm.cc and add nssm.exe to PATH, or place it at ops\windows\vendor\nssm.exe"
-}
+$script:VenuePosPm2AppName = $Pm2AppName
 
 $logsDir = Join-Path $InstallRoot "logs"
 New-Item -ItemType Directory -Path $logsDir -Force | Out-Null
@@ -97,30 +95,8 @@ if ($hasProvisionArgs) {
   Write-Warning "No local-agent .env — pass -ApiUrl -TerminalId -TerminalSecret or create $envPath manually before going live."
 }
 
-Write-Host "==> Installing Windows service $ServiceName"
-$existing = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-if ($existing) {
-  Write-Host "  Stopping existing service..."
-  & $nssmPath stop $ServiceName 2>$null
-  Start-Sleep -Seconds 1
-  & $nssmPath remove $ServiceName confirm
-}
-
-& $nssmPath install $ServiceName $nodePath $agentEntry
-& $nssmPath set $ServiceName AppDirectory $agentRoot
-& $nssmPath set $ServiceName AppStdout (Join-Path $logsDir "agent-stdout.log")
-& $nssmPath set $ServiceName AppStderr (Join-Path $logsDir "agent-stderr.log")
-& $nssmPath set $ServiceName AppRotateFiles 1
-& $nssmPath set $ServiceName AppRotateBytes 10485760
-& $nssmPath set $ServiceName Start SERVICE_AUTO_START
-& $nssmPath set $ServiceName AppEnvironmentExtra @(
-  "VENUE_POS_AGENT_ROOT=$agentRoot",
-  "VENUE_POS_INSTALL_ROOT=$InstallRoot",
-  "NODE_ENV=production"
-)
-
-Write-Host "==> Starting $ServiceName"
-& $nssmPath start $ServiceName
+$pm2Home = Install-VenuePosPm2Agent -InstallRoot $InstallRoot -AgentRoot $agentRoot -SkipStartup:$SkipPm2Startup
+Write-Host "  PM2_HOME: $pm2Home"
 
 if (-not $SkipHealthCheck) {
   Write-Host "==> Waiting for local-agent /health"
@@ -138,17 +114,17 @@ if (-not $SkipHealthCheck) {
     }
   }
   if (-not $ok) {
-    Write-Warning "Agent /health not reachable yet. Check: $logsDir\agent-stderr.log"
-    Write-Warning "  cd $agentRoot; node src/index.js"
+    Write-Warning "Agent /health not reachable yet. Check: pm2 logs $Pm2AppName"
+    Write-Warning "  pm2 status"
   }
 }
 
-Write-Host "==> Writing till boot launcher (agent + portable POS)"
-$launcher = Write-VenuePosTillLauncher -InstallRoot $InstallRoot -NodeExe $nodePath -AgentServiceName $ServiceName
+Write-Host "==> Writing till boot launcher (PM2 agent + portable POS)"
+$launcher = Write-VenuePosTillLauncher -InstallRoot $InstallRoot -NodeExe $nodePath -Pm2AppName $Pm2AppName
 Write-Host "  POS mode: $($launcher.PosMode)"
 Write-Host "  Launcher: $($launcher.LauncherPath)"
 Write-Host ""
 Write-Host "Next (kiosk till):"
-Write-Host "  cd $InstallRoot\ops\windows"
-Write-Host "  .\setup-kiosk-user.ps1 -Password `"YourSecurePassword`" -RepoRoot `"$InstallRoot`""
+Write-Host "  cd $InstallRoot\deployment"
+Write-Host "  .\setup-kiosk.bat"
 Write-Host "Done."

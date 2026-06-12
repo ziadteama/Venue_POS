@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Venue POS — Rollback kiosk
+title Venue POS — Rollback kiosk + PM2 agent
 cd /d "%~dp0"
 call "%~dp0_common.bat" || exit /b 1
 
@@ -14,12 +14,9 @@ if /i not "%~1"=="elevated" (
 )
 
 echo.
-echo === Rollback kiosk shell + stop agent service ===
-echo.
-
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%WIN_OPS%\rollback-kiosk.ps1'"
-nssm stop VenuePosAgent 2>nul
-nssm remove VenuePosAgent confirm 2>nul
+echo === Rollback kiosk shell + PM2 agent ===
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "& '%WIN_OPS%\rollback-kiosk.ps1'; . '%WIN_OPS%\pos-launcher.ps1'; Uninstall-VenuePosPm2Agent -InstallRoot '%INSTALL_ROOT%'"
 
 echo.
 echo Rollback complete. Reboot recommended.

@@ -360,15 +360,15 @@ Run the coordinator `local-agent` outside Electron so floor locks survive POS cl
 # From repo root — install deps once
 npm install -w @venue-pos/local-agent
 
-# Option A: NSSM (https://nssm.cc)
-nssm install VenuePosAgent "C:\Program Files\nodejs\node.exe" "Z:\Plegmo\Venue_POS\apps\local-agent\src\index.js"
-nssm set VenuePosAgent AppDirectory "Z:\Plegmo\Venue_POS\apps\local-agent"
-nssm set VenuePosAgent AppEnvironmentExtra "IS_COORDINATOR=true" "COORDINATOR_FALLBACK_ENABLED=true"
-nssm start VenuePosAgent
+# Production till: PM2 + pm2-windows-startup (see deployment/install-all.bat)
+npm i -g pm2 pm2-windows-startup
+cd C:\Venue_POS\ops\windows
+.\install-agent.ps1 -InstallRoot C:\Venue_POS
+pm2 logs venue-pos-agent
 
-# Option B: pm2 (dev convenience only — production tills use NSSM)
-npm i -g pm2
-cd apps/local-agent && pm2 start src/index.js --name venue-pos-agent
+# Coordinator env (optional — add to local-agent/.env or ecosystem.config.cjs)
+# IS_COORDINATOR=true
+# COORDINATOR_FALLBACK_ENABLED=true
 ```
 
 ### Windows POS watchdog + kiosk (Phase 7)

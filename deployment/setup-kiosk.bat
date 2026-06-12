@@ -14,27 +14,23 @@ if /i not "%~1"=="elevated" (
 )
 
 set "KIOSK_PASSWORD="
-
 if exist "%PROVISION_FILE%" (
   for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%PROVISION_FILE%") do (
     if /i "%%a"=="KIOSK_PASSWORD" set "KIOSK_PASSWORD=%%b"
   )
 )
-
 if not defined KIOSK_PASSWORD (
   set /p "KIOSK_PASSWORD=Kiosk user password: "
 )
-
 if not defined KIOSK_PASSWORD (
-  echo ERROR: KIOSK_PASSWORD required. Set in provision.env or enter when prompted.
+  echo ERROR: KIOSK_PASSWORD required in provision.env or at prompt.
   pause
   exit /b 1
 )
 
 echo.
 echo === Venue POS kiosk lockdown ===
-echo Install root: %INSTALL_ROOT%
-echo Shell will be launch-till.cmd (agent service + portable POS)
+echo Shell: launch-till.cmd (PM2 agent + portable POS)
 echo.
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^

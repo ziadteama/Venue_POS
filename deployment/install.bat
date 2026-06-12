@@ -41,6 +41,6 @@ set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" exit /b %RC%
 
 echo.
-echo Next: run setup-kiosk.bat then firewall-lockdown.bat, then reboot.
+echo Next: verify-agent.bat, setup-kiosk.bat, firewall-lockdown.bat, reboot.
 if /i not "%~2"=="nopause" pause
 exit /b 0

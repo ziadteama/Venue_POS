@@ -170,7 +170,7 @@ if (process.env.SKIP_BUNDLE_ZIP === '1') {
 console.log(`\nWindows till bundle ready:`);
 console.log(`  Folder: ${outDir}`);
 console.log(`  Zip:    ${archive}`);
-console.log('\nOn till (Node 20 + NSSM — double-click deployment\\install-all.bat as Admin):');
+console.log('\nOn till (Node 20 — double-click deployment\\install-all.bat as Admin):');
 console.log('  Expand-Archive .\\venue-pos-till-windows-*.zip -DestinationPath C:\\Venue_POS');
 console.log('  copy deployment\\provision.env.example deployment\\provision.env  (edit creds)');
 console.log('  deployment\\install-all.bat');

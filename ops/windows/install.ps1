@@ -7,7 +7,7 @@
   Target directory (default: C:\Venue_POS).
 
 .PARAMETER SkipAgentInstall
-  Skip install-agent.ps1 (NSSM service). Use when NSSM is not available yet.
+  Skip install-agent.ps1 (PM2). Use when agent will be installed separately.
 
 .PARAMETER ApiUrl
   Optional — passed to install-agent.ps1 for local-agent/.env.
@@ -76,7 +76,7 @@ if (-not $SkipAgentInstall) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
   } catch {
     Write-Warning "install-agent.ps1 failed: $_"
-    Write-Warning "Install NSSM (https://nssm.cc) then run: .\install-agent.ps1 -InstallRoot `"$InstallRoot`""
+    Write-Warning "Ensure Node 20 on PATH, then run: .\install-agent.ps1 -InstallRoot `"$InstallRoot`""
     Write-VenuePosTillLauncher -InstallRoot $InstallRoot | Out-Null
   }
 } else {

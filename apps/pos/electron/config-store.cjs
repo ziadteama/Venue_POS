@@ -336,19 +336,17 @@ function restartAgentService() {
     }
   }
   if (process.platform === 'win32') {
+    const installRoot = process.env.VENUE_POS_INSTALL_ROOT || 'C:\\Venue_POS';
+    const pm2Home = process.env.PM2_HOME || `${installRoot}\\data\\pm2`;
     try {
-      execSync('nssm restart VenuePosAgent', { stdio: 'ignore', shell: true });
+      execSync('pm2 restart venue-pos-agent', {
+        stdio: 'ignore',
+        shell: true,
+        env: { ...process.env, PM2_HOME: pm2Home },
+      });
       return { restarted: true };
     } catch {
-      try {
-        execSync('net stop VenuePosAgent && net start VenuePosAgent', {
-          stdio: 'ignore',
-          shell: true,
-        });
-        return { restarted: true };
-      } catch {
-        return { restarted: false, reason: 'windows_service_failed' };
-      }
+      return { restarted: false, reason: 'pm2_restart_failed' };
     }
   }
   return { restarted: false, reason: 'unsupported_platform' };

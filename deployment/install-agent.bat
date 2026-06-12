@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Venue POS — Install local-agent service
+title Venue POS — Install local-agent (PM2)
 cd /d "%~dp0"
 call "%~dp0_common.bat" || exit /b 1
 
@@ -14,9 +14,17 @@ if /i not "%~1"=="elevated" (
 )
 
 echo.
-echo === Venue POS local-agent (NSSM service + launch-till.cmd) ===
+echo === Venue POS local-agent (PM2 + pm2-windows-startup) ===
 echo Install root: %INSTALL_ROOT%
+echo PM2_HOME:     %PM2_HOME%
 echo.
+
+where pm2 >nul 2>&1
+if errorlevel 1 (
+  echo PM2 not found — running install-pm2.bat first...
+  call "%~dp0install-pm2.bat" elevated nopause
+  if errorlevel 1 exit /b 1
+)
 
 set "PS_ARGS=-InstallRoot \"%INSTALL_ROOT%\""
 
@@ -33,10 +41,10 @@ if exist "%PROVISION_FILE%" (
   if defined TERMINAL_SECRET set "PS_ARGS=!PS_ARGS! -TerminalSecret \"!TERMINAL_SECRET!\""
   if defined VENUE_ID set "PS_ARGS=!PS_ARGS! -VenueId \"!VENUE_ID!\""
 ) else (
-  echo WARNING: No provision.env — create from provision.env.example or pass creds manually in PowerShell.
+  echo WARNING: No provision.env — create from provision.env.example
 )
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "& '%WIN_OPS%\install-agent.ps1' %PS_ARGS%"
 set "RC=%ERRORLEVEL%"
-pause
+if /i not "%~2"=="nopause" pause
 exit /b %RC%
