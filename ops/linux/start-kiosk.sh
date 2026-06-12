@@ -4,8 +4,10 @@ set -uo pipefail
 
 export ELECTRON_IS_KIOSK=true
 export VENUE_POS_AGENT_ROOT=/opt/venue-pos/local-agent
+export DISPLAY="${DISPLAY:-:0}"
 
 POS_DIR="/opt/venue-pos/pos"
+LOCK_FILE="${HOME}/.local/share/venue-pos/kiosk.lock"
 LOG_DIR="${HOME}/.local/share/venue-pos"
 LOG_FILE="${LOG_DIR}/kiosk.log"
 AGENT_HEALTH_URL="http://127.0.0.1:3456/health"
@@ -15,6 +17,12 @@ MAX_BACKOFF_SEC=60
 RESTART_COUNT=0
 
 mkdir -p "${LOG_DIR}"
+exec 9>"${LOCK_FILE}"
+if ! flock -n 9; then
+  echo "kiosk already running (lock ${LOCK_FILE})" >&2
+  exit 0
+fi
+
 cd "${POS_DIR}"
 
 log() {

@@ -1,10 +1,12 @@
 [Unit]
 Description=Venue POS kiosk (AppImage / Electron)
-After=network-online.target venue-pos-agent.service
+After=graphical-session.target network-online.target
+PartOf=graphical-session.target
 Wants=network-online.target
 
 [Service]
 Type=simple
+Environment=DISPLAY=:0
 Environment=ELECTRON_IS_KIOSK=true
 Environment=VENUE_POS_AGENT_ROOT=/opt/venue-pos/local-agent
 Environment=VENUE_POS_FORCE_SETUP=1
@@ -13,4 +15,4 @@ Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target

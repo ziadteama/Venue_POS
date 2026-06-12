@@ -1876,6 +1876,22 @@ npm run lint:i18n
 
 ---
 
+### 2026-06-12 — Ubuntu kiosk boot autostart fix
+**Phase:** 7 · **Story:** till deployment
+**What:** Fix till not starting after reboot: GDM `custom.conf` patch (drop-in was ignored), install openbox + x11-utils session, AccountsService session, system `venue-pos-kiosk-display` unit waits for X `:0`, `fix-kiosk-boot.sh` repair script.
+**Files:** `ops/linux/configure-gdm-autologin.sh`, `configure-openbox-session.sh`, `launch-kiosk-display.sh`, `venue-pos-kiosk-display.service`, `fix-kiosk-boot.sh`, `venue-pos-kiosk-enable.sh`, `install.sh`, `start-kiosk.sh`, `README.md`
+**Verify:**
+```bash
+# On already-installed till:
+sudo bash /opt/venue-pos/ops/linux/fix-kiosk-boot.sh
+sudo reboot
+systemctl is-active venue-pos-kiosk-display
+tail -f /home/venuepos/.local/share/venue-pos/kiosk.log
+```
+**Notes:** Electron needs X11 — GDM `WaylandEnable=false`. Copy updated `ops/linux/` from USB if repair script missing.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

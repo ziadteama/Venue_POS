@@ -74,10 +74,10 @@ install_packages() {
   if ! command -v apt-get &>/dev/null; then
     return 0
   fi
-  echo "==> System packages (CUPS, GDM, Xorg, kiosk GUI)"
-  local gui_pkgs="gdm3 xorg dbus-x11"
+  echo "==> System packages (CUPS, GDM, Xorg, openbox kiosk session)"
+  local gui_pkgs="gdm3 xorg openbox x11-utils dbus-x11"
   if [[ "${MINIMAL_KIOSK}" == true ]]; then
-    gui_pkgs="lightdm openbox xorg xinit dbus-x11"
+    gui_pkgs="lightdm openbox xorg xinit x11-utils dbus-x11"
   fi
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential python3 rsync cups cups-client curl \
@@ -248,8 +248,13 @@ ${PROVISION_NOTE}
 
 Useful:
   sudo systemctl status venue-pos-agent
+  sudo systemctl status venue-pos-kiosk-display
   journalctl -u venue-pos-agent -f
-  journalctl --user -u venue-pos-kiosk (as venuepos after login)
+  journalctl -u venue-pos-kiosk-display -f
   tail -f /home/${USER_NAME}/.local/share/venue-pos/kiosk.log
+
+If POS does not start after reboot:
+  sudo bash ${INSTALL_ROOT}/ops/linux/fix-kiosk-boot.sh
+  sudo reboot
 
 EOF
