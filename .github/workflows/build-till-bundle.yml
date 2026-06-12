@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-    paths:
+    paths: &till-bundle-paths
       - 'apps/pos/**'
       - 'apps/local-agent/**'
       - 'apps/watchdog/**'
@@ -15,7 +15,14 @@ on:
       - 'scripts/build-till-bundle.mjs'
       - 'scripts/build-till-bundle-windows.mjs'
       - 'scripts/build-till-installer-appimage.mjs'
+      - 'scripts/node20.mjs'
       - 'setup.sh'
+      - '.github/workflows/build-till-bundle.yml'
+      - '.github/workflows/release.yml'
+  pull_request:
+    branches:
+      - main
+    paths: *till-bundle-paths
 
 jobs:
   bundle-linux:
@@ -37,6 +44,7 @@ jobs:
       - name: Build Till Installer AppImage
         env:
           BUILD_POS_APPIMAGE: '1'
+          SKIP_BUNDLE_CI: '1'
         run: npm run build:till-installer
 
       - name: Verify Linux artifacts
