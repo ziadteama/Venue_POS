@@ -81,6 +81,10 @@ API: `GET /api/v1/manager/dashboard/executive` (CEO) · `GET /api/v1/manager/das
 
 Discount, refund, void, comp, transfer, shift close — **floor manager PIN on the POS** (`venue_manager`), not hub manager PIN. Hub manager creates shift managers in **Staff** (`/users`). Dev seed: `venue_mgr` / PIN `7777`. Hub manager PIN `9999` works on dashboard web login only — **not** for POS terminal discount/refund.
 
+### Semi-kiosk exit code
+
+POS runs fullscreen (not OS kiosk mode) so the Ubuntu desktop/taskbar stays behind. Workers cannot leave unless they press `Ctrl+Shift+X` and enter exit code **`7894`** (hardcoded in Electron main process — not DB-stored). After minimizing, POS relaunches fullscreen on restore. IT override `1547` only applies to manager/setup PIN gates, NOT the semi-kiosk exit.
+
 ## Hard rules
 
 - POS renderer → local-agent IPC only (no direct DB)

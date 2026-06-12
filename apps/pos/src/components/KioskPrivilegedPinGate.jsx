@@ -19,10 +19,17 @@ export function KioskPrivilegedPinGate({ mode = 'exit', onCancel, onApproved }) 
     setLoading(true);
     setError('');
     try {
-      await callAgent('/v1/auth/verify-kiosk-exit-pin', {
-        method: 'POST',
-        body: JSON.stringify({ pin }),
-      });
+      if (mode === 'exit') {
+        // Semi-kiosk exit code is verified in the main process (hardcoded, no network needed).
+        const result = await window.venuePos?.verifyKioskExitCode(pin);
+        if (!result?.ok) throw new Error('invalid');
+      } else {
+        // Setup gate still goes through the agent (manager PIN, DB-backed).
+        await callAgent('/v1/auth/verify-kiosk-exit-pin', {
+          method: 'POST',
+          body: JSON.stringify({ pin }),
+        });
+      }
       onApproved?.();
     } catch {
       setError(t('kiosk.invalidManagerPin'));

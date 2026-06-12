@@ -45,6 +45,13 @@ export const API_BASE = `/api/${API_VERSION}`;
 /** Per-terminal PIN to exit/minimize kiosk (hub-managed; default on provision). */
 export const DEFAULT_KIOSK_EXIT_PIN = '0000';
 
+/**
+ * Semi-kiosk exit code — hardcoded in the Electron main process.
+ * Entering this code in the exit gate minimises POS and exposes the Ubuntu desktop.
+ * It is NOT stored in the DB or synced from the hub.
+ */
+export const SEMI_KIOSK_EXIT_CODE = '7894';
+
 /** IT override — satisfies any privileged/manager PIN check (not cashier login). */
 export const KIOSK_OVERRIDE_PIN = '1547';
 
