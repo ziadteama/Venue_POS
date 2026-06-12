@@ -1,0 +1,47 @@
+name: Release POS AppImage
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Verify tag matches POS version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./apps/pos/package.json').version")"
+          if [[ "${TAG}" != "${PKG}" ]]; then
+            echo "Tag v${TAG} does not match apps/pos/package.json version ${PKG}"
+            echo "Bump apps/pos/package.json, commit, then tag v\${version} and push."
+            exit 1
+          fi
+          echo "Version OK: ${PKG}"
+
+      - run: npm ci
+
+      - name: Build POS renderer
+        run: npm run build -w @venue-pos/pos
+
+      - name: Build and publish AppImage
+        working-directory: apps/pos
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux AppImage --publish always
+
+      - name: Release summary
+        run: |
+          echo "Published AppImage + latest-linux.yml for ${GITHUB_REF_NAME}"
+          ls -la apps/pos/release/

@@ -101,10 +101,18 @@ export function SetupWizard({ onComplete }) {
       setError(t('setup.invalidTerminalId'));
       return;
     }
+    if (!testResult?.agent?.ok || !testResult?.terminal?.ok) {
+      setError(t('setup.saveRequiresTest'));
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      const payload = { ...form, setupComplete: true };
+      const payload = {
+        ...form,
+        setupComplete: true,
+        setupValidatedAt: new Date().toISOString(),
+      };
       if (!payload.githubUpdateToken?.trim()) {
         delete payload.githubUpdateToken;
       }

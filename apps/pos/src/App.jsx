@@ -7,7 +7,7 @@ import { usePosConfig } from './context/PosConfigContext.jsx';
 import { usePosApp } from './hooks/usePosWorkspace.js';
 
 export default function App() {
-  const { loading, isSetupComplete } = usePosConfig();
+  const { loading, isSetupComplete, forceSetup: configForceSetup } = usePosConfig();
   const [setupDone, setSetupDone] = useState(false);
   const [forceSetup, setForceSetup] = useState(false);
   const [setupReentry, setSetupReentry] = useState(false);
@@ -42,7 +42,7 @@ export default function App() {
     );
   }
 
-  if (forceSetup || (!isSetupComplete && !setupDone)) {
+  if (configForceSetup || forceSetup || (!isSetupComplete && !setupDone)) {
     return (
       <SetupWizard
         onComplete={() => {
@@ -62,6 +62,10 @@ export default function App() {
             setSetupReentry(false);
             setForceSetup(true);
           }}
+          onBypass={() => {
+            setSetupReentry(false);
+            setForceSetup(true);
+          }}
         />
       );
     }
@@ -71,6 +75,7 @@ export default function App() {
         onLogin={cashierSession.login}
         loading={cashierSession.loading}
         error={cashierSession.error}
+        onOpenSetup={() => setForceSetup(true)}
       />
     );
   }
@@ -80,6 +85,10 @@ export default function App() {
       <SetupReentryGate
         onCancel={() => setSetupReentry(false)}
         onApproved={() => {
+          setSetupReentry(false);
+          setForceSetup(true);
+        }}
+        onBypass={() => {
           setSetupReentry(false);
           setForceSetup(true);
         }}

@@ -45,7 +45,15 @@ export function PosConfigProvider({ children }) {
       loading,
       error,
       reload,
-      isSetupComplete: Boolean(config?.setupComplete && config?.apiUrl && config?.terminalId),
+      isSetupComplete: Boolean(
+        !config?.forceSetup &&
+          config?.setupComplete &&
+          config?.apiUrl &&
+          config?.terminalId &&
+          config?.terminalSecret &&
+          config?.setupValidatedAt,
+      ),
+      forceSetup: Boolean(config?.forceSetup),
     }),
     [config, loading, error, reload],
   );

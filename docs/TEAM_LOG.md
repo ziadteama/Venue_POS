@@ -1862,6 +1862,20 @@ npm run test -w @venue-pos/pos
 
 ---
 
+### 2026-06-12 — Ubuntu till deploy v2 (USB per till)
+**Phase:** 7 · **Story:** till deployment
+**What:** Reliable USB deploy: GDM autologin + systemd user kiosk service, Linux CI till bundle (AppImage), wizard-first UX (`needs-wizard` marker, Till setup button, stricter `setupValidatedAt`), agent `provisioned` health, optional CLI `setup.sh --api-url …`.
+**Files:** `.github/workflows/build-till-bundle.yml`, `ops/linux/install.sh`, `venue-pos-kiosk.service`, `venue-pos-kiosk-enable.sh`, `provision-config.sh`, `start-kiosk.sh`, `config-store.cjs`, `App.jsx`, `PinLoginScreen.jsx`, `SetupReentryGate.jsx`, `health.js`, `build-till-bundle.mjs`, i18n
+**Verify:**
+```bash
+npm run test -w @venue-pos/pos
+npm run lint:i18n
+# Till: tar -xzf bundle → sudo bash setup.sh → reboot → wizard → PIN
+```
+**Notes:** Build production bundles on Linux only. `SKIP_BUNDLE_ZIP=1` for folder-only USB copy.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

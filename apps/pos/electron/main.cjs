@@ -28,6 +28,7 @@ const {
   restartAgentService,
   isConfigComplete,
   detectLanHost,
+  resolveForceSetup,
 } = require('./config-store.cjs');
 const { createAutoUpdater } = require('./auto-updater.cjs');
 
@@ -104,7 +105,12 @@ function loadPos(win) {
 function registerIpc() {
   ipcMain.handle('config:get', () => {
     const cfg = readConfig(getUserDataPath());
-    return { ...sanitizeConfigForRenderer(cfg), detectedLanHost: detectLanHost() };
+    const forceSetup = resolveForceSetup() || !isConfigComplete(cfg);
+    return {
+      ...sanitizeConfigForRenderer(cfg),
+      detectedLanHost: detectLanHost(),
+      forceSetup,
+    };
   });
 
   ipcMain.handle('config:isComplete', () => isConfigComplete(readConfig(getUserDataPath())));

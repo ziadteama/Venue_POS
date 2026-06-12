@@ -114,6 +114,14 @@ if (!fs.existsSync(path.join(outDir, 'local-agent', 'node_modules', '@venue-pos'
 
 pruneBundle();
 
+console.log(`\nBundle folder ready: ${outDir}`);
+console.log('Copy to USB → on till: sudo bash setup.sh');
+
+if (process.env.SKIP_BUNDLE_ZIP === '1') {
+  console.log('Skipping archive (SKIP_BUNDLE_ZIP=1).');
+  process.exit(0);
+}
+
 console.log('Creating archive...');
 fs.mkdirSync(path.dirname(archive), { recursive: true });
 // GNU tar on Windows/Git Bash treats `Z:\path` as remote host `Z` — use relative paths only.
@@ -121,5 +129,4 @@ const bundleDirName = path.basename(outDir);
 const archiveArg = path.join('dist', `${bundleDirName}.tar.gz`).split(path.sep).join('/');
 run('tar', ['-czf', archiveArg, '-C', 'dist', bundleDirName]);
 
-console.log(`\nBundle ready: ${archive}`);
-console.log('Copy to USB → on till: sudo bash setup.sh');
+console.log(`Archive ready: ${archive}`);

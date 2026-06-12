@@ -1,13 +1,34 @@
 #!/usr/bin/env bash
 # Venue POS till — one-click Ubuntu installer. Run from USB bundle root as root.
-# Usage: sudo bash setup.sh
-#    or: sudo bash ops/linux/install.sh
+# Usage: sudo bash setup.sh [--api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]]
 set -euo pipefail
 
 INSTALL_ROOT="/opt/venue-pos"
 USER_NAME="venuepos"
+STATE_DIR="/var/lib/venue-pos"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUNDLE_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
+CLI_API_URL=""
+CLI_TERMINAL_ID=""
+CLI_TERMINAL_SECRET=""
+CLI_VENUE_ID=""
+MINIMAL_KIOSK=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --api-url) CLI_API_URL="${2:-}"; shift 2 ;;
+    --terminal-id) CLI_TERMINAL_ID="${2:-}"; shift 2 ;;
+    --terminal-secret) CLI_TERMINAL_SECRET="${2:-}"; shift 2 ;;
+    --venue-id) CLI_VENUE_ID="${2:-}"; shift 2 ;;
+    --minimal-kiosk) MINIMAL_KIOSK=true; shift ;;
+    -h|--help)
+      echo "Usage: sudo bash setup.sh [--api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]]"
+      exit 0
+      ;;
+    *) echo "Unknown option: $1"; exit 1 ;;
+  esac
+done
 
 if [[ "${EUID}" -ne 0 ]]; then
   echo "Run as root: sudo bash setup.sh"
@@ -17,6 +38,13 @@ fi
 if [[ ! -d "${BUNDLE_ROOT}/local-agent" || ! -d "${BUNDLE_ROOT}/pos" ]]; then
   echo "Bundle layout invalid. Expected local-agent/ and pos/ at bundle root (${BUNDLE_ROOT})"
   exit 1
+fi
+
+if [[ -n "${CLI_API_URL}" || -n "${CLI_TERMINAL_ID}" || -n "${CLI_TERMINAL_SECRET}" ]]; then
+  if [[ -z "${CLI_API_URL}" || -z "${CLI_TERMINAL_ID}" || -z "${CLI_TERMINAL_SECRET}" ]]; then
+    echo "CLI provision requires --api-url, --terminal-id, and --terminal-secret together"
+    exit 1
+  fi
 fi
 
 install_node20() {
@@ -46,48 +74,61 @@ install_packages() {
   if ! command -v apt-get &>/dev/null; then
     return 0
   fi
-  echo "==> System packages (CUPS, Openbox, kiosk GUI)"
+  echo "==> System packages (CUPS, GDM, Xorg, kiosk GUI)"
+  local gui_pkgs="gdm3 xorg dbus-x11"
+  if [[ "${MINIMAL_KIOSK}" == true ]]; then
+    gui_pkgs="lightdm openbox xorg xinit dbus-x11"
+  fi
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    build-essential python3 rsync cups cups-client \
-    lightdm openbox xorg xinit x11-xserver-utils dbus-x11 \
+    build-essential python3 rsync cups cups-client curl \
+    ${gui_pkgs} \
     libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdrm2 \
     libgtk-3-0t64 libgbm1 libasound2t64 libxcomposite1 libxdamage1 libxfixes3 \
     libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2 libx11-xcb1 libxcb1 \
     libxext6 libxshmfence1 2>/dev/null \
     || DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      build-essential python3 rsync cups cups-client \
-      lightdm openbox xorg xinit x11-xserver-utils dbus-x11 \
+      build-essential python3 rsync cups cups-client curl \
+      ${gui_pkgs} \
       libnss3 libnspr4 libgtk-3-0 libgbm1 libasound2
 }
 
-configure_display_autologin() {
-  echo "==> Kiosk autologin (${USER_NAME} → Openbox → POS)"
-  mkdir -p "/home/${USER_NAME}/.config/openbox"
-  cat > "/home/${USER_NAME}/.xsession" <<'XSESS'
-#!/bin/sh
-exec openbox-session
-XSESS
-  chmod +x "/home/${USER_NAME}/.xsession"
+fresh_install_hygiene() {
+  echo "==> Fresh-install hygiene (clear stale POS config)"
+  mkdir -p "${STATE_DIR}"
+  touch "${STATE_DIR}/needs-wizard"
+  rm -f /home/${USER_NAME}/.config/Venue\ POS/pos-config.json
+  rm -f /home/${USER_NAME}/.config/venue-pos/pos-config.json
+  rm -f /home/${USER_NAME}/.config/Electron/pos-config.json
+  find /home/${USER_NAME}/.config -name 'pos-config.json' -delete 2>/dev/null || true
+}
 
-  mkdir -p "/home/${USER_NAME}/.config/openbox"
-  if ! grep -q start-kiosk.sh "/home/${USER_NAME}/.config/openbox/autostart" 2>/dev/null; then
-    echo '/opt/venue-pos/pos/start-kiosk.sh &' >> "/home/${USER_NAME}/.config/openbox/autostart"
+smoke_test() {
+  echo "==> Post-install smoke test"
+  local ok=true
+  if ! systemctl is-active --quiet venue-pos-agent; then
+    echo "    FAIL: venue-pos-agent not active"
+    ok=false
+  else
+    echo "    OK: venue-pos-agent active"
   fi
-
-  if [[ -d /etc/lightdm/lightdm.conf.d ]]; then
-    cat > /etc/lightdm/lightdm.conf.d/50-venue-pos-kiosk.conf <<EOF
-[Seat:*]
-autologin-user=${USER_NAME}
-autologin-user-timeout=0
-user-session=openbox
-greeter-session=lightdm-gtk-greeter
-EOF
-  fi
-
-  if [[ -f /etc/gdm3/custom.conf ]]; then
-    if ! grep -q "^AutomaticLogin=${USER_NAME}" /etc/gdm3/custom.conf 2>/dev/null; then
-      sed -i '/^\[daemon\]/a AutomaticLogin='"${USER_NAME}"'\nAutomaticLoginEnable=true' /etc/gdm3/custom.conf 2>/dev/null || true
+  if compgen -G "${INSTALL_ROOT}/pos/release/*.AppImage" > /dev/null; then
+    local img
+    img="$(ls -1 "${INSTALL_ROOT}/pos/release/"*.AppImage | head -1)"
+    if [[ -x "${img}" ]]; then
+      echo "    OK: AppImage present (${img})"
+    else
+      echo "    WARN: AppImage not executable — chmod +x on till"
     fi
+  else
+    echo "    WARN: No AppImage — build bundle on Linux for production auto-update"
+  fi
+  if curl -sf --max-time 5 http://127.0.0.1:3456/health >/dev/null 2>&1; then
+    echo "    OK: agent /health"
+  else
+    echo "    WARN: agent /health not reachable yet (may need terminal .env)"
+  fi
+  if [[ "${ok}" != true ]]; then
+    echo "Smoke test reported failures — check journalctl -u venue-pos-agent"
   fi
 }
 
@@ -101,6 +142,8 @@ else
   usermod -s /bin/bash "${USER_NAME}" 2>/dev/null || true
 fi
 usermod -aG lp,plugdev "${USER_NAME}" 2>/dev/null || true
+
+fresh_install_hygiene
 
 echo "==> Installing to ${INSTALL_ROOT}"
 mkdir -p "${INSTALL_ROOT}"
@@ -125,6 +168,9 @@ fi
 chmod +x "${INSTALL_ROOT}/ops/linux/"*.sh 2>/dev/null || true
 cp -f "${SCRIPT_DIR}/start-kiosk.sh" "${INSTALL_ROOT}/pos/start-kiosk.sh"
 chmod +x "${INSTALL_ROOT}/pos/start-kiosk.sh"
+if compgen -G "${INSTALL_ROOT}/pos/release/*.AppImage" > /dev/null; then
+  chmod +x "${INSTALL_ROOT}/pos/release/"*.AppImage 2>/dev/null || true
+fi
 
 chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 chown -R "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}"
@@ -143,28 +189,37 @@ find "${INSTALL_ROOT}/pos/node_modules/.bin" -type f -exec chmod +x {} + 2>/dev/
 chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 
 echo "==> USB receipt printer (CUPS)"
-bash "${INSTALL_ROOT}/ops/linux/setup-receipt-printer.sh" "${INSTALL_ROOT}"
+bash "${INSTALL_ROOT}/ops/linux/setup-receipt-printer.sh" "${INSTALL_ROOT}" || true
 
-echo "==> Updater token template (private GitHub releases)"
+echo "==> Updater token (private GitHub releases)"
 UPDATER_ENV="${INSTALL_ROOT}/pos/.env.updater"
-if [[ ! -f "${UPDATER_ENV}" && -f "${SCRIPT_DIR}/.env.updater.example" ]]; then
+if [[ -f "${BUNDLE_ROOT}/pos/.env.updater" ]]; then
+  cp -f "${BUNDLE_ROOT}/pos/.env.updater" "${UPDATER_ENV}"
+elif [[ -f "${SCRIPT_DIR}/.env.updater" ]]; then
+  cp -f "${SCRIPT_DIR}/.env.updater" "${UPDATER_ENV}"
+elif [[ ! -f "${UPDATER_ENV}" && -f "${SCRIPT_DIR}/.env.updater.example" ]]; then
   cp -f "${SCRIPT_DIR}/.env.updater.example" "${UPDATER_ENV}"
+fi
+if [[ -f "${UPDATER_ENV}" ]]; then
   chown "${USER_NAME}:${USER_NAME}" "${UPDATER_ENV}"
   chmod 600 "${UPDATER_ENV}"
 fi
 
-echo "==> Registering systemd service"
+if [[ -n "${CLI_API_URL}" ]]; then
+  echo "==> CLI provision (skip wizard)"
+  bash "${INSTALL_ROOT}/ops/linux/provision-config.sh" \
+    "${INSTALL_ROOT}" "${USER_NAME}" \
+    "${CLI_API_URL}" "${CLI_TERMINAL_ID}" "${CLI_TERMINAL_SECRET}" "${CLI_VENUE_ID}"
+fi
+
+echo "==> Registering systemd service (agent)"
 cp -f "${SCRIPT_DIR}/venue-pos-agent.service" /etc/systemd/system/venue-pos-agent.service
 systemctl daemon-reload
 systemctl enable venue-pos-agent
 systemctl restart venue-pos-agent
 
-echo "==> Kiosk autostart"
-mkdir -p "/home/${USER_NAME}/.config/autostart"
-cp -f "${SCRIPT_DIR}/venue-pos-kiosk.desktop" "/home/${USER_NAME}/.config/autostart/venue-pos-kiosk.desktop"
-configure_display_autologin
-chown -R "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}/.config"
-chown "${USER_NAME}:${USER_NAME}" "/home/${USER_NAME}/.xsession" 2>/dev/null || true
+echo "==> Kiosk autologin + user systemd service"
+bash "${SCRIPT_DIR}/venue-pos-kiosk-enable.sh" "${USER_NAME}" "${INSTALL_ROOT}"
 
 echo "==> Firewall (ufw) — allow hub HTTPS, LAN agent, printers"
 if command -v ufw &>/dev/null; then
@@ -173,21 +228,28 @@ if command -v ufw &>/dev/null; then
   ufw allow out 9100/tcp comment 'ESC/POS printers' || true
 fi
 
+smoke_test
+
+PROVISION_NOTE=""
+if [[ -n "${CLI_API_URL}" ]]; then
+  PROVISION_NOTE="CLI provisioned — wizard skipped. Reboot and use cashier PIN."
+else
+  PROVISION_NOTE="Reboot → setup wizard opens automatically (hub URL + terminal creds)."
+fi
+
 cat <<EOF
 
 ╔══════════════════════════════════════════════════════════════╗
 ║  Venue POS install complete                                  ║
 ╚══════════════════════════════════════════════════════════════╝
 
-Next:
-  1. Plug in USB receipt printer (if not already) — then optionally:
-       sudo bash ${INSTALL_ROOT}/ops/linux/setup-receipt-printer.sh
-  2. Reboot:  sudo reboot
-  3. POS opens automatically — complete the on-screen setup wizard
-     (hub URL, terminal ID + secret from dashboard → Settings → Terminals)
-  4. Cashier PIN login
+Next:  sudo reboot
+${PROVISION_NOTE}
 
-Agent:  sudo systemctl status venue-pos-agent
-Logs:   journalctl -u venue-pos-agent -f
+Useful:
+  sudo systemctl status venue-pos-agent
+  journalctl -u venue-pos-agent -f
+  journalctl --user -u venue-pos-kiosk (as venuepos after login)
+  tail -f /home/${USER_NAME}/.local/share/venue-pos/kiosk.log
 
 EOF

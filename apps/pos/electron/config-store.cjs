@@ -25,6 +25,7 @@ const DEFAULTS = {
   coordinatorFallbackEnabled: false,
   kioskMode: true,
   setupComplete: false,
+  setupValidatedAt: '',
   configVersion: CONFIG_VERSION,
   /** Generic electron-updater feed base URL (optional; falls back to POS_UPDATE_FEED_URL env). */
   updateFeedUrl: '',
@@ -89,13 +90,53 @@ function isUuid(value) {
   return UUID_RE.test(String(value ?? ''));
 }
 
+const NEEDS_WIZARD_MARKER = '/var/lib/venue-pos/needs-wizard';
+
+function resolveForceSetup() {
+  if (process.env.VENUE_POS_FORCE_SETUP === '1' || process.env.VENUE_POS_FORCE_SETUP === 'true') {
+    return true;
+  }
+  try {
+    return fs.existsSync(NEEDS_WIZARD_MARKER);
+  } catch {
+    return false;
+  }
+}
+
+function clearProvisionMarker() {
+  try {
+    if (fs.existsSync(NEEDS_WIZARD_MARKER)) fs.unlinkSync(NEEDS_WIZARD_MARKER);
+  } catch {
+    // non-fatal
+  }
+  if (process.platform !== 'linux') return;
+  const { execSync } = require('node:child_process');
+  const unit = '/home/venuepos/.config/systemd/user/venue-pos-kiosk.service';
+  try {
+    if (fs.existsSync(unit)) {
+      let text = fs.readFileSync(unit, 'utf8');
+      if (/VENUE_POS_FORCE_SETUP/.test(text)) {
+        text = text
+          .split('\n')
+          .filter((line) => !line.includes('VENUE_POS_FORCE_SETUP'))
+          .join('\n');
+        fs.writeFileSync(unit, text, 'utf8');
+        execSync('systemctl --user -M venuepos@ daemon-reload', { stdio: 'ignore' });
+      }
+    }
+  } catch {
+    // non-fatal on dev machines
+  }
+}
+
 function isConfigComplete(cfg) {
   return Boolean(
     cfg?.setupComplete &&
       cfg.apiUrl &&
       isUuid(cfg.terminalId) &&
       cfg.terminalSecret &&
-      cfg.agentUrl,
+      cfg.agentUrl &&
+      cfg.setupValidatedAt,
   );
 }
 
@@ -126,9 +167,16 @@ function writeConfig(userDataPath, partial) {
   if (!String(patch.githubUpdateToken ?? '').trim()) {
     delete patch.githubUpdateToken;
   }
-  const next = mergeConfig({ ...current, ...patch, setupComplete: true });
+  const validatedAt = patch.setupValidatedAt || new Date().toISOString();
+  const next = mergeConfig({
+    ...current,
+    ...patch,
+    setupComplete: true,
+    setupValidatedAt: validatedAt,
+  });
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  clearProvisionMarker();
   return next;
 }
 
@@ -293,6 +341,8 @@ module.exports = {
   sanitizeConfigForRenderer,
   testConnections,
   restartAgentService,
+  resolveForceSetup,
+  clearProvisionMarker,
   resolveAgentRoot,
   resolveUpdaterEnvPath,
 };
