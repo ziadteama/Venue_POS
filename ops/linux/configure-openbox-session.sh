@@ -104,22 +104,21 @@ cat > "${HOME_DIR}/.config/openbox/kiosk-alttab-disable.sh" <<'DISABLE'
 # Called by Electron when POS resumes — re-block Alt+Tab.
 set -euo pipefail
 RC="${HOME}/.config/openbox/rc.xml"
-cat > "${RC}" <<XML
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_config xmlns="http://openbox.org/3.4/rc">
-  <keyboard>
-    <keybind key="A-Tab">
-      <action name="Execute"><command>true</command></action>
-    </keybind>
-    <keybind key="A-S-Tab">
-      <action name="Execute"><command>true</command></action>
-    </keybind>
-    <keybind key="W-Tab">
-      <action name="Execute"><command>true</command></action>
-    </keybind>
-  </keyboard>
-</openbox_config>
-XML
+printf '%s\n' \
+  '<?xml version="1.0" encoding="UTF-8"?>' \
+  '<openbox_config xmlns="http://openbox.org/3.4/rc">' \
+  '  <keyboard>' \
+  '    <keybind key="A-Tab">' \
+  '      <action name="Execute"><command>true</command></action>' \
+  '    </keybind>' \
+  '    <keybind key="A-S-Tab">' \
+  '      <action name="Execute"><command>true</command></action>' \
+  '    </keybind>' \
+  '    <keybind key="W-Tab">' \
+  '      <action name="Execute"><command>true</command></action>' \
+  '    </keybind>' \
+  '  </keyboard>' \
+  '</openbox_config>' > "${RC}"
 DISPLAY="${DISPLAY:-:0}" openbox --reconfigure 2>/dev/null || true
 DISABLE
 chmod +x "${HOME_DIR}/.config/openbox/kiosk-alttab-disable.sh"
