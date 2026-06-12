@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePosConfig } from '../context/PosConfigContext.jsx';
+import {
+  canUseAgentSetupBridge,
+  detectSetupLanHost,
+  getSetupBridgeMode,
+  hasElectronBridge,
+  loadSetupConfig,
+  saveSetupConfig,
+  testSetupConnections,
+} from '../setup/setup-bridge.js';
 
 const STEPS = ['hub', 'terminal', 'printer', 'lan', 'review'];
 const UUID_RE =
@@ -40,11 +49,12 @@ export function SetupWizard({ onComplete }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [hasGithubUpdateToken, setHasGithubUpdateToken] = useState(false);
+  const bridgeMode = getSetupBridgeMode();
 
   useEffect(() => {
     async function load() {
-      if (window.venuePos?.getConfig) {
-        const cfg = await window.venuePos.getConfig();
+      const cfg = await loadSetupConfig();
+      if (cfg) {
         setForm((f) => ({
           ...f,
           apiUrl: cfg.apiUrl || f.apiUrl,
@@ -63,9 +73,11 @@ export function SetupWizard({ onComplete }) {
           githubUpdateToken: '',
         }));
         setHasGithubUpdateToken(Boolean(cfg.hasGithubUpdateToken));
-      } else if (window.venuePos?.detectLanHost) {
-        const host = await window.venuePos.detectLanHost();
-        setForm((f) => ({ ...f, agentLanHost: host || f.agentLanHost }));
+      } else {
+        const host = await detectSetupLanHost();
+        if (host) {
+          setForm((f) => ({ ...f, agentLanHost: host || f.agentLanHost }));
+        }
       }
     }
     load();
@@ -78,7 +90,10 @@ export function SetupWizard({ onComplete }) {
   }, []);
 
   async function runTest() {
-    if (!window.venuePos?.testConnection) return;
+    if (!hasElectronBridge() && !canUseAgentSetupBridge()) {
+      setError(t('setup.electronRequired'));
+      return;
+    }
     if (!isUuid(form.terminalId)) {
       setError(t('setup.invalidTerminalId'));
       return;
@@ -86,7 +101,11 @@ export function SetupWizard({ onComplete }) {
     setTesting(true);
     setError('');
     try {
-      const result = await window.venuePos.testConnection(form);
+      const result = await testSetupConnections(form);
+      if (!result) {
+        setError(t('setup.electronRequired'));
+        return;
+      }
       setTestResult(result);
     } catch (err) {
       setError(err?.message ?? t('setup.testFailed'));
@@ -96,7 +115,10 @@ export function SetupWizard({ onComplete }) {
   }
 
   async function saveAndFinish() {
-    if (!window.venuePos?.saveConfig) return;
+    if (!hasElectronBridge() && !canUseAgentSetupBridge()) {
+      setError(t('setup.electronRequired'));
+      return;
+    }
     if (!isUuid(form.terminalId)) {
       setError(t('setup.invalidTerminalId'));
       return;
@@ -116,7 +138,11 @@ export function SetupWizard({ onComplete }) {
       if (!payload.githubUpdateToken?.trim()) {
         delete payload.githubUpdateToken;
       }
-      await window.venuePos.saveConfig(payload);
+      const result = await saveSetupConfig(payload);
+      if (!result) {
+        setError(t('setup.electronRequired'));
+        return;
+      }
       await reload();
       onComplete?.();
     } catch (err) {
@@ -154,6 +180,12 @@ export function SetupWizard({ onComplete }) {
           ))}
         </div>
       </header>
+
+      {bridgeMode === 'agent-proxy' ? (
+        <div className="border-b border-amber-900/50 bg-amber-950/40 px-6 py-2 text-sm text-amber-200">
+          {t('setup.agentProxyBanner')}
+        </div>
+      ) : null}
 
       <main className="mx-auto w-full max-w-lg flex-1 px-6 py-8">
         {stepKey === 'hub' ? (

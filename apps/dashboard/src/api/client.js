@@ -1,14 +1,31 @@
 import { parseApiError } from '../utils/apiError.js';
 
-/** Dev uses Vite proxy (same-origin `/api`). Production needs VITE_API_URL. */
+/** Dev uses Vite proxy (same-origin `/api`). Production needs VITE_API_URL at build time. */
 function resolveApiBaseUrl() {
   const fromEnv = import.meta.env.VITE_API_URL?.trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
+  if (fromEnv) {
+    const base = fromEnv.replace(/\/$/, '');
+    if (base) return base;
+  }
   if (import.meta.env.DEV) return '';
-  return 'http://localhost:3000';
+  return '';
 }
 
 const API_URL = resolveApiBaseUrl();
+
+export function assertApiConfigured() {
+  if (import.meta.env.DEV && !API_URL) return;
+  if (!API_URL) {
+    throw new Error(
+      'VITE_API_URL is not set. In Vercel → Environment Variables, set it to your Render API URL (e.g. https://venue-pos-api.onrender.com) and redeploy.',
+    );
+  }
+  if (typeof window !== 'undefined' && API_URL === window.location.origin) {
+    throw new Error(
+      'VITE_API_URL must be your Render API host, not the dashboard URL. Update Vercel env vars and redeploy.',
+    );
+  }
+}
 
 /** Same-origin in dev (Vite proxy); explicit host in production. */
 export const SOCKET_ORIGIN = API_URL || undefined;
@@ -60,6 +77,7 @@ function readApiError(data, fallback = 'Request failed') {
 }
 
 export async function apiFetch(path, options = {}) {
+  assertApiConfigured();
   const token = getToken();
   const method = options.method ?? 'GET';
   const needsBody = method !== 'GET' && method !== 'HEAD' && options.body == null;

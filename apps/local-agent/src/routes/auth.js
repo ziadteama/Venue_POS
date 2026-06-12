@@ -6,12 +6,14 @@ import {
   syncTerminalRosterFromServer,
 } from '../services/terminal-cache.js';
 
-export function registerAuthRoutes(app, { db, apiUrl, venueId, terminalId, terminalSecret }) {
+export function registerAuthRoutes(app, { db, getRuntimeConfig }) {
   app.post('/v1/auth/pin', async (request, reply) => {
     const { pin } = request.body ?? {};
     if (!pin || String(pin).length < 4) {
       return reply.status(400).send({ error: 'PIN required (4+ digits)' });
     }
+
+    const { apiUrl, venueId, terminalId, terminalSecret } = getRuntimeConfig();
 
     if (isCloudOnline()) {
       try {

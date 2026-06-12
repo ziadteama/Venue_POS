@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { setRuntimeConfig } from '../config.js';
+import { readDevBrowserConfig } from '../setup/setup-bridge.js';
 
 const PosConfigContext = createContext(null);
 
@@ -17,6 +18,12 @@ export function PosConfigProvider({ children }) {
         setRuntimeConfig(cfg);
         setConfig(cfg);
         return cfg;
+      }
+      const browserCfg = readDevBrowserConfig();
+      if (browserCfg) {
+        setRuntimeConfig(browserCfg);
+        setConfig(browserCfg);
+        return browserCfg;
       }
       setConfig({
         apiUrl: import.meta.env.VITE_API_URL ?? '',
