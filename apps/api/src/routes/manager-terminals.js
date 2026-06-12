@@ -5,6 +5,7 @@ import { requireRoles } from '../middleware/auth.js';
 import { validationError, notFound } from '../utils/errors.js';
 import { emitVenueConfigUpdated } from '../plugins/socket.js';
 import { isValidLanHost } from '../services/terminal-lan-service.js';
+import { serializeTerminalRow } from '../services/manager-terminal-service.js';
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -28,22 +29,8 @@ export async function managerTerminalRoutes(app) {
         orderBy: [{ venue: { nameEn: 'asc' } }, { name: 'asc' }],
       });
 
-      return terminals.map((t) => ({
-        id: t.id,
-        name: t.name,
-        venueId: t.venueId,
-        venueNameEn: t.venue.nameEn,
-        venueNameAr: t.venue.nameAr,
-        isCoordinator: t.isCoordinator,
-        coordinatorLanHost: t.coordinatorLanHost,
-        assignedLanHost: t.assignedLanHost,
-        lastSeenAt: t.lastSeenAt?.toISOString() ?? null,
-        syncQueueDepth: t.syncQueueDepth,
-        lastLanHost: t.lastLanHost,
-        lastLanPort: t.lastLanPort,
-        lastAgentPriority: t.lastAgentPriority,
-        lastClusterMode: t.lastClusterMode,
-      }));
+      const now = Date.now();
+      return terminals.map((t) => serializeTerminalRow(t, now));
     },
   );
 

@@ -37,7 +37,7 @@ sudo bash setup.sh \
 sudo reboot
 ```
 
-Create the terminal in dashboard → **Settings → Terminals** first.
+Create the terminal in the **dev ops dashboard** first: login as `devops` → **Dev ops console** → **Till provisioning** → **Add terminal**. Copy the hub API URL, terminal ID, secret, and venue ID into the till setup wizard (or pass them to `setup.sh` flags below).
 
 ## Setup wizard
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { OPS_EVENT_TYPES, OPS_SEVERITY, ROLES } from '@venue-pos/shared';
 import { config } from '../config.js';
+import { prisma } from '../db/prisma.js';
 import { requireRoles } from '../middleware/auth.js';
 import { forbidden, validationError } from '../utils/errors.js';
 import {
@@ -8,8 +9,14 @@ import {
   listOpsEvents,
   recordOpsEvent,
 } from '../services/ops-alert-service.js';
+import { createTerminal, serializeTerminalRow } from '../services/manager-terminal-service.js';
 
 const opsAdminPreHandler = requireRoles(ROLES.SYSTEM_ADMIN);
+
+const createTerminalSchema = z.object({
+  venueId: z.string().uuid(),
+  name: z.string().min(1).max(100).optional(),
+});
 
 const ingestSchema = z.object({
   type: z.string().min(1).max(64),
@@ -45,6 +52,43 @@ export async function opsRoutes(app) {
         since: request.query?.since,
         type: request.query?.type,
       }),
+  );
+
+  app.get(
+    '/api/v1/ops/terminals',
+    { preHandler: opsAdminPreHandler },
+    async (request) => {
+      const venueId = request.query?.venueId;
+      const terminals = await prisma.terminal.findMany({
+        where: {
+          isActive: true,
+          ...(venueId ? { venueId } : {}),
+        },
+        include: { venue: { select: { id: true, nameEn: true, nameAr: true } } },
+        orderBy: [{ venue: { nameEn: 'asc' } }, { name: 'asc' }],
+      });
+
+      const now = Date.now();
+      return terminals.map((t) => serializeTerminalRow(t, now));
+    },
+  );
+
+  app.post(
+    '/api/v1/ops/terminals',
+    { preHandler: opsAdminPreHandler },
+    async (request, reply) => {
+      const parsed = createTerminalSchema.safeParse(request.body);
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      const actor = await prisma.user.findUnique({
+        where: { id: request.user.sub },
+        select: { id: true, username: true },
+      });
+      const created = await createTerminal(
+        actor ?? { id: request.user.sub, username: null },
+        parsed.data,
+      );
+      return reply.status(201).send(created);
+    },
   );
 
   app.post('/api/v1/ops/events', async (request) => {

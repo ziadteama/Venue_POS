@@ -161,7 +161,7 @@ pruneBundle();
 
 console.log(`\nBundle folder ready: ${outDir}`);
 if (skipNodeModules) {
-  console.log('Copy to USB → on till: sudo bash setup.sh (installs npm deps + reboot)');
+  console.log('Copy to USB → on till: sudo bash setup.sh → cd /opt/venue-pos && npm i → reboot');
 } else {
   console.log('Copy to USB → on till: sudo bash setup.sh');
 }

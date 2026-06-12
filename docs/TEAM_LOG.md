@@ -1890,6 +1890,17 @@ tail -f /home/venuepos/.local/share/venue-pos/kiosk.log
 ```
 **Notes:** Electron needs X11 — GDM `WaylandEnable=false`. Copy updated `ops/linux/` from USB if repair script missing.
 
+### 2026-06-12 — Till provisioning on dev ops console (US-1.3)
+**Phase:** 1 · **Story:** US-1.3
+**What:** Dev ops (`system_admin`) registers POS terminals from **`/ops` → Till provisioning → Add terminal**. API `POST/GET /api/v1/ops/terminals` returns terminal ID + secret once; dashboard shows copyable hub URL and credentials for till setup wizard / `setup.sh`. Hub manager **Settings → Terminals** keeps LAN/coordinator config only (no create). List shows terminal UUID and pending/online/offline status.
+**Files:** `manager-terminal-service.js`, `routes/ops.js`, `routes/manager-terminals.js`, `routes/venues.js`, `OpsTerminalsSection.jsx`, `OpsPage.jsx`, `TerminalsSection.jsx`, `manager-terminals.test.js`, `ops.test.js`, i18n, `ops/linux/README.md`
+**Verify:**
+```bash
+npm run test -w @venue-pos/api -- apps/api/src/manager-terminals.test.js apps/api/src/ops.test.js
+# Dashboard: devops / devops123 → /ops → Till provisioning → Add terminal → copy creds → till wizard
+```
+**Notes:** Secret shown once on create; not stored or retrievable later (rotate/deactivate deferred).
+
 ---
 
 ## Quick reference — Phase 0 deliverables
