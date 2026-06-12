@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "author": "Plegmo",
   "repository": {
     "type": "git",
     "url": "https://github.com/ziadteama/Venue_POS.git"
@@ -33,7 +34,7 @@
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^40.10.3",
+    "electron": "40.10.3",
     "electron-builder": "^25.1.8",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
@@ -43,6 +44,7 @@
   "build": {
     "appId": "com.plegmo.venue-pos",
     "productName": "Venue POS",
+    "electronVersion": "40.10.3",
     "asar": true,
     "directories": {
       "output": "release"
