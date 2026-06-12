@@ -101,6 +101,7 @@ test('terminal roster returns staff pin hashes for offline cache', async () => {
   assert.ok(body.features);
   assert.ok(body.lanConfig);
   assert.ok(Array.isArray(body.lanConfig.peers));
+  assert.ok(body.terminal?.kioskExitPinHash || body.terminal?.id);
 });
 
 test('terminal reconnect handshake returns menu stale hint', async () => {

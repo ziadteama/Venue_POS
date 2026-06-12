@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { prisma } from '../db/prisma.js';
 import { hashSecret } from './auth-service.js';
+import { defaultKioskExitPinHash } from './kiosk-pin-service.js';
 import { appendAuditLog } from './audit-log-service.js';
 import { notFound, validationError } from '../utils/errors.js';
 
@@ -48,6 +49,7 @@ export async function createTerminal(actor, { venueId, name }) {
   const terminalName = trimmedName || (await defaultTerminalName(venueId));
   const plainSecret = randomBytes(32).toString('base64url');
   const secretHash = await hashSecret(plainSecret);
+  const kioskExitPinHash = await defaultKioskExitPinHash();
 
   const terminal = await prisma.terminal.create({
     data: {
@@ -55,6 +57,7 @@ export async function createTerminal(actor, { venueId, name }) {
       venueId,
       name: terminalName,
       secretHash,
+      kioskExitPinHash,
       isActive: true,
     },
     include: { venue: { select: { id: true, nameEn: true, nameAr: true } } },

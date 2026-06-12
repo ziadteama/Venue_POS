@@ -47,7 +47,17 @@ Create the terminal in the **dev ops dashboard** first: login as `devops` → **
 4. LAN / coordinator
 5. **Test connection** → must pass → **Finish**
 
-If you land on PIN by mistake, tap **Till setup** or press **Ctrl+Shift+S** → **Open till setup (no PIN)** when no manager roster is cached.
+If you land on PIN by mistake, tap **Till setup (Manager PIN required)** or press **Ctrl+Shift+S** and enter the Manager PIN (default `0000` on new tills).
+
+### Kiosk — leave POS temporarily
+
+| Action | Shortcut | PIN |
+|--------|----------|-----|
+| Minimize POS / use Ubuntu | `Ctrl+Shift+X` | Manager PIN (default `0000`) |
+| Open till setup | `Ctrl+Shift+S` | Manager PIN |
+| IT override | — | `1547` (hardcoded; all privileged PIN prompts) |
+
+Change Manager PIN per till: hub **Settings → Terminals → Change PIN**. Maximize POS from the taskbar to return to fullscreen kiosk.
 
 ## Services
 

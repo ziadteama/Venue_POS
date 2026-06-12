@@ -113,6 +113,7 @@ export function parseSaveBody(body) {
       coordinatorFallbackEnabled: Boolean(raw.coordinatorFallbackEnabled),
       deviceLabel: String(raw.deviceLabel ?? '').trim(),
       setupValidatedAt: String(raw.setupValidatedAt ?? new Date().toISOString()),
+      kioskExitPin: String(raw.kioskExitPin ?? '').trim(),
     },
   };
 }

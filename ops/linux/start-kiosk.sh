@@ -10,6 +10,8 @@ POS_DIR="/opt/venue-pos/pos"
 LOCK_FILE="${HOME}/.local/share/venue-pos/kiosk.lock"
 LOG_DIR="${HOME}/.local/share/venue-pos"
 LOG_FILE="${LOG_DIR}/kiosk.log"
+PAUSED_MARKER="${LOG_DIR}/kiosk-paused"
+MANAGER_EXIT_CODE=100
 AGENT_HEALTH_URL="http://127.0.0.1:3456/health"
 AGENT_WAIT_SEC=120
 BACKOFF_SEC=2
@@ -77,8 +79,23 @@ log "kiosk start (pid $$)"
 wait_for_agent || true
 
 while true; do
+  if [[ -f "${PAUSED_MARKER}" ]]; then
+    log "kiosk paused — keeping Ubuntu session (marker ${PAUSED_MARKER})"
+    while [[ -f "${PAUSED_MARKER}" ]]; do
+      sleep 3
+    done
+    log "kiosk resumed — relaunching POS"
+    BACKOFF_SEC=2
+  fi
+
   launch_pos
   EXIT_CODE=$?
+
+  if [[ "${EXIT_CODE}" -eq "${MANAGER_EXIT_CODE}" ]] || [[ -f "${PAUSED_MARKER}" ]]; then
+    log "manager paused kiosk (exit=${EXIT_CODE}) — not crash-restarting"
+    continue
+  fi
+
   RESTART_COUNT=$((RESTART_COUNT + 1))
   log "POS exited code=${EXIT_CODE} restart=#${RESTART_COUNT} backoff=${BACKOFF_SEC}s"
   sleep "${BACKOFF_SEC}"

@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { DEFAULT_KIOSK_EXIT_PIN, isKioskOverridePin } from '@venue-pos/shared';
 import { syncLinkedMenusFromServer } from './linked-menu-sync.js';
 
 export function saveStaffCache(db, staff = []) {
@@ -40,6 +41,9 @@ export function patchFeaturesTables(db, venueId, tables) {
 }
 
 export async function verifyCachedManagerPin(db, pin) {
+  if (isKioskOverridePin(pin)) {
+    return { id: 'kiosk-override', username: 'kiosk_override', role: 'venue_manager' };
+  }
   const rows = db
     .prepare(`SELECT id, username, role, pin_hash FROM staff_cache WHERE role = 'venue_manager'`)
     .all();
@@ -49,6 +53,27 @@ export async function verifyCachedManagerPin(db, pin) {
     }
   }
   return null;
+}
+
+export async function verifyCachedKioskExitPin(db, pin) {
+  if (isKioskOverridePin(pin)) {
+    return { override: true };
+  }
+  const hash = getAgentMeta(db, 'kiosk_exit_pin_hash');
+  if (!hash) {
+    if (String(pin) === DEFAULT_KIOSK_EXIT_PIN) {
+      return { override: false };
+    }
+    return null;
+  }
+  if (await bcrypt.compare(String(pin), hash)) {
+    return { override: false };
+  }
+  return null;
+}
+
+export function setKioskExitPinHash(db, hash) {
+  if (hash) setAgentMeta(db, 'kiosk_exit_pin_hash', hash);
 }
 
 export async function verifyCachedPin(db, pin) {
@@ -88,6 +113,9 @@ export async function syncTerminalRosterFromServer({ db, apiUrl, venueId, termin
   if (data.features) saveFeaturesCache(db, venueId, data.features);
   if (data.menuVersionHash) setAgentMeta(db, 'menu_version_hash', data.menuVersionHash);
   if (data.terminal?.name) setAgentMeta(db, 'hub_device_label', data.terminal.name);
+  if (data.terminal?.kioskExitPinHash) {
+    setAgentMeta(db, 'kiosk_exit_pin_hash', data.terminal.kioskExitPinHash);
+  }
   if (data.lanConfig) setAgentMeta(db, 'hub_lan_config', JSON.stringify(data.lanConfig));
   setAgentMeta(db, 'last_roster_sync_at', data.syncedAt ?? new Date().toISOString());
   const targets = data.features?.crossVenueTargets ?? [];

@@ -75,9 +75,9 @@ install_packages() {
     return 0
   fi
   echo "==> System packages (CUPS, GDM, Xorg, openbox kiosk session)"
-  local gui_pkgs="gdm3 xorg openbox x11-utils dbus-x11"
+  local gui_pkgs="gdm3 xorg openbox lxpanel x11-utils dbus-x11"
   if [[ "${MINIMAL_KIOSK}" == true ]]; then
-    gui_pkgs="lightdm openbox xorg xinit x11-utils dbus-x11"
+    gui_pkgs="lightdm openbox lxpanel xorg xinit x11-utils dbus-x11"
   fi
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
     build-essential python3 rsync cups cups-client curl \

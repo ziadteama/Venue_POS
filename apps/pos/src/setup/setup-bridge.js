@@ -79,7 +79,23 @@ export async function testSetupConnections(form) {
 
 export async function saveSetupConfig(payload) {
   if (window.venuePos?.saveConfig) {
-    return window.venuePos.saveConfig(payload);
+    const result = await window.venuePos.saveConfig(payload);
+    try {
+      const agentUrl = agentUrlFromForm(payload);
+      await fetch(`${agentUrl}/v1/setup/save-config`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          setupComplete: true,
+          setupValidatedAt: payload.setupValidatedAt ?? new Date().toISOString(),
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch {
+      // Agent pin sync is best-effort after Electron config write
+    }
+    return result;
   }
   if (!canUseAgentSetupBridge()) {
     return null;

@@ -1,7 +1,13 @@
 import { testSetupConnections } from '../services/setup-test.js';
 import { probeCloudHealth, setCloudOnline } from '../services/cloud-health.js';
 import { applySetupConfig } from '../services/runtime-config.js';
-import { syncTerminalRosterFromServer } from '../services/terminal-cache.js';
+import {
+  syncTerminalRosterFromServer,
+  setKioskExitPinHash,
+} from '../services/terminal-cache.js';
+import { apiFetch } from '../services/api-fetch.js';
+import { hashKioskExitPinLocal, normalizeKioskExitPin } from '../services/kiosk-pin-local.js';
+import { DEFAULT_KIOSK_EXIT_PIN } from '@venue-pos/shared';
 import {
   isLocalSetupRequest,
   parseSaveBody,
@@ -61,7 +67,28 @@ export function registerSetupRoutes(app, { lanPort = 3456, db } = {}) {
       try {
         const { online } = await probeCloudHealth(applied.cloudHealthUrl, { force: true });
         setCloudOnline(online);
+        const kioskPin = normalizeKioskExitPin(
+          parsed.value.kioskExitPin || DEFAULT_KIOSK_EXIT_PIN,
+        );
+        if (db) {
+          const hash = await hashKioskExitPinLocal(kioskPin);
+          setKioskExitPinHash(db, hash);
+        }
         if (online && applied.terminalId && applied.terminalSecret && db) {
+          try {
+            await apiFetch(
+              applied.apiUrl,
+              applied.terminalId,
+              applied.terminalSecret,
+              '/api/v1/terminals/me/kiosk-exit-pin',
+              {
+                method: 'PUT',
+                body: JSON.stringify({ kioskExitPin: kioskPin }),
+              },
+            );
+          } catch (err) {
+            request.log.warn({ err }, 'Kiosk exit PIN cloud sync failed');
+          }
           await syncTerminalRosterFromServer({
             db,
             apiUrl: applied.apiUrl,

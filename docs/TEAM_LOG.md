@@ -1917,3 +1917,15 @@ npm run test -w @venue-pos/api -- apps/api/src/manager-terminals.test.js apps/ap
 | Docker Compose | ✅ |
 | CI pipeline | ✅ |
 | Team documentation | ✅ |
+
+### 2026-06-12 — Kiosk Manager PIN + Ubuntu pause
+**Phase:** 7 · **Story:** US-9.1 extension
+**What:** Per-terminal Manager PIN (default `0000`, hub Settings → Terminals) to minimize POS and use Ubuntu; override `1547` for all privileged PIN checks; `Ctrl+Shift+X` exit / `Ctrl+Shift+S` setup gated; no bypass in kiosk; restore fullscreen on maximize; Linux `start-kiosk.sh` pause marker + `lxpanel`.
+**Files:** `kiosk-pin-service.js`, `manager-terminals.js`, `terminals.js`, `terminal-roster-service.js`, `terminal-cache.js`, `auth.js` (agent), `KioskPrivilegedPinGate.jsx`, `App.jsx`, `main.cjs`, `TerminalsSection.jsx`, `start-kiosk.sh`, `configure-openbox-session.sh`, i18n, Prisma migration
+**Verify:**
+```bash
+npm run test -w @venue-pos/api -- manager-terminals.test.js
+# Till: Ctrl+Shift+X → 0000 → Ubuntu taskbar; maximize POS → kiosk returns
+# Hub: Settings → Terminals → Change Manager PIN
+```
+**Notes:** Override `1547` is hardcoded (IT backdoor). Floor manager PIN unchanged for discounts/refunds.

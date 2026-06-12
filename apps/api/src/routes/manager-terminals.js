@@ -6,12 +6,15 @@ import { validationError, notFound } from '../utils/errors.js';
 import { emitVenueConfigUpdated } from '../plugins/socket.js';
 import { isValidLanHost } from '../services/terminal-lan-service.js';
 import { serializeTerminalRow } from '../services/manager-terminal-service.js';
+import { setTerminalKioskExitPin } from '../services/kiosk-pin-service.js';
+import { appendAuditLog } from '../services/audit-log-service.js';
 
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   isCoordinator: z.boolean().optional(),
   coordinatorLanHost: z.string().max(255).nullable().optional(),
   assignedLanHost: z.string().max(255).nullable().optional(),
+  kioskExitPin: z.string().min(4).max(8).regex(/^\d+$/).optional(),
 });
 
 export async function managerTerminalRoutes(app) {
@@ -66,6 +69,22 @@ export async function managerTerminalRoutes(app) {
         });
       }
 
+      let kioskPinUpdated = false;
+      if (parsed.data.kioskExitPin != null) {
+        await setTerminalKioskExitPin(terminal.id, parsed.data.kioskExitPin);
+        kioskPinUpdated = true;
+        await appendAuditLog({
+          venueId: terminal.venueId,
+          actorId: request.user?.sub ?? null,
+          actorUsername: request.user?.username ?? null,
+          action: 'terminal.kiosk_exit_pin_updated',
+          entityType: 'terminal',
+          entityId: terminal.id,
+          summary: `Manager PIN updated for terminal "${terminal.name ?? terminal.id}"`,
+          details: { terminalId: terminal.id },
+        });
+      }
+
       const updated = await prisma.terminal.update({
         where: { id: terminal.id },
         data: {
@@ -85,7 +104,9 @@ export async function managerTerminalRoutes(app) {
       if (request.server.io) {
         emitVenueConfigUpdated(request.server.io, {
           venueId: updated.venueId,
-          changes: ['terminals', 'coordinator'],
+          changes: kioskPinUpdated
+            ? ['terminals', 'kiosk_exit_pin']
+            : ['terminals', 'coordinator'],
           config: {
             coordinatorTerminalId: updated.isCoordinator ? updated.id : null,
             coordinatorLanHost: updated.coordinatorLanHost,

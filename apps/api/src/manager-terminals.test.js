@@ -6,6 +6,7 @@ import { prisma } from './db/prisma.js';
 import { config } from './config.js';
 import { ensureKeys } from './utils/jwt.js';
 import { hashSecret } from './services/auth-service.js';
+import { defaultKioskExitPinHash } from './services/kiosk-pin-service.js';
 
 const VENUE_ID = '00000000-0000-4000-8000-000000000097';
 const EXISTING_TERMINAL_ID = '00000000-0000-4000-8000-000000000097';
@@ -60,6 +61,7 @@ before(async () => {
     where: { id: EXISTING_TERMINAL_ID },
     update: {
       secretHash: await hashSecret(EXISTING_TERMINAL_SECRET),
+      kioskExitPinHash: await defaultKioskExitPinHash(),
       venueId: VENUE_ID,
       name: 'Existing POS',
       isActive: true,
@@ -69,6 +71,7 @@ before(async () => {
       venueId: VENUE_ID,
       name: 'Existing POS',
       secretHash: await hashSecret(EXISTING_TERMINAL_SECRET),
+      kioskExitPinHash: await defaultKioskExitPinHash(),
     },
   });
 
@@ -109,5 +112,27 @@ test('GET terminals includes status and never exposes secret', async () => {
     assert.ok(['pending', 'online', 'offline'].includes(row.status));
     assert.equal(row.secret, undefined);
     assert.equal(row.secretHash, undefined);
+    assert.equal(row.kioskExitPinHash, undefined);
   }
+});
+
+test('PATCH terminal kiosk exit pin', async () => {
+  const res = await app.inject({
+    method: 'PATCH',
+    url: `/api/v1/manager/terminals/${EXISTING_TERMINAL_ID}`,
+    headers: { authorization: `Bearer ${hubToken}` },
+    payload: { kioskExitPin: '5678' },
+  });
+  assert.equal(res.statusCode, 200);
+
+  const roster = await app.inject({
+    method: 'GET',
+    url: '/api/v1/terminals/roster',
+    headers: {
+      'x-terminal-id': EXISTING_TERMINAL_ID,
+      'x-terminal-secret': EXISTING_TERMINAL_SECRET,
+    },
+  });
+  assert.equal(roster.statusCode, 200);
+  assert.ok(roster.json().terminal?.kioskExitPinHash);
 });

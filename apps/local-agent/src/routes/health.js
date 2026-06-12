@@ -79,6 +79,7 @@ export function registerHealthRoutes(
       provisioned,
       hasStaffCache: Number(staffCount) > 0,
       hasManagerCache: countStaffRole(db, 'venue_manager') > 0,
+      hasKioskExitPin: Boolean(getAgentMeta(db, 'kiosk_exit_pin_hash')),
       deviceLabel: deviceProfile.deviceLabel ?? null,
       deviceProfile,
       syncQueueDepth: getSyncQueueDepth(db),
