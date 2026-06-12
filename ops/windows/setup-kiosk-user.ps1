@@ -5,7 +5,7 @@
 
 .DESCRIPTION
   Creates a local kiosk user, enables auto-login, replaces Explorer shell with
-  launch-till.cmd (local-agent service + watchdog → portable POS .exe), and
+  launch-till.cmd (local-agent service + watchdog -> portable POS .exe), and
   applies registry lockdown (Task Manager, Run dialog).
 
 .PARAMETER Username

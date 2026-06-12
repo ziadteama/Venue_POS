@@ -10,7 +10,7 @@
   Skip install-agent.ps1 (PM2). Use when agent will be installed separately.
 
 .PARAMETER ApiUrl
-  Optional — passed to install-agent.ps1 for local-agent/.env.
+  Optional - passed to install-agent.ps1 for local-agent/.env.
 
 .PARAMETER TerminalId
   Optional terminal UUID from dev ops Till provisioning.
@@ -40,7 +40,7 @@ $ErrorActionPreference = "Stop"
 $BundleRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
 if (-not (Test-Path (Join-Path $BundleRoot "local-agent"))) {
-  throw "Bundle layout invalid — expected local-agent/ at bundle root ($BundleRoot)"
+  throw "Bundle layout invalid - expected local-agent/ at bundle root ($BundleRoot)"
 }
 
 Write-Host "==> Copying bundle to $InstallRoot"
@@ -53,6 +53,9 @@ foreach ($item in $items) {
   if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
   Copy-Item $src $dest -Recurse -Force
 }
+
+Ensure-VenuePosNode20 | Out-Null
+Update-VenuePosSessionPath
 
 Write-Host "==> Rebuilding native modules (bcrypt, better-sqlite3)"
 Push-Location $InstallRoot
@@ -81,7 +84,7 @@ if (-not $SkipAgentInstall) {
   }
 } else {
   Write-VenuePosTillLauncher -InstallRoot $InstallRoot | Out-Null
-  Write-Host "  Wrote launch-till.cmd (agent service skipped — run install-agent.ps1)"
+  Write-Host "  Wrote launch-till.cmd (agent service skipped - run install-agent.ps1)"
 }
 
 Write-Host "==> Next: kiosk lockdown (reboot required)"

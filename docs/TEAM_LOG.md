@@ -1927,6 +1927,15 @@ npm run test -w @venue-pos/pos
 
 ---
 
+### 2026-06-12 — Windows auto Node 20 install for till deployment
+**Phase:** 7 · **Story:** till deployment
+**What:** `ensure-node20.ps1` uninstalls non-Node-20 installs, downloads/installs latest Node 20.x MSI, and prepends `C:\Program Files\nodejs` on PATH. Wired into `install-pm2.bat`, `install.ps1`, `install-agent.ps1`, and native rebuild.
+**Files:** `ops/windows/ensure-node20.ps1`, `deployment/ensure-node20.bat`, `deployment/install-pm2.bat`, `deployment/_helpers.bat` (`RefreshPath`), `provision.env.example`
+**Verify:** On PC with Node 22: `deployment\ensure-node20.bat` (Admin) → `node -v` shows `v20.x` → `deployment\install-agent.bat`
+**Notes:** Offline till: set `NODE20_MSI_PATH` in `provision.env`. Requires internet on first run unless MSI path set.
+
+---
+
 ## Quick reference — Phase 0 deliverables
 
 | Deliverable | Status |

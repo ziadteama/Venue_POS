@@ -1,21 +1,20 @@
 @echo off
-title Venue POS — Verify local-agent (PM2)
+title Venue POS - Verify local-agent (PM2)
 cd /d "%~dp0"
-call "%~dp0_common.bat" || exit /b 1
 
-set "PM2_HOME=%PM2_HOME%"
+call "%~dp0_common.bat"
+if errorlevel 1 exit /b 1
 
 echo.
 echo === PM2 status ===
-where pm2 >nul 2>&1
+call pm2 -v >nul 2>&1
 if errorlevel 1 (
-  echo ERROR: pm2 not installed. Run install-pm2.bat first.
-  pause
+  call "%~dp0_helpers.bat" Fail "pm2 not installed. Run install-pm2.bat first."
   exit /b 1
 )
 
 set PM2_HOME=%PM2_HOME%
-pm2 status %PM2_APP%
+call pm2 status %PM2_APP%
 
 echo.
 echo === http://127.0.0.1:3456/health ===
@@ -29,5 +28,5 @@ if "%RC%"=="0" (
 ) else (
   echo Agent not reachable. Run: pm2 logs %PM2_APP%
 )
-if /i not "%~1"=="nopause" pause
+call "%~dp0_helpers.bat" PauseUnlessNoPause %1
 exit /b %RC%
