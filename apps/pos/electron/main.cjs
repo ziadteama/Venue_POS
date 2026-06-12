@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFile } = require('node:child_process');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 /** Private GitHub releases — GH_TOKEN in .env.updater (never commit). */
@@ -46,6 +47,22 @@ let kioskPaused = false;
 
 // Semi-kiosk exit code — hardcoded, not stored in DB or synced from hub.
 const SEMI_KIOSK_EXIT_CODE = '7894';
+
+/**
+ * Run one of the openbox Alt+Tab toggle scripts (Linux only, non-blocking, silent on failure).
+ * @param {'enable'|'disable'} action
+ */
+function toggleAltTab(action) {
+  if (process.platform !== 'linux') return;
+  const script = path.join(
+    os.homedir(),
+    `.config/openbox/kiosk-alttab-${action}.sh`,
+  );
+  if (!fs.existsSync(script)) return;
+  execFile('/usr/bin/env', ['bash', script], { env: { ...process.env, DISPLAY: process.env.DISPLAY || ':0' } }, (err) => {
+    if (err) console.warn(`[kiosk] alttab-${action} failed: ${err.message}`);
+  });
+}
 
 function getUserDataPath() {
   return app.getPath('userData');
@@ -95,6 +112,8 @@ function resumeKioskIfNeeded() {
   // Semi-kiosk: fullscreen only — no OS kiosk mode.
   mainWindow.setFullScreen(true);
   mainWindow.focus();
+  // Re-block Alt+Tab now that POS is active again.
+  toggleAltTab('disable');
 }
 
 function attachKioskLockdown(win, cfg) {
@@ -221,6 +240,8 @@ function registerIpc() {
     // We do NOT call setKiosk(false) — we were never in OS kiosk mode.
     mainWindow.setFullScreen(false);
     mainWindow.minimize();
+    // Enable Alt+Tab now that the worker has authenticated.
+    toggleAltTab('enable');
     return { ok: true };
   });
 
