@@ -261,7 +261,7 @@ install_files() {
   [[ -f "${BUNDLE_ROOT}/package.json" ]] && cp -f "${BUNDLE_ROOT}/package.json" "${INSTALL_ROOT}/package.json" || true
   if [[ -f "${BUNDLE_ROOT}/setup.sh" ]]; then
     cp -f "${BUNDLE_ROOT}/setup.sh" "${INSTALL_ROOT}/setup.sh"
-    chmod +x "${INSTALL_ROOT}/setup.sh"
+    chmod +x "${INSTALL_ROOT}/setup.sh" 
   fi
 
   chmod +x "${INSTALL_ROOT}/ops/linux/"*.sh 2>/dev/null || true
@@ -282,140 +282,104 @@ install_files() {
 fix_bin_permissions() {
   log "Fixing .bin executable permissions (Windows→Linux)"
   find "${INSTALL_ROOT}" -path '*/node_modules/.bin/*' -exec chmod +x {} + 2>/dev/null || true
-  find "${INSTALL_ROOT}" -name 'node-pre-gyp'   -exec chmod +x {} + 2>/dev/null || true
-  find "${INSTALL_ROOT}" -name 'node-pre-gyp.cmd' -delete 2>/dev/null || true
-  find "${INSTALL_ROOT}" -name 'node-gyp'       -exec chmod +x {} + 2>/dev/null || true
-  find "${INSTALL_ROOT}" -name 'node-gyp-build' -exec chmod +x {} + 2>/dev/null || true
-  find "${INSTALL_ROOT}" -name '*.node' -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-pre-gyp'     -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-pre-gyp.cmd' -delete              2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-gyp'         -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-gyp-build'   -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name '*.node'            -exec chmod +x {} + 2>/dev/null || true
   ok "Permissions fixed"
 }
 
-# Attempt npm rebuild for a single package, trying several strategies.
-rebuild_native_pkg() {
-  local pkg="$1"          # e.g. bcrypt
-  local workdir="$2"      # directory that owns the package
-  local extra_path="$3"   # extra PATH prefix
-
-  log "  Rebuilding ${pkg} in ${workdir}"
-
-  # Determine all candidate .bin paths to add to PATH
-  local bin_paths="${extra_path}"
-  bin_paths+=":/usr/local/lib/node_modules/.bin"
-  bin_paths+=":/usr/lib/node_modules/.bin"
-  bin_paths+=":/usr/local/bin"
-  for nm in \
-    "${workdir}/node_modules/.bin" \
-    "${INSTALL_ROOT}/local-agent/node_modules/.bin" \
-    "${INSTALL_ROOT}/node_modules/.bin"; do
-    [[ -d "${nm}" ]] && bin_paths="${nm}:${bin_paths}"
-  done
-
-  local base_env="PATH=${bin_paths}:\$PATH npm_config_build_from_source=true"
-
-  # Strategy 1: npm rebuild (standard)
-  if sudo -u "${USER_NAME}" bash -lc "
-      export ${base_env}
-      cd '${workdir}'
-      npm rebuild ${pkg} 2>&1
-    " 2>/dev/null; then
-    ok "  ${pkg} rebuilt (npm rebuild)"
-    return 0
-  fi
-
-  # Strategy 2: npm rebuild --build-from-source
-  if sudo -u "${USER_NAME}" bash -lc "
-      export ${base_env}
-      cd '${workdir}'
-      npm rebuild ${pkg} --build-from-source 2>&1
-    " 2>/dev/null; then
-    ok "  ${pkg} rebuilt (--build-from-source)"
-    return 0
-  fi
-
-  # Strategy 3: run node-pre-gyp directly inside the package dir
-  local pkg_dir="${workdir}/node_modules/${pkg}"
-  if [[ -d "${pkg_dir}" ]]; then
-    local pre_gyp_bin
-    pre_gyp_bin="$(find "${INSTALL_ROOT}" -name 'node-pre-gyp' -type f | head -1)"
-    if [[ -n "${pre_gyp_bin}" && -x "${pre_gyp_bin}" ]]; then
-      if sudo -u "${USER_NAME}" bash -lc "
-          export PATH='${bin_paths}:\$PATH'
-          cd '${pkg_dir}'
-          '${pre_gyp_bin}' install --fallback-to-build 2>&1
-        " 2>/dev/null; then
-        ok "  ${pkg} rebuilt (node-pre-gyp direct)"
-        return 0
-      fi
-    fi
-
-    # Strategy 4: node-gyp rebuild directly
-    if sudo -u "${USER_NAME}" bash -lc "
-        export PATH='${bin_paths}:\$PATH'
-        cd '${pkg_dir}'
-        node-gyp rebuild 2>&1
-      " 2>/dev/null; then
-      ok "  ${pkg} rebuilt (node-gyp rebuild)"
-      return 0
-    fi
-
-    # Strategy 5: npx node-pre-gyp
-    if sudo -u "${USER_NAME}" bash -lc "
-        export PATH='${bin_paths}:\$PATH'
-        cd '${pkg_dir}'
-        npx --yes @mapbox/node-pre-gyp install --fallback-to-build 2>&1
-      " 2>/dev/null; then
-      ok "  ${pkg} rebuilt (npx @mapbox/node-pre-gyp)"
-      return 0
-    fi
-  fi
-
-  # Strategy 6: install node-gyp globally and retry
-  npm install -g node-gyp node-pre-gyp @mapbox/node-pre-gyp 2>/dev/null || true
-  find /usr/local/lib/node_modules -name 'node-pre-gyp' -exec chmod +x {} + 2>/dev/null || true
-  if sudo -u "${USER_NAME}" bash -lc "
-      export PATH='/usr/local/lib/node_modules/.bin:/usr/local/bin:${bin_paths}:\$PATH'
-      cd '${workdir}'
-      npm rebuild ${pkg} --build-from-source 2>&1
-    " 2>/dev/null; then
-    ok "  ${pkg} rebuilt (after global node-gyp install)"
-    return 0
-  fi
-
-  warn "  Could not rebuild ${pkg} — agent may fail to start; run 'npm rebuild ${pkg}' manually in ${workdir}"
-  return 1
-}
-
 rebuild_native_modules() {
-  if [[ ! -d "${INSTALL_ROOT}/local-agent/node_modules" ]]; then
-    warn "local-agent/node_modules missing — slim bundle; see post-install instructions"
+  # This project uses npm workspaces — all deps are hoisted to the ROOT
+  # node_modules by the bundle builder (build-till-bundle.mjs).
+  # bcrypt and better-sqlite3 live at /opt/venue-pos/node_modules/ (not in
+  # local-agent/node_modules). The bundle is built on Windows with
+  # --ignore-scripts so native .node binaries are Windows stubs that must be
+  # recompiled here for Linux.
+  # @mapbox/node-pre-gyp is used (package.json overrides), not the old node-pre-gyp.
+
+  if [[ ! -d "${INSTALL_ROOT}/node_modules" ]] && \
+     [[ ! -d "${INSTALL_ROOT}/local-agent/node_modules" ]]; then
+    warn "node_modules missing — slim bundle detected; see post-install instructions"
     SLIM_BUNDLE=true
     return 0
   fi
 
   SLIM_BUNDLE=false
   log "Rebuilding native modules for Linux"
-
-  # Ensure build tools exist
   pkg_install build-essential python3 python3-dev python3-distutils make gcc g++ 2>/dev/null || true
 
   fix_bin_permissions
 
-  local agent_dir="${INSTALL_ROOT}/local-agent"
-  local agent_bin="${agent_dir}/node_modules/.bin"
   local root_bin="${INSTALL_ROOT}/node_modules/.bin"
-  local extra="${agent_bin}:${root_bin}"
+  local mapbox_gyp="${INSTALL_ROOT}/node_modules/@mapbox/node-pre-gyp/bin/node-pre-gyp"
+  local extra_path="${root_bin}:/usr/local/bin:\$PATH"
 
-  # Rebuild in local-agent (primary location)
-  rebuild_native_pkg "bcrypt"         "${agent_dir}" "${extra}" || true
-  rebuild_native_pkg "better-sqlite3" "${agent_dir}" "${extra}" || true
-
-  # Rebuild in monorepo root if it also has node_modules
-  if [[ -f "${INSTALL_ROOT}/package.json" && -d "${INSTALL_ROOT}/node_modules" ]]; then
-    rebuild_native_pkg "bcrypt"         "${INSTALL_ROOT}" "${extra}" || true
-    rebuild_native_pkg "better-sqlite3" "${INSTALL_ROOT}" "${extra}" || true
+  # ── bcrypt ──────────────────────────────────────────────────────────────
+  log "  bcrypt: strategy 1 — npm rebuild from root"
+  if sudo -u "${USER_NAME}" bash -lc "
+      export PATH='${extra_path}'
+      cd '${INSTALL_ROOT}'
+      npm rebuild bcrypt --build-from-source 2>&1
+    "; then
+    ok "  bcrypt rebuilt"
+  else
+    log "  bcrypt: strategy 2 — @mapbox/node-pre-gyp direct"
+    if [[ -f "${mapbox_gyp}" ]] && sudo -u "${USER_NAME}" bash -lc "
+        export PATH='${extra_path}'
+        node '${mapbox_gyp}' install --fallback-to-build \
+          --directory '${INSTALL_ROOT}/node_modules/bcrypt' 2>&1
+      "; then
+      ok "  bcrypt rebuilt (@mapbox/node-pre-gyp)"
+    else
+      log "  bcrypt: strategy 3 — node-gyp rebuild in package dir"
+      if [[ -d "${INSTALL_ROOT}/node_modules/bcrypt" ]] && \
+         sudo -u "${USER_NAME}" bash -lc "
+          export PATH='${extra_path}'
+          cd '${INSTALL_ROOT}/node_modules/bcrypt'
+          node-gyp rebuild 2>&1
+        "; then
+        ok "  bcrypt rebuilt (node-gyp)"
+      else
+        log "  bcrypt: strategy 4 — install node-gyp globally and retry"
+        npm install -g node-gyp @mapbox/node-pre-gyp 2>/dev/null || true
+        if sudo -u "${USER_NAME}" bash -lc "
+            export PATH='/usr/local/lib/node_modules/.bin:/usr/local/bin:${extra_path}'
+            cd '${INSTALL_ROOT}'
+            npm rebuild bcrypt --build-from-source 2>&1
+          "; then
+          ok "  bcrypt rebuilt (global node-gyp)"
+        else
+          warn "bcrypt: all strategies failed — agent will not start. Fix manually: cd ${INSTALL_ROOT} && npm rebuild bcrypt --build-from-source"
+        fi
+      fi
+    fi
   fi
 
-  # Download Linux Electron binary if POS ships unpackaged electron
+  # ── better-sqlite3 ──────────────────────────────────────────────────────
+  log "  better-sqlite3: npm rebuild from root"
+  if sudo -u "${USER_NAME}" bash -lc "
+      export PATH='${extra_path}'
+      cd '${INSTALL_ROOT}'
+      npm rebuild better-sqlite3 --build-from-source 2>&1
+    "; then
+    ok "  better-sqlite3 rebuilt"
+  else
+    log "  better-sqlite3: node-gyp-build in package dir"
+    if [[ -d "${INSTALL_ROOT}/node_modules/better-sqlite3" ]] && \
+       sudo -u "${USER_NAME}" bash -lc "
+         export PATH='${extra_path}'
+         cd '${INSTALL_ROOT}/node_modules/better-sqlite3'
+         node-gyp rebuild 2>&1
+       "; then
+      ok "  better-sqlite3 rebuilt (node-gyp)"
+    else
+      warn "better-sqlite3: rebuild failed — fix manually: cd ${INSTALL_ROOT} && npm rebuild better-sqlite3 --build-from-source"
+    fi
+  fi
+
+  # ── Electron binary ─────────────────────────────────────────────────────
   if [[ -f "${INSTALL_ROOT}/pos/node_modules/electron/install.js" ]]; then
     log "Downloading Linux Electron binary for POS"
     sudo -u "${USER_NAME}" bash -lc \
@@ -568,10 +532,10 @@ smoke_test() {
     curl -sf --max-time 5 http://127.0.0.1:3456/health
 
   check "bcrypt .node binary exists" \
-    bash -c "find '${INSTALL_ROOT}/local-agent/node_modules/bcrypt' -name '*.node' | grep -q ."
+    bash -c "find '${INSTALL_ROOT}/node_modules/bcrypt' -name '*.node' | grep -q ."
 
   check "better-sqlite3 .node binary exists" \
-    bash -c "find '${INSTALL_ROOT}/local-agent/node_modules/better-sqlite3' -name '*.node' | grep -q ."
+    bash -c "find '${INSTALL_ROOT}/node_modules/better-sqlite3' -name '*.node' | grep -q ."
 
   check "GDM autologin configured" \
     grep -q "AutomaticLoginEnable=true" /etc/gdm3/custom.conf 2>/dev/null
