@@ -40,7 +40,7 @@ jobs:
           BUILD_POS_APPIMAGE: '1'
         run: npm run build:till-installer
 
-      - name: Publish POS AppImage (electron-updater feed)
+      - name: Build and publish POS AppImage (electron-updater feed)
         working-directory: apps/pos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,7 +55,7 @@ jobs:
       - name: Release summary
         run: |
           echo "Published Linux artifacts for ${GITHUB_REF_NAME}:"
-          echo "  Till Installer: dist/VenuePOS-Till-Installer-*.AppImage"
+          echo "  Till Installer: dist/VenuePOS-Till-Installer-*.AppImage (new tills)"
           echo "  POS AppImage: apps/pos/release/*.AppImage (auto-update feed)"
           ls -la dist/VenuePOS-Till-Installer-*.AppImage
           ls -la apps/pos/release/
@@ -91,7 +91,7 @@ jobs:
           SKIP_BUNDLE_CI: '1'
         run: npm run build:till-bundle:windows
 
-      - name: Publish portable exe (electron-updater feed)
+      - name: Build and publish Windows portable exe (electron-updater feed)
         working-directory: apps/pos
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

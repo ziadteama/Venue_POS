@@ -31,6 +31,9 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y libfuse2
 
+      - name: Install dependencies (native modules for Linux)
+        run: npm ci --include-workspace-root
+
       - name: Build Till Installer AppImage
         env:
           BUILD_POS_APPIMAGE: '1'
