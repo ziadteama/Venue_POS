@@ -5,6 +5,41 @@ on:
   pull_request:
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      api: ${{ steps.filter.outputs.api }}
+      local-agent: ${{ steps.filter.outputs.local-agent }}
+      watchdog: ${{ steps.filter.outputs.watchdog }}
+      build: ${{ steps.filter.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api:
+              - 'apps/api/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+            local-agent:
+              - 'apps/local-agent/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'package-lock.json'
+            watchdog:
+              - 'apps/watchdog/**'
+              - 'package.json'
+              - 'package-lock.json'
+            build:
+              - 'apps/dashboard/**'
+              - 'apps/pos/**'
+              - 'apps/kds/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -18,6 +53,8 @@ jobs:
       - run: npm run lint:i18n
 
   api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -51,6 +88,8 @@ jobs:
       - run: npm run test -w @venue-pos/api --if-present
 
   local-agent:
+    needs: changes
+    if: needs.changes.outputs.local-agent == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,6 +101,8 @@ jobs:
       - run: npm run test -w @venue-pos/local-agent
 
   watchdog:
+    needs: changes
+    if: needs.changes.outputs.watchdog == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,7 +115,14 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    needs: [lint, api, local-agent, watchdog]
+    needs: [lint, changes, api, local-agent, watchdog]
+    if: |
+      always() &&
+      needs.lint.result == 'success' &&
+      needs.changes.outputs.build == 'true' &&
+      (needs.api.result == 'success' || needs.api.result == 'skipped') &&
+      (needs.local-agent.result == 'success' || needs.local-agent.result == 'skipped') &&
+      (needs.watchdog.result == 'success' || needs.watchdog.result == 'skipped')
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
