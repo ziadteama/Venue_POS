@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   changes:
@@ -22,7 +23,6 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          list-files: git
           filters: |
             api:
               - 'apps/api/**'

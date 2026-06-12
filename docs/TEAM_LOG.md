@@ -1876,6 +1876,8 @@ npm run lint:i18n
 
 ---
 
+---
+
 ### 2026-06-12 — Ubuntu kiosk boot autostart fix
 **Phase:** 7 · **Story:** till deployment
 **What:** Fix till not starting after reboot: GDM `custom.conf` patch (drop-in was ignored), install openbox + x11-utils session, AccountsService session, system `venue-pos-kiosk-display` unit waits for X `:0`, `fix-kiosk-boot.sh` repair script.

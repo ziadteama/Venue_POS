@@ -194,6 +194,7 @@ else
   chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 fi
 
+
 echo "==> USB receipt printer (CUPS)"
 bash "${INSTALL_ROOT}/ops/linux/setup-receipt-printer.sh" "${INSTALL_ROOT}" || true
 
