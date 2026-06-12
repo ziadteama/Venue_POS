@@ -2,6 +2,19 @@
 
 Scripts for kiosk lockdown, watchdog, and network hardening on **Windows** tills.
 
+## Production POS — single portable `.exe`
+
+`npm run build:pos:win` (or `npm run build:till-bundle:windows` for the full till USB bundle) produces **one file**:
+
+`apps/pos/release/VenuePOS-{version}-portable.exe`
+
+No Node/npm required to **launch** POS — the watchdog still runs under Node and the **local-agent** remains a separate Windows service. The portable exe is what kiosk autostart runs after `install.ps1`.
+
+```powershell
+npm run build:pos:win
+# Output: apps\pos\release\VenuePOS-0.1.0-portable.exe
+```
+
 ## Order of operations
 
 1. Install Node 20 LTS and clone the repo on the till.

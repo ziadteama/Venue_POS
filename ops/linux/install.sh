@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Venue POS till — resilient one-click Ubuntu installer.
 # Run from USB bundle root as root: sudo bash setup.sh
-# Usage: sudo bash setup.sh [--api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]]
+# Usage: sudo bash setup.sh [--minimal-kiosk] [--api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]]
 #
 # Self-healing design:
 #   - Every step detects its own failure and tries at least one alternate approach.
@@ -52,11 +52,11 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --api-url)        CLI_API_URL="${2:-}";        shift 2 ;;
     --terminal-id)    CLI_TERMINAL_ID="${2:-}";    shift 2 ;;
-    --terminal-secret)CLI_TERMINAL_SECRET="${2:-}";shift 2 ;;
+    --terminal-secret) CLI_TERMINAL_SECRET="${2:-}"; shift 2 ;;
     --venue-id)       CLI_VENUE_ID="${2:-}";       shift 2 ;;
     --minimal-kiosk)  MINIMAL_KIOSK=true;          shift   ;;
     -h|--help)
-      echo "Usage: sudo bash setup.sh [--api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]]"
+      echo "Usage: sudo bash setup.sh [--minimal-kiosk] [--api-url URL --terminal-id UUID --terminal-secret SECRET [--venue-id UUID]]"
       exit 0 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -89,14 +89,19 @@ PKG_MGR="$(detect_pkg_manager)"
 log "Package manager: ${PKG_MGR}"
 
 pkg_install() {
-  # pkg_install pkg1 pkg2 ...  — install via detected manager, skip unknowns
+  # pkg_install pkg1 pkg2 ...  — install via detected manager; returns real exit status
   case "${PKG_MGR}" in
-    apt)    DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" 2>/dev/null || \
-            DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-broken "$@" 2>/dev/null || true ;;
-    dnf)    dnf install -y "$@" 2>/dev/null || true ;;
-    yum)    yum install -y "$@" 2>/dev/null || true ;;
-    zypper) zypper install -y "$@" 2>/dev/null || true ;;
-    *)      warn "Unknown package manager — skipping install of: $*" ;;
+    apt)
+      DEBIAN_FRONTEND=noninteractive apt-get install -y "$@" 2>/dev/null \
+        || DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-broken "$@" 2>/dev/null
+      ;;
+    dnf)    dnf install -y "$@" 2>/dev/null ;;
+    yum)    yum install -y "$@" 2>/dev/null ;;
+    zypper) zypper install -y "$@" 2>/dev/null ;;
+    *)
+      warn "Unknown package manager — skipping install of: $*"
+      return 1
+      ;;
   esac
 }
 
@@ -128,13 +133,14 @@ install_node20() {
   log "Installing Node.js 20 LTS"
   pkg_update
 
-  # Strategy 1: NodeSource script (most reliable on Debian/Ubuntu)
-  if command -v curl &>/dev/null || pkg_install curl; then
-    if curl -fsSL https://deb.nodesource.com/setup_20.x | bash - 2>/dev/null; then
-      pkg_install nodejs
-      if command -v node &>/dev/null; then
-        ok "Node $(node -v) via NodeSource"
-        return 0
+  # Strategy 1: NodeSource script (Debian/Ubuntu only)
+  if [[ "${PKG_MGR}" == "apt" ]]; then
+    if command -v curl &>/dev/null || pkg_install curl; then
+      if curl -fsSL https://deb.nodesource.com/setup_20.x | bash - 2>/dev/null; then
+        if pkg_install nodejs && command -v node &>/dev/null; then
+          ok "Node $(node -v) via NodeSource"
+          return 0
+        fi
       fi
     fi
   fi
@@ -178,11 +184,13 @@ install_packages() {
   log "System packages"
   pkg_update
 
-  # Core always-needed
-  pkg_install build-essential python3 rsync curl ca-certificates gnupg
+  # Core always-needed (libfuse2 required to run AppImage installers on fresh Ubuntu)
+  pkg_install build-essential python3 rsync curl ca-certificates gnupg libfuse2
 
   # Printing
-  pkg_install cups cups-client || warn "CUPS install failed — receipt printing may not work"
+  if ! try_cmd "CUPS packages" pkg_install cups cups-client; then
+    warn "Receipt printing may not work until CUPS is installed"
+  fi
 
   # GUI / display stack
   local gui_pkgs
@@ -203,8 +211,8 @@ install_packages() {
   warn "Some GUI/Electron libs could not be installed — POS may have display issues"
 
   # python3-distutils needed by node-gyp on some Ubuntu versions
-  pkg_install python3-distutils python3-dev 2>/dev/null || \
-  pkg_install python3-setuptools            2>/dev/null || true
+  pkg_install python3-distutils python3-dev || \
+    pkg_install python3-setuptools || true
 }
 
 # ---------------------------------------------------------------------------
@@ -261,7 +269,7 @@ install_files() {
   [[ -f "${BUNDLE_ROOT}/package.json" ]] && cp -f "${BUNDLE_ROOT}/package.json" "${INSTALL_ROOT}/package.json" || true
   if [[ -f "${BUNDLE_ROOT}/setup.sh" ]]; then
     cp -f "${BUNDLE_ROOT}/setup.sh" "${INSTALL_ROOT}/setup.sh"
-    chmod +x "${INSTALL_ROOT}/setup.sh" 
+    chmod +x "${INSTALL_ROOT}/setup.sh"
   fi
 
   chmod +x "${INSTALL_ROOT}/ops/linux/"*.sh 2>/dev/null || true
@@ -314,12 +322,12 @@ rebuild_native_modules() {
 
   local root_bin="${INSTALL_ROOT}/node_modules/.bin"
   local mapbox_gyp="${INSTALL_ROOT}/node_modules/@mapbox/node-pre-gyp/bin/node-pre-gyp"
-  local extra_path="${root_bin}:/usr/local/bin:\$PATH"
+  local rebuild_path="${root_bin}:/usr/local/bin:/usr/bin:/bin"
 
   # ── bcrypt ──────────────────────────────────────────────────────────────
   log "  bcrypt: strategy 1 — npm rebuild from root"
   if sudo -u "${USER_NAME}" bash -lc "
-      export PATH='${extra_path}'
+      export PATH=\"${rebuild_path}:\${PATH}\"
       cd '${INSTALL_ROOT}'
       npm rebuild bcrypt --build-from-source 2>&1
     "; then
@@ -327,7 +335,7 @@ rebuild_native_modules() {
   else
     log "  bcrypt: strategy 2 — @mapbox/node-pre-gyp direct"
     if [[ -f "${mapbox_gyp}" ]] && sudo -u "${USER_NAME}" bash -lc "
-        export PATH='${extra_path}'
+        export PATH=\"${rebuild_path}:\${PATH}\"
         node '${mapbox_gyp}' install --fallback-to-build \
           --directory '${INSTALL_ROOT}/node_modules/bcrypt' 2>&1
       "; then
@@ -336,7 +344,7 @@ rebuild_native_modules() {
       log "  bcrypt: strategy 3 — node-gyp rebuild in package dir"
       if [[ -d "${INSTALL_ROOT}/node_modules/bcrypt" ]] && \
          sudo -u "${USER_NAME}" bash -lc "
-          export PATH='${extra_path}'
+          export PATH=\"${rebuild_path}:\${PATH}\"
           cd '${INSTALL_ROOT}/node_modules/bcrypt'
           node-gyp rebuild 2>&1
         "; then
@@ -345,7 +353,7 @@ rebuild_native_modules() {
         log "  bcrypt: strategy 4 — install node-gyp globally and retry"
         npm install -g node-gyp @mapbox/node-pre-gyp 2>/dev/null || true
         if sudo -u "${USER_NAME}" bash -lc "
-            export PATH='/usr/local/lib/node_modules/.bin:/usr/local/bin:${extra_path}'
+            export PATH=\"/usr/local/lib/node_modules/.bin:/usr/local/bin:${rebuild_path}:\${PATH}\"
             cd '${INSTALL_ROOT}'
             npm rebuild bcrypt --build-from-source 2>&1
           "; then
@@ -360,7 +368,7 @@ rebuild_native_modules() {
   # ── better-sqlite3 ──────────────────────────────────────────────────────
   log "  better-sqlite3: npm rebuild from root"
   if sudo -u "${USER_NAME}" bash -lc "
-      export PATH='${extra_path}'
+      export PATH=\"${rebuild_path}:\${PATH}\"
       cd '${INSTALL_ROOT}'
       npm rebuild better-sqlite3 --build-from-source 2>&1
     "; then
@@ -369,7 +377,7 @@ rebuild_native_modules() {
     log "  better-sqlite3: node-gyp-build in package dir"
     if [[ -d "${INSTALL_ROOT}/node_modules/better-sqlite3" ]] && \
        sudo -u "${USER_NAME}" bash -lc "
-         export PATH='${extra_path}'
+         export PATH=\"${rebuild_path}:\${PATH}\"
          cd '${INSTALL_ROOT}/node_modules/better-sqlite3'
          node-gyp rebuild 2>&1
        "; then
@@ -380,14 +388,24 @@ rebuild_native_modules() {
   fi
 
   # ── Electron binary ─────────────────────────────────────────────────────
-  if [[ -f "${INSTALL_ROOT}/pos/node_modules/electron/install.js" ]]; then
+  local electron_dir=""
+  for candidate in \
+    "${INSTALL_ROOT}/pos/node_modules/electron" \
+    "${INSTALL_ROOT}/node_modules/electron"; do
+    if [[ -f "${candidate}/install.js" ]]; then
+      electron_dir="${candidate}"
+      break
+    fi
+  done
+  if [[ -n "${electron_dir}" ]]; then
     log "Downloading Linux Electron binary for POS"
     sudo -u "${USER_NAME}" bash -lc \
-      "cd '${INSTALL_ROOT}/pos/node_modules/electron' && node install.js 2>&1" || \
+      "export PATH=\"${rebuild_path}:\${PATH}\"; cd '${electron_dir}' && node install.js 2>&1" || \
       warn "Electron binary download failed — POS may not launch without AppImage"
   fi
 
-  find "${INSTALL_ROOT}/pos/node_modules/.bin" -type f -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}/pos/node_modules/.bin" "${INSTALL_ROOT}/node_modules/.bin" \
+    -type f -exec chmod +x {} + 2>/dev/null || true
   chown -R "${USER_NAME}:${USER_NAME}" "${INSTALL_ROOT}"
 }
 
@@ -453,7 +471,7 @@ setup_services() {
 
   # Kiosk autologin + display service
   if [[ -f "${SCRIPT_DIR}/venue-pos-kiosk-enable.sh" ]]; then
-    bash "${SCRIPT_DIR}/venue-pos-kiosk-enable.sh" "${USER_NAME}" "${INSTALL_ROOT}" 2>/dev/null || \
+    bash "${SCRIPT_DIR}/venue-pos-kiosk-enable.sh" "${USER_NAME}" "${INSTALL_ROOT}" "${MINIMAL_KIOSK}" 2>/dev/null || \
       warn "Kiosk enable script failed — run fix-kiosk-boot.sh after reboot"
   else
     warn "venue-pos-kiosk-enable.sh not found — kiosk autologin not configured"
@@ -537,8 +555,13 @@ smoke_test() {
   check "better-sqlite3 .node binary exists" \
     bash -c "find '${INSTALL_ROOT}/node_modules/better-sqlite3' -name '*.node' | grep -q ."
 
-  check "GDM autologin configured" \
-    grep -q "AutomaticLoginEnable=true" /etc/gdm3/custom.conf 2>/dev/null
+  if [[ "${MINIMAL_KIOSK}" == true ]]; then
+    check "LightDM autologin configured" \
+      grep -q "autologin-user=${USER_NAME}" /etc/lightdm/lightdm.conf.d/50-venue-pos.conf 2>/dev/null
+  else
+    check "GDM autologin configured" \
+      grep -q "AutomaticLoginEnable=true" /etc/gdm3/custom.conf 2>/dev/null
+  fi
 
   echo ""
   echo "  Smoke test: ${ok_count} passed, ${fail_count} failed"
@@ -561,6 +584,19 @@ cli_provision
 setup_services
 setup_firewall
 smoke_test
+
+write_install_marker() {
+  local bundle_version="unknown"
+  if [[ -f "${BUNDLE_ROOT}/VERSION" ]]; then
+    bundle_version="$(tr -d '[:space:]' < "${BUNDLE_ROOT}/VERSION")"
+  elif [[ -f "${BUNDLE_ROOT}/package.json" ]]; then
+    bundle_version="$(node -p "require('${BUNDLE_ROOT}/package.json').version" 2>/dev/null || echo unknown)"
+  fi
+  echo "${bundle_version}" > "${INSTALL_ROOT}/.venue-pos-installed"
+  ok "Install marker written (${bundle_version})"
+}
+
+write_install_marker
 
 # ---------------------------------------------------------------------------
 # Summary

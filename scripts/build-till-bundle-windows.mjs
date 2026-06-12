@@ -84,7 +84,13 @@ function pruneBundle() {
   drop(path.join(outDir, 'local-agent', 'data'));
   drop(path.join(outDir, 'local-agent', '.env'));
   drop(path.join(outDir, 'pos', '.env'));
-  drop(path.join(outDir, 'pos', 'release'));
+  const releaseDir = path.join(outDir, 'pos', 'release');
+  if (fs.existsSync(releaseDir)) {
+    for (const name of fs.readdirSync(releaseDir)) {
+      if (name.endsWith('-portable.exe')) continue;
+      drop(path.join(releaseDir, name));
+    }
+  }
   for (const sub of ['local-agent', 'pos']) {
     const nm = path.join(outDir, sub, 'node_modules');
     if (!fs.existsSync(nm)) continue;
@@ -109,6 +115,21 @@ if (process.env.SKIP_BUNDLE_CI === '1') {
 
 console.log('Building POS (vite production)...');
 runNpm(['run', 'build', '-w', '@venue-pos/pos']);
+
+console.log('Packaging POS portable .exe (electron-builder)...');
+runNpm(['run', 'build:packaged:win', '-w', '@venue-pos/pos']);
+
+const posRelease = path.join(repoRoot, 'apps', 'pos', 'release');
+const portableExe = fs
+  .readdirSync(posRelease)
+  .filter((name) => name.endsWith('-portable.exe'))
+  .sort()
+  .at(-1);
+if (!portableExe) {
+  console.error(`No portable exe found in ${posRelease}`);
+  process.exit(1);
+}
+console.log(`  Portable exe: ${portableExe}`);
 
 console.log('Assembling Windows bundle...');
 removeDirSafe(outDir);
@@ -153,3 +174,4 @@ console.log('  Expand-Archive .\\venue-pos-till-windows-*.zip -DestinationPath C
 console.log('  cd C:\\Venue_POS\\ops\\windows');
 console.log('  .\\install.ps1 -InstallRoot C:\\Venue_POS');
 console.log('  .\\setup-kiosk-user.ps1 -Password "YourSecurePassword" -RepoRoot C:\\Venue_POS');
+console.log(`\nPOS portable exe: pos\\release\\${portableExe}`);

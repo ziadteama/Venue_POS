@@ -12,6 +12,7 @@ on:
       - 'ops/linux/**'
       - 'packages/**'
       - 'scripts/build-till-bundle.mjs'
+      - 'scripts/build-till-installer-appimage.mjs'
       - 'setup.sh'
 
 jobs:
@@ -25,24 +26,29 @@ jobs:
           node-version: '20'
           cache: npm
 
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
       - name: Install dependencies (native modules for Linux)
         run: npm ci --include-workspace-root
 
-      - name: Build till USB bundle (AppImage + tar.gz)
+      - name: Build Till Installer AppImage
         env:
           BUILD_POS_APPIMAGE: '1'
-        run: npm run build:till-bundle
+        run: npm run build:till-installer
 
-      - name: Verify AppImage in bundle
+      - name: Verify installer and bundle artifacts
         run: |
           ls -la dist/
+          test -f dist/VenuePOS-Till-Installer-*.AppImage
           ls -la dist/venue-pos-till-*/pos/release/*.AppImage
           test -f dist/venue-pos-till-*.tar.gz
 
-      - name: Upload till bundle artifact
+      - name: Upload till installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: venue-pos-till-linux
           path: |
+            dist/VenuePOS-Till-Installer-*.AppImage
             dist/venue-pos-till-*.tar.gz
           retention-days: 14
