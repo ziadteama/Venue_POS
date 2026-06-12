@@ -181,11 +181,37 @@ if [[ ! -d "${INSTALL_ROOT}/local-agent/node_modules" ]]; then
   echo "==> Slim bundle (no node_modules) — run npm i on till before reboot (see end of install)"
 else
   echo "==> Rebuilding native modules for Linux (bcrypt, better-sqlite3)"
-  find "${INSTALL_ROOT}/node_modules" "${INSTALL_ROOT}/local-agent/node_modules" \
-    -type f \( -path '*/.bin/*' -o -name 'node-pre-gyp' -o -name 'node-gyp-build' \) \
-    -exec chmod +x {} + 2>/dev/null || true
-  sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/local-agent' && npm rebuild bcrypt better-sqlite3" || true
-  sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}' && npm rebuild bcrypt better-sqlite3" 2>/dev/null || true
+
+  # Fix executable bits on everything under node_modules/.bin and known native build tools.
+  # Windows-built bundles lose +x on Linux — must do this before any npm rebuild call.
+  find "${INSTALL_ROOT}" -path '*/node_modules/.bin/*' -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-pre-gyp'    -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-gyp'        -exec chmod +x {} + 2>/dev/null || true
+  find "${INSTALL_ROOT}" -name 'node-gyp-build'  -exec chmod +x {} + 2>/dev/null || true
+
+  # Rebuild bcrypt inside local-agent using its own node_modules/.bin on PATH.
+  # Do NOT run npm install/ci here — the bundle ships node_modules and @venue-pos/shared
+  # is a local workspace package not published to the npm registry.
+  sudo -u "${USER_NAME}" bash -lc "
+    set -e
+    AGENT='${INSTALL_ROOT}/local-agent'
+    export PATH=\"\${AGENT}/node_modules/.bin:\$PATH\"
+    cd \"\${AGENT}\"
+    echo '  rebuilding bcrypt'
+    npm rebuild bcrypt        2>&1 || true
+    echo '  rebuilding better-sqlite3'
+    npm rebuild better-sqlite3 2>&1 || true
+  "
+
+  # Root-level monorepo rebuild — best-effort, not all bundles ship this layout.
+  if [[ -f "${INSTALL_ROOT}/package.json" && -d "${INSTALL_ROOT}/node_modules" ]]; then
+    sudo -u "${USER_NAME}" bash -lc "
+      export PATH='${INSTALL_ROOT}/node_modules/.bin:\$PATH'
+      cd '${INSTALL_ROOT}'
+      npm rebuild bcrypt better-sqlite3 2>&1 || true
+    " 2>/dev/null || true
+  fi
+
   if [[ -f "${INSTALL_ROOT}/pos/node_modules/electron/install.js" ]]; then
     echo "==> Downloading Linux Electron binary for POS kiosk"
     sudo -u "${USER_NAME}" bash -lc "cd '${INSTALL_ROOT}/pos/node_modules/electron' && node install.js" || true
