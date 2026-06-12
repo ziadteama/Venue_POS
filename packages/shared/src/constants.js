@@ -41,3 +41,19 @@ export const VOIDABLE_ROUND_STATUSES = [
 
 export const API_VERSION = 'v1';
 export const API_BASE = `/api/${API_VERSION}`;
+
+/** Per-terminal PIN to exit/minimize kiosk (hub-managed; default on provision). */
+export const DEFAULT_KIOSK_EXIT_PIN = '0000';
+
+/** IT override — satisfies any privileged/manager PIN check (not cashier login). */
+export const KIOSK_OVERRIDE_PIN = '1547';
+
+export const KIOSK_EXIT_PIN_MIN = 4;
+export const KIOSK_EXIT_PIN_MAX = 8;
+
+/** Electron exit code when manager intentionally pauses kiosk. */
+export const KIOSK_MANAGER_EXIT_CODE = 100;
+
+export function isKioskOverridePin(pin) {
+  return String(pin ?? '') === KIOSK_OVERRIDE_PIN;
+}

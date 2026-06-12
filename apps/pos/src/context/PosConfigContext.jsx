@@ -52,6 +52,7 @@ export function PosConfigProvider({ children }) {
       loading,
       error,
       reload,
+      kioskMode: config?.kioskMode !== false,
       isSetupComplete: Boolean(
         !config?.forceSetup &&
           config?.setupComplete &&

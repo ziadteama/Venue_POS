@@ -4,7 +4,7 @@ import { LanguageToggle } from './LanguageToggle.jsx';
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'clear', '0', 'back'];
 const MAX_PIN = 6;
 
-export function PinLoginScreen({ t, onLogin, loading, error, onOpenSetup }) {
+export function PinLoginScreen({ t, onLogin, loading, error, onOpenSetup, kioskMode = false }) {
   const [pin, setPin] = useState('');
   const [showSetupButton, setShowSetupButton] = useState(false);
   const inputRef = useRef(null);
@@ -186,13 +186,22 @@ export function PinLoginScreen({ t, onLogin, loading, error, onOpenSetup }) {
           >
             {loading ? t('common.loading') : t('pos.pinLoginSubmit')}
           </button>
-          {showSetupButton && onOpenSetup ? (
+          {showSetupButton && onOpenSetup && !kioskMode ? (
             <button
               type="button"
               onClick={onOpenSetup}
               className="mt-3 w-full rounded-2xl border border-slate-300 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               {t('pos.tillSetupButton')}
+            </button>
+          ) : null}
+          {showSetupButton && onOpenSetup && kioskMode ? (
+            <button
+              type="button"
+              onClick={onOpenSetup}
+              className="mt-3 w-full rounded-2xl border border-slate-300 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {t('kiosk.openSetupWithPin')}
             </button>
           ) : null}
         </form>

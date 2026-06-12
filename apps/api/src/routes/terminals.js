@@ -5,11 +5,16 @@ import {
   getTerminalRoster,
   terminalReconnectHandshake,
 } from '../services/terminal-roster-service.js';
+import { setTerminalKioskExitPin } from '../services/kiosk-pin-service.js';
 import { validationError } from '../utils/errors.js';
 
 const reconnectSchema = z.object({
   lastSyncAt: z.string().datetime().optional(),
   menuVersionHash: z.string().optional(),
+});
+
+const kioskExitPinSchema = z.object({
+  kioskExitPin: z.string().min(4).max(8).regex(/^\d+$/),
 });
 
 const heartbeatSchema = z.object({
@@ -68,6 +73,20 @@ export async function terminalRoutes(app) {
       const parsed = reconnectSchema.safeParse(request.body ?? {});
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
       return terminalReconnectHandshake(request.terminal.venueId, request.terminal.id, parsed.data);
+    },
+  );
+
+  app.put(
+    '/api/v1/terminals/me/kiosk-exit-pin',
+    { preHandler: authenticateTerminal },
+    async (request) => {
+      const parsed = kioskExitPinSchema.safeParse(request.body ?? {});
+      if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
+      const updated = await setTerminalKioskExitPin(
+        request.terminal.id,
+        parsed.data.kioskExitPin,
+      );
+      return { ok: true, terminalId: updated.id, venueId: updated.venueId };
     },
   );
 }

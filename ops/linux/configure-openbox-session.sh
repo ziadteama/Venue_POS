@@ -23,12 +23,13 @@ EOF
 mkdir -p "${HOME_DIR}/.config/openbox"
 cat > "${HOME_DIR}/.config/openbox/autostart" <<EOF
 #!/bin/bash
-# Venue POS — launch kiosk when openbox session starts
+# Venue POS — launch kiosk when openbox session starts; keep Openbox + panel alive
 export DISPLAY=:0
 export ELECTRON_IS_KIOSK=true
 export VENUE_POS_AGENT_ROOT=${INSTALL_ROOT}/local-agent
 export VENUE_POS_FORCE_SETUP=1
-exec ${INSTALL_ROOT}/pos/start-kiosk.sh
+lxpanel &
+${INSTALL_ROOT}/pos/start-kiosk.sh &
 EOF
 chmod +x "${HOME_DIR}/.config/openbox/autostart"
 

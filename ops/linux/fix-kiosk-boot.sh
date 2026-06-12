@@ -22,8 +22,8 @@ fi
 echo "==> Installing missing GUI packages (openbox, x11-utils)"
 if command -v apt-get &>/dev/null; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    openbox x11-utils dbus-x11 gdm3 xorg 2>/dev/null || \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y openbox x11-utils dbus-x11
+    openbox x11-utils dbus-x11 gdm3 xorg lxpanel 2>/dev/null || \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y openbox x11-utils dbus-x11 lxpanel
 fi
 
 chmod +x "${SCRIPT_DIR}/"*.sh 2>/dev/null || true

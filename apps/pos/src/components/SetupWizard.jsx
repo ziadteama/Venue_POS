@@ -34,6 +34,7 @@ function emptyForm(detectedLanHost = '') {
     isCoordinator: false,
     coordinatorFallbackEnabled: false,
     kioskMode: true,
+    kioskExitPin: '0000',
     deviceLabel: '',
     githubUpdateToken: '',
   };
@@ -328,6 +329,18 @@ export function SetupWizard({ onComplete }) {
               />
               <span className="text-sm">{t('setup.kioskMode')}</span>
             </label>
+            <label className="block">
+              <span className="text-sm text-slate-300">{t('terminals.managerPin')}</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={8}
+                className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2"
+                value={form.kioskExitPin}
+                onChange={(e) => update({ kioskExitPin: e.target.value.replace(/\D/g, '') })}
+              />
+              <p className="mt-1 text-xs text-slate-500">{t('terminals.managerPinHint')}</p>
+            </label>
           </section>
         ) : null}
 
@@ -346,6 +359,10 @@ export function SetupWizard({ onComplete }) {
             <p>
               <span className="text-slate-400">{t('setup.kioskMode')}:</span>{' '}
               {form.kioskMode ? t('common.yes') : t('common.no')}
+            </p>
+            <p>
+              <span className="text-slate-400">{t('terminals.managerPin')}:</span>{' '}
+              {form.kioskExitPin || '0000'}
             </p>
             <p>
               <span className="text-slate-400">{t('setup.githubUpdateToken')}:</span>{' '}

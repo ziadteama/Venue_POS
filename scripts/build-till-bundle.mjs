@@ -143,6 +143,12 @@ if (fs.existsSync(path.join(repoRoot, 'setup.sh'))) {
   fs.copyFileSync(path.join(repoRoot, 'setup.sh'), path.join(outDir, 'setup.sh'));
   fs.chmodSync(path.join(outDir, 'setup.sh'), 0o755);
 }
+
+const artifactReadme = path.join(repoRoot, 'ops', 'linux', 'ARTIFACT-README.md');
+if (fs.existsSync(artifactReadme)) {
+  fs.copyFileSync(artifactReadme, path.join(outDir, 'README.md'));
+}
+
 if (skipNodeModules) {
   writeTillPackageJson();
   console.log('Slim bundle: node_modules omitted — on till run: cd /opt/venue-pos && npm i');

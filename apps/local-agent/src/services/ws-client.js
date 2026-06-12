@@ -5,7 +5,12 @@ import { enqueueMenuPublish } from './menu-publish-queue.js';
 import { syncVenueConfigFromServer } from './venue-config-sync.js';
 import { isCloudOnline } from './cloud-health.js';
 import { publishAgentEvent } from './agent-events.js';
-import { patchFeaturesTables, saveFeaturesCache, setAgentMeta } from './terminal-cache.js';
+import {
+  patchFeaturesTables,
+  saveFeaturesCache,
+  setAgentMeta,
+  syncTerminalRosterFromServer,
+} from './terminal-cache.js';
 
 export { markMenuPublishQueueDrained } from './menu-publish-queue.js';
 
@@ -104,9 +109,21 @@ export function connectTerminalSocket({
     const payload = msg?.payload ?? msg;
     if (payload.venueId !== venueId) return;
     if (!isCloudOnline()) return;
+    const changes = payload.changes ?? [];
     try {
-      await syncVenueConfigFromServer({ apiUrl, venueId, terminalId, terminalSecret });
-      log.info({ changes: payload.changes }, 'Venue config refreshed from WebSocket event');
+      if (changes.some((c) => c === 'terminals' || c === 'kiosk_exit_pin')) {
+        await syncTerminalRosterFromServer({
+          db,
+          apiUrl,
+          venueId,
+          terminalId,
+          terminalSecret,
+        });
+        log.info({ changes }, 'Terminal roster refreshed from WebSocket event');
+      } else {
+        await syncVenueConfigFromServer({ apiUrl, venueId, terminalId, terminalSecret });
+        log.info({ changes }, 'Venue config refreshed from WebSocket event');
+      }
     } catch (err) {
       log.warn({ err }, 'Venue config refresh after WS event failed');
     }

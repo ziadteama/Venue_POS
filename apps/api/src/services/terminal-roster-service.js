@@ -77,6 +77,7 @@ export async function getTerminalRoster(venueId, terminalId = null) {
               assignedLanHost: true,
               lastLanHost: true,
               lastLanPort: true,
+              kioskExitPinHash: true,
             },
           })
           .then((t) =>
@@ -88,6 +89,7 @@ export async function getTerminalRoster(venueId, terminalId = null) {
                   assignedLanHost: t.assignedLanHost,
                   lastLanHost: t.lastLanHost,
                   lastLanPort: t.lastLanPort,
+                  kioskExitPinHash: t.kioskExitPinHash,
                 }
               : null,
           )
