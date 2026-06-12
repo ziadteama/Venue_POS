@@ -79,12 +79,18 @@ export async function opsRoutes(app) {
     async (request, reply) => {
       const parsed = createTerminalSchema.safeParse(request.body);
       if (!parsed.success) throw validationError('Invalid request', parsed.error.flatten());
-      const actor = await prisma.user.findUnique({
-        where: { id: request.user.sub },
-        select: { id: true, username: true },
-      });
+
+      const sub = request.user?.sub;
+      let actor = null;
+      if (typeof sub === 'string' && /^[0-9a-f-]{36}$/i.test(sub)) {
+        actor = await prisma.user.findUnique({
+          where: { id: sub },
+          select: { id: true, username: true },
+        });
+      }
+
       const created = await createTerminal(
-        actor ?? { id: request.user.sub, username: null },
+        actor ?? { id: null, username: null },
         parsed.data,
       );
       return reply.status(201).send(created);

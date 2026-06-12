@@ -7,7 +7,8 @@ import { prisma } from './db/prisma.js';
 import { config } from './config.js';
 import { ensureKeys, signAccessToken } from './utils/jwt.js';
 
-const VENUE_ID = '00000000-0000-4000-8000-000000000097';
+const VENUE_ID = '00000000-0000-4000-8000-000000000099';
+const OPS_USER_ID = '00000000-0000-4000-8000-000000000298';
 
 let app;
 let opsToken;
@@ -31,6 +32,7 @@ before(async () => {
     where: { username: 'opsadmin' },
     update: { passwordHash: hash, role: 'system_admin', venueId: VENUE_ID, isActive: true },
     create: {
+      id: OPS_USER_ID,
       username: 'opsadmin',
       passwordHash: hash,
       role: 'system_admin',
@@ -39,7 +41,7 @@ before(async () => {
   });
 
   opsToken = signAccessToken({
-    sub: 'opsadmin',
+    sub: OPS_USER_ID,
     role: 'system_admin',
     venue_id: VENUE_ID,
   });
