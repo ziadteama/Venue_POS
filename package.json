@@ -17,6 +17,7 @@
     "dev:pos": "npm run dev -w @venue-pos/pos",
     "dev:kds": "npm run dev -w @venue-pos/kds",
     "dev:agent": "npm run dev -w @venue-pos/local-agent",
+    "dev:agent:standalone": "node scripts/dev-agent-standalone.mjs",
     "build:api": "npm run build -w @venue-pos/api",
     "build:dashboard": "npm run build -w @venue-pos/dashboard",
     "build:pos": "npm run build -w @venue-pos/pos",

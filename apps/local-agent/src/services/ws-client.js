@@ -78,6 +78,7 @@ export function connectTerminalSocket({
       terminalId,
       terminalSecret,
       log,
+      force: true,
     });
     if (result.ok) {
       log.info({ updated: result.updated }, 'Menu refreshed from WebSocket event');

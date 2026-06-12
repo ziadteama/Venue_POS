@@ -27,11 +27,12 @@ export async function runMenuBackgroundSync({
   terminalId,
   terminalSecret,
   log,
+  force = false,
 }) {
   if (!isCloudOnline()) {
     return { skipped: 'offline' };
   }
-  if (!menuBackgroundSyncNeeded(db, venueId)) {
+  if (!force && !menuBackgroundSyncNeeded(db, venueId)) {
     return { skipped: 'up_to_date' };
   }
 

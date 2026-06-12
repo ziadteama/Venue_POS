@@ -7,6 +7,7 @@
  *   npm run dev -- --kds     # include KDS Vite (:5175)
  *   npm run dev -- --docker  # start Redis container first (optional)
  *   npm run dev -- --no-lan  # localhost only (no phone/LAN URLs)
+ *   npm run dev -- --standalone-agent  # venue-pos-local-agent/ instead of apps/local-agent/
  *
  * Postgres: uses DATABASE_URL in apps/api/.env (pgAdmin or Docker — not started here).
  */
@@ -33,6 +34,7 @@ const withDocker = flags.has('--docker');
 const browserOnly = flags.has('--browser');
 const skipPortCleanup = flags.has('--no-stop');
 const lanDev = !flags.has('--no-lan');
+const standaloneAgent = flags.has('--standalone-agent');
 
 function runSync(command, args) {
   const result = spawnSync(command, args, { cwd: root, stdio: 'inherit', shell: true });
@@ -55,7 +57,11 @@ if (!skipPortCleanup) {
 
 ensureFile('apps/api/.env.example', 'apps/api/.env');
 ensureFile('apps/dashboard/.env.example', 'apps/dashboard/.env');
-ensureFile('apps/local-agent/.env.example', 'apps/local-agent/.env');
+if (!standaloneAgent) {
+  ensureFile('apps/local-agent/.env.example', 'apps/local-agent/.env');
+} else {
+  ensureFile('venue-pos-local-agent/.env.example', 'venue-pos-local-agent/.env');
+}
 ensureFile('apps/pos/.env.example', 'apps/pos/.env');
 ensureFile('apps/kds/.env.example', 'apps/kds/.env');
 
@@ -78,8 +84,10 @@ const jobs = [
   { command: 'npm run dev:api', name: 'api', prefixColor: 'blue' },
   { command: 'npm run dev:dashboard', name: 'dashboard', prefixColor: 'green' },
   {
-    command: 'node scripts/wait-api-health.mjs && npm run dev:agent',
-    name: 'agent',
+    command: standaloneAgent
+      ? 'node scripts/wait-api-health.mjs && node scripts/dev-agent-standalone.mjs'
+      : 'node scripts/wait-api-health.mjs && npm run dev:agent',
+    name: standaloneAgent ? 'agent-standalone' : 'agent',
     prefixColor: 'yellow',
   },
   browserOnly
@@ -104,7 +112,11 @@ if (lanHost) {
 console.log('\nVenue POS dev stack (run from repo root: npm run dev)');
 console.log('  API        http://localhost:3000');
 console.log('  Dashboard  http://localhost:5173');
-console.log('  Agent      http://127.0.0.1:3456');
+console.log(
+  standaloneAgent
+    ? '  Agent      http://127.0.0.1:3456  (venue-pos-local-agent/)'
+    : '  Agent      http://127.0.0.1:3456  (apps/local-agent/)',
+);
 console.log(browserOnly ? '  POS        http://localhost:5174' : '  POS        Electron + http://localhost:5174');
 if (withKds) console.log('  KDS        http://localhost:5175');
 if (lanHost) {
@@ -116,7 +128,9 @@ const { result } = concurrently(jobs, {
   cwd: root,
   env: stackEnv,
   // Closing the Electron window stops POS only — keep API/dashboard/agent running.
-  killOthersOn: { failure: ['api', 'dashboard', 'agent', ...(withKds ? ['kds'] : [])] },
+  killOthersOn: {
+    failure: ['api', 'dashboard', 'agent', 'agent-standalone', ...(withKds ? ['kds'] : [])],
+  },
 });
 
 await result;
