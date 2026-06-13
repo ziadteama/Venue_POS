@@ -144,6 +144,9 @@ function Invoke-VenuePosNativeRebuild {
   Ensure-VenuePosNode20 | Out-Null
   Update-VenuePosSessionPath
 
+  $pm2Home = Get-VenuePosPm2Home -InstallRoot $InstallRoot
+  Stop-VenuePosPm2AgentForInstall -Pm2Home $pm2Home -AppName $script:VenuePosPm2AppName
+
   Write-Host "==> Rebuilding native modules (bcrypt, better-sqlite3)"
   Push-Location $InstallRoot
   try {
@@ -260,14 +263,46 @@ module.exports = {
 function Invoke-VenuePosPm2 {
   param(
     [Parameter(Mandatory = $true)][string]$Pm2Home,
-    [Parameter(Mandatory = $true)][string[]]$Pm2Args
+    [Parameter(Mandatory = $true)][string[]]$Pm2Args,
+    [switch]$IgnoreErrors
   )
 
+  $pm2 = Resolve-VenuePosPm2Exe
+  if (-not $pm2) { throw 'pm2 not found on PATH. Run install-pm2.bat first.' }
+
   $env:PM2_HOME = $Pm2Home
-  # PM2 prints a status table to stdout; do not let that become the function return value.
-  & pm2 @Pm2Args 2>&1 | Out-Host
-  if ($null -ne $LASTEXITCODE) { return [int]$LASTEXITCODE }
-  return 0
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & $pm2 @Pm2Args 2>&1 | ForEach-Object { Write-Host $_ }
+    $code = if ($null -ne $LASTEXITCODE) { [int]$LASTEXITCODE } else { 0 }
+    if ($IgnoreErrors) { return 0 }
+    return $code
+  } finally {
+    $ErrorActionPreference = $prevEap
+  }
+}
+
+function Stop-VenuePosPm2AgentForInstall {
+  param(
+    [Parameter(Mandatory = $true)][string]$Pm2Home,
+    [Parameter(Mandatory = $true)][string]$AppName
+  )
+
+  $pm2 = Resolve-VenuePosPm2Exe
+  if (-not $pm2) { return }
+
+  $env:PM2_HOME = $Pm2Home
+  Write-Host "==> Stopping existing PM2 app $AppName (if any)"
+  $prevEap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    & $pm2 stop $AppName 2>&1 | Out-Null
+    & $pm2 delete $AppName --force 2>&1 | Out-Null
+  } finally {
+    $ErrorActionPreference = $prevEap
+  }
+  Start-Sleep -Seconds 2
 }
 
 function Get-VenuePosPm2AppStatus {
@@ -307,7 +342,7 @@ function Install-VenuePosPm2Agent {
   $ecoPath = Write-VenuePosPm2Ecosystem -InstallRoot $InstallRoot -AgentRoot $AgentRoot -Pm2Home $pm2Home -NodeExe $NodeExe
 
   Write-Host "==> Starting PM2 app $script:VenuePosPm2AppName"
-  [void](Invoke-VenuePosPm2 -Pm2Home $pm2Home -Pm2Args @('delete', $script:VenuePosPm2AppName, '--force'))
+  Stop-VenuePosPm2AgentForInstall -Pm2Home $pm2Home -AppName $script:VenuePosPm2AppName
   $code = Invoke-VenuePosPm2 -Pm2Home $pm2Home -Pm2Args @('start', $ecoPath)
   if ($code -ne 0) { throw "pm2 start failed (exit $code)" }
 
