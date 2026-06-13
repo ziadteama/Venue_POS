@@ -3,7 +3,8 @@
  * Used by: npm run dev:agent:standalone  and  npm run dev -- --standalone-agent
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureNode20Process, node20PathEnv, resolveNode20Exe } from './node20.mjs';
@@ -45,6 +46,21 @@ function ensureDeps() {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
+/** SQLite on Z: / network shares + --watch restarts → EBUSY hang. Dev cache lives on local disk. */
+function devSqlitePath() {
+  const dir = path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'VenuePosAgent', 'standalone-dev');
+  mkdirSync(dir, { recursive: true });
+  return path.join(dir, 'local.db');
+}
+
+/** Node --watch spuriously restarts on mapped/network drives (e.g. Z:). */
+function shouldDisableWatch() {
+  if (process.env.VENUE_POS_AGENT_NO_WATCH === '1') return true;
+  const resolved = path.resolve(agentRoot);
+  if (resolved.startsWith('\\\\')) return true;
+  return /^[Zz]:/.test(resolved);
+}
+
 ensureStandaloneEnv();
 ensureDeps();
 
@@ -54,20 +70,32 @@ if (!node20) {
   process.exit(1);
 }
 
+const sqlitePath = devSqlitePath();
+const noWatch = shouldDisableWatch();
+
 console.log('[standalone-agent] venue-pos-local-agent on http://127.0.0.1:3456');
 console.log('[standalone-agent] (not apps/local-agent)');
+console.log(`[standalone-agent] Dev SQLite: ${sqlitePath}`);
+if (noWatch) {
+  console.log(
+    '[standalone-agent] File watch OFF (network/mapped drive or VENUE_POS_AGENT_NO_WATCH=1) — restart dev stack after code changes',
+  );
+}
 
 const env = {
   ...node20PathEnv(),
   VENUE_POS_AGENT_ROOT: agentRoot,
   VENUE_POS_INSTALL_ROOT: agentRoot,
+  SQLITE_PATH: sqlitePath,
 };
 
-const child = spawn(
-  node20,
-  ['--watch-path=./src', '--watch', 'src/index.js'],
-  { cwd: agentRoot, stdio: 'inherit', env, shell: false },
-);
+const nodeArgs = noWatch
+  ? ['src/index.js']
+  : ['--watch-preserve-output', '--watch-path=./src', '--watch', 'src/index.js'];
+
+console.log('[standalone-agent] Starting agent process…');
+
+const child = spawn(node20, nodeArgs, { cwd: agentRoot, stdio: 'inherit', env, shell: false });
 
 child.on('exit', (code, signal) => {
   if (signal) process.kill(process.pid, signal);

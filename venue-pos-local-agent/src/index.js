@@ -33,6 +33,7 @@ import {
   setLocalDeviceLabel,
 } from './services/device-profile.js';
 import { applyHubLanConfig } from './services/lan-config.js';
+import { probeReceiptPrinterHealth } from './services/receipt-printer.js';
 
 const port = Number(process.env.PORT ?? DEFAULT_AGENT_LAN_PORT);
 const host = process.env.HOST ?? '127.0.0.1';
@@ -170,6 +171,14 @@ const app = await buildAgentServer({
   },
 });
 
+app.log.info(`Local agent listening on ${host}:${port}`);
+
+const startupPrinters = resolvePrinterConfig(envPrinterDefaults);
+void probeReceiptPrinterHealth({
+  host: startupPrinters.receiptPrinterHost,
+  port: startupPrinters.receiptPrinterPort,
+}).catch((err) => app.log.warn({ err }, 'Receipt printer probe failed'));
+
 async function withRetry(label, fn, { attempts = 12, delayMs = 1000 } = {}) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
@@ -213,6 +222,7 @@ async function refreshCloudStatus() {
 }
 
 if (venueId && terminalId && terminalSecret) {
+  app.log.info('Startup sync (menu, roster, cheques)…');
   await refreshCloudStatus();
 
   try {
@@ -364,5 +374,3 @@ if (venueId && terminalId && terminalSecret) {
 } else {
   app.log.warn('TERMINAL_ID / TERMINAL_SECRET / VENUE_ID not set — sync disabled');
 }
-
-app.log.info(`Local agent listening on ${host}:${port}`);

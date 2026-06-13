@@ -3,7 +3,6 @@ import { getPrinterHealth } from '../services/kitchen-printer.js';
 import {
   getReceiptPrinterHealth,
   isCashDrawerEnabled,
-  probeReceiptPrinterHealth,
 } from '../services/receipt-printer.js';
 import { isCloudOnline } from '../services/cloud-health.js';
 import {
@@ -66,11 +65,6 @@ export function registerHealthRoutes(
     const cluster = clusterState();
     const deviceProfile = getDeviceProfile?.() ?? {};
     const labels = buildClusterLabels(cluster);
-    const printers = getPrinterConfig?.() ?? {};
-    await probeReceiptPrinterHealth({
-      host: printers.receiptPrinterHost,
-      port: printers.receiptPrinterPort,
-    });
     const provisioned = Boolean(terminalId && terminalSecret && apiUrl);
     const staffCount = db.prepare(`SELECT COUNT(*) AS c FROM staff_cache`).get()?.c ?? 0;
     return {
