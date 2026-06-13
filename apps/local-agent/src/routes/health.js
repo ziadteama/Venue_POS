@@ -40,7 +40,6 @@ export function registerHealthRoutes(
     coordinatorFallback,
     clusterManager,
     getDeviceProfile,
-    getPrinterConfig,
   },
 ) {
   const clusterState = () => clusterManager?.getState?.() ?? {};
