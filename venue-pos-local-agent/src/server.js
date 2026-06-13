@@ -1,0 +1,104 @@
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import { registerHealthRoutes } from './routes/health.js';
+import { registerMenuRoutes } from './routes/menu.js';
+import { registerSyncRoutes } from './routes/sync.js';
+import { registerOrderRoutes } from './routes/orders.js';
+import { registerChequeRoutes } from './routes/cheques.js';
+import { registerCrossVenueRoutes } from './routes/cross-venue.js';
+import { registerShiftRoutes } from './routes/shifts.js';
+import { registerFeatureRoutes } from './routes/features.js';
+import { registerOrderExplorerRoutes } from './routes/order-explorer.js';
+import { registerFloorRoutes } from './routes/floor.js';
+import { registerAuthRoutes } from './routes/auth.js';
+import { registerPeerRoutes, registerRelayRoutes } from './routes/peer.js';
+import { registerEventRoutes } from './routes/events.js';
+import { registerHardwareRoutes } from './routes/hardware.js';
+import { registerSetupRoutes } from './routes/setup.js';
+import { getRuntimeConfig, initRuntimeConfig } from './services/runtime-config.js';
+
+export async function buildAgentApp({ db, config, logger = false }) {
+  const app = Fastify({
+    logger: logger === false ? false : typeof logger === 'object' ? logger : { level: 'info' },
+  });
+  const {
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    corsOrigins,
+    getPrinterConfig,
+    autoReceiptPrint,
+    isCoordinator,
+    coordinatorMode,
+    getCoordinatorLanHost,
+    coordinatorFallback = false,
+    getClusterState,
+    clusterManager,
+    getOwnLanHost,
+    getDeviceProfile,
+    lanPort = 3456,
+    lanSecret = '',
+  } = config;
+
+  initRuntimeConfig({
+    apiUrl,
+    cloudHealthUrl: `${String(apiUrl ?? '').replace(/\/+$/, '')}/health`,
+    venueId,
+    terminalId,
+    terminalSecret,
+  });
+
+  await app.register(cors, {
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['content-type', 'x-agent-lan-secret', 'x-terminal-id', 'x-terminal-secret'],
+  });
+
+  const routeCtx = {
+    db,
+    apiUrl,
+    venueId,
+    terminalId,
+    terminalSecret,
+    getPrinterConfig,
+    autoReceiptPrint,
+    isCoordinator,
+    coordinatorMode,
+    getCoordinatorLanHost,
+    coordinatorFallback,
+    getClusterState,
+    getDeviceProfile,
+    lanPort,
+    lanSecret,
+  };
+
+  registerHealthRoutes(app, { ...routeCtx, clusterManager });
+  registerEventRoutes(app, { corsOrigins });
+  registerAuthRoutes(app, { db, getRuntimeConfig });
+  registerFloorRoutes(app, routeCtx);
+  registerMenuRoutes(app, routeCtx);
+  registerSyncRoutes(app, routeCtx);
+  registerOrderRoutes(app, routeCtx);
+  registerChequeRoutes(app, routeCtx);
+  registerCrossVenueRoutes(app, routeCtx);
+  registerShiftRoutes(app, { db, apiUrl, terminalId, terminalSecret });
+  registerFeatureRoutes(app, routeCtx);
+  registerOrderExplorerRoutes(app, routeCtx);
+  registerHardwareRoutes(app, routeCtx);
+  registerSetupRoutes(app, { lanPort, db });
+
+  if (clusterManager) {
+    registerPeerRoutes(app, { clusterManager, getOwnLanHost });
+    registerRelayRoutes(app, { apiUrl });
+  }
+
+  return app;
+}
+
+export async function buildAgentServer({ db, config }) {
+  const app = await buildAgentApp({ db, config });
+  const { port, host } = config;
+  await app.listen({ port, host });
+  return app;
+}

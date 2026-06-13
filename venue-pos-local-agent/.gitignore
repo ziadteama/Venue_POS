@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+*.log
+data/*
+!data/.gitkeep
+pm2/
+*.db
+*.db-shm
+*.db-wal
+ecosystem.config.cjs
+.DS_Store
+Thumbs.db

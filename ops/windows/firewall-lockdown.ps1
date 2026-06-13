@@ -28,7 +28,7 @@ $rulePrefix = "VenuePos"
 Write-Host "Removing existing $rulePrefix rules ..."
 Get-NetFirewallRule -DisplayName "$rulePrefix*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 
-Write-Host "Blocking all outbound by default (use with care — test on staging till first)."
+Write-Host "Blocking all outbound by default (use with care - test on staging till first)."
 New-NetFirewallRule -DisplayName "${rulePrefix}-Block-Outbound-Default" `
   -Direction Outbound -Action Block -Enabled True | Out-Null
 

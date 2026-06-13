@@ -1903,6 +1903,44 @@ npm run test -w @venue-pos/api -- apps/api/src/manager-terminals.test.js apps/ap
 ```
 **Notes:** Secret shown once on create; not stored or retrievable later (rotate/deactivate deferred).
 
+### 2026-06-12 — Windows till: local-agent service + launch-till.cmd
+**Phase:** 7 · **Story:** till deployment / US-9.x
+**What:** `install-agent.ps1` registers NSSM `VenuePosAgent` (boot), writes `local-agent/.env`, generates `launch-till.cmd` (agent service → watchdog → portable POS exe). `install.ps1` calls it; kiosk shell uses `launch-till.cmd`. POS wizard restarts agent on Windows (`nssm restart`); `resolveAgentRoot` finds `C:\Venue_POS\local-agent`.
+**Files:** `ops/windows/install-agent.ps1`, `pos-launcher.ps1`, `install.ps1`, `setup-kiosk-user.ps1`, `README.md`, `config-store.cjs`, `build-till-bundle-windows.mjs`
+**Verify:**
+```powershell
+cd C:\Venue_POS\ops\windows
+.\install-agent.ps1 -InstallRoot C:\Venue_POS -ApiUrl https://hub -TerminalId <id> -TerminalSecret <secret> -VenueId <venue>
+Invoke-WebRequest http://127.0.0.1:3456/health -UseBasicParsing
+.\setup-kiosk-user.ps1 -Password "..." -RepoRoot C:\Venue_POS
+# Reboot — agent + portable exe autostart
+npm run test -w @venue-pos/pos
+```
+**Notes:** Requires Node 20 + NSSM on till. Portable exe alone is insufficient — run full bundle install.
+
+### 2026-06-12 — Windows deployment/*.bat + PM2 local-agent
+**Phase:** 7 · **Story:** till deployment
+**What:** Redid `deployment/` bats for **PM2 + pm2-windows-startup** (no NSSM for agent). `install-agent.ps1` registers `venue-pos-agent`, shared `PM2_HOME` at `data/pm2`, `launch-till.cmd` uses `pm2 resurrect/start`. POS wizard restarts agent via `pm2 restart`.
+**Files:** `deployment/*`, `ops/windows/install-agent.ps1`, `pos-launcher.ps1`, `ecosystem.config.cjs`, `config-store.cjs`, `README.md`, `DEVELOPMENT.md`
+**Verify:** `deployment\install-all.bat` → `pm2 status` → `http://127.0.0.1:3456/health` → reboot → portable POS
+**Notes:** `install-pm2.bat` installs globals. `install-watchdog.ps1` still optional NSSM path.
+
+---
+
+### 2026-06-12 — Windows auto Node 20 install for till deployment
+**Phase:** 7 · **Story:** till deployment
+**What:** `ensure-node20.ps1` uninstalls non-Node-20 installs, downloads/installs latest Node 20.x MSI, and prepends `C:\Program Files\nodejs` on PATH. Wired into `install-pm2.bat`, `install.ps1`, `install-agent.ps1`, and native rebuild.
+**Files:** `ops/windows/ensure-node20.ps1`, `deployment/ensure-node20.bat`, `deployment/install-pm2.bat`, `deployment/_helpers.bat` (`RefreshPath`), `provision.env.example`
+**Verify:** On PC with Node 22: `deployment\ensure-node20.bat` (Admin) → `node -v` shows `v20.x` → `deployment\install-agent.bat`
+**Notes:** Offline till: set `NODE20_MSI_PATH` in `provision.env`. Requires internet on first run unless MSI path set.
+
+### 2026-06-12 — Standalone local-agent microservice repo (`venue-pos-local-agent/`)
+**Phase:** 7 · **Story:** till deployment
+**What:** Extractable standalone service folder — vendored `packages/shared`, own `package.json`, PM2 install (`install.bat` / `scripts/install.ps1`), no monorepo root required. Sync from monorepo via `npm run sync:local-agent-standalone`.
+**Files:** `venue-pos-local-agent/*`, `scripts/sync-standalone-local-agent.mjs`
+**Verify:** Clone/copy folder → `copy provision.env.example provision.env` → Admin `install.bat` → `pm2 status` → `http://127.0.0.1:3456/health`
+**Notes:** Push `venue-pos-local-agent/` to its own GitHub repo for prod tills.
+
 ---
 
 ## Quick reference — Phase 0 deliverables
